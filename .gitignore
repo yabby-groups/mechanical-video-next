@@ -1,0 +1,21 @@
+work/
+node_modules/
+remotion/node_modules/
+remotion/public/cache/
+__pycache__/
+*.blend1
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# Generated media stays local; retain only the exact default-voice approval evidence.
+assets/audio/
+assets/assemblies/**/*.blend
+output/*
+!output/narration-audition/
+output/narration-audition/*
+!output/narration-audition/neil-documentary-audition-v1/
+output/narration-audition/neil-documentary-audition-v1/*
+!output/narration-audition/neil-documentary-audition-v1/approved-74e4c330ab3a-82e9cd54172b.json
+!output/narration-audition/neil-documentary-audition-v1/audition.wav

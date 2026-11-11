@@ -1,0 +1,14 @@
+{
+  "eas": {
+    "url": "https://github.com/ehsun-sh/blender-exploded-assembly-studio",
+    "version": "1.14.0",
+    "commit": "fa362982f67ed47013ecfb5b2a03dc61f3259112",
+    "license": "GPL-2.0-or-later"
+  },
+  "gears": {
+    "url": "https://github.com/blender/blender-addons/blob/e8da6131fddab2ac16b8c7e5f26b4462be323911/add_mesh_extra_objects/add_mesh_gears.py",
+    "commit": "e8da6131fddab2ac16b8c7e5f26b4462be323911",
+    "license": "GPL-2.0-or-later",
+    "limitation": "Simplified tooth geometry; not involute contact simulation"
+  }
+}
