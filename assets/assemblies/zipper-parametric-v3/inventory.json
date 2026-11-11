@@ -1,0 +1,1015 @@
+{
+  "parts": [
+    {
+      "name": "tooth_L_00",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -11.708039020390883,
+          -3.2760799824077433,
+          -0.6000000999999999
+        ],
+        [
+          -7.6326460466219475,
+          2.2294692186244527,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -11.361628758877108,
+          -3.0760798824077433,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_01",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -15.172140635528638,
+          -1.2760799824077436,
+          -0.6000000999999999
+        ],
+        [
+          -11.096747661759704,
+          4.229469218624453,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -14.825730374014864,
+          -1.0760798824077433,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_02",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -18.636242250666392,
+          0.7239200175922567,
+          -0.6000000999999999
+        ],
+        [
+          -14.560849276897457,
+          6.229469218624453,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -18.289831989152617,
+          0.9239201175922567,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_03",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -22.100343865804145,
+          2.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          -18.02495089203521,
+          8.229469218624455,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -21.75393360429037,
+          2.9239201175922602,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_04",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -25.5644454809419,
+          4.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          -21.489052507172964,
+          10.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -25.218035219428124,
+          4.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_05",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -29.028547096079656,
+          6.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          -24.95315412231072,
+          12.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -28.68213683456588,
+          6.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_06",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -32.492648711217406,
+          8.723920017592262,
+          -0.6000000999999999
+        ],
+        [
+          -28.41725573744847,
+          14.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -32.14623844970363,
+          8.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_L_07",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          -35.95675032635517,
+          10.723920017592262,
+          -0.6000000999999999
+        ],
+        [
+          -31.881357352586225,
+          16.22946921862446,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -35.61034006484139,
+          10.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_00",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          9.364696854190825,
+          -2.2760799824077433,
+          -0.6000000999999999
+        ],
+        [
+          13.440089827959762,
+          3.2294692186244527,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          13.093679566445987,
+          -2.0760798824077433,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_01",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          12.828798469328579,
+          -0.2760799824077434,
+          -0.6000000999999999
+        ],
+        [
+          16.904191443097517,
+          5.229469218624453,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          16.55778118158374,
+          -0.07607988240774333,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_02",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          16.292900084466332,
+          1.7239200175922584,
+          -0.6000000999999999
+        ],
+        [
+          20.36829305823527,
+          7.2294692186244545,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          20.021882796721492,
+          1.9239201175922584,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_03",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          19.75700169960409,
+          3.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          23.832394673373027,
+          9.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          23.48598441185925,
+          3.9239201175922602,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_04",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          23.22110331474184,
+          5.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          27.296496288510777,
+          11.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          26.950086026997,
+          5.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_05",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          26.685204929879596,
+          7.723920017592259,
+          -0.6000000999999999
+        ],
+        [
+          30.760597903648534,
+          13.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          30.414187642134756,
+          7.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_06",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          30.149306545017353,
+          9.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          34.22469951878629,
+          15.229469218624457,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          33.87828925727251,
+          9.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tooth_R_07",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 7.665378649823374,
+      "bounds_world_mm": [
+        [
+          33.613408160155096,
+          11.72392001759226,
+          -0.6000000999999999
+        ],
+        [
+          37.68880113392404,
+          17.22946921862446,
+          0.6000000999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          37.34239087241026,
+          11.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          -0.6
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tape_L",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 36.723339422435004,
+      "bounds_world_mm": [
+        [
+          -44.67059410268577,
+          -23.0,
+          -0.9
+        ],
+        [
+          -2.7,
+          16.96315060213359,
+          -0.6000000000000001
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "tape_R",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 36.72333942243425,
+      "bounds_world_mm": [
+        [
+          2.7,
+          -23.0,
+          -0.9
+        ],
+        [
+          44.67059410268577,
+          16.96315060213359,
+          -0.6000000000000001
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "slider_lower",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 531.3000000000002,
+      "bounds_world_mm": [
+        [
+          -32.0,
+          -17.0,
+          -1.45
+        ],
+        [
+          32.0,
+          6.0,
+          -0.8999999999999999
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "slider_upper",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 534.2687186850573,
+      "bounds_world_mm": [
+        [
+          -32.0,
+          -17.0,
+          0.9
+        ],
+        [
+          32.0,
+          6.0,
+          3.1
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "slider_wedge",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 43.199999999999996,
+      "bounds_world_mm": [
+        [
+          -3.0,
+          -2.0,
+          -0.9
+        ],
+        [
+          3.0,
+          6.0,
+          0.9
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "slider_flange_L",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 20.69999999999998,
+      "bounds_world_mm": [
+        [
+          -32.0,
+          -17.0,
+          -0.9
+        ],
+        [
+          -9.5,
+          6.0,
+          0.9
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "slider_flange_R",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 20.699999999999946,
+      "bounds_world_mm": [
+        [
+          9.5,
+          -17.0,
+          -0.9
+        ],
+        [
+          32.0,
+          6.0,
+          0.9
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "pull",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 16.97197289259036,
+      "bounds_world_mm": [
+        [
+          -2.7000000000000006,
+          -14.0,
+          1.2499999999999996
+        ],
+        [
+          2.7,
+          -6.0,
+          3.075
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "pull_pin",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 6.892654281976006,
+      "bounds_world_mm": [
+        [
+          -4.1000000000000005,
+          -13.7,
+          1.4000000000000001
+        ],
+        [
+          4.1000000000000005,
+          -12.3,
+          2.8
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -14.0,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "top_stop_0",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 1.7160000000000002,
+      "bounds_world_mm": [
+        [
+          -43.37645980757678,
+          14.122606145510819,
+          -0.6
+        ],
+        [
+          -41.70062678265701,
+          15.725234089673702,
+          0.6
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          -42.538543295116895,
+          14.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 1.0471975511965976
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "top_stop_1",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 1.7160000000000002,
+      "bounds_world_mm": [
+        [
+          41.70062678265701,
+          14.122606145510819,
+          -0.6
+        ],
+        [
+          43.37645980757678,
+          15.725234089673702,
+          0.6
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          42.538543295116895,
+          14.92392011759226,
+          0
+        ],
+        "rotation_z_rad": 2.0943951023931957
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    },
+    {
+      "name": "bottom_stop",
+      "units": "mm",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 14.783999999999995,
+      "bounds_world_mm": [
+        [
+          -4.4,
+          -22.7,
+          -0.6
+        ],
+        [
+          4.4,
+          -21.3,
+          0.6
+        ]
+      ],
+      "local_frame": {
+        "origin": "heel datum / component construction origin",
+        "translation_mm": [
+          0,
+          -22,
+          0
+        ],
+        "rotation_z_rad": 0
+      },
+      "datums": {
+        "attachment": [
+          0,
+          0,
+          0
+        ]
+      },
+      "independent_mesh": true
+    }
+  ],
+  "count": 28,
+  "source": "build123d/OpenCASCADE authored solids",
+  "primary": "zipper-parametric-v3.step"
+}

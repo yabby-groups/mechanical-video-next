@@ -1,0 +1,199 @@
+{
+  "schema": "cad-validation-v1",
+  "scope": "Planar molded-tooth head/neck retention and prescribed Y-guided tangent motion. Dimensions authored for illustration, not a product standard. No forces, tape elasticity, manufacturing fit, auto-lock, or out-of-plane retention claim.",
+  "status": "NEEDS_REVIEW",
+  "all_positive_valid_single_solids": true,
+  "solid_count": 42,
+  "step_roundtrip_solid_count": 42,
+  "step_roundtrip_count_match": true,
+  "initial_unintended_intersections": [],
+  "dynamic_samples": [
+    {
+      "phase": 0.0,
+      "slider_mm": -14.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.041666666666666664,
+      "slider_mm": -12.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.08333333333333333,
+      "slider_mm": -10.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.125,
+      "slider_mm": -8.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.16666666666666666,
+      "slider_mm": -6.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.20833333333333334,
+      "slider_mm": -4.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.25,
+      "slider_mm": -2.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.2916666666666667,
+      "slider_mm": 0.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.3333333333333333,
+      "slider_mm": 2.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.375,
+      "slider_mm": 4.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.4166666666666667,
+      "slider_mm": 6.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.4583333333333333,
+      "slider_mm": 8.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.5,
+      "slider_mm": 10.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.5416666666666666,
+      "slider_mm": 12.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.5833333333333334,
+      "slider_mm": 14.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.625,
+      "slider_mm": 16.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.6666666666666666,
+      "slider_mm": 18.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.7083333333333334,
+      "slider_mm": 20.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.75,
+      "slider_mm": 22.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.7916666666666666,
+      "slider_mm": 24.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.8333333333333334,
+      "slider_mm": 26.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.875,
+      "slider_mm": 28.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.9166666666666666,
+      "slider_mm": 30.0,
+      "intersections": []
+    },
+    {
+      "phase": 0.9583333333333334,
+      "slider_mm": 32.0,
+      "intersections": []
+    },
+    {
+      "phase": 1.0,
+      "slider_mm": 34.0,
+      "intersections": []
+    }
+  ],
+  "dynamic_intersection_sample_count": 25,
+  "dynamic_intersection_pairs_count": 0,
+  "transverse_retention_probe": [
+    {
+      "left_displacement_mm": 0,
+      "intersection_mm3": 0.0
+    },
+    {
+      "left_displacement_mm": -0.5,
+      "intersection_mm3": 0.0
+    },
+    {
+      "left_displacement_mm": -1,
+      "intersection_mm3": 0.0
+    },
+    {
+      "left_displacement_mm": -1.25,
+      "intersection_mm3": 0.16331256118578535
+    },
+    {
+      "left_displacement_mm": -1.5,
+      "intersection_mm3": 0.3433125611857852
+    }
+  ],
+  "transverse_retention_observed": true,
+  "limitations": [
+    "Disconnected rigid tape support patches do not model a continuous stringer",
+    "Tooth root touches support surface by rigid attachment convention; no beaded anchorage fit",
+    "Sampled collisions cover25 closing states; opening is exact reverse; no continuous collision proof",
+    "No CAD joints are persisted as physical constraints; explicit local datums and generated placements are used"
+  ],
+  "out_of_plane_retention": "UNKNOWN - planar profile lacks support wings; no z-retention claim",
+  "physical_simulation": false,
+  "runtime_seconds": 3.70399270899361,
+  "cache_hit": false,
+  "temporary_space_bytes": 5858393,
+  "free_disk_bytes": 24330240000,
+  "token_count": null,
+  "cost": null,
+  "repair_history": [
+    {
+      "defect_key": "cad-zipper-guided-tooth-intersection",
+      "baseline": "rectangular 3mm head width, exact BREP observed 0.130mm3 intersection at slider -2,2,...26mm",
+      "round": 1,
+      "strategy": "reduce head width to2.6mm; retain 0.6mm opposed head y overlap; round profile edges",
+      "result": "0 tooth-tooth hits in final sampled CAD assembly; transverse head-blocking observed"
+    },
+    {
+      "defect_key": "cad-slider-guide-envelope",
+      "baseline": "209 hits over25samples; includes signed polygon engineering bug, undersized outer envelope, tape support patch overlaps",
+      "round": 1,
+      "strategy": "enforce CCW extrusion; shorten support patches; top stops follow tape; pull pin hole",
+      "result": "70 hits over25samples, saved repair1-assembly-intersections.json"
+    },
+    {
+      "defect_key": "cad-slider-guide-envelope",
+      "round": 2,
+      "strategy": "widen outer walls and plates, narrow wedge and delay tip to y12, place bottom stop beyond slider start",
+      "result": "0 hits over25samples; measured exact BREP common-volume threshold1e-6 mm3; not a continuous proof"
+    }
+  ],
+  "prior_route_budget": "Earlier mesh-guidance route remains exhausted; CAD rebuild explicitly authorized; no reset of previous defect acceptance."
+}

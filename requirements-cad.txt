@@ -1,0 +1,5 @@
+# Verified on CPython 3.11.14 / macOS arm64. Install in a project virtualenv.
+build123d==0.13.0
+cadquery-ocp-novtk==8.0.1.1.0
+numpy==2.4.6
+trimesh==5.2.0
