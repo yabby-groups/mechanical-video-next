@@ -1,0 +1,56 @@
+{
+  "id": "zipper-new-source-v1",
+  "kind": "source-mesh-assembly-v1",
+  "license": "CC-BY-4.0",
+  "source": "Thingiverse2338290 msadler2",
+  "source_files": [
+    {
+      "path": "assets/assemblies/zipper-msadler2-2338290-v1/source.stl",
+      "sha256": "c561776892456754a680d594de0b44235d0ba7ea9a1f17156a3c447e65e6cda8",
+      "scale": 0.04,
+      "split_loose": true
+    }
+  ],
+  "required_parts": [
+    "source0_000",
+    "source0_001",
+    "source0_002",
+    "source0_003",
+    "source0_004"
+  ],
+  "materials": {
+    "steel": {
+      "color": [
+        0.6,
+        0.66,
+        0.72
+      ]
+    },
+    "blue": {
+      "color": [
+        0.2,
+        0.5,
+        0.7
+      ]
+    },
+    "dark": {
+      "color": [
+        0.23,
+        0.27,
+        0.3
+      ]
+    }
+  },
+  "part_materials": {
+    "source0_001": "blue",
+    "source0_004": "dark"
+  },
+  "motion": {
+    "template": "data-keyframes-v1"
+  },
+  "unverified": [
+    "Source part identity and original slider assembly coordinates",
+    "Source-model working motion",
+    "This printable model is not industrial metal zipper CAD"
+  ]
+}
