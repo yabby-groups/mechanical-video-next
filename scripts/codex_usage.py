@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Export native collaboration metadata/usage only, never conversation content.
 
 Codex session JSONL is a local diagnostic format, not a stable public API.

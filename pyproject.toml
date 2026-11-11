@@ -1,0 +1,12 @@
+[project]
+name = "mechanical-video-next"
+version = "0.1.0"
+description = "Evidence-gated mechanical video production tools"
+requires-python = ">=3.11,<3.12"
+dependencies = ["pillow>=11,<13"]
+
+[dependency-groups]
+dev = ["pyyaml>=6,<7"]
+
+[tool.uv]
+package = false

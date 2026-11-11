@@ -1,4 +1,5 @@
 work/
+.venv/
 node_modules/
 remotion/node_modules/
 remotion/public/cache/

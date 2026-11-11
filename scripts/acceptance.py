@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Seven bounded production regressions. --run executes real tools serially.
 
 This is a deterministic regression harness, not a Codex or perceptual reviewer.
@@ -58,7 +58,7 @@ def invoke(cfgpath, phase, directory):
     logfile = directory / (phase + '-' + str(time.time_ns()) + '.log')
     started = time.time()
     with logfile.open('w') as out:
-        result = subprocess.run([sys.executable, str(ROOT / 'scripts/produce.py'),
+        result = subprocess.run(['uv', 'run', '--project', str(ROOT), 'python', str(ROOT / 'scripts/produce.py'),
                                  str(cfgpath), '--phase', phase], cwd=ROOT,
                                 stdout=out, stderr=subprocess.STDOUT)
     rows = observations(logfile)
@@ -131,7 +131,7 @@ def reject_single_mesh(directory):
     start = time.time()
     logfile = directory/'single-mesh-rejection.log'
     with w.lock(ROOT/'work/production.lock'), logfile.open('w') as log:
-        result = subprocess.run([sys.executable, str(ROOT/'scripts/import_asset.py'), str(source),
+        result = subprocess.run(['uv', 'run', '--project', str(ROOT), 'python', str(ROOT/'scripts/import_asset.py'), str(source),
                                  '--origin', 'local:controlled-CC0-negative-fixture',
                                  '--license', 'CC0-1.0', '--version', 'negative-v1'],
                                 stdout=log, stderr=subprocess.STDOUT, cwd=ROOT)

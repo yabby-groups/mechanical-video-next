@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Label native diagnostic media without scaling; emit verifiable source receipts.
 
 Requires Pillow. Uses cache paths only after validating complete.json hashes.

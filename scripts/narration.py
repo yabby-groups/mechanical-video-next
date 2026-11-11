@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Sentence WAV cache, measured FFmpeg timing, loudnorm and user-confirmed voice default.
 
 HTTP synthesis never retries. An uncertain submitted request is never resubmitted.

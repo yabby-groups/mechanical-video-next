@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Inspect one existing EAS shot before committing to an entire style render."""
 import argparse
 import copy

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Register a local GLB/glTF/Blend with provenance; no unlicensed network scraping."""
 import argparse
 import json

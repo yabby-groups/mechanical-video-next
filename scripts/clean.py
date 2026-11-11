@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Lock-aware age-based cleanup of completed, unprotected regenerable caches only."""
 import argparse
 from contextlib import contextmanager

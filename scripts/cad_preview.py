@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Author one-shot CAD diagnostics for the existing EAS scene renderer.
 
 No Blender process, geometry generation, contact solving, or production approval.

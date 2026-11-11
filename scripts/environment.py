@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Read-only environment audit; saves evidence, installs nothing."""
 import importlib.util
 import json
@@ -19,7 +19,8 @@ def main():
     value={'platform':platform.platform(),'machine':platform.machine(),'disk':shutil.disk_usage(ROOT)._asdict(),
         'tools':{name:version(args) for name,args in {
             'blender':[BLENDER,'--version'],'ffmpeg':['ffmpeg','-version'],'ffprobe':['ffprobe','-version'],
-            'python':['python3','--version'],'node':['node','--version'],'npm':['npm','--version'],'codex':['codex','--version'],
+            'uv':['uv','--version'],
+            'python':['uv','run','--project',str(ROOT),'python','--version'],'node':['node','--version'],'npm':['npm','--version'],'codex':['codex','--version'],
             'remotion':['node','-p',"require('./remotion/node_modules/remotion/package.json').version"],
             'voices':['say','-v','?']}.items()},
         'optional_modules':{m:importlib.util.find_spec(m) is not None for m in ['manim','build123d','FreeCAD']},
