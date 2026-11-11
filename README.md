@@ -1,6 +1,21 @@
 # Mechanical Video Next
 
-**资产策略已改为自主参数化 CAD。** 新 CLI 任务默认 `asset_strategy=autonomous-cad`：MechanicalResearch → build123d/Open CASCADE CAD → 独立机械 QA → 动态分镜 QA → 高清制作。网络资料只作结构和创意依据，默认不下载成品模型。当前拉链验证任务为 `output/tasks/zipper-cad-20261111`，源码、STEP/GLB、独立链牙、装配及短动作验证先于全片；历史工作片与旧缺陷记录保留。角色入口新增 `mechanical_research.toml` 与 `cad.toml`；旧 Asset/Research 接口保留历史兼容。每个缺陷自动修复总计最多两轮，未知不视为通过。
+每条视频都研究参考，爆款热度只是优先参考，不是准入条件。普通实物演示、图片、结构图和结构文档都可作为主参考。缺少爆款或原视频不得停止制作；Producer 自动选 3D CAD、2D 或 2.5D。视频逐镜头映射 reference_time_range，静态资料映射 reference_region（对应部位／结构特征），均记录 adaptation。没有视频不填写虚假的完整观看证据。
+
+图片路线已接入 scripts/layered.py 与 scripts/produce.py：layered 镜头直接生成视频并复用配音、字幕和合成。Producer 在资产／蓝图交接前执行 `uv run python -m mechanical_video_next select-route <task> --route 2.5d --reason "结构图适合分层演示"`；无需用户选择。asset-plan 提供 render_route、source_files 的 path/sha256 和 qualified=true。历史报告仅反映当时快照，以本规则为准。
+
+当前流程与进度见[视频复刻流程报告 v3](docs/plans/project-flow-status-20261111-v3.md)（2026-11-11 22:05 快照）。
+
+
+**当前自主执行目标：输入名称，自主完成。** 根据实际资料自动选择 CAD、2D 或 2.5D 路线并制作。新任务不设 Token 或修复轮次上限，无改善更换策略并保留历史，中间不要求用户逐步确认。旧任务通过 `adopt-autonomy` 登记新政策后继续，历史失败证据保留。这是已落实的执行政策与门禁，尚无任意名称输入后自动交付合格全片的端到端验证。
+
+**Python 统一通过 uv 运行。** 使用 `uv run python ...`，首次自动建立项目 `.venv`；Python 3.11 与基础/开发依赖由 `pyproject.toml`、`.python-version` 和 `uv.lock` 管理。CAD 命令使用 `uv run --with-requirements requirements-cad.txt python scripts/cad_generate.py ...`，按需加载已固定版本的 CAD 依赖。临时校验依赖用 `uv run --with <package> python ...`。Blender 内嵌 Python 保持由 Blender 执行。受限沙箱可设置 `UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache`。
+
+**每条视频必须研究爆款并采用主参考复刻。** 每次制作先筛选、核验并分析参考视频，选定一条主参考，再复刻其开场、内容结构、镜头顺序、节奏和关键演示，以自主 CAD、动画及 Neil 配音重新制作，沿用打印机 EP03 视觉。缓存可复用，但每条须有自己的研究结论和逐镜头对应表。新任务默认 `production_method=reference-recreation`；研究 `task_id/topic` 不匹配、缺主参考或镜头映射时拒绝冻结蓝图，并在生产配置门禁再次核对。未完成研究不能直接开始完整制作。
+
+**后续运营计划已更新（2026-11-11）：**详见[当前执行计划](docs/plans/operations-next-plan-20261111.md)。近期按指甲刀→手摇打蛋器→门锁斜舌→订书机（条件候选）做预检，只锁定下一条制作并准备两条合格储备；拉链重制阻塞不挡其他题预检。沿用自主CAD；修复上限按下述当前自主执行政策更新，低清阶段检查小红书/抖音手机显示；本次仅计划更新，不启动制作。
+
+**资产策略已改为自主参数化 CAD。** 新 CLI 任务默认 `asset_strategy=autonomous-cad`：MechanicalResearch → build123d/Open CASCADE CAD → 独立机械 QA → 动态分镜 QA → 高清制作。网络资料只作结构和创意依据，默认不下载成品模型。当前拉链验证任务为 `output/tasks/zipper-cad-20261111`，源码、STEP/GLB、独立链牙、装配及短动作验证先于全片；历史工作片与旧缺陷记录保留。角色入口新增 `mechanical_research.toml` 与 `cad.toml`；旧 Asset/Research 接口保留历史兼容。每个缺陷自动修复不设总轮次上限，未知不视为通过。
 
 本次[自主 CAD 实际交付与验证结果](docs/productions/zipper-cad-20261111.md)：28 个独立实体、STEP/GLB、连续简化布带、装配/爆炸/剖切图与 8 秒啮合分离诊断已生成。拉片铰接两轮修复后仍有实体干涉，独立 QA 为 FAIL，任务 BLOCKED；没有高清或完整新成片。125 项工程测试通过不代表机械验收通过。
 
@@ -13,12 +28,12 @@
 参考驱动流程现使用 protocol v2：先查本地 references，按 A 同题50% / B 相似结构30% / C 科普叙事20%研究（最多30候选、默认10深析），再将原创蓝图编译为实际镜头配置。配置、蓝图、动态分镜和独立 QA 都绑定不可变哈希；变更输入会使旧批准失效。新增 `.codex/agents/viral_research.toml` 与 `.agents/skills/viral-video-research/SKILL.md`，原有三个机械 Skills 继续复用。
 
 ```sh
-python3 -m mechanical_video_next.reference_library search --query '拉链'
-python3 -m mechanical_video_next.viral plan --topic '拉链为什么一拉就能合上？' --output output/tasks/zipper-viral-20261111/research
+uv run python -m mechanical_video_next.reference_library search --query '拉链'
+uv run python -m mechanical_video_next.viral plan --topic '拉链为什么一拉就能合上？' --output output/tasks/zipper-viral-20261111/research
 # 合法浏览器/接口取得真实候选后执行确定性筛选，工具本身不伪装已观看
-python3 -m mechanical_video_next.viral analyze --input output/tasks/zipper-viral-20261111/research/candidates.json --output output/tasks/zipper-viral-20261111/research
-python3 -m mechanical_video_next.blueprint compile --blueprint output/tasks/zipper-viral-20261111/research/creative-blueprint.json --base config/zipper-new.json --output output/tasks/zipper-viral-20261111/blueprint-config.json --draft
-python3 -m mechanical_video_next.blueprint animatic --blueprint output/tasks/zipper-viral-20261111/research/creative-blueprint.json --output output/tasks/zipper-viral-20261111/animatic-v1
+uv run python -m mechanical_video_next.viral analyze --input output/tasks/zipper-viral-20261111/research/candidates.json --output output/tasks/zipper-viral-20261111/research
+uv run python -m mechanical_video_next.blueprint compile --blueprint output/tasks/zipper-viral-20261111/research/creative-blueprint.json --base config/zipper-new.json --output output/tasks/zipper-viral-20261111/blueprint-config.json --draft
+uv run python -m mechanical_video_next.blueprint animatic --blueprint output/tasks/zipper-viral-20261111/research/creative-blueprint.json --output output/tasks/zipper-viral-20261111/animatic-v1
 ```
 
 上面拉链蓝图为 PROVISIONAL；静态分镜明确标记占位，不声称有合格机械运动。正式编译移除 `--draft`，要求完整 FROZEN 蓝图；Producer 将实际配置路径和 SHA256 绑定至新蓝图版本，再登记 feasibility、animatic-manifest 和独立 animatic-qa。QA 比较知识目标、研究原则、蓝图与实际 MP4；UNKNOWN/FAIL 阻止正式渲染。下文旧版直接 preview/final 示例需改用具备合格 v2 交接的 `stage` 或增加 `--task`；历史 v1 工作片须显式指定 `--legacy-workprint`，不能作为新制作验收。
@@ -34,9 +49,9 @@ python3 -m mechanical_video_next.blueprint animatic --blueprint output/tasks/zip
 当前视觉参考已明确为**打印机系列 EP03**：机械主体全画面、灰色空间、金属材质、柔和阴影、斜视与克制的镜头推进，少量标注及底部字幕。`config/planetary-01.json` / `planetary-02.json` 已采用该预设，配音保持 Neil。旧左右分栏配置保留为 `*-panel.json`，既有成片保留。`config/planetary-fullframe-style.json` 是只改版式的中间版本；实际材质灯光预览使用 `config/planetary-printer-ep03-style.json`、现有 EEVEE 渲染器及 `blender/studio_style.py` 小型预设，不复制旧架构。参考风格不等于科学或完整视听验收。
 
 ```sh
-python3 scripts/style_preview.py config/planetary-printer-ep03-style.json --phase keys
-python3 scripts/style_preview.py config/planetary-printer-ep03-style.json --phase preview
-python3 scripts/produce.py config/planetary-printer-ep03-style.json --phase preview
+uv run python scripts/style_preview.py config/planetary-printer-ep03-style.json --phase keys
+uv run python scripts/style_preview.py config/planetary-printer-ep03-style.json --phase preview
+uv run python scripts/produce.py config/planetary-printer-ep03-style.json --phase preview
 ```
 
 本地、素材优先的机械科普生产项目。三个 Skills 保留；Codex 主会话作为 Producer，五个窄职责子代理负责研究、资产、动画、剪辑、独立 QA。Blender/EAS 制作镜头，Remotion 合成，FFmpeg 检测。视频号统一默认旁白为 Qwen3-TTS / Neil，与卷尺同款。首期是有独立零件的简化行星齿轮教学装配，不是工业 CAD 或接触仿真。
@@ -47,23 +62,23 @@ python3 scripts/produce.py config/planetary-printer-ep03-style.json --phase prev
 
 ```sh
 # 在当前 Codex 会话中创建制作任务，由该会话继续派发真实子代理
-python3 -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json
+uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json
 # 从终端启动一个新的 Codex Producer，原生子代理由 Codex 调用
-python3 -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json --codex
+uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json --codex
 ```
 
 默认命令只创建 `output/tasks/<id>/task.json` 和 `producer-prompt.md`，不会凭 Python 自动拥有智能调度。`--codex` 调用真实 `codex exec --json`，保存原生日志 `codex.jsonl`；需要已登录、受信任的项目和可用的 Codex 服务。已在 Codex 内工作时不要嵌套启动 Producer。原有 `scripts/produce.py` 为单 Agent 回退。
 
-`--voice` 是给 Producer 的明确音色要求，不能绕过现有语音批准与试听流程；默认保留已选 Neil。只有现有行星教学装配已接入固定镜头；任意选题、真实电钻、2.5D 路线尚不能保证自动制作。不匹配的选题必须由 Research/Asset 阻断，不把行星示意替代真实电钻结构。45 秒是可请求目标，首条回归基线为现有 36 秒；不能为凑时长加速声音。
+`--voice` 是给 Producer 的明确音色要求，不能绕过现有语音批准与试听流程；默认保留已选 Neil。现有 3D 模板及 layered 图片模板可执行；2D/2.5D 已完成短片编码回归，任意名称到完整合格成片尚未完成端到端验证。Producer 根据选题资料自动选择可表达的路线。45 秒是可请求目标，首条回归基线为现有 36 秒；不能为凑时长加速声音。
 
 Research 与 Asset 并行，Animation 等待其合格交接，Editor 等待镜头时间轴，QA 独立读取实际媒体。每个 JSON 经 `handoff` 保存独立版本、所有权和依赖哈希，变化后旧依赖失效。状态前进用 `advance`，不是根据退出码直接 COMPLETED。
 
 ```sh
-python3 -m mechanical_video_next handoff output/tasks/<id> --role Research --name research --input research.json
-python3 -m mechanical_video_next handoff output/tasks/<id> --role Research --name script --input script.json --depends research
-python3 -m mechanical_video_next advance output/tasks/<id> RESEARCHING
-python3 -m mechanical_video_next stage output/tasks/<id> keys --config config/planetary-01.json
-python3 -m mechanical_video_next status output/tasks/<id>
+uv run python -m mechanical_video_next handoff output/tasks/<id> --role Research --name research --input research.json
+uv run python -m mechanical_video_next handoff output/tasks/<id> --role Research --name script --input script.json --depends research
+uv run python -m mechanical_video_next advance output/tasks/<id> RESEARCHING
+uv run python -m mechanical_video_next stage output/tasks/<id> keys --config config/planetary-01.json
+uv run python -m mechanical_video_next status output/tasks/<id>
 ```
 
 上述 stage 需要先登记合格资产并达到 ASSET_READY，完整依赖与命令见 CLI `--help` 和 AGENTS.md。门禁核对实际模型/媒体哈希、关键帧、技术报告及独立 QA；QA 的 UNKNOWN 阻止进入 EDITING/COMPLETED。`stage ... final --workprint` 只允许在 PREVIEW_CHECKING 且 QA 无 FAIL 时生成明确未验收工作样片，不推进状态。单纯 FFmpeg 扫描、截图抽样不能冒充连续观看、听审或原理完整验收。
@@ -72,12 +87,12 @@ python3 -m mechanical_video_next status output/tasks/<id>
 
 ## 局部修复与验收
 
-生产协议支持有证据的修复登记，每问题至多两策略、每策略两轮，无改善立即停止。确定性自动修复适配器当前只覆盖已绑定配置哈希和 cue 的字幕缺陷，其他类型由 Producer 选择现成模板、资产或逐句语音配置后重新交接；没有声称具备任意几何/相机/听感自动判断器。
+生产协议支持有证据的修复登记，新任务不设总轮次或策略数量上限，无改善时更换策略继续。确定性自动修复适配器当前只覆盖已绑定配置哈希和 cue 的字幕缺陷，其他类型由 Producer 选择现成模板、资产或逐句语音配置后重新交接；没有声称具备任意几何/相机/听感自动判断器。
 
 ```sh
-python3 -m mechanical_video_next.repairs output/tasks/<id> --config <video.json> --issue SUBTITLE-1 --shot s1 --cue 0 --text "修正字幕"
-python3 scripts/acceptance.py --run --scenario 1 2 3 4 5 7
-python3 -m unittest discover -s tests -v
+uv run python -m mechanical_video_next.repairs output/tasks/<id> --config <video.json> --issue SUBTITLE-1 --shot s1 --cue 0 --text "修正字幕"
+uv run python scripts/acceptance.py --run --scenario 1 2 3 4 5 7
+uv run python -m unittest discover -s tests -v
 ```
 
 修复适配器复用已有最终镜头，只重新合成，要求实际 QA 缺陷、精确媒体/配置哈希及 Editor 责任。修复结果仍需新的独立 QA，不直接关闭缺陷或标记成片合格。第六场景需要真实 QA 发现明确标记的受控故障、执行适配器和独立复验，回归脚本不会伪造该过程。第三场景仅修改旁白文本，复用已缓存 Neil 语句并刻意固定字幕作为隔离实验；该测试文件不能当可发布内容。
@@ -92,12 +107,12 @@ python3 -m unittest discover -s tests -v
 
 ```sh
 npm ci --prefix remotion --cache work/npm-cache --no-audit --no-fund
-python3 scripts/environment.py
-python3 scripts/produce.py config/planetary-01.json --phase keys
-python3 scripts/produce.py config/planetary-01.json --phase preview
-python3 scripts/produce.py config/planetary-01.json --phase final
-python3 scripts/produce.py config/planetary-02.json --phase all
-python3 -m unittest discover -s tests -v
+uv run python scripts/environment.py
+uv run python scripts/produce.py config/planetary-01.json --phase keys
+uv run python scripts/produce.py config/planetary-01.json --phase preview
+uv run python scripts/produce.py config/planetary-01.json --phase final
+uv run python scripts/produce.py config/planetary-02.json --phase all
+uv run python -m unittest discover -s tests -v
 npm run --prefix remotion typecheck
 ```
 
@@ -110,10 +125,10 @@ npm run --prefix remotion typecheck
 Neil 的系统音色偏清晰、沉稳的男声，延续纪录片式自然表达的目标。当前接口没有已验证的原生数值语速、风格或重音指令，使用分句、标点和叙述措辞引导表达，不把不支持的参数当成已生效。目标 1.0 时不使用 atempo；明确调速时只允许 0.95–1.05，并重测字幕时轴，禁止为卡镜头自动加速。
 
 ```sh
-python3 scripts/narration.py audition --env-file /path/to/existing.env
+uv run python scripts/narration.py audition --env-file /path/to/existing.env
 # 完成缓存后，无密钥也可复用当前默认音色的试听
-python3 scripts/narration.py audition
-python3 scripts/produce.py config/planetary-01.json --phase all --env-file /path/to/existing.env
+uv run python scripts/narration.py audition
+uv run python scripts/produce.py config/planetary-01.json --phase all --env-file /path/to/existing.env
 ```
 
 新试听位于 `output/narration-audition/neil-documentary-audition-v1/`，保留完整 WAV、三个镜头 WAV、SRT 和实测数据。Kai 文件与 `config/narration-audition-kai.json` 只保留为历史对比，不是默认音色。既有 MP4 不重配，新制作由 profile 选择 Neil。
@@ -151,7 +166,7 @@ Git 保存源码、配置、资产来源与部件清单。生成的 Blend、音�
 本地 GLB 或已打包 Blend 可登记、检查独立网格与来源：
 
 ```sh
-python3 scripts/import_asset.py model.glb --origin https://example.org/model --license CC-BY-4.0 --version v1
+uv run python scripts/import_asset.py model.glb --origin https://example.org/model --license CC-BY-4.0 --version v1
 ```
 
 单网格、未知许可证会拒绝进入素材库；导入不证明部件语义或授权声明真实。新资产需部件映射与运动资料，当前全片模板只集成这一套行星装配。STEP 需要外部 FreeCAD 转换，本项目没有安装或实现该转换。
@@ -163,8 +178,8 @@ work 预算 2 GiB，生成前保守估算未压缩帧上界；每 0.5 秒采样�
 缓存默认保存 7 天，清理先 dry run，必须显式 `--apply` 才删除已完成且命名合法的缓存条目；资产与成片永远不在删除范围。不自动清除未知临时目录或失败证据；这些需明确检查后处理。
 
 ```sh
-python3 scripts/clean.py --older-hours 168
-python3 scripts/clean.py --older-hours 168 --apply
+uv run python scripts/clean.py --older-hours 168
+uv run python scripts/clean.py --older-hours 168 --apply
 ```
 
 原始单 Agent 脚本异常即停，不自动重试。多 Agent 入口仅对有证据的明确缺陷作有限局部修复，策略与次数见上文。本期历史上发生一次媒体修复：低清 625 高度无法编码 H.264，给编码增加单像素 padding 后直接复用原帧通过。环境启动和 npm 缓存权限问题另计，不冒充零工程干预。
@@ -185,9 +200,9 @@ python3 scripts/clean.py --older-hours 168 --apply
 `config/planetary-01.json` 和 `planetary-02.json` 默认 1920×1080、30 fps、H.264/AAC，使用已选定的 Neil 普通话旁白。视觉参照打印机系列 EP03，采用全画面机械主体、灰色空间、金属材质、柔和阴影及底部逐句字幕。Blender 按完整横屏画幅取景，渲染尺寸与视觉预设源码进入镜头缓存键。当前文件使用 `-fullframe` ID；旧 panel 配置、横屏及竖屏 MP4 保留。
 
 ```sh
-/usr/bin/python3 scripts/produce.py config/planetary-01.json --phase keys
-/usr/bin/python3 scripts/produce.py config/planetary-01.json --phase preview --env-file /path/to/local.env
-/usr/bin/python3 scripts/produce.py config/planetary-01.json --phase final --env-file /path/to/local.env
+uv run python scripts/produce.py config/planetary-01.json --phase keys
+uv run python scripts/produce.py config/planetary-01.json --phase preview --env-file /path/to/local.env
+uv run python scripts/produce.py config/planetary-01.json --phase final --env-file /path/to/local.env
 ```
 
 支持保留 1080×1920 配置供历史版式复用；改变配音或字幕不会改变 3D 缓存键。横屏也必须先验证关键帧、低清全片，再输出正式成片。

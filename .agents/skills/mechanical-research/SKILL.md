@@ -13,6 +13,6 @@ description: 为自主机械 CAD 提供可追溯的结构事实、尺寸边界�
 
 机械保持必须说明实际互补面和被限制的方向。静态无交集、有限帧无穿透、规定轨迹均不等于接触仿真或完整可动性证明。向 Producer 和 CAD 角色及时报告无法成立或尚无依据的运动与镜头。
 
-保留旧失败、持久问题 ID 和耗尽的修复额度；换任务名称不重置。每问题至多两种策略、每策略两次，无可测改善即停。
+保留旧失败、持久问题 ID 和全部修复历史；不设总轮次上限。无可测改善时由 Producer 更换策略继续，不能通过换名称丢弃失败证据。
 
-研究通过 `python3 -m mechanical_video_next handoff <task> --role Research --name research --input <research.vN.json>` 生成不可变版本；修改创建新版本。正式脚本先读当前获批蓝图和知识目标，CAD 可行性研究不擅自决定视频创意。未暴露的 token、费用和人工介入计量填 null。不得上传、发布或保存平台草稿。
+研究通过 `uv run python -m mechanical_video_next handoff <task> --role Research --name research --input <research.vN.json>` 生成不可变版本；修改创建新版本。正式脚本先读当前获批蓝图和知识目标，CAD 可行性研究不擅自决定视频创意。未暴露的 token、费用和人工介入计量填 null。不得上传、发布或保存平台草稿。
