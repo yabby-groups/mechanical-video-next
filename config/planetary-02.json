@@ -1,0 +1,149 @@
+{
+  "asset": "planetary-teaching-v1",
+  "voice": "Neil",
+  "render": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "video": "h264",
+    "audio": "aac"
+  },
+  "shots": {
+    "overall": {
+      "template": "overall",
+      "seconds": 4
+    },
+    "explode": {
+      "template": "explode",
+      "seconds": 6,
+      "distance": 1.8
+    },
+    "detail": {
+      "template": "detail",
+      "seconds": 5
+    },
+    "motion": {
+      "template": "motion",
+      "seconds": 8
+    },
+    "assemble": {
+      "template": "assemble",
+      "seconds": 5,
+      "distance": 1.8
+    }
+  },
+  "id": "planetary-02-landscape",
+  "title": "减速器，到底谁输出？",
+  "subtitle": "复用同一装配 / 从行星架理解输出",
+  "storyboard": [
+    {
+      "id": "s1",
+      "shot": "detail",
+      "seconds": 5,
+      "label": "先认清输出端",
+      "note": "行星轮：转动   行星架：输出",
+      "narration": [
+        "三个行星轮，不是三个独立输出。"
+      ],
+      "accent": "#ffbd61",
+      "subtitles": [
+        "三个行星轮，不是三个独立输出。"
+      ]
+    },
+    {
+      "id": "s2",
+      "shot": "overall",
+      "seconds": 4,
+      "label": "外壳里的连接关系",
+      "note": "输入轴连接太阳轮",
+      "narration": [
+        "输入轴连着中心的太阳轮。"
+      ],
+      "accent": "#b0c7d8",
+      "subtitles": [
+        "输入轴连着中心的太阳轮。"
+      ]
+    },
+    {
+      "id": "s3",
+      "shot": "explode",
+      "seconds": 6,
+      "label": "拆开看支撑结构",
+      "note": "绿色：行星架与三个支撑销",
+      "narration": [
+        "拆开后，绿色行星架连接三个支撑销。"
+      ],
+      "accent": "#77d7f7",
+      "subtitles": [
+        "拆开后，绿色行星架连接三个支撑销。"
+      ]
+    },
+    {
+      "id": "s4",
+      "shot": "motion",
+      "seconds": 8,
+      "label": "跟踪行星轮的中心",
+      "note": "自转与公转，是两种不同的运动",
+      "narration": [
+        "蓝色齿轮既自转，也绕太阳轮公转。",
+        "行星架跟着公转，成为减速输出。"
+      ],
+      "accent": "#70e7bc",
+      "subtitles": [
+        "蓝色齿轮既自转，也绕太阳轮公转。",
+        "行星架跟着公转，成为减速输出。"
+      ]
+    },
+    {
+      "id": "s5",
+      "shot": "motion",
+      "seconds": 8,
+      "label": "四圈输入，一圈输出",
+      "note": "固定齿圈，才能使用这个速比",
+      "narration": [
+        "固定五十四齿的齿圈。",
+        "十八齿太阳轮转四圈，行星架转一圈。"
+      ],
+      "accent": "#ffbd61",
+      "formula": "i = 1 + 54 / 18 = 4 : 1",
+      "subtitles": [
+        "固定五十四齿的齿圈。",
+        "十八齿太阳轮转四圈，行星架转一圈。"
+      ]
+    },
+    {
+      "id": "s6",
+      "shot": "assemble",
+      "seconds": 5,
+      "label": "回装与总结",
+      "note": "看减速器，先找固定端、输入端、输出端",
+      "narration": [
+        "回装完成。先找准输入和输出。"
+      ],
+      "accent": "#b0c7d8",
+      "subtitles": [
+        "回装完成。先找准输入和输出。"
+      ]
+    }
+  ],
+  "components": [
+    "Sun",
+    "Planet_1",
+    "Planet_2",
+    "Planet_3",
+    "Ring",
+    "Carrier",
+    "Housing_lower",
+    "Housing_upper",
+    "Input_shaft"
+  ],
+  "motion_template": "willis-fixed-ring-v1",
+  "explosion_sequence": [
+    "Housing_upper",
+    "Housing_lower",
+    "Ring",
+    "Carrier"
+  ],
+  "channel": "视频号",
+  "narration_profile": "config/narration-neil.json"
+}
