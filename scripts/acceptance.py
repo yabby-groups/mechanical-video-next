@@ -93,7 +93,8 @@ def keys_are_safe(cfg):
 
 
 def reject_unqualified(directory):
-    task = w.create_task('unqualified fixture', task_id='reject-' + str(time.time_ns()), root=directory)
+    task = w.create_task('unqualified fixture', task_id='reject-' + str(time.time_ns()), root=directory,
+                         protocol_version=1)  # isolate the historical asset-rejection regression
     w.put_handoff(task, 'Research', 'research', {'facts': []})
     w.put_handoff(task, 'Research', 'script', {'shots': []}, ['research'])
     w.put_handoff(task, 'Asset', 'asset-plan', {'qualified': False, 'reason': 'single mesh fixture'})

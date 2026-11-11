@@ -1,5 +1,13 @@
 # Mechanical Video Next
 
+## Autonomous CAD asset policy (2026-11-11 user correction)
+
+新任务默认由 MechanicalResearch 研究真实结构和尺寸依据，再由 CAD 使用 build123d / Open CASCADE 自主参数化生成独立实体与装配；网络图纸、专利、照片、视频只作研究依据。不得默认搜索或下载成品模型，不得因模型网站登录失败停止自主建模。复用旧项目 CAD Skill 的适用方法，不复制整个工程或开发通用几何求解器。
+
+职责为 ViralResearch（创意参考）、MechanicalResearch（结构/约束/尺寸/未知）、CAD（源码/参数/STEP/GLB/装配/验证）、Animation、Editor、独立 QA，当前主会话是唯一 Producer。历史 Asset 和 Research 角色仅兼容既有任务。
+
+先生成装配图、独立零件爆炸图、拉头内部剖切，以及各 3～5 秒啮合/分离测试。教学近似必须标“原理示意”，规定路径不是材料接触仿真。机械关卡核对零件、实体、装配、运动、干涉、横向锁合与机制可见性；未通过不启动高清动画。动态分镜通过独立视频关卡后才启动完整预览和正式渲染。每个持久缺陷自动修复总计最多两轮，继承已有缺陷与预算，不以换任务名重置。下文旧版职责与两策略各两轮规则仅适用历史任务。
+
 视觉方向固定参照用户明确指定的**打印机系列 EP03**，来源与哈希见 `config/visual-reference.json`。当前配置使用全画面机械主体、灰色摄影棚空间、金属材质与柔和阴影、斜视及克制推进、少量标注和字幕。沿用现有 EAS 与 EEVEE 预设，不恢复右侧说明栏。视觉参考的选择不自动改变已选 Neil 配音或当前横屏画幅；新片仍需检查实际关键帧与媒体。
 
 Codex 主线程作为唯一 Producer，使用真实 Codex 子代理协作并编排 `.agents/skills/` 中的三个 Skills。先读 README.md、视频配置和资产来源；禁止迁移旧项目复杂架构、通用 CAD 或几何求解器、AI 审核评分模型。
@@ -11,6 +19,10 @@ Codex 主线程作为唯一 Producer，使用真实 Codex 子代理协作并编�
 失败即停，不自发重试。按证据修复时，每问题最多两种不同策略、每策略最多两次；没有可测改善即停。每次运行保存耗时、缓存命中和临时空间采样，人工介入与工程开发修改分别统计。
 
 ## Production protocol
+
+新任务使用 protocol_version=2。制作前先读 references 本地缓存，再由 ViralResearch 按 A 同主题50% / B 相似结构30% / C 科普叙事20% 搜索，默认候选30、深析10；实际观看范围、数据来源与 UNKNOWN 明确保留。参考原则必须映射到镜头要求、可观察效果、实际媒体检查和最小修复。ViralResearch 使用 `.agents/skills/viral-video-research/SKILL.md`，只写研究与蓝图。
+
+Producer 检查资产和工具可行性后冻结蓝图。`python3 -m mechanical_video_next.blueprint compile` 生成真正的镜头/相机/时长/旁白字幕配置；冻结蓝图的 production_config 必须绑定该配置路径和 SHA256。先运行低成本 animatic 并由独立 QA 审核精确媒体，再允许 preview/final；旧任务兼容仅适用于明确的历史工作片，不用于新制作。PROVISIONAL 可生成明确标注的静态占位时间板以发现问题，不能据此通过核心运动或正式制作门禁。QA 缺陷含持久 defect_key；重命名、变更版本不清空修复预算。已知跨任务缺陷和耗尽额度须继承，不以新任务重启已停的运动修复。
 
 收到制作请求时，由当前主会话作为 Producer，先用 `python3 -m mechanical_video_next produce` 创建任务。Python 仅执行确定性工具和校验，不创建伪 Agent。需要外部启动时显式 `--codex` 启动 Codex 入口；已在 Codex 会话内不要再启动第二个 Producer。
 

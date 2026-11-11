@@ -67,14 +67,15 @@ def repair(task, config, issue_id, shot_id, cue, text, quality='final'):
             raise ValueError('Repair budget exhausted')
         if attempts.get('best') == 0:
             raise ValueError('Repair already technically resolved; independent QA required')
-    existing = w.load(task)['repairs'].get(issue_id)
+    repair_key = w.repair_key(task, issue_id)
+    existing = w.load(task)['repairs'].get(repair_key)
     if existing:
         check_attempts(existing)
     start = time.time()
     with w.lock(w.ROOT / 'work/production.lock'):
-        if issue_id not in w.load(task)['repairs']:
+        if repair_key not in w.load(task)['repairs']:
             w.repair_attempt(task, issue_id, 'subtitle-only', 1)
-        attempts = w.load(task)['repairs'][issue_id]
+        attempts = w.load(task)['repairs'][repair_key]
         check_attempts(attempts)
         version = sum(attempts['strategies'].values()) + 1
         fixed['id'] = cfg['id'] + '-subtitle-repair-' + issue_id + '-' + str(version)

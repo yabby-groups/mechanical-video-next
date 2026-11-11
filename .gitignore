@@ -3,6 +3,7 @@ node_modules/
 remotion/node_modules/
 remotion/public/cache/
 __pycache__/
+references/.library.lock
 *.blend1
 .DS_Store
 .env

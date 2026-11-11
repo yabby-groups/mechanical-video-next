@@ -63,7 +63,8 @@ class RepairExecutionTests(unittest.TestCase):
             'config_sha256': r.w.filehash(self.cfg), 'cue_index': 0,
         }
         self.qa = {'media': [], 'issues': [self.issue]}
-        self.state = {'handoffs': {'preview-qa': {}}, 'repairs': {}}
+        self.state = {'schema_version': 1, 'protocol_version': 1,
+                      'handoffs': {'preview-qa': {}}, 'repairs': {}}
 
     def test_wrong_owner_shot_and_kind_never_reaches_compose(self):
         import produce
@@ -111,7 +112,7 @@ class RepairExecutionTests(unittest.TestCase):
 
     def test_exhausted_repair_budget_prevents_composition(self):
         import produce
-        state = {'handoffs': {'preview-qa': {}}, 'repairs': {
+        state = {'schema_version': 1, 'protocol_version': 1, 'handoffs': {'preview-qa': {}}, 'repairs': {
             'SUBTITLE-1': {'stopped': False, 'strategies': {'subtitle-only': 2}}}}
         with patch.object(r.w, 'load', return_value=state), \
                 patch.object(r.w, 'artifact', return_value=self.qa), patch.object(r.w, 'check_media'), \
@@ -125,7 +126,7 @@ class RepairExecutionTests(unittest.TestCase):
     def test_success_reuses_shots_and_does_not_invoke_blender(self):
         import produce
         import common
-        state = {'handoffs': {'preview-qa': {}}, 'repairs': {
+        state = {'schema_version': 1, 'protocol_version': 1, 'handoffs': {'preview-qa': {}}, 'repairs': {
             'SUBTITLE-1': {'stopped': False, 'strategies': {'subtitle-only': 0}}}}
         metrics = MagicMock()
         metrics.finish.return_value = {'full_shot_renders': 0}

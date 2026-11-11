@@ -12,7 +12,7 @@ class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.task = w.create_task('行星减速器', root=Path(self.temp.name))
+        self.task = w.create_task('行星减速器', root=Path(self.temp.name), protocol_version=1)
 
     def research(self):
         w.put_handoff(self.task, 'Research', 'research', {'facts': []})
@@ -63,6 +63,66 @@ class WorkflowTests(unittest.TestCase):
                 w.run_stage(self.task, 'final', Path('config/planetary-01.json'))
             with self.assertRaisesRegex(ValueError, 'prerequisites'):
                 w.run_stage(self.task, 'final', Path('config/planetary-01.json'), workprint=True)
+            run.assert_not_called()
+
+    def test_resume_requires_actual_failure_and_revalidates_asset(self):
+        def resume():
+            with patch.object(sys, 'argv', ['mechanical_video_next', 'resume-stage',
+                                          str(self.task), '--reason', 'diagnosed fixture']):
+                w.main()
+        with self.assertRaisesRegex(ValueError, 'diagnosed stage failure'):
+            resume()
+        self.research()
+        model = Path(self.temp.name) / 'model.blend'
+        model.write_bytes(b'fixture; not a real model')
+        w.put_handoff(self.task, 'Asset', 'asset-plan', {
+            'qualified': True, 'independent_meshes': True, 'missing_required_parts': [],
+            'model': {'path': str(model), 'sha256': w.filehash(model)}})
+        data = w.load(self.task)
+        data['state'] = 'FAILED'
+        w.write(self.task / 'task.json', data)
+        w.event(self.task, 'stage_failed', phase='checks')
+        model.write_bytes(b'changed asset')
+        with self.assertRaisesRegex(ValueError, 'Qualified asset evidence'):
+            resume()
+        self.assertEqual(w.load(self.task)['state'], 'FAILED')
+
+    def test_local_and_checks_cannot_skip_asset_gate(self):
+        with patch.object(w.subprocess, 'run') as run:
+            for phase in ('local', 'checks', 'keys'):
+                with self.assertRaisesRegex(ValueError, 'prerequisites'):
+                    w.run_stage(self.task, phase, Path('config/zipper-new.json'))
+            run.assert_not_called()
+
+    def test_candidate_diagnostic_cannot_authorize_full_render(self):
+        data = w.load(self.task)
+        data['state'] = 'RESEARCHING'
+        w.write(self.task / 'task.json', data)
+        with patch.object(w.subprocess, 'run') as run:
+            for phase in ('preview', 'final', 'asset'):
+                with self.assertRaisesRegex(ValueError, 'Diagnostic stage only'):
+                    w.run_stage(self.task, phase, Path('unused.json'), diagnostic=True)
+            run.assert_not_called()
+
+    def test_candidate_diagnostic_requires_model_evidence_and_short_single_shot(self):
+        data = w.load(self.task)
+        data['state'] = 'RESEARCHING'
+        w.write(self.task / 'task.json', data)
+        self.research()
+        model = Path(self.temp.name) / 'candidate.blend'
+        model.write_bytes(b'diagnostic ledger fixture, not a qualified mesh')
+        w.put_handoff(self.task, 'Asset', 'asset-plan', {
+            'qualified': False, 'model': {'path': str(model), 'sha256': w.filehash(model)}})
+        config = Path(self.temp.name) / 'diagnostic.json'
+        with patch.object(w.subprocess, 'run') as run:
+            for selected, seconds in [(['a', 'b'], 4), (['a'], 31.5)]:
+                config.write_text(json.dumps({'local_preview_shots': selected,
+                                             'shots': {'a': {'seconds': seconds}, 'b': {'seconds': 4}}}))
+                with self.assertRaisesRegex(ValueError, 'one shot'):
+                    w.run_stage(self.task, 'local', config, diagnostic=True)
+            model.write_bytes(b'changed source')
+            with self.assertRaisesRegex(ValueError, 'unchanged candidate'):
+                w.run_stage(self.task, 'keys', config, diagnostic=True)
             run.assert_not_called()
 
     def test_workprint_flag_cannot_bypass_changed_qa_in_editing(self):
