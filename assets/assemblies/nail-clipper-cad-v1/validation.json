@@ -1,0 +1,563 @@
+{
+  "schema": "nail-clipper-cad-validation-v1",
+  "status": "NEEDS_REVIEW",
+  "units": "mm",
+  "numerical_status": "FAIL",
+  "independent_solids": [
+    {
+      "name": "lower_blade_spring",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 431.50540762867007,
+      "bounds_world_mm": [
+        [
+          -7.518189541422332e-17,
+          -5.0,
+          -1.8866876408715252
+        ],
+        [
+          50.0,
+          5.000000000000001,
+          0.0
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 431.5076576750312,
+      "local_frame": {
+        "origin_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_y_rad": 0
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          44,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -1.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    },
+    {
+      "name": "upper_blade_spring",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 431.50540762867024,
+      "bounds_world_mm": [
+        [
+          -7.518189541422332e-17,
+          -5.0,
+          0.0
+        ],
+        [
+          50.0,
+          5.000000000000001,
+          1.8866876408715252
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 431.50765767503117,
+      "local_frame": {
+        "origin_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_y_rad": 0
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          44,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -1.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    },
+    {
+      "name": "pull_post_axle",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 30.269545084708422,
+      "bounds_world_mm": [
+        [
+          42.2,
+          -7.0000001,
+          -2.3492862509391435
+        ],
+        [
+          45.8,
+          7.0000001,
+          2.8000001000000014
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 30.255191137484037,
+      "local_frame": {
+        "origin_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_y_rad": 0
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          44,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -1.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    },
+    {
+      "name": "operating_lever_cam",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 405.10592385920046,
+      "bounds_world_mm": [
+        [
+          8.542970918493179,
+          -6.5,
+          0.95
+        ],
+        [
+          45.25,
+          6.5,
+          19.532878525276367
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 405.0986089474913,
+      "local_frame": {
+        "origin_mm": [
+          44,
+          0,
+          2.2
+        ],
+        "rotation_y_rad": 0.4295467767953651
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          44,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -1.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    }
+  ],
+  "step_roundtrip_solid_count": 4,
+  "all_pair_native_brep_motion_samples": [
+    {
+      "q": 0.0,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.029932228214237112
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 1.229583654087496
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 1.829878622351842e-05
+        }
+      ],
+      "cam_seat_residual_mm": -4.440892098500626e-16
+    },
+    {
+      "q": 0.0625,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.028061463950841976
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.4810735025031808
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 1.4626405693441228e-05
+        }
+      ],
+      "cam_seat_residual_mm": 0.0
+    },
+    {
+      "q": 0.125,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.026190699687456038
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.013774663647032037
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 1.1438069289170753e-05
+        }
+      ],
+      "cam_seat_residual_mm": -2.220446049250313e-16
+    },
+    {
+      "q": 0.1875,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.02431993542406617
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 8.709804833999499e-06
+        }
+      ],
+      "cam_seat_residual_mm": 5.551115123125783e-16
+    },
+    {
+      "q": 0.25,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.02244917116067424
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 6.420524438761115e-06
+        }
+      ],
+      "cam_seat_residual_mm": -3.3306690738754696e-16
+    },
+    {
+      "q": 0.3125,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.020578406897290406
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 4.547782697506804e-06
+        }
+      ],
+      "cam_seat_residual_mm": 2.220446049250313e-16
+    },
+    {
+      "q": 0.375,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.018707642633902545
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 3.06463880531425e-06
+        }
+      ],
+      "cam_seat_residual_mm": 1.1102230246251565e-16
+    },
+    {
+      "q": 0.4375,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.016836878370507243
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 1.937636893735643e-06
+        }
+      ],
+      "cam_seat_residual_mm": 3.3306690738754696e-16
+    },
+    {
+      "q": 0.5,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.014966114107121602
+        },
+        {
+          "parts": [
+            "upper_blade_spring",
+            "operating_lever_cam"
+          ],
+          "volume_mm3": 1.1259434082369016e-06
+        }
+      ],
+      "cam_seat_residual_mm": 3.3306690738754696e-16
+    },
+    {
+      "q": 0.5625,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.013095349843732663
+        }
+      ],
+      "cam_seat_residual_mm": -1.1102230246251565e-16
+    },
+    {
+      "q": 0.625,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.011224585580339846
+        }
+      ],
+      "cam_seat_residual_mm": -1.1102230246251565e-16
+    },
+    {
+      "q": 0.6875,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.00935382131695313
+        }
+      ],
+      "cam_seat_residual_mm": -3.3306690738754696e-16
+    },
+    {
+      "q": 0.75,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.00748305705356236
+        }
+      ],
+      "cam_seat_residual_mm": -1.1102230246251565e-16
+    },
+    {
+      "q": 0.8125,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.005612292790173961
+        }
+      ],
+      "cam_seat_residual_mm": 0.0
+    },
+    {
+      "q": 0.875,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.0037415285267871972
+        }
+      ],
+      "cam_seat_residual_mm": -1.1102230246251565e-16
+    },
+    {
+      "q": 0.9375,
+      "valid_single_solids": true,
+      "intersections": [
+        {
+          "parts": [
+            "lower_blade_spring",
+            "pull_post_axle"
+          ],
+          "volume_mm3": 0.0018707642633996823
+        }
+      ],
+      "cam_seat_residual_mm": -3.3306690738754696e-16
+    },
+    {
+      "q": 1.0,
+      "valid_single_solids": true,
+      "intersections": [],
+      "cam_seat_residual_mm": 2.220446049250313e-16
+    }
+  ],
+  "sample_count": 17,
+  "maximum_intersection_mm3": 1.229583654087496,
+  "motion_evidence": {
+    "open_angle_deg": 24.611217413822427,
+    "closed_angle_deg": 0.010223337427018413,
+    "finger_vertical_travel_mm": 14.036806866044834,
+    "jaw_gap_travel_mm": 2.0,
+    "post_vertical_travel_mm": 0.9492862509391435,
+    "blade_rear_fixed_deflection_mm": 0.0,
+    "geometric_displacement_ratio": 7.018403433022417,
+    "physical_force_ratio": "UNKNOWN; ideal lever trend only, not force measurement"
+  },
+  "force_path": [
+    "finger -> operating lever long arm",
+    "lever integral cam -> upper spring near x40",
+    "lever bearing -> pull post at x44",
+    "post bottom flange -> lower spring upward",
+    "both springs -> rear welded region and opposed jaw edges"
+  ],
+  "assumptions": [
+    "All numbers authored for teaching, qualitative topology checked against MechanicalResearch sources; no retail product measurement.",
+    "Prescribed smooth spring bending with fixed rear value and slope; not FEM, material elasticity or contact simulation.",
+    "Rear welded interface represented by touching rear plate faces, no weld bead or fracture model",
+    "Cam as cylindrical lobe, geometric vertical seat equation ignores surface normal/friction; actual solid contacts sampled independently",
+    "Oversized shaft holes and cross axle use teaching clearances, no manufacturing claim",
+    "Patent lateral anti-yaw lugs omitted; yaw constraint UNKNOWN"
+  ],
+  "repair_history": [],
+  "physical_simulation": false,
+  "runtime_seconds": 20.226808749954216,
+  "cache_hit": false,
+  "temporary_space_bytes": null,
+  "tokens": null,
+  "cost": null
+}
