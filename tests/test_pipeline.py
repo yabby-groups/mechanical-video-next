@@ -27,6 +27,21 @@ class CacheTests(unittest.TestCase):
         after={n:produce.shot_key(s,'final') for n,s in changed['shots'].items()}
         self.assertEqual(before,after)
 
+    def test_external_source_change_at_same_path_invalidates_asset(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)
+            source=p/'owned.stl'
+            cfg=p/'assembly.json'
+            source.write_bytes(b'first source')
+            cfg.write_text(json.dumps({'id':'owned','source_files':[{
+                'path':str(source),'sha256':common.filehash(source)}]}))
+            first=produce.asset_key(str(cfg))
+            source.write_bytes(b'changed source')
+            self.assertRaises(ValueError,produce.asset_key,str(cfg))
+            cfg.write_text(json.dumps({'id':'owned','source_files':[{
+                'path':str(source),'sha256':common.filehash(source)}]}))
+            self.assertNotEqual(first,produce.asset_key(str(cfg)))
+
     def test_preview_using_final_shots_cannot_poison_full_resolution_composition(self):
         # A fullframe preview deliberately reuses final-quality 3D media. Its
         # props are identical to final; the 0.5 render scale must still differ.

@@ -5,12 +5,15 @@ Run through scripts/produce.py. Blender must exit nonzero for any failed asserti
 import argparse
 import json
 import math
+import hashlib
 from pathlib import Path
 import sys
 import time
 
 import bpy
-from mathutils import Vector
+import bmesh
+from mathutils import Vector, Matrix, Quaternion
+from mathutils.bvhtree import BVHTree
 from bpy_extras.object_utils import world_to_camera_view
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,14 +27,15 @@ def savejson(path, data):
     Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def material(name, color, metal=0.3):
+def material(name, color, metal=0.3, roughness=0.32, preserve_surface=False):
     m = bpy.data.materials.new(name)
     m.diffuse_color = (*color, 1)
     m.use_nodes = True
     p = m.node_tree.nodes.get('Principled BSDF')
     p.inputs['Base Color'].default_value = (*color, 1)
     p.inputs['Metallic'].default_value = metal
-    p.inputs['Roughness'].default_value = 0.32
+    p.inputs['Roughness'].default_value = roughness
+    m['studio_preserve_surface'] = preserve_surface
     return m
 
 
@@ -63,6 +67,8 @@ def gear(name, teeth, radius, mat, base=0.4):
 
 
 def make_asset(cfg, out):
+    if cfg.get('kind') == 'source-mesh-assembly-v1':
+        return make_source_asset(cfg, out)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     eas.register()
     scene = bpy.context.scene
@@ -111,6 +117,160 @@ def make_asset(cfg, out):
     assert set(cfg['required_parts']) <= {o.name for o in col.objects}
     bpy.ops.wm.save_as_mainfile(filepath=str(out))
     savejson(out.with_suffix('.inventory.json'), {'parts': inventory, 'count':len(inventory), 'independent_meshes':True})
+
+
+def make_source_asset(cfg, out):
+    """Import licensed independent source meshes; no inferred hidden geometry."""
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    eas.register()
+    col = bpy.data.collections.new('Assembly')
+    bpy.context.scene.collection.children.link(col)
+    palette = {name:material(name, spec['color'], spec.get('metallic', 0.6),
+                            spec.get('roughness', 0.32), spec.get('preserve_surface', False))
+               for name,spec in cfg['materials'].items()}
+    for name, spec in cfg['materials'].items():
+        if spec.get('fabric_weave'):
+            nodes=palette[name].node_tree.nodes
+            links=palette[name].node_tree.links
+            coordinates=nodes.new('ShaderNodeTexCoord')
+            waves=[]
+            for direction in ('X','Y'):
+                wave=nodes.new('ShaderNodeTexWave')
+                wave.bands_direction=direction
+                wave.inputs['Scale'].default_value=spec.get('weave_scale', 1200)
+                links.new(coordinates.outputs['Object'],wave.inputs['Vector'])
+                waves.append(wave)
+            mix=nodes.new('ShaderNodeMath')
+            mix.operation='MULTIPLY'
+            links.new(waves[0].outputs['Fac'],mix.inputs[0])
+            links.new(waves[1].outputs['Fac'],mix.inputs[1])
+            bump=nodes.new('ShaderNodeBump')
+            bump.inputs['Strength'].default_value=0.22
+            bump.inputs['Distance'].default_value=spec.get('weave_depth', 0.00012)
+            links.new(mix.outputs[0],bump.inputs['Height'])
+            links.new(bump.outputs['Normal'],nodes.get('Principled BSDF').inputs['Normal'])
+    for index, spec in enumerate(cfg.get('source_files', [])):
+        source = ROOT/spec['path']
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == spec['sha256']
+        assert source.suffix.lower() == '.stl', 'Explicitly supported source format required'
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.wm.stl_import(filepath=str(source), global_scale=spec.get('scale', 1.0))
+        if spec.get('split_loose', True):
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.separate(type='LOOSE')
+            bpy.ops.object.mode_set(mode='OBJECT')
+        imported = list(bpy.context.selected_objects)
+        def sort_key(obj):
+            points = [obj.matrix_world @ Vector(v) for v in obj.bound_box]
+            lo,hi = core.bounds_of(points)
+            return tuple(round(v, 6) for v in (*lo,*hi))
+        imported.sort(key=sort_key)
+        for part_index,obj in enumerate(imported):
+            if 'parts' in spec and part_index not in spec['parts']:
+                bpy.data.objects.remove(obj,do_unlink=True)
+                continue
+            name = f'source{index}_{part_index:03d}'
+            if spec.get('cap_boundaries'):
+                bm=bmesh.new()
+                bm.from_mesh(obj.data)
+                boundary=[e for e in bm.edges if e.is_boundary]
+                if boundary:
+                    bmesh.ops.holes_fill(bm,edges=boundary,sides=0)
+                bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces))
+                assert not [e for e in bm.edges if not e.is_manifold], 'Source cut did not close'
+                bm.to_mesh(obj.data)
+                bm.free()
+            if spec.get('origin'):
+                obj.data.transform(Matrix.Translation(-Vector(spec['origin'])))
+            # Keep original author coordinates; changing origin must not move vertices.
+            position = obj.location.copy()
+            finish(obj,name,palette[cfg.get('part_materials',{}).get(name,'steel')],position)
+    for spec in cfg.get('instances', []):
+        source=bpy.data.objects[spec['source']]
+        obj=source.copy()
+        col.objects.link(obj)
+        obj.name=spec['name']
+        obj.location=spec.get('location',[0,0,0])
+        obj.rotation_euler=spec.get('rotation_euler',[0,0,0])
+    for spec in cfg.get('meshes', []):
+        mesh=bpy.data.meshes.new(spec['name'])
+        mesh.from_pydata(spec['vertices'],[],spec['faces'])
+        mesh.update()
+        obj=bpy.data.objects.new(spec['name'],mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        finish(obj,spec['name'],palette[spec.get('material','steel')],
+               spec.get('location', [0, 0, 0]))
+        obj.rotation_euler = spec.get('rotation_euler', [0, 0, 0])
+    for name in cfg.get('remove_prototypes', []):
+        bpy.data.objects.remove(bpy.data.objects[name],do_unlink=True)
+    parts = list(col.objects)
+    for obj in parts:
+        spec=cfg['materials'].get(obj.active_material.name,{})
+        if spec.get('bevel_width',0)>0:
+            bevel=obj.modifiers.new('Source edge finish','BEVEL')
+            bevel.width=spec['bevel_width']
+            bevel.segments=3
+            bevel.use_clamp_overlap=True
+            bevel.harden_normals=True
+    assert len(parts)>=2, 'A single mesh is not an independent assembly'
+    assert set(cfg['required_parts']) <= {o.name for o in parts}
+    props=bpy.context.scene.eas
+    props.source='COLLECTION'
+    props.collection=col
+    props.group_mode='PREFIX'
+    props.group_separator='|'
+    assert bpy.ops.eas.set_assembly_position() == {'FINISHED'}
+    inventory=[]
+    for obj in parts:
+        points=[obj.matrix_world @ Vector(v) for v in obj.bound_box]
+        lo,hi=core.bounds_of(points)
+        inventory.append({'name':obj.name,'vertices':len(obj.data.vertices),
+                          'faces':len(obj.data.polygons),'bounds':[list(lo),list(hi)],
+                          'matrix':list(core.matrix_to_flat(obj.matrix_world))})
+        bm=bmesh.new()
+        bm.from_mesh(obj.data)
+        inventory[-1]['boundary_edges']=sum(e.is_boundary for e in bm.edges)
+        inventory[-1]['nonmanifold_edges']=sum(not e.is_manifold for e in bm.edges)
+        bm.free()
+    bpy.ops.wm.save_as_mainfile(filepath=str(out))
+    savejson(out.with_suffix('.inventory.json'),{'parts':inventory,'count':len(parts),
+             'independent_meshes':True,'source_files':cfg['source_files'],
+             'scope':'Independent source components; identity and motion require review'})
+
+
+def prepare_data_tracks(shot, count):
+    """Apply explicit, source-reviewed rigid transforms, never solve contacts."""
+    seen=set()
+    for track in shot.get('tracks', []):
+        obj=bpy.data.objects[track['object']]
+        for pose in track['poses']:
+            frame=1+round(pose['progress']*(count-1))
+            assert 1<=frame<=count
+            for channel in ['location','rotation_euler','scale']:
+                if channel in pose:
+                    setattr(obj,channel,pose[channel])
+                    obj.keyframe_insert(channel,frame=frame)
+        seen.add(obj.name)
+    # Shape-key samples are authored vertex positions, not a geometry solver.
+    for track in shot.get('mesh_tracks', []):
+        obj=bpy.data.objects[track['object']]
+        obj.shape_key_add(name='Basis')
+        poses=track['poses']
+        for i,pose in enumerate(poses):
+            assert len(pose['vertices'])==len(obj.data.vertices)
+            key=obj.shape_key_add(name=f'pose_{i:04d}')
+            for v,co in zip(key.data,pose['vertices']): v.co=co
+            frame=1+round(pose['progress']*(count-1))
+            key.value=0
+            if i>0: key.keyframe_insert('value',frame=1+round(poses[i-1]['progress']*(count-1)))
+            key.value=1
+            key.keyframe_insert('value',frame=frame)
+            key.value=0
+            if i+1<len(poses): key.keyframe_insert('value',frame=1+round(poses[i+1]['progress']*(count-1)))
+        seen.add(obj.name)
+    return {'template':'data-keyframes-v1','tracked_objects':sorted(seen),
+            'scope':'Explicit source-reviewed transforms; no contact/force simulation'}
 
 
 def setup_render(width, height, fps):
@@ -167,13 +327,13 @@ def configure_explosion(shot, count):
         obj.eas.order = {'Housing_upper':0,'Housing_lower':1,'Ring':2,'Carrier':3}.get(obj.name,3)
 
 
-def frame_camera(objects, frames, top=False):
+def frame_camera(objects, frames, top=False, direction=None, roll=0):
     scene = bpy.context.scene
     bpy.ops.object.camera_add()
     cam = bpy.context.object
     cam.name = 'ShotCamera'
     cam.data.type = 'ORTHO'
-    direction = Vector((0,-0.01,1) if top else (7,-11,10)).normalized()
+    direction = Vector(direction or ((0,-0.01,1) if top else (7,-11,10))).normalized()
     points = []
     for f in frames:
         scene.frame_set(f)
@@ -183,9 +343,16 @@ def frame_camera(objects, frames, top=False):
     center = (lo+hi)*0.5
     cam.location = center + direction * 30
     cam.rotation_euler = (center-cam.location).to_track_quat('-Z','Y').to_euler()
+    if roll:
+        cam.rotation_euler=(cam.rotation_euler.to_quaternion() @ Quaternion((0,0,1),math.radians(roll))).to_euler()
     bpy.context.view_layer.update()
     inv = cam.matrix_world.inverted()
     xy = [inv @ v for v in points]
+    # World bounding-box centre is not necessarily the projected box centre
+    # for an asymmetric imported assembly. Centre the actual screen bounds.
+    offset = Vector(((min(v.x for v in xy)+max(v.x for v in xy))*0.5,
+                     (min(v.y for v in xy)+max(v.y for v in xy))*0.5,0))
+    cam.location += cam.matrix_world.to_quaternion() @ offset
     aspect = scene.render.resolution_x / scene.render.resolution_y
     # ortho_scale is camera width when aspect >=1, otherwise height.
     w = max(v.x for v in xy)-min(v.x for v in xy)
@@ -242,12 +409,16 @@ def prepare_motion(cfg, count, fps):
 def render_shot(args):
     eas.register()
     bpy.ops.wm.open_mainfile(filepath=str(args.asset))
-    cfg = json.loads((ROOT/'config/assembly.json').read_text())
+    cfg = json.loads(args.assembly_config.read_text())
     shot = json.loads(args.shot.read_text())
     count = max(2,round(shot['seconds']*args.fps))
     setup_render(args.width,args.height,args.fps)
     scene = bpy.context.scene
     parts = list(bpy.data.collections['Assembly'].objects)
+    if shot.get('visible_parts'):
+        assert set(shot['visible_parts']) <= {o.name for o in parts}
+        for obj in parts:
+            obj.hide_render=obj.name not in shot['visible_parts']
     original = {o.name:o.matrix_world.copy() for o in parts}
     report = {'shot':shot,'checks':{},'unverified':cfg['unverified']}
     template = shot['template']
@@ -273,7 +444,8 @@ def render_shot(args):
         report['checks']['reassembly_max_matrix_error'] = residual
         assert bpy.ops.eas.animate(mode='EXPLODE' if template != 'assemble' else 'ASSEMBLE') == {'FINISHED'}
     elif template == 'motion':
-        report['checks']['motion'] = prepare_motion(cfg,count,args.fps)
+        report['checks']['motion'] = (prepare_data_tracks(shot,count)
+            if cfg.get('kind')=='source-mesh-assembly-v1' else prepare_motion(cfg,count,args.fps))
     elif template == 'detail':
         for o in parts:
             if o.name.startswith('Housing'):
@@ -282,11 +454,30 @@ def render_shot(args):
         raise ValueError('Unknown shot template: '+template)
     visible = [o for o in parts if not o.hide_render]
     frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] else [1]
-    cam = frame_camera(visible, frames, top=template in ['motion','detail'] and shot.get('camera_view')!='oblique')
+    cam = frame_camera(visible, frames, top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
+                       direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0))
+    if shot.get('check_pairs'):
+        overlaps=[]
+        checked_frames=range(1,count+1) if shot.get('check_all_frames') else frames
+        for f in checked_frames:
+            scene.frame_set(f)
+            bpy.context.view_layer.update()
+            trees={}
+            for name in {n for pair in shot['check_pairs'] for n in pair}:
+                obj=bpy.data.objects[name]
+                trees[name]=BVHTree.FromPolygons([obj.matrix_world @ v.co for v in obj.data.vertices],
+                                [list(p.vertices) for p in obj.data.polygons],all_triangles=False)
+            for a,b in shot['check_pairs']:
+                hits=trees[a].overlap(trees[b])
+                if hits: overlaps.append({'frame':f,'pair':[a,b],'triangle_pairs':len(hits)})
+        report['checks']['surface_overlap_candidates']=overlaps
+        report['checks']['surface_overlap_frame_count']=len(checked_frames)
+        report['checks']['surface_overlap_scope']='Sampled source triangle overlaps; contact and force are not inferred'
     if shot.get('visual_profile'):
         sys.path.insert(0,str(ROOT/'blender'))
         import studio_style
-        report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam)
+        report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam,
+                                                   shot.get('studio_lighting'))
     # Projection only: this does not prove lack of occlusion or visual comprehension.
     margin = 1
     for f in range(1,count+1):
@@ -299,6 +490,8 @@ def render_shot(args):
     report['checks']['min_projected_margin'] = margin
     args.out.mkdir(parents=True,exist_ok=True)
     savejson(args.out/'checks.json',report)
+    if args.checks_only:
+        return
     # Keyframes/short-motion previews are independently inspectable before full rendering.
     if args.keys:
         selected = frames
@@ -316,15 +509,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('command',choices=['asset','shot'])
     parser.add_argument('--asset',type=Path)
+    parser.add_argument('--assembly-config',type=Path,default=ROOT/'config/assembly.json')
     parser.add_argument('--shot',type=Path)
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--width',type=int,default=540)
     parser.add_argument('--height',type=int,default=625)
     parser.add_argument('--fps',type=int,default=15)
     parser.add_argument('--keys',action='store_true')
+    parser.add_argument('--checks-only',action='store_true')
     args = parser.parse_args(sys.argv[sys.argv.index('--')+1:])
     if args.command == 'asset':
-        make_asset(json.loads((ROOT/'config/assembly.json').read_text()),args.out)
+        make_asset(json.loads(args.assembly_config.read_text()),args.out)
     else:
         render_shot(args)
 

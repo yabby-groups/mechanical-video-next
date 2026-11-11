@@ -3,7 +3,7 @@ import {AbsoluteFill, Audio, Composition, Img, OffthreadVideo, Sequence, registe
 
 type Cue = {start:number;end:number;text:string};
 type Shot = {id:string;label:string;note:string;seconds:number;media:string;kind:'image'|'video';audio:string;accent:string;formula?:string};
-type Props = {title:string;subtitle:string;shots:Shot[];cues:Cue[];duration:number;fps:number;width:number;height:number;presentation?:'mechanism-fullframe'};
+type Props = {title:string;subtitle:string;shots:Shot[];cues:Cue[];duration:number;fps:number;width:number;height:number;presentation?:'mechanism-fullframe';fullframe_caption?:string;fullframe_credit?:string};
 
 const MechanismShot:React.FC<{shot:Shot}> = ({shot}) => <AbsoluteFill>
   {shot.kind==='image' ? <Img src={staticFile(shot.media)} style={{width:'100%',height:'100%',objectFit:'contain'}}/> :
@@ -27,6 +27,7 @@ const Video:React.FC<Props> = p => {
   const frame = useCurrentFrame();
   const wide=p.width>p.height;
   const fullframe=p.presentation==='mechanism-fullframe';
+  const lastShotFrame=p.shots.slice(0,-1).reduce((total,shot)=>total+Math.round(shot.seconds*p.fps),0);
   const cue = p.cues.find(c=>frame/p.fps>=c.start && frame/p.fps<c.end);
   let from = 0;
   return <AbsoluteFill style={{background:fullframe?'#2a3543':'#0c1320',color:'white',fontFamily:'PingFang SC, sans-serif'}}>
@@ -39,8 +40,9 @@ const Video:React.FC<Props> = p => {
     {fullframe && <>
       <div style={{position:'absolute',top:0,left:0,right:0,height:145,background:'linear-gradient(rgba(0,0,0,0.23),transparent)'}}/>
       <div style={{position:'absolute',left:64,top:42,fontSize:30,fontWeight:500,textShadow:'0 2px 5px #000'}}>{p.title}</div>
-      <div style={{position:'absolute',right:64,top:46,fontSize:23,color:'#c4d3df',textShadow:'0 2px 4px #000'}}>原理示意</div>
+      <div style={{position:'absolute',right:64,top:46,fontSize:23,color:'#c4d3df',textShadow:'0 2px 4px #000'}}>{p.fullframe_caption ?? '原理示意'}</div>
       {cue && <div style={{position:'absolute',left:90,right:90,bottom:72,textAlign:'center',fontSize:wide?40:46,lineHeight:1.45,fontWeight:500,WebkitTextStroke:'1px rgba(0,0,0,0.8)',paintOrder:'stroke fill',textShadow:'0 2px 5px #000'}}>{cue.text}</div>}
+      {p.fullframe_credit && frame>=lastShotFrame && <div style={{position:'absolute',left:64,right:64,bottom:24,textAlign:'center',fontSize:23,color:'#e0e7ec',textShadow:'0 2px 4px #000'}}>{p.fullframe_credit}</div>}
     </>}
     {!fullframe && <>
     {cue && <div style={{position:'absolute',left:80,right:80,top:wide?945:1650,textAlign:'center',fontSize:wide?40:46,lineHeight:1.45,fontWeight:600,whiteSpace:'pre-wrap'}}>{cue.text}</div>}

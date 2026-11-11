@@ -6,7 +6,6 @@ No retry loops: a failed subprocess or assertion stops this invocation.
 """
 import argparse
 import array
-from functools import lru_cache
 import json
 import math
 from pathlib import Path
@@ -33,21 +32,30 @@ def cached(folder, files):
 def complete(folder, files):
     writejson(folder/'complete.json',{f:filehash(folder/f) for f in files})
 
-@lru_cache(maxsize=1)
-def asset_key():
-    return digest({'config':json.loads((ROOT/'config/assembly.json').read_text()),'source':codehash('blender/scene.py','blender/vendor')})
+def assembly_spec(path=None):
+    return json.loads((ROOT / (path or 'config/assembly.json')).read_text())
 
-def asset(metrics):
+def asset_key(assembly_path=None):
+    cfg = assembly_spec(assembly_path)
+    sources = {s['path']:filehash(ROOT/s['path']) for s in cfg.get('source_files', [])}
+    for s in cfg.get('source_files', []):
+        if sources[s['path']] != s['sha256']:
+            raise ValueError('Assembly source hash mismatch: '+s['path'])
+    return digest({'config':cfg,'source':codehash('blender/scene.py','blender/vendor'),
+                   'asset_sources':sources})
+
+def asset(metrics, assembly_path=None):
     start=time.time()
-    folder=CACHE/'assets'/asset_key()
+    folder=CACHE/'assets'/asset_key(assembly_path)
     target=folder/'assembly.blend'
     files=['assembly.blend','assembly.inventory.json']
     hit=cached(folder,files)
     if not hit:
         folder.mkdir(parents=True,exist_ok=True)
-        run([BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','asset','--out',target],folder/'build.log')
+        run([BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','asset','--out',target,
+             '--assembly-config',ROOT/(assembly_path or 'config/assembly.json')],folder/'build.log')
         inv=json.loads(target.with_suffix('.inventory.json').read_text())
-        cfg=json.loads((ROOT/'config/assembly.json').read_text())
+        cfg=assembly_spec(assembly_path)
         assert set(cfg['required_parts']) <= {p['name'] for p in inv['parts']}
         assert inv['independent_meshes'] and all(p['vertices']>0 for p in inv['parts'])
         complete(folder,files)
@@ -58,35 +66,41 @@ def panel_spec(render, quality):
     landscape = render['width'] > render['height']
     width, height = ((render['width'],render['height']) if render.get('framing')=='fullframe'
                      else (1120, 720) if landscape else (1080, 1250))
-    return (width//2, height//2, 15) if quality!='final' else (width,height,30)
+    return ((width//2, height//2, 15)
+            if quality!='final' and not render.get('preview_native', False)
+            else (width,height,30))
 
-def shot_key(shot, quality, render=None):
+def shot_key(shot, quality, render=None, assembly_path=None):
     render = render or {'width':1080,'height':1920}
-    inputs={'asset':asset_key(),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)}
+    inputs={'asset':asset_key(assembly_path),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)}
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
     return digest(inputs)
 
-def make_shot(shot, quality, model, metrics, render=None):
+def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     start=time.time()
     render = render or {'width':1080,'height':1920}
     width,height,fps = panel_spec(render,quality)
-    key=shot_key(shot,quality,render)
+    if quality=='checks':
+        fps=shot.get('diagnostic_fps',fps)
+    key=shot_key(shot,quality,render,assembly_path)
     folder=CACHE/'shots'/key
     kind='image' if shot['template'] in ['overall','detail','exploded'] else 'video'
     filename='media.png' if kind=='image' else 'media.mp4'
-    files=['checks.json'] if quality=='keys' else [filename,'checks.json']
+    files=['checks.json'] if quality in {'keys','checks'} else [filename,'checks.json']
     hit=cached(folder,files)
     if not hit:
         folder.mkdir(parents=True,exist_ok=True)
         writejson(folder/'shot.json',shot)
         frames=folder/'frames'
         args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','shot','--asset',model,'--shot',folder/'shot.json','--out',frames,'--width',width,'--height',height,'--fps',fps]
+        args += ['--assembly-config',ROOT/(assembly_path or 'config/assembly.json')]
         if quality=='keys': args+=['--keys']
+        if quality=='checks': args+=['--checks-only']
         # Resume encoding without rerendering an already complete local frame sequence.
         expected = len(list((frames).glob('*.png')))
         needed = 1 if kind=='image' else round(shot['seconds']*fps)
-        ready = quality!='keys' and (frames/'checks.json').exists() and expected==needed
+        ready = quality not in {'keys','checks'} and (frames/'checks.json').exists() and expected==needed
         if not ready:
             # Conservative upper bound for an uncompressed RGB frame sequence plus PNG overhead.
             projected = budget() + width*height*3*needed*1.12
@@ -94,7 +108,7 @@ def make_shot(shot, quality, model, metrics, render=None):
                 raise RuntimeError('Projected temporary frame sequence exceeds 2 GiB work budget')
             run(args,folder/'blender.log')
         shutil.copy2(frames/'checks.json',folder/'checks.json')
-        if quality!='keys':
+        if quality not in {'keys','checks'}:
             if kind=='image': shutil.copy2(next(frames.glob('*.png')),folder/filename)
             else:
                 run(['ffmpeg','-v','error','-y','-framerate',fps,'-i',frames/'%05d.png','-vf','pad=ceil(iw/2)*2:ceil(ih/2)*2','-c:v','libx264','-preset','fast','-crf','19','-pix_fmt','yuv420p','-movflags','+faststart',folder/filename],folder/'encode.log')
@@ -103,7 +117,7 @@ def make_shot(shot, quality, model, metrics, render=None):
                 assert int(v['width'])==width and abs(float(v['duration'])-shot['seconds'])<0.1
             # Exact owned files only. Keyframes and originals are never removed here.
             for p in frames.glob('*.png'): p.unlink()
-        else:
+        elif quality=='keys':
             files += [str(p.relative_to(folder)) for p in sorted(frames.glob('*.png'))]
         complete(folder,files)
     metrics.record(quality+':'+shot['template'],start,hit,key=key)
@@ -221,6 +235,11 @@ def compose(cfg, quality, media, metrics):
         if cfg['presentation'] != 'mechanism-fullframe':
             raise ValueError('Unsupported presentation')
         props['presentation']=cfg['presentation']
+    for field in ('fullframe_caption','fullframe_credit'):
+        if field in cfg:
+            if not isinstance(cfg[field],str):
+                raise ValueError(f'{field} must be a string')
+            props[field]=cfg[field]
     key=composition_key(props, quality)
     suffix='preview' if quality=='preview' else 'final'
     target=ROOT/'output'/f'{cfg["id"]}-{suffix}.mp4'
@@ -245,21 +264,62 @@ def compose(cfg, quality, media, metrics):
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('config',type=Path)
-    ap.add_argument('--phase',choices=['keys','preview','final','all'],default='all')
+    ap.add_argument('--phase',choices=['asset','checks','keys','local','preview','final','all'],default='all')
     ap.add_argument('--env-file',type=Path,help='Optional local TTS credentials file; never copy credentials into video JSON')
+    ap.add_argument('--task', type=Path, help='Evidence-led production task for full preview/final')
+    ap.add_argument('--legacy-workprint', action='store_true', help='Explicit existing v1 task only; never quality acceptance')
+    ap.add_argument('--diagnostic', action='store_true', help='One short candidate shot only; no full composition')
     args=ap.parse_args()
+    if args.diagnostic and args.phase not in {'keys', 'checks', 'local'}:
+        ap.error('Diagnostic mode cannot render a full video')
+    if args.phase in {'preview', 'final', 'all'}:
+        import sys
+        sys.path.insert(0, str(ROOT))
+        from mechanical_video_next.workflow import load, require_animatic, check_qa
+        if args.task is None:
+            ap.error('Full rendering requires --task with frozen blueprint and independent animatic QA')
+        task_data = load(args.task)
+        bound_config = task_data.get('config')
+        if not bound_config or Path(bound_config).resolve() != args.config.resolve():
+            ap.error('Render config must match production task config')
+        if task_data.get('protocol_version', 1) >= 2:
+            if args.legacy_workprint:
+                ap.error('New tasks cannot bypass animatic via legacy mode')
+            if args.phase == 'all':
+                ap.error('Protocol v2 requires separate preview, independent QA, and final stages')
+            allowed_states = {'preview': {'ANIMATING', 'PREVIEW_READY', 'PREVIEW_CHECKING'},
+                              'final': {'EDITING', 'FINAL_CHECKING'}}
+            if task_data['state'] not in allowed_states[args.phase]:
+                ap.error('Task state does not authorize this full render')
+            require_animatic(args.task)
+            if args.phase == 'final':
+                check_qa(args.task, 'preview-qa')
+        elif not args.legacy_workprint:
+            ap.error('Old task requires explicit --legacy-workprint; migrate new production to v2')
     from narration import load_env,effective_profile
     load_env(args.env_file or (ROOT/'.env.local' if (ROOT/'.env.local').exists() else None))
     cfg=json.loads(args.config.read_text())
     effective_profile(cfg)
-    assert cfg['asset']=='planetary-teaching-v1'
-    assembly=json.loads((ROOT/'config/assembly.json').read_text())
+    assembly_path=cfg.get('assembly_config')
+    assembly=assembly_spec(assembly_path)
+    assert cfg['asset']==assembly['id'], 'Video and assembly identity differ'
     assert set(cfg['components'])<=set(assembly['required_parts']), 'Unknown requested component'
     assert cfg['motion_template']==assembly['motion']['template'], 'Unverified motion template'
-    assert cfg['explosion_sequence']==['Housing_upper','Housing_lower','Ring','Carrier'], 'Only the validated axial sequence is supported in phase one'
+    if assembly.get('kind') == 'source-mesh-assembly-v1':
+        assert cfg['motion_template']=='data-keyframes-v1'
+        assert cfg['explosion_sequence']==[], 'Imported source disassembly is not automatically validated'
+        assert all(s['template'] in {'overall','detail','motion'} for s in cfg['shots'].values())
+    else:
+        assert cfg['asset']=='planetary-teaching-v1'
+        assert cfg['explosion_sequence']==['Housing_upper','Housing_lower','Ring','Carrier'], 'Only the validated axial sequence is supported in phase one'
     assert {k:cfg['render'][k] for k in ['width','height','fps','video','audio']} in [{'width':w,'height':h,'fps':30,'video':'h264','audio':'aac'} for w,h in [(1080,1920),(1920,1080)]]
     assert cfg['render'].get('framing','panel') in ['panel','fullframe']
-    assert 30<=sum(s['seconds'] for s in cfg['storyboard'])<=45
+    if args.diagnostic:
+        selected=cfg.get('local_preview_shots',[])
+        assert len(selected)==1 and selected[0] in cfg['shots']
+        assert 0<cfg['shots'][selected[0]]['seconds']<=5
+    else:
+        assert 30<=sum(s['seconds'] for s in cfg['storyboard'])<=45
     assert len({s['id'] for s in cfg['storyboard']})==len(cfg['storyboard'])
     for s in cfg['storyboard']: assert s['seconds']==cfg['shots'][s['shot']]['seconds']
     metrics=Metrics(cfg['id']+'-'+args.phase)
@@ -276,14 +336,29 @@ def main():
     status='passed'
     error=None
     try:
-        model=asset(metrics)
+        model=asset(metrics,assembly_path)
+        if args.phase=='asset': return
         names=list(dict.fromkeys(s['shot'] for s in cfg['storyboard']))
-        for name in names: make_shot(cfg['shots'][name],'keys',model,metrics,cfg['render'])
+        if args.diagnostic:
+            names=cfg['local_preview_shots']
+        if args.phase=='checks':
+            selected=cfg.get('local_preview_shots',[])
+            assert selected and set(selected)<=set(names)
+            for name in selected:
+                make_shot(cfg['shots'][name],'checks',model,metrics,cfg['render'],assembly_path)
+            return
+        for name in names: make_shot(cfg['shots'][name],'keys',model,metrics,cfg['render'],assembly_path)
         if args.phase=='keys': return
-        preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render']) for n in names}
+        if args.phase=='local':
+            selected=cfg.get('local_preview_shots',[])
+            assert selected and set(selected)<=set(names), 'Explicit local preview shots required'
+            for name in selected:
+                make_shot(cfg['shots'][name],'preview',model,metrics,cfg['render'],assembly_path)
+            return
+        preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render'],assembly_path) for n in names}
         compose(cfg,'preview',preview,metrics)
         if args.phase=='preview': return
-        final={n:make_shot(cfg['shots'][n],'final',model,metrics,cfg['render']) for n in names}
+        final={n:make_shot(cfg['shots'][n],'final',model,metrics,cfg['render'],assembly_path) for n in names}
         compose(cfg,'final',final,metrics)
         if hasattr(metrics,'budget_error'): raise RuntimeError(metrics.budget_error)
     except Exception as e:
@@ -293,7 +368,7 @@ def main():
     finally:
         stopped.set()
         thread.join()
-        value=metrics.finish(status=status,error=error,human_interventions_observed=0,automatic_repair_attempts=0)
+        value=metrics.finish(status=status,error=error,human_interventions_observed=None,automatic_repair_attempts=0)
         writejson(ROOT/'output/runs'/f'{cfg["id"]}-{args.phase}-{int(metrics.start*1000)}.json',value)
 
 if __name__=='__main__': main()
