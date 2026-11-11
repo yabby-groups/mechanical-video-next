@@ -1,0 +1,123 @@
+{
+  "candidate": {
+    "author": "地球账本",
+    "breakout_follower_cap": null,
+    "comments": 16,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": true,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 342,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783.json",
+        "sha256": "1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783"
+      },
+      {
+        "path": "references/patterns/evidence/087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762.json",
+        "sha256": "087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762"
+      }
+    ],
+    "follower_tier_observation": "Visible rounded display; exact count unknown; not a verified strict qualification",
+    "followers": null,
+    "followers_display": "2.1万",
+    "followers_rounded": true,
+    "hypotheses": [],
+    "id": "dy-7674204970341698851",
+    "likes": 1125,
+    "metrics_evidence": {
+      "comments": [
+        {
+          "path": "references/patterns/evidence/1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783.json",
+          "sha256": "1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783"
+        },
+        {
+          "path": "references/patterns/evidence/087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762.json",
+          "sha256": "087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762"
+        }
+      ],
+      "followers": [
+        {
+          "path": "references/patterns/evidence/1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783.json",
+          "sha256": "1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783"
+        },
+        {
+          "path": "references/patterns/evidence/087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762.json",
+          "sha256": "087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762"
+        }
+      ],
+      "likes": [
+        {
+          "path": "references/patterns/evidence/1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783.json",
+          "sha256": "1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783"
+        },
+        {
+          "path": "references/patterns/evidence/087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762.json",
+          "sha256": "087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762"
+        }
+      ],
+      "saves": [
+        {
+          "path": "references/patterns/evidence/1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783.json",
+          "sha256": "1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783"
+        },
+        {
+          "path": "references/patterns/evidence/087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762.json",
+          "sha256": "087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762"
+        }
+      ],
+      "shares": [
+        {
+          "path": "references/patterns/evidence/1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783.json",
+          "sha256": "1dbcdb8bfc33b71c84a7ef154f386917ee01605339fef550884db6d6d24f8783"
+        },
+        {
+          "path": "references/patterns/evidence/087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762.json",
+          "sha256": "087ab7d00eb96c1154cbbe7b486dac84e232d3dd29300ab89b0ade7793662762"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:48:05.631Z",
+    "original_url_resolved": true,
+    "platform": "douyin",
+    "published_at": null,
+    "published_at_display": "8月15日",
+    "published_at_inference": "Current-year convention plausible but not independently confirmed; not qualification proof",
+    "published_at_inferred": "2026-08-15",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": 243,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "POTENTIAL_LT50K_DATE_YEAR_UNKNOWN",
+    "shares": 150,
+    "source": "Douyin public search and original work modal",
+    "title": "拉链原理拆解 ——你裤裆上的拉链，藏着一套比家门锁还精密的机械，今天为你揭秘拉链到底是怎么咬合的！",
+    "url": "https://www.douyin.com/video/7674204970341698851",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "douyin:7674204970341698851",
+  "captured_at": "2026-11-11T07:48:05.631Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

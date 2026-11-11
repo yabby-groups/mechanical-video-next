@@ -1,0 +1,486 @@
+{
+  "role": "Research",
+  "scope": "拉链同题材参考候选整理；不选定最终3D参考、不授权开始制作",
+  "status": "REFERENCE_SHORTLIST_ONLY",
+  "observed_date": "2026-11-11",
+  "timezone": "Asia/Shanghai",
+  "browser": {
+    "skill": "/Users/lmj/.agents/skills/ego-browser/SKILL.md",
+    "space_id": 39,
+    "page": "p2",
+    "actual_video_and_profile_navigation": true,
+    "operation_status": "STOPPED; user chose organize existing candidates; no browsing or takeover performed during consolidation"
+  },
+  "capabilities": {
+    "dom_metrics": true,
+    "sampled_frames": true,
+    "continuous_viewing": false,
+    "listening_review": false
+  },
+  "decision": "保留小天百科为已核实低粉高播放二维参考；保留其他候选的可比数据与排除理由。当前没有选定合格的低粉3D爆款，不启动脚本、建模、渲染或发布。",
+  "metric_rules": [
+    "万 displays are rounded, not exact counts.",
+    "Current follower counts do not establish follower counts at publication.",
+    "Playback, likes, comments, danmaku, coins, favorites and shares are different metrics.",
+    "Missing or unobserved fields remain null.",
+    "Comparisons are observed page samples, not representative medians or causal evidence."
+  ],
+  "candidates": [
+    {
+      "id": "bili-small-01",
+      "platform": "Bilibili",
+      "title": "你知道拉链是怎么合上的吗，它的原理是什么呢？",
+      "url": "https://www.bilibili.com/video/BV1Nz42187Yd/",
+      "author": "小天百科",
+      "profile_url": "https://space.bilibili.com/3546670853785627",
+      "profile_posts_url": "https://space.bilibili.com/3546670853785627/upload/video",
+      "observed_at": "2026-11-11T07:27:39.872Z",
+      "published_local": "2024-06-10 19:31:27",
+      "duration_seconds": 72,
+      "followers": {
+        "display": "138",
+        "exact": 138,
+        "at_publication": null
+      },
+      "metrics": {
+        "views_display": "11.3万",
+        "views_exact": null,
+        "likes": 53,
+        "coins": 6,
+        "favorites": 117,
+        "shares": 26,
+        "comments": null,
+        "danmaku": 0
+      },
+      "ordinary_post_comparison": {
+        "surface": "author upload page, latest order, first page",
+        "samples": [
+          {
+            "title": "直升飞机可以空中悬停，这其中的原理是什么？",
+            "url": "https://www.bilibili.com/video/BV1ggezeuEau/",
+            "published": "2024-07-26",
+            "views_display": "480"
+          },
+          {
+            "title": "螺旋桨是怎么工作的，小伙伴们坐船会晕吗？",
+            "url": "https://www.bilibili.com/video/BV1r5hZeqE9c/",
+            "published": "2024-07-08",
+            "views_display": "862"
+          },
+          {
+            "title": "是先有鸡还是先有蛋呢，你爱吃鸡蛋吗？",
+            "url": "https://www.bilibili.com/video/BV1ez421b7Hg/",
+            "published": "2024-06-11",
+            "views_display": "485"
+          },
+          {
+            "title": "你的血压高吗？如果血压高会发生什么呢？",
+            "url": "https://www.bilibili.com/video/BV1SZ421H7LW/",
+            "published": "2024-06-06",
+            "views_display": "408"
+          }
+        ],
+        "other_high_posts": [
+          {
+            "title": "水上乐园滑梯里面的水是怎么来的，你会游泳吗？",
+            "url": "https://www.bilibili.com/video/BV1w3bCe4EyL/",
+            "views_display": "52万"
+          },
+          {
+            "title": "你知道钥匙是如何打开锁的吗，你家的门还需要用钥匙开吗？",
+            "url": "https://www.bilibili.com/video/BV1Vz421b7pn/",
+            "views_display": "29.7万"
+          }
+        ],
+        "conclusion": "High playback versus several ordinary posts, but not the account's sole high playback post. No engagement baseline was read.",
+        "selected_sample_median_views": 482.5,
+        "approximate_reference_views_to_selected_sample_median": 234.19689119170985,
+        "ratio_boundary": "约234倍；11.3万是显示四舍五入值，4帖为选样，不是全账号或同龄作品中位数；不证明题材或画面导致播放增加。"
+      },
+      "visual_samples": [
+        {
+          "time_seconds": 0,
+          "observed_at": "2026-11-11T07:29:11.396Z",
+          "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-592070.png",
+          "description": "Cartoon woman against blue field; subtitle 发明拉链的人真是个天才. Watermarks 灰灰纪录片 bilibili and 马户百科."
+        },
+        {
+          "time_seconds": 10.815159,
+          "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-724003.png",
+          "description": "Large flat frontal pink chain teeth and yellow slider on pink background; subtitle 从上到下都排列着整齐的小牙齿. Not a sampled 3D cutaway."
+        }
+      ],
+      "rights": "Visible page says 未经作者授权，禁止转载. Multiple account watermarks make original source unresolved. Do not reuse footage, audio or exact script.",
+      "classification": "LOW_CURRENT_FOLLOWERS_HIGH_PLAYBACK_ONLY",
+      "recommendation": "Retain as evidence, not first replication choice.",
+      "storyboard_observation_scope": {
+        "duration_seconds": 72,
+        "observed_frames": [
+          {
+            "time_seconds": 0,
+            "content": "蓝背景卡通人物，字幕：发明拉链的人真是个天才；多账号水印"
+          },
+          {
+            "time_seconds": 10.815159,
+            "content": "粉红背景正面二维链牙与黄色拉头，字幕：从上到下都排列着整齐的小牙齿"
+          }
+        ],
+        "unobserved_intervals": "未逐段连续观看；其余时间的完整镜头顺序、核心开合动作、声音及节奏均UNKNOWN，不从两帧外推72秒分镜。",
+        "full_storyboard": null
+      }
+    },
+    {
+      "id": "bili-02",
+      "platform": "Bilibili",
+      "title": "为什么拉链非要有个小拉片？它的工作原理是怎样的",
+      "url": "https://www.bilibili.com/video/BV1gypq6EERu/",
+      "author": "洛克科学探索",
+      "profile_url": "https://space.bilibili.com/186454592/upload/video",
+      "observed_at": "2026-11-11T07:28:16.780Z",
+      "published_local": "2026-10-13 20:02:02",
+      "duration_seconds": 151,
+      "followers": {
+        "display": "4.5万",
+        "exact": null,
+        "at_publication": null
+      },
+      "metrics": {
+        "views_display": "10.2万",
+        "views_exact": null,
+        "likes": 140,
+        "coins": 4,
+        "favorites": 105,
+        "shares": 6,
+        "comments": null,
+        "danmaku": 3
+      },
+      "ordinary_post_comparison": null,
+      "comparison_limitation": "Profile shows 484 posts but video panel says no videos after two observations; no baseline inferred.",
+      "visual_samples": [
+        {
+          "time_seconds": 11.7563,
+          "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-991110.png",
+          "description": "Dark metallic individual tooth isolated, tilted against pale studio background. Subtitle states tooth head wider than rear opening. No full working cycle assessed."
+        }
+      ],
+      "classification": "LOW_FOLLOWER_BREAKOUT_NOT_ESTABLISHED",
+      "recommendation": "Cross-platform visual reference candidate only if Producer's Xiaohongshu evidence supports it."
+    },
+    {
+      "id": "bili-03-rejected",
+      "platform": "Bilibili",
+      "title": "近代的伟大发明：拉链！一个小小的拉头，为何能让链齿开合？",
+      "url": "https://www.bilibili.com/video/BV1eE4m1Q71k/",
+      "author": "冷科普",
+      "profile_url": "https://space.bilibili.com/630874464",
+      "observed_at": "2026-11-11T15:28:36+08:00",
+      "published_local": "2024-08-29 16:45:00",
+      "duration_seconds": 159,
+      "followers": {
+        "display": "132.6万",
+        "exact": null,
+        "at_publication": null
+      },
+      "metrics": {
+        "views_display": "21.1万",
+        "views_exact": null,
+        "likes_display": "2万",
+        "likes_exact": null,
+        "coins": 384,
+        "favorites": 4822,
+        "shares": 274,
+        "comments": null,
+        "danmaku": 146
+      },
+      "ordinary_post_comparison": null,
+      "classification": "REJECT_LARGE_ACCOUNT",
+      "rights": "Page says 未经作者授权，禁止转载."
+    },
+    {
+      "id": "douyin-01-rejected",
+      "platform": "Douyin",
+      "title": "了解拉链是如何工作的？ #知识科普 #拉链",
+      "url": "https://www.douyin.com/video/7620096986498256168",
+      "author": "NONO",
+      "profile_url": "https://www.douyin.com/user/MS4wLjABAAAAZfFanYIaSxrbgai1gtcDuODwJI26eOQPTARzryU4jD2gaoNJJioiKpKOnG3GQjvW",
+      "observed_at": "2026-11-11T15:29:40+08:00",
+      "profile_observed_at": "2026-11-11T07:30:47.011Z",
+      "published_local": "2026-03-22 23:08",
+      "duration_seconds": 238,
+      "followers": {
+        "display": "112.7万",
+        "exact": null,
+        "at_publication": null
+      },
+      "metrics": {
+        "views": null,
+        "likes": 5057,
+        "comments": 123,
+        "favorites": 1038,
+        "shares": 388
+      },
+      "ordinary_post_comparison": {
+        "surface": "profile current visible unpinned samples",
+        "samples": [
+          {
+            "title": "F14雄猫战机的疯狂工程",
+            "likes": 810
+          },
+          {
+            "title": "5分钟看懂风力发电塔是如何建造的",
+            "likes": 2006
+          },
+          {
+            "title": "了解连杆机构传动原理",
+            "likes": 2237
+          }
+        ],
+        "limitation": "Different subjects and observation-age differences; not a matched baseline."
+      },
+      "classification": "REJECT_LARGE_ACCOUNT"
+    },
+    {
+      "id": "douyin-02-rejected",
+      "platform": "Douyin",
+      "title": "近代生活十大发明之一，拉链工作原理！#机械 #剪映2019",
+      "url": "https://www.douyin.com/video/6769488288798559499",
+      "author": "机械师-小明",
+      "profile_url": "https://www.douyin.com/user/MS4wLjABAAAA4Ar4anRZzf_WqiZdggzWc0GI8Q2Q0KuciGricx89i00",
+      "observed_at": "2026-11-11T07:30:18.530Z",
+      "profile_observed_at": "2026-11-11T07:30:49.666Z",
+      "published_local": "2019-12-12 17:52",
+      "duration_seconds": 12,
+      "followers": {
+        "display": "10.2万",
+        "exact": null,
+        "at_publication": null
+      },
+      "metrics": {
+        "views": null,
+        "likes_display": "1.2万",
+        "likes_exact": null,
+        "comments": 640,
+        "favorites": 145,
+        "shares": 103
+      },
+      "ordinary_post_comparison": {
+        "surface": "current unpinned profile posts",
+        "samples": [
+          {
+            "title": "星舰回收，这么精准吗？太牛逼了！",
+            "likes": 154
+          },
+          {
+            "title": "SPACE X星舰回收过程",
+            "likes": 267
+          },
+          {
+            "title": "磁悬浮小乌龟",
+            "likes": 43
+          }
+        ],
+        "limitation": "Recent unrelated content versus a 2019 post; cannot infer 2019 follower count or breakout uplift."
+      },
+      "visual_samples": [
+        {
+          "time_seconds": 2.908173,
+          "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-915070.png",
+          "description": "Flat frontal zipper demonstration, blue and pink rounded teeth, dark green slider outline, green field and black title borders. Core convergence visible as one still only. Not a full 3D cutaway."
+        }
+      ],
+      "classification": "REJECT_LOW_FOLLOWER_STATUS_NOT_ESTABLISHED"
+    },
+    {
+      "id": "douyin-03-rejected",
+      "platform": "Douyin",
+      "title": "你知道拉链的工作原理吗？#拉链 #科普 #涨知识 #知识前沿派对 #抖音精选",
+      "url": "https://www.douyin.com/video/7621110834118282505",
+      "author": "毛线动物园",
+      "profile_url": "https://www.douyin.com/user/MS4wLjABAAAAMS0Z-QRMb4UzYqW6DWgE80sXLayR_XRK5_FEHFg-iixuVpcnKDTL-EvSBP070ZoO",
+      "observed_at": "2026-11-11T07:30:30.454Z",
+      "profile_observed_at": "2026-11-11T07:30:52.237Z",
+      "published_local": "2026-03-25 16:42",
+      "duration_seconds": 227,
+      "followers": {
+        "display": "40.0万",
+        "exact": null,
+        "at_publication": null
+      },
+      "metrics": {
+        "views": null,
+        "likes": 1163,
+        "comments": 17,
+        "favorites": 455,
+        "shares": 218
+      },
+      "ordinary_post_comparison": {
+        "surface": "current unpinned profile cards",
+        "samples": [
+          {
+            "title": "完达山一号",
+            "likes": 675
+          },
+          {
+            "title": "走近科学被停播",
+            "likes": 631
+          },
+          {
+            "title": "发明缝纫机的人真是天才",
+            "likes": 516
+          }
+        ],
+        "limitation": "Different topics; selected visible cards, not a median."
+      },
+      "unverified_chapter_labels": [
+        {
+          "seconds": 20,
+          "label": "拉链的结构"
+        },
+        {
+          "seconds": 49,
+          "label": "拉头的工作原理"
+        },
+        {
+          "seconds": 86,
+          "label": "布带的作用"
+        },
+        {
+          "seconds": 123,
+          "label": "螺旋拉链"
+        },
+        {
+          "seconds": 149,
+          "label": "自锁拉头"
+        },
+        {
+          "seconds": 184,
+          "label": "拉链故障的解决方法"
+        }
+      ],
+      "chapter_boundary": "Page explicitly says 内容由AI生成 for chapter summary. Labels are navigation clues, not verified contents or mechanical sources.",
+      "classification": "REJECT_LARGE_ACCOUNT"
+    },
+    {
+      "id": "xhs-luoke-01",
+      "platform": "Xiaohongshu",
+      "title": "为什么拉链有个小拉片？工作原理是怎样的",
+      "url": "https://www.xiaohongshu.com/explore/6ace1e24000000001a023476?xsec_token=ABWjii5-Fa86H7buLPpH9SbylxPXXvOtQx-SRZtST7Qm8=&xsec_source=pc_search&source=web_explore_feed",
+      "canonical_url": "https://www.xiaohongshu.com/explore/6ace1e24000000001a023476",
+      "author": "洛克科学探索",
+      "profile_url": "https://www.xiaohongshu.com/user/profile/56c558f784edcd16173c5174?xsec_token=ABcGtJ5ORv5-N10ckV0GX0VtPqL51uKMo2S64C0PfkPVE=&xsec_source=pc_user",
+      "observed_at": "2026-11-11T07:31:05.750Z",
+      "profile_observed_at": "2026-11-11T07:32:13.736Z",
+      "published_display": "10-13 江西",
+      "published_exact": null,
+      "duration_seconds": 150.187,
+      "followers": {
+        "display": "13.7万",
+        "exact": null,
+        "at_publication": null
+      },
+      "metrics": {
+        "views": null,
+        "likes": 1651,
+        "favorites": 798,
+        "comments": 23,
+        "shares": null
+      },
+      "ordinary_post_comparison": {
+        "surface": "actual profile cards captured by Producer",
+        "samples": [
+          {
+            "title": "如何用火柴盒自制一个照相机？",
+            "likes": 193
+          },
+          {
+            "title": "一根线居然能折叠出整个宇宙？",
+            "likes": 24
+          },
+          {
+            "title": "快速拉牌究竟有什么技巧？",
+            "likes": 44
+          },
+          {
+            "title": "如何依靠墙壁来完成倒立？",
+            "likes": 17
+          }
+        ],
+        "pinned_high_posts": [
+          {
+            "title": "神奇的三组数字，是否蕴藏着宇宙终极奥秘？",
+            "likes": 3232
+          },
+          {
+            "title": "一鲸爆，万物死",
+            "likes_display": "5.1万"
+          }
+        ],
+        "limitation": "Current selected cards, no post-age matching or full-account median; XHS likes cannot be mixed with Bilibili views."
+      },
+      "visual_review": {
+        "producer_screenshot": "evidence/xhs-luoke-012.png",
+        "dom_observed_current_time_seconds": 97.024668,
+        "note": "DOM read current time97.024668s does not establish continuous watching; screenshot filename alone does not establish timestamp or visual contents. Bilibili isolated-tooth frame observation remains separately attributed.",
+        "continuous_viewing": false,
+        "listening_review": false
+      },
+      "classification": "REJECT_LOW_FOLLOWER_REQUIREMENT; MODERATE_LIKES_ON_LARGER_ACCOUNT",
+      "evidence": [
+        "evidence/xhs-luoke-post.json",
+        "evidence/xhs-luoke-profile.json"
+      ],
+      "rights": "Public visibility is not a license. Original authorship and reuse permission unverified; structural inspiration only."
+    }
+  ],
+  "schematic_boundaries": [
+    "No candidate is used here as scientific authority for exact tooth geometry, slider constraints, force magnitudes, contact or collision.",
+    "Flat rounded-teeth images are explanatory abstractions, not validated industrial zipper models.",
+    "Single sampled 3D tooth frame does not prove a correct interlocking motion or cutaway throughout the video.",
+    "Original reference media remains on platform; no footage, audio or unlicensed model was downloaded."
+  ],
+  "limitations": [
+    "Bounded existing search results only; no additional navigation during consolidation.",
+    "Sampled frames and DOM metrics only; continuous viewing, listening, exact full storyboard and mechanical validation remain UNKNOWN.",
+    "No qualified final 3D breakout reference selected.",
+    "Rounded metrics are not exact counts; missing data null; current followers do not prove historical followers.",
+    "Screenshots cited in original platform research are temporary browser artifacts; original source ownership unresolved.",
+    "No source video, audio or unauthorized model downloaded; no interaction, upload, platform draft or publication performed."
+  ],
+  "telemetry": {
+    "tokens": null,
+    "cost": null,
+    "human_intervention": null
+  },
+  "selected_reference": null,
+  "selected_qualified_3d_breakout": null,
+  "generated_at": "2026-11-11T07:40:11.820978+00:00",
+  "notes": [
+    "解构万象8.3万赞误搜结果是加油站题材，不是拉链，必须从拉链候选与爆款判断中排除。",
+    "当前粉丝数不等于发布时粉丝数，禁止回推。",
+    "洛克小红书13.7万粉1651赞798藏23评与B站4.5万粉10.2万播放140赞105藏分别保留，不混算。",
+    "YouTube补查因通知权限prompt转用户控制，未获取候选；用户后续选择先整理现有资料，因此不再浏览。",
+    "正式Research交接仅证明候选资料已整理，不代表参考选定、科学通过、视觉通过或制作通过。"
+  ],
+  "citations": [
+    {
+      "path": "output/tasks/zipper-breakout-20261111/platforms/research.json",
+      "sha256": "d892757dd7fa82bac0b3d22c0f44400124a4458bf5734f55e005684a6c4fdc19",
+      "kind": "local browser evidence or research snapshot"
+    },
+    {
+      "path": "output/tasks/zipper-breakout-20261111/platforms/v2/research.json",
+      "sha256": "821c30ee7988fb518e91893bbe171845b38179cf1425b70aa19291608181d99b",
+      "kind": "local browser evidence or research snapshot"
+    },
+    {
+      "path": "output/tasks/zipper-breakout-20261111/evidence/xhs-luoke-post.json",
+      "sha256": "53a0a5c597e6e011ccfb1209dd52db4a003e3ea4fc02df33af4335b7eb7e7e59",
+      "kind": "local browser evidence or research snapshot"
+    },
+    {
+      "path": "output/tasks/zipper-breakout-20261111/evidence/xhs-luoke-profile.json",
+      "sha256": "a1ec332935888e2d7df7a8daa5b20fa229eac2bae50efe0885b8fbda8f042a64",
+      "kind": "local browser evidence or research snapshot"
+    }
+  ]
+}

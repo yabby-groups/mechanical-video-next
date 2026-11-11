@@ -1,0 +1,104 @@
+{
+  "candidate": {
+    "author": "NONO",
+    "breakout_follower_cap": null,
+    "cached_metrics": {
+      "comments": 123,
+      "favorites": 1038,
+      "likes": 5057,
+      "shares": 388,
+      "views": null
+    },
+    "cached_observations": [],
+    "cached_ordinary_post_comparison": {
+      "limitation": "Different subjects and observation-age differences; not a matched baseline.",
+      "samples": [
+        {
+          "likes": 810,
+          "title": "F14雄猫战机的疯狂工程"
+        },
+        {
+          "likes": 2006,
+          "title": "5分钟看懂风力发电塔是如何建造的"
+        },
+        {
+          "likes": 2237,
+          "title": "了解连杆机构传动原理"
+        }
+      ],
+      "surface": "profile current visible unpinned samples"
+    },
+    "comments": null,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 238,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+        "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+      },
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": null,
+    "hypotheses": [],
+    "id": "dy-7",
+    "likes": 5057,
+    "metrics_evidence": {
+      "likes": [
+        {
+          "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+          "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+        },
+        {
+          "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+          "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:44:14.796Z",
+    "original_url_resolved": true,
+    "platform": "douyin",
+    "published_at": null,
+    "published_at_display": "3月22日",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": null,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "NOT_VERIFIED",
+    "shares": null,
+    "source": "Douyin public search",
+    "title": "了解拉链是如何工作的？",
+    "url": "https://www.douyin.com/video/7620096986498256168",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "douyin:7620096986498256168",
+  "captured_at": "2026-11-11T07:44:14.796Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

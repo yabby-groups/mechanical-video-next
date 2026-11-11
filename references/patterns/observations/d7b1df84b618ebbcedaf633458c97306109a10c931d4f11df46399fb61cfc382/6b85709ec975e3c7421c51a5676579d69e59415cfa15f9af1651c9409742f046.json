@@ -1,0 +1,63 @@
+{
+  "candidate": {
+    "author": "冷科普",
+    "breakout_follower_cap": null,
+    "comments": null,
+    "confidence": "CACHED_PARTIAL_OBSERVATION",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duration_seconds": 159,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": null,
+    "followers_display": "132.6万",
+    "hypotheses": [],
+    "id": "bili-03-rejected",
+    "likes": null,
+    "observations": [],
+    "observed_at": "2026-11-11T15:28:36+08:00",
+    "ordinary_post_comparison": null,
+    "original_url_resolved": true,
+    "platform": "Bilibili",
+    "published_at": null,
+    "published_at_display": "2024-08-29 16:45:00",
+    "reference_class": "A",
+    "rights": "Page says 未经作者授权，禁止转载.",
+    "saves": 4822,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "shares": 274,
+    "source": "existing local research; not refreshed",
+    "title": "近代的伟大发明：拉链！一个小小的拉头，为何能让链齿开合？",
+    "url": "https://www.bilibili.com/video/BV1eE4m1Q71k/",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_visual": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null,
+    "views_display": "21.1万"
+  },
+  "canonical_id": "bilibili:BV1eE4m1Q71k",
+  "captured_at": "2026-11-11T15:28:36+08:00",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

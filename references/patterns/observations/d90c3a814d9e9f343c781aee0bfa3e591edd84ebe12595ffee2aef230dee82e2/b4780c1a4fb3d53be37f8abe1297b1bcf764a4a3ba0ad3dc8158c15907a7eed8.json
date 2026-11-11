@@ -1,0 +1,121 @@
+{
+  "candidate": {
+    "author": "青禾记（炸狗盆）",
+    "breakout_follower_cap": null,
+    "comments": 110,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": true,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 101,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738.json",
+        "sha256": "f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738"
+      },
+      {
+        "path": "references/patterns/evidence/70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19.json",
+        "sha256": "70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19"
+      }
+    ],
+    "follower_tier_observation": "Visible rounded display; exact count unknown; not a verified strict qualification",
+    "followers": null,
+    "followers_display": "60.2万",
+    "followers_rounded": true,
+    "hypotheses": [],
+    "id": "dy-3",
+    "likes": 7761,
+    "metrics_evidence": {
+      "comments": [
+        {
+          "path": "references/patterns/evidence/f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738.json",
+          "sha256": "f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738"
+        },
+        {
+          "path": "references/patterns/evidence/70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19.json",
+          "sha256": "70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19"
+        }
+      ],
+      "followers": [
+        {
+          "path": "references/patterns/evidence/f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738.json",
+          "sha256": "f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738"
+        },
+        {
+          "path": "references/patterns/evidence/70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19.json",
+          "sha256": "70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19"
+        }
+      ],
+      "likes": [
+        {
+          "path": "references/patterns/evidence/f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738.json",
+          "sha256": "f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738"
+        },
+        {
+          "path": "references/patterns/evidence/70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19.json",
+          "sha256": "70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19"
+        }
+      ],
+      "saves": [
+        {
+          "path": "references/patterns/evidence/f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738.json",
+          "sha256": "f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738"
+        },
+        {
+          "path": "references/patterns/evidence/70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19.json",
+          "sha256": "70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19"
+        }
+      ],
+      "shares": [
+        {
+          "path": "references/patterns/evidence/f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738.json",
+          "sha256": "f39d9a771eea6a70a5664685f2f40a9e04daefc93a409f9973dcc2478fec7738"
+        },
+        {
+          "path": "references/patterns/evidence/70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19.json",
+          "sha256": "70b740ba84b29de4d22e7fb210f24abe9844b4f56860a55fe76a4566815bea19"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:44:14.796Z",
+    "original_url_resolved": true,
+    "platform": "douyin",
+    "published_at": null,
+    "published_at_display": "4月5日",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": 2151,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "EXCLUDED_FOLLOWERS_AND_DATE",
+    "shares": 1178,
+    "source": "Douyin public search",
+    "title": "恭喜你发明了拉链!",
+    "url": "https://www.douyin.com/video/7625267970520010034",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "douyin:7625267970520010034",
+  "captured_at": "2026-11-11T07:44:14.796Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

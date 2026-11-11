@@ -1,0 +1,119 @@
+{
+  "candidate": {
+    "author": "小天百科",
+    "breakout_follower_cap": null,
+    "comments": null,
+    "confidence": "CACHED_PARTIAL_OBSERVATION",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duration_seconds": 72,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": 138,
+    "followers_display": "138",
+    "hypotheses": [],
+    "id": "bili-small-01",
+    "likes": 53,
+    "observations": [
+      {
+        "description": "Cartoon woman against blue field; subtitle 发明拉链的人真是个天才. Watermarks 灰灰纪录片 bilibili and 马户百科.",
+        "observed_at": "2026-11-11T07:29:11.396Z",
+        "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-592070.png",
+        "time_seconds": 0
+      },
+      {
+        "description": "Large flat frontal pink chain teeth and yellow slider on pink background; subtitle 从上到下都排列着整齐的小牙齿. Not a sampled 3D cutaway.",
+        "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-724003.png",
+        "time_seconds": 10.815159
+      }
+    ],
+    "observed_at": "2026-11-11T07:27:39.872Z",
+    "ordinary_post_comparison": {
+      "approximate_reference_views_to_selected_sample_median": 234.19689119170985,
+      "conclusion": "High playback versus several ordinary posts, but not the account's sole high playback post. No engagement baseline was read.",
+      "other_high_posts": [
+        {
+          "title": "水上乐园滑梯里面的水是怎么来的，你会游泳吗？",
+          "url": "https://www.bilibili.com/video/BV1w3bCe4EyL/",
+          "views_display": "52万"
+        },
+        {
+          "title": "你知道钥匙是如何打开锁的吗，你家的门还需要用钥匙开吗？",
+          "url": "https://www.bilibili.com/video/BV1Vz421b7pn/",
+          "views_display": "29.7万"
+        }
+      ],
+      "ratio_boundary": "约234倍；11.3万是显示四舍五入值，4帖为选样，不是全账号或同龄作品中位数；不证明题材或画面导致播放增加。",
+      "samples": [
+        {
+          "published": "2024-07-26",
+          "title": "直升飞机可以空中悬停，这其中的原理是什么？",
+          "url": "https://www.bilibili.com/video/BV1ggezeuEau/",
+          "views_display": "480"
+        },
+        {
+          "published": "2024-07-08",
+          "title": "螺旋桨是怎么工作的，小伙伴们坐船会晕吗？",
+          "url": "https://www.bilibili.com/video/BV1r5hZeqE9c/",
+          "views_display": "862"
+        },
+        {
+          "published": "2024-06-11",
+          "title": "是先有鸡还是先有蛋呢，你爱吃鸡蛋吗？",
+          "url": "https://www.bilibili.com/video/BV1ez421b7Hg/",
+          "views_display": "485"
+        },
+        {
+          "published": "2024-06-06",
+          "title": "你的血压高吗？如果血压高会发生什么呢？",
+          "url": "https://www.bilibili.com/video/BV1SZ421H7LW/",
+          "views_display": "408"
+        }
+      ],
+      "selected_sample_median_views": 482.5,
+      "surface": "author upload page, latest order, first page"
+    },
+    "original_url_resolved": true,
+    "platform": "Bilibili",
+    "published_at": null,
+    "published_at_display": "2024-06-10 19:31:27",
+    "reference_class": "A",
+    "rights": "Visible page says 未经作者授权，禁止转载. Multiple account watermarks make original source unresolved. Do not reuse footage, audio or exact script.",
+    "saves": 117,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "shares": 26,
+    "source": "existing local research; not refreshed",
+    "title": "你知道拉链是怎么合上的吗，它的原理是什么呢？",
+    "url": "https://www.bilibili.com/video/BV1Nz42187Yd/",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_visual": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null,
+    "views_display": "11.3万"
+  },
+  "canonical_id": "bilibili:BV1Nz42187Yd",
+  "captured_at": "2026-11-11T07:27:39.872Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

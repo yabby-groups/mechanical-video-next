@@ -1,0 +1,96 @@
+{
+  "candidate": {
+    "author": "洛克科学探索",
+    "breakout_follower_cap": null,
+    "cached_metrics": {
+      "coins": 4,
+      "comments": null,
+      "danmaku": 3,
+      "favorites": 105,
+      "likes": 140,
+      "shares": 6,
+      "views_display": "10.2万",
+      "views_exact": null
+    },
+    "cached_observations": [
+      {
+        "description": "Dark metallic individual tooth isolated, tilted against pale studio background. Subtitle states tooth head wider than rear opening. No full working cycle assessed.",
+        "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-991110.png",
+        "time_seconds": 11.7563
+      }
+    ],
+    "cached_ordinary_post_comparison": null,
+    "comments": null,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 150,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+        "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+      },
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": null,
+    "hypotheses": [],
+    "id": "dy-2",
+    "likes": 49,
+    "metrics_evidence": {
+      "likes": [
+        {
+          "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+          "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+        },
+        {
+          "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+          "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:44:14.796Z",
+    "original_url_resolved": true,
+    "platform": "douyin",
+    "published_at": null,
+    "published_at_display": "10月13日",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": null,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "NOT_VERIFIED",
+    "shares": null,
+    "source": "Douyin public search",
+    "title": "为什么拉链非要有个小拉片？它的工作原理是怎样的",
+    "url": "https://www.bilibili.com/video/BV1gypq6EERu/",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "bilibili:BV1gypq6EERu",
+  "captured_at": "2026-11-11T07:44:14.796Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

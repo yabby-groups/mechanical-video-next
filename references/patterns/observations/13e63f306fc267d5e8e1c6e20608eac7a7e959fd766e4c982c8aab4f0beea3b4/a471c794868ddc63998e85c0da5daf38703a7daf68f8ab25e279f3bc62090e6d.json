@@ -1,0 +1,70 @@
+{
+  "candidate": {
+    "author": "小几核讲原理",
+    "breakout_follower_cap": null,
+    "comments": null,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": null,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/673270336fb33003dc677e6b9acc89a10d338fbc2a3ae0b2819803bd44514cec.json",
+        "sha256": "673270336fb33003dc677e6b9acc89a10d338fbc2a3ae0b2819803bd44514cec"
+      }
+    ],
+    "followers": null,
+    "hypotheses": [],
+    "id": "xhs-6ad0ef440000000015013f15",
+    "likes": 43,
+    "metrics_evidence": {
+      "likes": [
+        {
+          "path": "references/patterns/evidence/673270336fb33003dc677e6b9acc89a10d338fbc2a3ae0b2819803bd44514cec.json",
+          "sha256": "673270336fb33003dc677e6b9acc89a10d338fbc2a3ae0b2819803bd44514cec"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:45:37.168Z",
+    "original_url_resolved": true,
+    "platform": "xiaohongshu",
+    "published_at": null,
+    "published_at_display": "10-15",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": null,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "EXCLUDED_LIKES",
+    "shares": null,
+    "source": "Xiaohongshu public search",
+    "title": "没有胶水和磁铁，拉链凭什么一拉就合上？",
+    "url": "https://www.xiaohongshu.com/explore/6ad0ef440000000015013f15",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "xiaohongshu:6ad0ef440000000015013f15",
+  "captured_at": "2026-11-11T07:45:37.168Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

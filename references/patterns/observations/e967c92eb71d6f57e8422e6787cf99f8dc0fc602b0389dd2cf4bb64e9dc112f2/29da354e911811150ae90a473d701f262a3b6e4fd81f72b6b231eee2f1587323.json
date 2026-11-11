@@ -1,0 +1,104 @@
+{
+  "candidate": {
+    "author": "毛线动物园",
+    "breakout_follower_cap": null,
+    "cached_metrics": {
+      "comments": 17,
+      "favorites": 455,
+      "likes": 1163,
+      "shares": 218,
+      "views": null
+    },
+    "cached_observations": [],
+    "cached_ordinary_post_comparison": {
+      "limitation": "Different topics; selected visible cards, not a median.",
+      "samples": [
+        {
+          "likes": 675,
+          "title": "完达山一号"
+        },
+        {
+          "likes": 631,
+          "title": "走近科学被停播"
+        },
+        {
+          "likes": 516,
+          "title": "发明缝纫机的人真是天才"
+        }
+      ],
+      "surface": "current unpinned profile cards"
+    },
+    "comments": null,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 227,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+        "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+      },
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": null,
+    "hypotheses": [],
+    "id": "dy-4",
+    "likes": 1163,
+    "metrics_evidence": {
+      "likes": [
+        {
+          "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+          "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+        },
+        {
+          "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+          "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:44:14.796Z",
+    "original_url_resolved": true,
+    "platform": "douyin",
+    "published_at": null,
+    "published_at_display": "3月25日",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": null,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "NOT_VERIFIED",
+    "shares": null,
+    "source": "Douyin public search",
+    "title": "你知道拉链的工作原理吗？",
+    "url": "https://www.douyin.com/video/7621110834118282505",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "douyin:7621110834118282505",
+  "captured_at": "2026-11-11T07:44:14.796Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

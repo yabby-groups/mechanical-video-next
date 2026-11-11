@@ -1,5 +1,36 @@
 # Mechanical Video Next
 
+**资产策略已改为自主参数化 CAD。** 新 CLI 任务默认 `asset_strategy=autonomous-cad`：MechanicalResearch → build123d/Open CASCADE CAD → 独立机械 QA → 动态分镜 QA → 高清制作。网络资料只作结构和创意依据，默认不下载成品模型。当前拉链验证任务为 `output/tasks/zipper-cad-20261111`，源码、STEP/GLB、独立链牙、装配及短动作验证先于全片；历史工作片与旧缺陷记录保留。角色入口新增 `mechanical_research.toml` 与 `cad.toml`；旧 Asset/Research 接口保留历史兼容。每个缺陷自动修复总计最多两轮，未知不视为通过。
+
+本次[自主 CAD 实际交付与验证结果](docs/productions/zipper-cad-20261111.md)：28 个独立实体、STEP/GLB、连续简化布带、装配/爆炸/剖切图与 8 秒啮合分离诊断已生成。拉片铰接两轮修复后仍有实体干涉，独立 QA 为 FAIL，任务 BLOCKED；没有高清或完整新成片。125 项工程测试通过不代表机械验收通过。
+
+拉链正在按用户要求[重制原生1080P与真实结构](docs/productions/zipper-real1080-20261111.md)：已有原生3D诊断片，有限帧运动无测得穿插，但旧教学模型真实感未通过；正在替换更合适的实体模型，尚无符合新要求的最终片。
+
+拉链已按用户反馈制作[EP03方向风格优化版](docs/productions/zipper-style-ep03-20261111.md)：保留已认可的内容、31.5秒时轴和原配音，调整蓝灰空间、铜青配色、主体大小及标注；独立媒体检查与二维源限制随片记录。
+
+已制作[31.5秒拉链完整有声工作片](docs/productions/zipper-explainer-20261111.md)，含Neil原速旁白、中文字幕与素材署名。采用许可明确的既有原理动画，960×540，技术检测通过；这是可观看的完整animatic，尚未通过正式视听验收。
+
+参考驱动流程现使用 protocol v2：先查本地 references，按 A 同题50% / B 相似结构30% / C 科普叙事20%研究（最多30候选、默认10深析），再将原创蓝图编译为实际镜头配置。配置、蓝图、动态分镜和独立 QA 都绑定不可变哈希；变更输入会使旧批准失效。新增 `.codex/agents/viral_research.toml` 与 `.agents/skills/viral-video-research/SKILL.md`，原有三个机械 Skills 继续复用。
+
+```sh
+python3 -m mechanical_video_next.reference_library search --query '拉链'
+python3 -m mechanical_video_next.viral plan --topic '拉链为什么一拉就能合上？' --output output/tasks/zipper-viral-20261111/research
+# 合法浏览器/接口取得真实候选后执行确定性筛选，工具本身不伪装已观看
+python3 -m mechanical_video_next.viral analyze --input output/tasks/zipper-viral-20261111/research/candidates.json --output output/tasks/zipper-viral-20261111/research
+python3 -m mechanical_video_next.blueprint compile --blueprint output/tasks/zipper-viral-20261111/research/creative-blueprint.json --base config/zipper-new.json --output output/tasks/zipper-viral-20261111/blueprint-config.json --draft
+python3 -m mechanical_video_next.blueprint animatic --blueprint output/tasks/zipper-viral-20261111/research/creative-blueprint.json --output output/tasks/zipper-viral-20261111/animatic-v1
+```
+
+上面拉链蓝图为 PROVISIONAL；静态分镜明确标记占位，不声称有合格机械运动。正式编译移除 `--draft`，要求完整 FROZEN 蓝图；Producer 将实际配置路径和 SHA256 绑定至新蓝图版本，再登记 feasibility、animatic-manifest 和独立 animatic-qa。QA 比较知识目标、研究原则、蓝图与实际 MP4；UNKNOWN/FAIL 阻止正式渲染。下文旧版直接 preview/final 示例需改用具备合格 v2 交接的 `stage` 或增加 `--task`；历史 v1 工作片须显式指定 `--legacy-workprint`，不能作为新制作验收。
+
+本轮拉链实查、原始链接、蓝图、实际时间板与独立 QA 位于 `output/tasks/zipper-viral-20261111/`，汇总见 `docs/plans/zipper-reference-driven-20261111.md`。没有连续观看/听审能力时不会伪造“对标研究已通过”；原链牙穿插与修复耗尽证据保留。
+
+用户已要求先找爆款再复刻拉链，现有实查结果见[拉链爆款参考候选](docs/plans/zipper-breakout-shortlist-20261111.md)：列出原片链接、当前粉丝、作品表现、普通帖对比、实际画面与制作条件。目前完成候选整理，尚未选定合格的3D低粉主参考。
+
+拉链已按用户“全新的”要求建立[独立新制作任务](docs/plans/zipper-new-20261111.md)，没有复用旧拉链模型、脚本或媒体。当前真实链牙穿插未通过验收，已按两策略各两轮上限停止，尚无合格新成片。
+
+旧项目接续选题见[剩余视频计划（2026-11-11）](docs/plans/remaining-video-plan-20261111.md)：卷尺、拉链已有工作片待验收，另有26个具体候选与2个弹性位；棘轮、按动笔和打印机历史片的剩余验收单列。计划记录不自动启动制作，旧项目版本指针差异与来源快照一并保留。
+
 当前视觉参考已明确为**打印机系列 EP03**：机械主体全画面、灰色空间、金属材质、柔和阴影、斜视与克制的镜头推进，少量标注及底部字幕。`config/planetary-01.json` / `planetary-02.json` 已采用该预设，配音保持 Neil。旧左右分栏配置保留为 `*-panel.json`，既有成片保留。`config/planetary-fullframe-style.json` 是只改版式的中间版本；实际材质灯光预览使用 `config/planetary-printer-ep03-style.json`、现有 EEVEE 渲染器及 `blender/studio_style.py` 小型预设，不复制旧架构。参考风格不等于科学或完整视听验收。
 
 ```sh

@@ -1,0 +1,129 @@
+{
+  "candidate": {
+    "author": "洛克科学探索",
+    "breakout_follower_cap": null,
+    "comments": 23,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": true,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 150.187,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f.json",
+        "sha256": "9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f"
+      },
+      {
+        "path": "references/patterns/evidence/b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a.json",
+        "sha256": "b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a"
+      }
+    ],
+    "follower_tier_observation": "Visible rounded display; exact count unknown; not a verified strict qualification",
+    "followers": null,
+    "followers_display": "13.7万",
+    "followers_rounded": true,
+    "hypotheses": [],
+    "id": "xhs-6ace1e24000000001a023476",
+    "likes": 1651,
+    "metrics_evidence": {
+      "comments": [
+        {
+          "path": "references/patterns/evidence/9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f.json",
+          "sha256": "9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f"
+        },
+        {
+          "path": "references/patterns/evidence/b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a.json",
+          "sha256": "b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a"
+        }
+      ],
+      "followers": [
+        {
+          "path": "references/patterns/evidence/9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f.json",
+          "sha256": "9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f"
+        },
+        {
+          "path": "references/patterns/evidence/b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a.json",
+          "sha256": "b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a"
+        }
+      ],
+      "likes": [
+        {
+          "path": "references/patterns/evidence/9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f.json",
+          "sha256": "9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f"
+        },
+        {
+          "path": "references/patterns/evidence/b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a.json",
+          "sha256": "b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a"
+        }
+      ],
+      "saves": [
+        {
+          "path": "references/patterns/evidence/9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f.json",
+          "sha256": "9104466593f3f3893d24fd2e9accf2fb4eb3d3f55f98136d3227450cdb60950f"
+        },
+        {
+          "path": "references/patterns/evidence/b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a.json",
+          "sha256": "b6867a17eb7fc63ad43b1fd3e9b695a21e0941ee89ac76b9192b8d70a4b3857a"
+        }
+      ]
+    },
+    "observations": [],
+    "observed_at": "2026-11-11T07:45:37.168Z",
+    "ordinary_post_comparison": {
+      "basis": "Visible unpinned profile cards, dates not normalized; descriptive only",
+      "causal_inference": null,
+      "posts": [
+        {
+          "likes": 193,
+          "title": "如何用火柴盒自制一个照相机？"
+        },
+        {
+          "likes": 24,
+          "title": "一根线居然能折叠出整个宇宙？"
+        },
+        {
+          "likes": 44,
+          "title": "快速拉牌究竟有什么技巧？"
+        }
+      ]
+    },
+    "original_url_resolved": true,
+    "platform": "xiaohongshu",
+    "published_at": null,
+    "published_at_display": "10-13",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": 798,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "EXCLUDED_FOLLOWERS",
+    "shares": null,
+    "source": "Xiaohongshu public search",
+    "title": "为什么拉链有个小拉片？工作原理是怎样的",
+    "url": "https://www.xiaohongshu.com/explore/6ace1e24000000001a023476",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "xiaohongshu:6ace1e24000000001a023476",
+  "captured_at": "2026-11-11T07:45:37.168Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

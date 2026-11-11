@@ -1,0 +1,117 @@
+{
+  "as_of": "2026-11-11",
+  "source_root": "/Users/lmj/yuntan/esp32/mechanical-video",
+  "scope": "planning and local records only; no media or platform acceptance",
+  "monthly_slots": 30,
+  "monthly_specific_topics": 28,
+  "existing_monthly_workprints": 2,
+  "uninitiated_candidates": 26,
+  "flexible_slots": 2,
+  "candidate_priority_counts": {
+    "A": 14,
+    "B": 8,
+    "C": 4
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "1f13846df9495462699a2bb8113fbdbf497033c84a24fba7876f62bda87fadba"
+    },
+    {
+      "path": "docs/briefs/everyday-mechanisms-growth-plan-20261109.md",
+      "sha256": "349b16db3742c0accd852c066ea1611dc8f1509a6b9ad7b0658e0e6840fba0a8"
+    },
+    {
+      "path": "docs/briefs/everyday-mechanisms-month-plan-20261109.md",
+      "sha256": "a792b5b1928229ed0d7e81c3cd108a92f10200639e7e1f0da471b5b992ce59af"
+    },
+    {
+      "path": "docs/briefs/everyday-mechanisms-plan-20261108.md",
+      "sha256": "46c91687051e07e44c708f5c84d70dc59e101d5168d967a7deec9efb0b71eef5"
+    },
+    {
+      "path": "docs/briefs/everyday-mechanisms-batch-20261106.md",
+      "sha256": "664152b88e9e80cbbe20b260f9ef58e456889691994e375e342000fdc6bb1b63"
+    },
+    {
+      "path": "docs/printer-series-plan.md",
+      "sha256": "4f4563846e8384e6ee9d6964fd81ecf28af9954eda9e4e1a0fa47b247c7e1824"
+    },
+    {
+      "path": "docs/printer-series-ep07-ep09-plan.md",
+      "sha256": "6bc6a6547ab34e653b67d4a9b04659bc1eede11e4315692ce5b5268e83ad9d24"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP01/director-record.json",
+      "sha256": "0f92813adf718bafe2bf220600e26de43cf0699323410cd2a7965767e2e94bf0"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP02/director-record.json",
+      "sha256": "1504931441b2fbdbe7c40f004c654193595b507c890f530a71de50df7ec190d5"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP03/director-record.json",
+      "sha256": "609e9312a27d14f34885ff86e1b1733f79a34f4c1f7a33c0871f7fa715eaea38"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP04/director-record.json",
+      "sha256": "cbc5c648742572f6a4b08be6c3976c2b8e59387e821c18ad7faf615cbe43783c"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP03/director-record.json",
+      "sha256": "ebf064ebe757f91d27bb4f071fcd402c6555289540c136f7f2bb72b8e0dc694a"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP04/director-record.json",
+      "sha256": "da719fb480336d5c390888e46517521a54573e574a05e907f57f1b854da5fb71"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP05/director-record.json",
+      "sha256": "2fcb48d589c0bf2aeb50dd3e7580644a28d32800730dedcb7404d13cf7dd11ec"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP06/director-record.json",
+      "sha256": "5b2c842cdd11aaabc424b3e4fc40c0f9b038ad6f9ff6221a3da23444b15562cb"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP07/director-record.json",
+      "sha256": "5c9a92e738ff04249d2fe852ffbc0a135477fee121588bfca827f32c56604644"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP08/director-record.json",
+      "sha256": "1cabbad17ba197b57c71ca047557e9f49348e4e73d215a9ed80784537a287bea"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP09/director-record.json",
+      "sha256": "f3fe17ebbe9271503bd138fa5a5f42fef669e94ca6d8c7aa150917b18990a639"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP02/revision-angle-v7/delivery-current.json",
+      "sha256": "5bfe4f2240bb2bd545ab0b90c917dd855751b2a4a38ded596f9dfd20096d7e10"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP02/revision-angle-v7/candidate-v7-status.json",
+      "sha256": "83f62a470cd1cc84339f57480133bc527377a87a37a9bfc58de9ac79a7727218"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP03/latest-delivery.json",
+      "sha256": "216cea9f3b1e735d57bd2d8e7903b25c0b09d65916be53aac05aa65ca49d6780"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP03/early-narration-20261110/verification.json",
+      "sha256": "15c65665e3c22cd472cc3c1e6bc0c0858e5c925b1d3b5b7f0c9af59e9e14b112"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP03/early-narration-20261110/README.md",
+      "sha256": "c02aeac92d5aa65c1415eccddd9fbd1d648893d2abb3ac9846024b0e34389569"
+    },
+    {
+      "path": "series/everyday-mechanisms/episodes/EVERYDAY_EP04/README.md",
+      "sha256": "e3ba49437dc2c398ce00c71601bbfc58f8d32442576548951056360ca9e5226d"
+    },
+    {
+      "path": "series/3d-printer-v2/episodes-current/EP05/delivery-current.json",
+      "sha256": "79c34c755d0c35d768e4e1ad512d43f2a7f9d0e2301f8e6c6b7da2d332faa90a"
+    }
+  ]
+}

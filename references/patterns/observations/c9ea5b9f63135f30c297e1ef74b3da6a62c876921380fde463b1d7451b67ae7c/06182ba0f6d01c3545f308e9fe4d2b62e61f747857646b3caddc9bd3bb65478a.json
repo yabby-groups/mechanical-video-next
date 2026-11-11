@@ -1,0 +1,101 @@
+{
+  "candidate": {
+    "author": "机械师-小明",
+    "breakout_follower_cap": null,
+    "cached_metrics": {
+      "comments": 640,
+      "favorites": 145,
+      "likes_display": "1.2万",
+      "likes_exact": null,
+      "shares": 103,
+      "views": null
+    },
+    "cached_observations": [
+      {
+        "description": "Flat frontal zipper demonstration, blue and pink rounded teeth, dark green slider outline, green field and black title borders. Core convergence visible as one still only. Not a full 3D cutaway.",
+        "screenshot": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/ego-browser-shot-915070.png",
+        "time_seconds": 2.908173
+      }
+    ],
+    "cached_ordinary_post_comparison": {
+      "limitation": "Recent unrelated content versus a 2019 post; cannot infer 2019 follower count or breakout uplift.",
+      "samples": [
+        {
+          "likes": 154,
+          "title": "星舰回收，这么精准吗？太牛逼了！"
+        },
+        {
+          "likes": 267,
+          "title": "SPACE X星舰回收过程"
+        },
+        {
+          "likes": 43,
+          "title": "磁悬浮小乌龟"
+        }
+      ],
+      "surface": "current unpinned profile posts"
+    },
+    "comments": null,
+    "confidence": "METADATA_ONLY",
+    "deep_analysis": false,
+    "directly_related": true,
+    "duplicate_of": null,
+    "duration_seconds": 12,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8.json",
+        "sha256": "80a35d5ebfa156f7e8ce4e47f3ddbaa60862afc23a86bf5c037fa702b65003b8"
+      },
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": null,
+    "hypotheses": [],
+    "id": "dy-5",
+    "likes": null,
+    "likes_display": "1.2万",
+    "metrics_evidence": {},
+    "observations": [],
+    "observed_at": "2026-11-11T07:44:14.796Z",
+    "original_url_resolved": true,
+    "platform": "douyin",
+    "published_at": null,
+    "published_at_display": "2019年12月12日",
+    "reference_class": "A",
+    "reference_class_basis": "Observed title directly concerns zipper structure, operation or manufacturing; no media-based style inference.",
+    "saves": null,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "selection_status": "NOT_VERIFIED",
+    "shares": null,
+    "source": "Douyin public search",
+    "title": "近代生活十大发明之一，拉链工作原理！",
+    "url": "https://www.douyin.com/video/6769488288798559499",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_video_read": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null
+  },
+  "canonical_id": "douyin:6769488288798559499",
+  "captured_at": "2026-11-11T07:44:14.796Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}

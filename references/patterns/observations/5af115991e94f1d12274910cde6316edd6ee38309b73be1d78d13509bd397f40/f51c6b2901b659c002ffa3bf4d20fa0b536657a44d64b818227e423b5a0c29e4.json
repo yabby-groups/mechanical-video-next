@@ -1,0 +1,59 @@
+{
+  "candidate": {
+    "author": "小天百科",
+    "breakout_follower_cap": null,
+    "comments": null,
+    "confidence": "CACHED_METADATA_ONLY",
+    "deep_analysis": false,
+    "directly_related": false,
+    "duration_seconds": null,
+    "evidence": [
+      {
+        "path": "references/patterns/evidence/8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b.json",
+        "sha256": "8cd069e91c9e7631713f82ce04b44a1acee5d1eb08b8a174f5cbce44c51aa65b"
+      }
+    ],
+    "followers": null,
+    "id": "cached-transfer-0",
+    "likes": null,
+    "observed_at": "2026-11-11T07:27:39.872Z",
+    "original_url_resolved": true,
+    "platform": "Bilibili",
+    "published_at": null,
+    "published_at_display": null,
+    "reference_class": "B",
+    "saves": null,
+    "scores": {
+      "engagement": null,
+      "feasibility": null,
+      "mechanical_clarity": null,
+      "opening": null,
+      "relevance": null
+    },
+    "scores_evidence": {},
+    "screening": {
+      "available": {},
+      "coverage": 0,
+      "normalized_weights": {},
+      "score": null
+    },
+    "shares": null,
+    "source": "cached account page",
+    "title": "你知道钥匙是如何打开锁的吗，你家的门还需要用钥匙开吗？",
+    "transfer_rationale": "锁止机构的因果演示；尚未观看",
+    "url": "https://www.bilibili.com/video/BV1Vz421b7pn/",
+    "viewing": {
+      "audio": {
+        "status": "UNKNOWN"
+      },
+      "continuous_visual": false,
+      "status": "VIDEO_NOT_VIEWED"
+    },
+    "views": null,
+    "views_display": "29.7万"
+  },
+  "canonical_id": "bilibili:BV1Vz421b7pn",
+  "captured_at": "2026-11-11T07:27:39.872Z",
+  "freshness": "UNVERIFIED_CACHED_OBSERVATIONS",
+  "schema_version": 1
+}
