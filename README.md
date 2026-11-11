@@ -1,6 +1,59 @@
 # Mechanical Video Next
 
-本地、素材优先的最小机械科普生产项目。只有三个 Skills；Blender/EAS 制作镜头，Remotion 合成，FFmpeg 检测。首期成片使用 macOS `say` 普通话；视频号统一默认旁白为 Qwen3-TTS / Neil，与卷尺同款。首期是有独立零件的简化行星齿轮教学装配，不是工业 CAD 或接触仿真。
+当前视觉参考已明确为**打印机系列 EP03**：机械主体全画面、灰色空间、金属材质、柔和阴影、斜视与克制的镜头推进，少量标注及底部字幕。`config/planetary-01.json` / `planetary-02.json` 已采用该预设，配音保持 Neil。旧左右分栏配置保留为 `*-panel.json`，既有成片保留。`config/planetary-fullframe-style.json` 是只改版式的中间版本；实际材质灯光预览使用 `config/planetary-printer-ep03-style.json`、现有 EEVEE 渲染器及 `blender/studio_style.py` 小型预设，不复制旧架构。参考风格不等于科学或完整视听验收。
+
+```sh
+python3 scripts/style_preview.py config/planetary-printer-ep03-style.json --phase keys
+python3 scripts/style_preview.py config/planetary-printer-ep03-style.json --phase preview
+python3 scripts/produce.py config/planetary-printer-ep03-style.json --phase preview
+```
+
+本地、素材优先的机械科普生产项目。三个 Skills 保留；Codex 主会话作为 Producer，五个窄职责子代理负责研究、资产、动画、剪辑、独立 QA。Blender/EAS 制作镜头，Remotion 合成，FFmpeg 检测。视频号统一默认旁白为 Qwen3-TTS / Neil，与卷尺同款。首期是有独立零件的简化行星齿轮教学装配，不是工业 CAD 或接触仿真。
+
+## 多 Agent 入口
+
+项目级 `.codex/config.toml` 和 `.codex/agents/*.toml` 使用当前官方独立角色文件格式，最多三个子代理，无第二个 Producer，不修改全局配置。已在 Codex CLI 0.167.0 严格配置模式验证五个角色加载；官方依据：[Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)。配置不会热加载进已存在的会话，本次协作使用当前会话的原生 collaboration 子代理工具并显式传入角色职责。
+
+```sh
+# 在当前 Codex 会话中创建制作任务，由该会话继续派发真实子代理
+python3 -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json
+# 从终端启动一个新的 Codex Producer，原生子代理由 Codex 调用
+python3 -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json --codex
+```
+
+默认命令只创建 `output/tasks/<id>/task.json` 和 `producer-prompt.md`，不会凭 Python 自动拥有智能调度。`--codex` 调用真实 `codex exec --json`，保存原生日志 `codex.jsonl`；需要已登录、受信任的项目和可用的 Codex 服务。已在 Codex 内工作时不要嵌套启动 Producer。原有 `scripts/produce.py` 为单 Agent 回退。
+
+`--voice` 是给 Producer 的明确音色要求，不能绕过现有语音批准与试听流程；默认保留已选 Neil。只有现有行星教学装配已接入固定镜头；任意选题、真实电钻、2.5D 路线尚不能保证自动制作。不匹配的选题必须由 Research/Asset 阻断，不把行星示意替代真实电钻结构。45 秒是可请求目标，首条回归基线为现有 36 秒；不能为凑时长加速声音。
+
+Research 与 Asset 并行，Animation 等待其合格交接，Editor 等待镜头时间轴，QA 独立读取实际媒体。每个 JSON 经 `handoff` 保存独立版本、所有权和依赖哈希，变化后旧依赖失效。状态前进用 `advance`，不是根据退出码直接 COMPLETED。
+
+```sh
+python3 -m mechanical_video_next handoff output/tasks/<id> --role Research --name research --input research.json
+python3 -m mechanical_video_next handoff output/tasks/<id> --role Research --name script --input script.json --depends research
+python3 -m mechanical_video_next advance output/tasks/<id> RESEARCHING
+python3 -m mechanical_video_next stage output/tasks/<id> keys --config config/planetary-01.json
+python3 -m mechanical_video_next status output/tasks/<id>
+```
+
+上述 stage 需要先登记合格资产并达到 ASSET_READY，完整依赖与命令见 CLI `--help` 和 AGENTS.md。门禁核对实际模型/媒体哈希、关键帧、技术报告及独立 QA；QA 的 UNKNOWN 阻止进入 EDITING/COMPLETED。`stage ... final --workprint` 只允许在 PREVIEW_CHECKING 且 QA 无 FAIL 时生成明确未验收工作样片，不推进状态。单纯 FFmpeg 扫描、截图抽样不能冒充连续观看、听审或原理完整验收。
+
+全局 `work/production.lock` 串行制作与清理；重任务不随 Agent 数量并行。stage 前自动清理超过七天、已完成且未锁定/受保护/被任务引用的可再生缓存，保留 assets、output 和失败证据。直接运行原始单 Agent 脚本时不要并发启动重任务。
+
+## 局部修复与验收
+
+生产协议支持有证据的修复登记，每问题至多两策略、每策略两轮，无改善立即停止。确定性自动修复适配器当前只覆盖已绑定配置哈希和 cue 的字幕缺陷，其他类型由 Producer 选择现成模板、资产或逐句语音配置后重新交接；没有声称具备任意几何/相机/听感自动判断器。
+
+```sh
+python3 -m mechanical_video_next.repairs output/tasks/<id> --config <video.json> --issue SUBTITLE-1 --shot s1 --cue 0 --text "修正字幕"
+python3 scripts/acceptance.py --run --scenario 1 2 3 4 5 7
+python3 -m unittest discover -s tests -v
+```
+
+修复适配器复用已有最终镜头，只重新合成，要求实际 QA 缺陷、精确媒体/配置哈希及 Editor 责任。修复结果仍需新的独立 QA，不直接关闭缺陷或标记成片合格。第六场景需要真实 QA 发现明确标记的受控故障、执行适配器和独立复验，回归脚本不会伪造该过程。第三场景仅修改旁白文本，复用已缓存 Neil 语句并刻意固定字幕作为隔离实验；该测试文件不能当可发布内容。
+
+本次本地证据位于 `output/multi-agent-pilot/`：final.mp4、captions.srt、timeline.json、独立 QA、研究/资产/动画交接、失败证据、acceptance.json。`output/tasks/pilot-20261111/` 保存状态门禁、版本化交接和原生线程协作记录。媒体和本次任务数据未纳入 Git，仍保留在本机。成本统计区分生产工具耗时、Agent 耗时和工程修改；原生接口不暴露的 Token/人工介入计量填 null，不编造零成本。
+
+本次另从本机原生会话 JSONL 提取了真实线程 UUID、完成时间与 Token 快照，见 `native-collaboration.json`；只导出元数据，不复制会话文本或密钥。它包含工程和制作多个回合，不能作为单条视频价格或节省比例。`scripts/codex_usage.py` 可对指定日期目录和 root thread 再提取；本地日志格式不是稳定公共 API，不存在时仍填 null。首轮开发使用了完整上下文继承，后续生产协议改为工具支持时使用新子代理上下文，仅传路径与交接哈希；尚无可比的 Token 降本结论。
 
 ## 运行
 
@@ -54,7 +107,7 @@ Git 保存源码、配置、资产来源与部件清单。生成的 Blend、音�
 
 缓存层分别为装配、每镜头的关键帧/低清/正式、每段音频、最终合成；读取时核对 SHA-256。修改 narration 只影响音频与合成；修改屏幕说明、字幕样式只影响合成；修改单镜头仅影响对应镜头及合成。整体场景源或资产参数变化会保守地失效相关模型和镜头缓存。源码算法变化仍需更新相应缓存版本，不支持任意热修改后猜测等价。
 
-最终输出是 1080×1920/30fps/H.264/AAC MP4；3D 画面原生 1080×1250，放入带标题、说明和字幕的竖版画布。预览为 540×960。使用 Workbench 做快速教学渲染，未启用 Cycles 光线追踪。字幕时轴来自每句 TTS 音频实际起止，不是音素强制对齐。
+当前默认输出为横屏 1920×1080/30fps/H.264/AAC，fullframe 3D 使用同一画幅，预览为 960×540。打印机 EP03 视觉预设使用现成 EEVEE 渲染器、PBR 材质及柔和区域灯；未启用 Cycles。历史 panel 配置保留 Workbench 和原先的独立机械面板。字幕时轴来自每句 TTS 音频实际起止，不是音素强制对齐。
 
 ## 资产与科学边界
 
@@ -83,7 +136,7 @@ python3 scripts/clean.py --older-hours 168
 python3 scripts/clean.py --older-hours 168 --apply
 ```
 
-不存在自动返工循环：异常即停。明确问题的修复只允许两种策略、各至多两次且有量化改善。本期发生一次媒体修复：低清 625 高度无法编码 H.264，给编码增加单像素 padding 后直接复用原帧通过。环境启动和 npm 缓存权限问题另计，不冒充零工程干预。
+原始单 Agent 脚本异常即停，不自动重试。多 Agent 入口仅对有证据的明确缺陷作有限局部修复，策略与次数见上文。本期历史上发生一次媒体修复：低清 625 高度无法编码 H.264，给编码增加单像素 padding 后直接复用原帧通过。环境启动和 npm 缓存权限问题另计，不冒充零工程干预。
 
 ## 上游与许可
 
@@ -98,7 +151,7 @@ python3 scripts/clean.py --older-hours 168 --apply
 
 ## 横屏默认输出
 
-`config/planetary-01.json` 和 `planetary-02.json` 默认 1920×1080、30 fps、H.264/AAC，使用已选定的 Neil 普通话旁白。左侧机械镜头、右侧说明、底部逐句字幕；Blender 按横屏面板重新取景，渲染尺寸进入镜头缓存键。现有竖屏 MP4 保留，横屏文件使用 `-landscape` ID。
+`config/planetary-01.json` 和 `planetary-02.json` 默认 1920×1080、30 fps、H.264/AAC，使用已选定的 Neil 普通话旁白。视觉参照打印机系列 EP03，采用全画面机械主体、灰色空间、金属材质、柔和阴影及底部逐句字幕。Blender 按完整横屏画幅取景，渲染尺寸与视觉预设源码进入镜头缓存键。当前文件使用 `-fullframe` ID；旧 panel 配置、横屏及竖屏 MP4 保留。
 
 ```sh
 /usr/bin/python3 scripts/produce.py config/planetary-01.json --phase keys
