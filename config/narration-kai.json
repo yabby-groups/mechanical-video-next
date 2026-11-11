@@ -1,0 +1,27 @@
+{
+  "id": "kai-documentary-v1",
+  "provider": "openai-compatible",
+  "base_url": "https://huabot.com/v1",
+  "api_key_env": "OPENAI_API_KEY",
+  "model": "qwen3-tts-flash",
+  "voice": "Kai",
+  "language": "zh-CN",
+  "character": "磁性温暖男声",
+  "style": "纪录片式，沉稳自然，有探索感。用自然停顿和重点词强调，避免机械念稿。",
+  "style_delivery": "Kai 系统音色与口语分句、标点及叙述措辞；当前接口不支持原生风格或重音指令，效果须试听确认。",
+  "native_speed_control": false,
+  "native_instruction_control": false,
+  "target_speed": 1.0,
+  "max_post_speed_delta": 0.05,
+  "pause_between_sentences_seconds": 0.24,
+  "leading_silence_seconds": 0.15,
+  "trailing_silence_seconds": 0.25,
+  "loudness": {"integrated_lufs": -16.0, "true_peak_dbtp": -1.5, "lra": 7.0},
+  "sample_rate": 48000,
+  "channels": 1,
+  "format": "pcm_s16le",
+  "references": [
+    "https://help.aliyun.com/zh/model-studio/qwen-tts-api",
+    "https://help.aliyun.com/zh/model-studio/qwen-tts-voice-list"
+  ]
+}

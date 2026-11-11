@@ -1,0 +1,11 @@
+{
+  "channel": "视频号",
+  "default_profile": "config/narration-neil.json",
+  "candidate_profile": "config/narration-neil.json",
+  "status": "approved",
+  "approved_profile_sha256": "74e4c330ab3ae0006694ae8ab8e1aceca680d8a522e8411331f683422f4443de",
+  "approved_audition": "output/narration-audition/neil-documentary-audition-v1/approved-74e4c330ab3a-82e9cd54172b.json",
+  "approved_audition_sha256": "b02191a874bb7d7b5b857f3bd2deb8f13b16e958f3b9a8d749a9c004fc7c04f3",
+  "approved_at_epoch": 1794363497.138547,
+  "approval_basis": "explicit_reference_voice_selection"
+}

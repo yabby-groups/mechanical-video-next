@@ -1,0 +1,96 @@
+{
+  "status": "APPROVED_VOICE_SELECTION",
+  "profile": "config/narration-neil.json",
+  "profile_sha256": "74e4c330ab3ae0006694ae8ab8e1aceca680d8a522e8411331f683422f4443de",
+  "audio_sha256": "82e9cd54172b991666a45955c5f5e8d7729115db32a1abbfa8eb2e6e7eefa9dc",
+  "duration": 14.357625,
+  "shots": [
+    {
+      "shot": "reveal",
+      "start": 0,
+      "duration": 3.96925,
+      "cache_hit": false,
+      "key": "5945401e7257114c93eb0ad8fb4a88d280e1a0652fb491c0850f3a3747171e0d"
+    },
+    {
+      "shot": "principle",
+      "start": 3.96925,
+      "duration": 6.741417,
+      "cache_hit": false,
+      "key": "7894c81633d8f1408bc75dc55a87962d60ac16b9fbc6ba8d19ee96d7a89460dd"
+    },
+    {
+      "shot": "ratio",
+      "start": 10.710667,
+      "duration": 3.646958,
+      "cache_hit": false,
+      "key": "d17c64747698cb9b0eb270c23b8b1541dc3b0dffd05ca66bbaf936f59e9b9274"
+    }
+  ],
+  "cues": [
+    {
+      "start": 0.15,
+      "end": 3.719,
+      "text": "外壳移开之后，真正的结构，才显露出来。",
+      "shot": "reveal"
+    },
+    {
+      "start": 4.119,
+      "end": 7.29,
+      "text": "关键在这里：太阳轮带动行星轮。",
+      "shot": "principle"
+    },
+    {
+      "start": 7.53,
+      "end": 10.46,
+      "text": "而行星架，才是减速后的输出端。",
+      "shot": "principle"
+    },
+    {
+      "start": 10.861,
+      "end": 14.108,
+      "text": "太阳轮转过四圈，行星架，只转一圈。",
+      "shot": "ratio"
+    }
+  ],
+  "loudness": {
+    "before": {
+      "input_i": "-16.50",
+      "input_tp": "-1.49",
+      "input_lra": "1.50",
+      "input_thresh": "-26.79",
+      "output_i": "-16.25",
+      "output_tp": "-1.50",
+      "output_lra": "1.60",
+      "output_thresh": "-26.60",
+      "normalization_type": "dynamic",
+      "target_offset": "0.25"
+    },
+    "after": {
+      "input_i": "-16.25",
+      "input_tp": "-1.50",
+      "input_lra": "1.60",
+      "input_thresh": "-26.54",
+      "output_i": "-16.10",
+      "output_tp": "-1.50",
+      "output_lra": "1.60",
+      "output_thresh": "-26.46",
+      "normalization_type": "dynamic",
+      "target_offset": "0.10"
+    },
+    "bounded_gain_correction_db": 0.0,
+    "strategy": "two-pass-loudnorm"
+  },
+  "model": "qwen3-tts-flash",
+  "voice": "Neil",
+  "target_speed": 1.0,
+  "native_speed_control_used": false,
+  "native_style_control_used": false,
+  "post_speed_factor": 1.0,
+  "unverified": [
+    "Human listening acceptance of warmth, emphasis, documentary style and pronunciation",
+    "Provider internal model identity is not independently observable"
+  ],
+  "alignment": "Utterance-level FFprobe durations + FFmpeg silence boundaries, no ASR or phoneme forced alignment",
+  "approval_basis": "explicit_reference_voice_selection"
+}

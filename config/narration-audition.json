@@ -1,0 +1,25 @@
+{
+  "id": "neil-documentary-audition-v1",
+  "profile": "config/narration-neil.json",
+  "shots": [
+    {
+      "id": "reveal",
+      "narration": [
+        "外壳移开之后，真正的结构，才显露出来。"
+      ]
+    },
+    {
+      "id": "principle",
+      "narration": [
+        "关键在这里：太阳轮带动行星轮。",
+        "而行星架，才是减速后的输出端。"
+      ]
+    },
+    {
+      "id": "ratio",
+      "narration": [
+        "太阳轮转过四圈，行星架，只转一圈。"
+      ]
+    }
+  ]
+}
