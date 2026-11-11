@@ -1,6 +1,6 @@
 """One bounded repair adapter: subtitles only, reusing verified final shots.
 
-Run with python -m mechanical_video_next.repairs TASK --config ... --issue ...
+Run with uv run python -m mechanical_video_next.repairs TASK --config ... --issue ...
 --shot s1 --cue 0 --text '...'. Requires a matching structured QA defect.
 Other repair types remain Producer decisions through existing templates.
 """
@@ -62,9 +62,13 @@ def repair(task, config, issue_id, shot_id, cue, text, quality='final'):
         if not produce.cached(folder, [filename, 'checks.json']):
             raise ValueError('Verified shot cache missing; cannot repair subtitles locally')
         media[name] = (folder / filename, kind, key)
+    continuous = w.continuous_repairs(w.load(task))
+    strategy = ('subtitle-only-' + w.digest(fixed)[:16]) if continuous else 'subtitle-only'
     def check_attempts(attempts):
-        if attempts['stopped'] or attempts['strategies'].get('subtitle-only', 0) >= 2:
+        if not continuous and (attempts['stopped'] or attempts['strategies'].get(strategy, 0) >= 2):
             raise ValueError('Repair budget exhausted')
+        if continuous and strategy in attempts.get('failed_strategies', []):
+            raise ValueError('Change the failed subtitle implementation before retrying')
         if attempts.get('best') == 0:
             raise ValueError('Repair already technically resolved; independent QA required')
     repair_key = w.repair_key(task, issue_id)
@@ -74,7 +78,7 @@ def repair(task, config, issue_id, shot_id, cue, text, quality='final'):
     start = time.time()
     with w.lock(w.ROOT / 'work/production.lock'):
         if repair_key not in w.load(task)['repairs']:
-            w.repair_attempt(task, issue_id, 'subtitle-only', 1)
+            w.repair_attempt(task, issue_id, strategy, 1)
         attempts = w.load(task)['repairs'][repair_key]
         check_attempts(attempts)
         version = sum(attempts['strategies'].values()) + 1
@@ -97,7 +101,7 @@ def repair(task, config, issue_id, shot_id, cue, text, quality='final'):
             if sampling_errors:
                 raise RuntimeError(sampling_errors[0])
         except Exception:
-            w.repair_attempt(task, issue_id, 'subtitle-only', 1)
+            w.repair_attempt(task, issue_id, strategy, 1)
             w.event(task, 'repair_failed', issue_id=issue_id)
             w.write(task / f'repairs/{issue_id}-{version}-result.json',
                     metrics.finish(status='failed', independent_verification='PENDING'))
@@ -108,7 +112,7 @@ def repair(task, config, issue_id, shot_id, cue, text, quality='final'):
         props = json.loads((w.ROOT / 'output' / (fixed['id'] + '-' + quality + '.props.json')).read_text())
         before_count = sum(len(s['narration']) for s in cfg['storyboard'][:next(i for i,s in enumerate(cfg['storyboard']) if s['id']==shot_id)])
         score = int(props['cues'][before_count + cue]['text'] != text)
-        w.repair_attempt(task, issue_id, 'subtitle-only', score)
+        w.repair_attempt(task, issue_id, strategy, score)
         result = metrics.finish(technical_only=True, independent_verification='PENDING',
                                 full_shot_renders=0, repair_issue=issue_id)
         w.write(task / f'repairs/{issue_id}-{version}-result.json', result)

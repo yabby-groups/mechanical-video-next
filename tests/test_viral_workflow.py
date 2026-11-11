@@ -22,6 +22,10 @@ class ViralWorkflowTests(unittest.TestCase):
         self.config.write_text(json.dumps({'shots': ['fixture']}))
         self.task = w.create_task('拉链原理', config=self.config, root=self.root,
                                   asset_strategy='verified-existing')
+        # These fixtures isolate downstream DAG/media gates from reference-first admission.
+        data = w.load(self.task)
+        data['autonomy_policy']['reference_first'] = False
+        w.write(self.task / 'task.json', data)
 
     def handoff(self, name, payload, dependencies=None):
         role = next(role for role, names in w.ROLES.items() if name in names)
@@ -33,10 +37,18 @@ class ViralWorkflowTests(unittest.TestCase):
         with patch('mechanical_video_next.viral.validate_viral_analysis'), \
                 patch('mechanical_video_next.viral.validate_creative_blueprint'):
             if 'viral-analysis' not in w.load(self.task)['handoffs']:
-                self.handoff('viral-analysis', {'status': 'READY', 'selected_ids': ['observed-1']})
+                self.handoff('viral-analysis', {
+                    'status': 'READY', 'task_id': self.task.name, 'topic': '拉链原理',
+                    'selected_ids': ['observed-1'], 'primary_reference_id': 'observed-1',
+                    'candidates': [{'id': 'observed-1', 'duration_seconds': 10}]})
             blueprint = {
                 'status': 'FROZEN', 'revision': revision,
-                'reference_principles': [{'reference_id': 'observed-1'}]}
+                'reference_principles': [{'reference_id': 'observed-1'}],
+                'shots': [{'shot_id': 's1'}],
+                'reference_recreation': {
+                    'primary_reference_id': 'observed-1',
+                    'shot_mapping': [{'shot_id': 's1', 'reference_time_range': [0, 5],
+                                      'adaptation': 'Recreate the opening with our CAD'}]}}
             self.config.write_text(json.dumps({'shots': ['fixture'],
                                               'blueprint_program_sha256': w.digest(blueprint)}))
             blueprint['production_config'] = {'path': str(self.config), 'sha256': w.filehash(self.config)}
@@ -78,6 +90,7 @@ class ViralWorkflowTests(unittest.TestCase):
     def test_defaults_and_removed_protocol_fail_closed(self):
         data = w.load(self.task)
         self.assertEqual(data['protocol_version'], 2)
+        self.assertEqual(data['production_method'], 'reference-recreation')
         del data['protocol_version']
         w.write(self.task / 'task.json', data)
         with self.assertRaisesRegex(ValueError, 'protocol_version'):
@@ -120,6 +133,35 @@ class ViralWorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'selected observed references'):
                 self.handoff('creative-blueprint', {
                     'status': 'FROZEN', 'reference_principles': [{'reference_id': 'invented'}]})
+
+    def test_other_video_research_cannot_be_reused_as_this_video_handoff(self):
+        self.blueprint()
+        research = w.artifact(self.task, 'viral-analysis')
+        before = w.load(self.task)['handoffs']['viral-analysis']
+        with patch('mechanical_video_next.viral.validate_viral_analysis'):
+            for key, value in [('task_id', 'other-video'), ('topic', 'another mechanism')]:
+                with self.subTest(field=key), self.assertRaisesRegex(ValueError, 'own task_id and topic'):
+                    self.handoff('viral-analysis', dict(research, **{key: value}))
+        self.assertEqual(w.load(self.task)['handoffs']['viral-analysis'], before)
+
+    def test_recreation_missing_mapping_cannot_freeze(self):
+        self.blueprint()
+        blueprint = w.artifact(self.task, 'creative-blueprint')
+        del blueprint['reference_recreation']
+        with patch('mechanical_video_next.viral.validate_creative_blueprint'):
+            with self.assertRaisesRegex(ValueError, 'primary reference and shot mapping'):
+                self.handoff('creative-blueprint', blueprint)
+
+    def test_production_gate_rechecks_task_research_binding(self):
+        self.animatic()
+        data = w.load(self.task)
+        data['topic'] = 'Changed topic after research approval'
+        w.write(self.task / 'task.json', data)
+        with patch.object(w.subprocess, 'run') as run:
+            self.state('ANIMATING')
+            with self.assertRaisesRegex(ValueError, 'own task_id and topic'):
+                w.run_stage(self.task, 'preview', self.config)
+            run.assert_not_called()
 
     def test_feasibility_requires_every_explicit_check_pass_and_asset(self):
         self.prepare()
@@ -301,6 +343,9 @@ class ViralWorkflowTests(unittest.TestCase):
         self.assertEqual(w.load(self.task)['repairs'], {})
 
     def test_renamed_qa_issues_share_strategy_and_attempt_caps(self):
+        data = w.load(self.task)
+        data.pop('autonomy_policy')  # Recorded historical policy retains its original caps.
+        w.write(self.task / 'task.json', data)
         self.animatic()
         self.report_defect('TOOTH-1')
         w.repair_attempt(self.task, 'TOOTH-1', 'existing-constraint', 10)
@@ -321,6 +366,9 @@ class ViralWorkflowTests(unittest.TestCase):
         self.assertEqual(w.repair_key(self.task, 'TOOTH-1'), 'interpenetration:chain_teeth')
 
     def test_renaming_stopped_defect_cannot_create_another_baseline(self):
+        data = w.load(self.task)
+        data.pop('autonomy_policy')
+        w.write(self.task / 'task.json', data)
         self.animatic()
         self.report_defect('TOOTH-1')
         w.repair_attempt(self.task, 'TOOTH-1', 'a', 10)
@@ -379,6 +427,9 @@ class ViralWorkflowTests(unittest.TestCase):
             self.handoff('diagnostic-qa', self.qa)
 
     def test_diagnostic_repair_budget_survives_new_media_and_renamed_issue(self):
+        data = w.load(self.task)
+        data.pop('autonomy_policy')
+        w.write(self.task / 'task.json', data)
         self.diagnostic()
         issue = {'issue_id': 'CAPTION-1', 'defect_key': 'caption_contrast:bottom_subtitles',
                  'severity': 'major', 'shot_id': 's1', 'time_range': [0, 2],

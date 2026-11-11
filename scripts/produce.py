@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run python
 """Local deterministic production: asset -> keyframes -> preview -> shots -> Remotion.
 
 Only transient PNG sequences owned by this run are removed after valid MP4 encoding.
@@ -72,6 +72,10 @@ def panel_spec(render, quality):
 
 def shot_key(shot, quality, render=None, assembly_path=None):
     render = render or {'width':1080,'height':1920}
+    if shot.get('template') == 'layered':
+        from layered import sources
+        return digest({'sources':sources(shot), 'shot':shot, 'panel':panel_spec(render,quality),
+                       'quality':quality, 'renderer':codehash('scripts/layered.py')})
     inputs={'asset':asset_key(assembly_path),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)}
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
@@ -85,6 +89,15 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         fps=shot.get('diagnostic_fps',fps)
     key=shot_key(shot,quality,render,assembly_path)
     folder=CACHE/'shots'/key
+    if shot.get('template') == 'layered':
+        from layered import render as render_layers
+        files = ['checks.json'] + ([f'key-{i}.png' for i in range(3)] if quality in {'keys','checks'} else ['media.mp4'])
+        hit = cached(folder, files)
+        if not hit:
+            render_layers(shot, folder, width, height, fps, quality)
+            complete(folder, files)
+        metrics.record(quality+':layered', start, hit, key=key)
+        return folder/'media.mp4', 'video', key
     kind='image' if shot['template'] in ['overall','detail','exploded'] else 'video'
     filename='media.png' if kind=='image' else 'media.mp4'
     files=['checks.json'] if quality in {'keys','checks'} else [filename,'checks.json']
@@ -301,17 +314,24 @@ def main():
     cfg=json.loads(args.config.read_text())
     effective_profile(cfg)
     assembly_path=cfg.get('assembly_config')
-    assembly=assembly_spec(assembly_path)
-    assert cfg['asset']==assembly['id'], 'Video and assembly identity differ'
-    assert set(cfg['components'])<=set(assembly['required_parts']), 'Unknown requested component'
-    assert cfg['motion_template']==assembly['motion']['template'], 'Unverified motion template'
-    if assembly.get('kind') == 'source-mesh-assembly-v1':
-        assert cfg['motion_template']=='data-keyframes-v1'
-        assert cfg['explosion_sequence']==[], 'Imported source disassembly is not automatically validated'
-        assert all(s['template'] in {'overall','detail','motion'} for s in cfg['shots'].values())
+    illustrated = cfg.get('render_route', '3d') in {'2d', '2.5d'}
+    if illustrated:
+        from layered import sources
+        for shot in cfg['shots'].values():
+            assert shot['template']=='layered' and shot['render_route']==cfg['render_route']
+            sources(shot)
     else:
-        assert cfg['asset']=='planetary-teaching-v1'
-        assert cfg['explosion_sequence']==['Housing_upper','Housing_lower','Ring','Carrier'], 'Only the validated axial sequence is supported in phase one'
+        assembly=assembly_spec(assembly_path)
+        assert cfg['asset']==assembly['id'], 'Video and assembly identity differ'
+        assert set(cfg['components'])<=set(assembly['required_parts']), 'Unknown requested component'
+        assert cfg['motion_template']==assembly['motion']['template'], 'Unverified motion template'
+        if assembly.get('kind') == 'source-mesh-assembly-v1':
+            assert cfg['motion_template']=='data-keyframes-v1'
+            assert cfg['explosion_sequence']==[], 'Imported source disassembly is not automatically validated'
+            assert all(s['template'] in {'overall','detail','motion'} for s in cfg['shots'].values())
+        else:
+            assert cfg['asset']=='planetary-teaching-v1'
+            assert cfg['explosion_sequence']==['Housing_upper','Housing_lower','Ring','Carrier'], 'Only the validated axial sequence is supported in phase one'
     assert {k:cfg['render'][k] for k in ['width','height','fps','video','audio']} in [{'width':w,'height':h,'fps':30,'video':'h264','audio':'aac'} for w,h in [(1080,1920),(1920,1080)]]
     assert cfg['render'].get('framing','panel') in ['panel','fullframe']
     if args.diagnostic:
@@ -336,7 +356,7 @@ def main():
     status='passed'
     error=None
     try:
-        model=asset(metrics,assembly_path)
+        model=None if illustrated else asset(metrics,assembly_path)
         if args.phase=='asset': return
         names=list(dict.fromkeys(s['shot'] for s in cfg['storyboard']))
         if args.diagnostic:

@@ -68,6 +68,17 @@ def full_view(c):
             and evidence_exists(v.get('evidence')))
 
 
+def observed_reference(c):
+    kind = c.get('source_kind', 'video')
+    if kind == 'video':
+        return full_view(c)
+    viewing = c.get('viewing') or {}
+    expected = {'image': 'IMAGE_INSPECTED', 'diagram': 'IMAGE_INSPECTED',
+                'structure': 'STRUCTURE_READ'}.get(kind)
+    return bool(expected and viewing.get('status') == expected
+                and evidence_exists(viewing.get('evidence')) and c.get('observations'))
+
+
 def breakout(c, observed):
     f, likes = c.get('followers'), c.get('likes')
     if f is None or likes is None or not c.get('published_at'):
@@ -111,14 +122,19 @@ def analyze(data):
     ids = set()
     for source in rows:
         c = dict(source)
+        if c.get('source_kind', 'video') not in {'video', 'image', 'diagram', 'structure'}:
+            raise ValueError('Unsupported reference source_kind')
         c.setdefault('reference_class', 'A')
         if c['reference_class'] not in REFERENCE_MIX:
             raise ValueError('Reference class must be A, B or C')
         if not c.get('id') or c['id'] in ids:
             raise ValueError('Unique nonempty candidate IDs required')
         ids.add(c['id'])
-        key = identity(c['url']) if c.get('url') else 'unresolved:' + c['id']
+        local_source = evidence_exists(c.get('source_files'))
+        key = (identity(c['url']) if c.get('url') else
+               'local:' + c['source_files'][0]['sha256'] if local_source else 'unresolved:' + c['id'])
         c['original_url_resolved'] = bool(c.get('url'))
+        c['source_resolved'] = (bool(c.get('url')) or local_source) and (not c.get('source_files') or local_source)
         if key in seen or c.get('duplicate_of'):
             duplicates.append(c['id'])
             continue
@@ -138,12 +154,10 @@ def analyze(data):
         raise ValueError('Default deep-analysis budget exceeded (10)')
     eligible = [c for c in deep if (c.get('directly_related') is True if c['reference_class'] == 'A'
                                    else bool(c.get('transfer_rationale')))
-                and c['original_url_resolved'] and full_view(c)
-                and c.get('style') and c['screening']['coverage'] >= .60
-                and (c['breakout_follower_cap'] is not None or c.get('professional_benchmark') is True
-                     or c['reference_class'] == 'C')]
-    # First reserve a professional benchmark, then prioritize strict follower tiers.
-    eligible.sort(key=lambda c: (not c.get('professional_benchmark', False),
+                and c['source_resolved'] and observed_reference(c) and c.get('style')]
+    # Popularity is a preference, never an admission gate. An observed physical
+    # demonstration can be recreated in CAD without public engagement metrics.
+    eligible.sort(key=lambda c: (c['breakout_follower_cap'] is None,
                                 c['breakout_follower_cap'] or 100001,
                                 -c['screening']['coverage'], -(c['screening']['score'] or 0)))
     selected, styles = [], set()
@@ -153,14 +167,26 @@ def analyze(data):
                 selected.append(c['id']); styles.add(c['style'])
     # Insufficient categories remain a documented gap; never pad with unrelated work.
     counts = {k: sum(c['id'] in selected and c['reference_class'] == k for c in eligible) for k in REFERENCE_MIX}
-    ready = len(selected) >= 3 and all(counts.values())
+    primary_candidates = [c['id'] for c in eligible if c['id'] in selected
+                          and c['reference_class'] == 'A']
+    primary = data.get('primary_reference_id') or next(iter(primary_candidates), None)
+    # Recreation needs one qualifying primary. Supplementary categories are not
+    # prerequisites for reproducing an already observed, qualifying video.
+    ready = primary in primary_candidates
+    primary_row = next((c for c in eligible if c['id'] == primary), None) if ready else None
+    primary_kind = (('verified-breakout' if primary_row['breakout_follower_cap'] is not None
+                     else 'observed-reference') if primary_row else None)
     return {'schema_version': 1, 'topic': data['topic'], 'observed_at': data['observed_at'],
+            'task_id': data.get('task_id'),
+            'primary_reference_id': primary,
+            'primary_reference_kind': primary_kind,
+            'breakout_required': False,
             'status': 'READY' if ready else 'BLOCKED', 'weights': WEIGHTS,
             'model_kind': 'internal_screening_heuristic_not_platform_algorithm',
             'candidates': unique, 'duplicates': duplicates, 'selected_ids': selected,
             'reference_mix': {'target': REFERENCE_MIX, 'actual_counts': counts, 'target_counts': {'A': 5, 'B': 3, 'C': 2}},
             'budget': {'candidates': len(rows), 'deep_analysis': len(deep), 'limits': [30, 10]},
-            'blockers': [] if ready else ['Need fully viewed references in A (same topic), B (similar mechanism), C (science narrative); target 10, no padding'],
+            'blockers': [] if ready else ['Need observed same-topic video, image, diagram or structure evidence; popularity and source format are not production requirements'],
             'elapsed_seconds': data.get('elapsed_seconds'), 'human_interventions': None,
             'rework_reduction': None, 'tokens': None, 'cost': None}
 
@@ -171,6 +197,48 @@ def validate_viral_analysis(payload):
         raise ValueError('Viral research evidence is not READY')
     if payload.get('selected_ids') != calculated['selected_ids']:
         raise ValueError('Selected references do not match evidence-led screening')
+    if payload.get('primary_reference_id') != calculated['primary_reference_id']:
+        raise ValueError('Primary reference does not match observed reference selection')
+    if payload.get('primary_reference_kind') != calculated['primary_reference_kind']:
+        raise ValueError('Reference kind must distinguish observed material from verified breakout metrics')
+
+
+def validate_reference_recreation(blueprint, research):
+    recreation = blueprint.get('reference_recreation')
+    if not isinstance(recreation, dict):
+        raise ValueError('Reference recreation requires a primary reference and shot mapping')
+    primary = recreation.get('primary_reference_id')
+    if primary not in research.get('selected_ids', []):
+        raise ValueError('Primary reference must be a selected observed reference')
+    if primary != research.get('primary_reference_id'):
+        raise ValueError('Recreation must use the selected observed primary reference')
+    candidate = next((c for c in research.get('candidates', []) if c.get('id') == primary), None)
+    static = candidate is not None and candidate.get('source_kind', 'video') != 'video'
+    duration = candidate.get('duration_seconds') if candidate else None
+    if not static and (isinstance(duration, bool) or not isinstance(duration, (int, float))
+                       or not math.isfinite(duration) or duration <= 0):
+        raise ValueError('Primary reference needs its observed duration')
+    if primary not in {p.get('reference_id') for p in blueprint.get('reference_principles', [])}:
+        raise ValueError('Primary reference must supply a production principle')
+    rows = recreation.get('shot_mapping')
+    shots = [s['shot_id'] for s in blueprint.get('shots', [])]
+    if (not isinstance(rows, list) or not rows or not all(isinstance(r, dict) for r in rows)
+            or len(rows) != len(shots) or {r.get('shot_id') for r in rows} != set(shots)):
+        raise ValueError('Recreation mapping must cover every production shot exactly once')
+    for row in rows:
+        if static:
+            if row.get('reference_time_range') is not None:
+                raise ValueError('Static references use regions or structure features, not video timestamps')
+            if not isinstance(row.get('reference_region'), str) or not row['reference_region'].strip():
+                raise ValueError('Static reference mapping requires the depicted region or structure feature')
+        times = row.get('reference_time_range')
+        if not static and (not isinstance(times, list) or len(times) != 2
+                or any(isinstance(t, bool) or not isinstance(t, (int, float))
+                       or not math.isfinite(t) for t in times)
+                or not 0 <= times[0] < times[1] <= duration):
+            raise ValueError('Recreation reference interval must be within the observed video')
+        if not isinstance(row.get('adaptation'), str) or not row['adaptation'].strip():
+            raise ValueError('Each recreated shot needs an adaptation decision')
 
 
 def validate_creative_blueprint(payload):
@@ -221,7 +289,9 @@ def validate_creative_blueprint(payload):
 
 def plan(topic, observed_at=None):
     stamp = date(observed_at) if observed_at else datetime.now(timezone.utc)
-    terms = [('A', term) for term in [topic, topic+' 工作原理', topic+' 拆解', topic+' 原理动画']]
+    terms = [('A', term) for term in [topic, topic+' 工作原理', topic+' 拆解',
+                                     topic+' 实物演示', topic+' 厂家演示', topic+' 原理动画',
+                                     topic+' 结构图', topic+' 剖面图']]
     if '拉链' in topic or 'zipper' in topic.lower():
         terms += [('A', '拉链链牙啮合'), ('A', 'zipper mechanism animation'),
                   ('B', '啮合 锁止 导向 机构 微距 原理')]
@@ -235,11 +305,14 @@ def plan(topic, observed_at=None):
     from .reference_library import search
     cached = search(topic)
     return {'topic': topic, 'observed_at': stamp.isoformat(),
-            'published_after': (stamp-timedelta(days=90)).isoformat(),
+            'breakout_required': False,
+            'breakout_preferences': {
+                'published_after': (stamp-timedelta(days=90)).isoformat(),
+                'follower_caps': [10000, 50000, 100000], 'likes_exclusive_min': 1000},
             'local_references': cached, 'network_policy': 'Search local cache first; browse only documented gaps',
             'queries': urls, 'max_candidates': 30, 'max_deep_analyses': 10, 'reference_mix': REFERENCE_MIX,
-            'follower_caps': [10000, 50000, 100000], 'likes_exclusive_min': 1000,
-            'cache_key': hashlib.sha256(json.dumps(['v2', topic, stamp.date().isoformat(), WEIGHTS, REFERENCE_MIX, 30, 10], sort_keys=True).encode()).hexdigest(),
+            'source_policy': 'Physical demonstrations, teardowns, manufacturer videos and animations are usable regardless of popularity; recreate in CAD.',
+            'cache_key': hashlib.sha256(json.dumps(['v3-reference-not-popularity-gate', topic, stamp.date().isoformat(), WEIGHTS, REFERENCE_MIX, 30, 10], sort_keys=True).encode()).hexdigest(),
             'cache_policy': 'Reuse dated evidence; refresh live metrics before new qualification. No automatic network requests.'}
 
 

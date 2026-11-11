@@ -13,7 +13,7 @@ from scripts.common import ROOT, Metrics, budget, filehash, probe, writejson
 from .viral import validate_creative_blueprint
 from .workflow import lock, digest
 
-TEMPLATES = {'overall', 'detail', 'motion', 'explode', 'assemble', 'exploded'}
+TEMPLATES = {'overall', 'detail', 'motion', 'explode', 'assemble', 'exploded', 'layered'}
 CAMERA = {'camera_view', 'camera_direction', 'camera_roll'}
 
 

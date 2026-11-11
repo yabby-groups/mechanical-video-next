@@ -28,6 +28,24 @@ class ScreeningTests(unittest.TestCase):
     def data(self, rows):
         return dict(topic='拉链', observed_at='2026-11-11T08:00:00+00:00', candidates=rows)
 
+    def test_static_local_reference_and_region_mapping(self):
+        c = self.candidate(viewed=False)
+        c.pop('url'); c.pop('duration_seconds')
+        c.update(source_kind='diagram', source_files=self.evidence, observations=['lever connection'],
+                 followers=None, likes=None, viewing={'status':'IMAGE_INSPECTED','evidence':self.evidence})
+        result = v.analyze(self.data([c]))
+        self.assertEqual(result['status'], 'READY')
+        self.assertEqual(result['primary_reference_kind'], 'observed-reference')
+        blueprint = {'reference_recreation':{'primary_reference_id':'1', 'shot_mapping':[
+            {'shot_id':'s1','reference_region':'lever connection','adaptation':'layer rotation'}]},
+            'shots':[{'shot_id':'s1'}], 'reference_principles':[{'reference_id':'1'}]}
+        v.validate_reference_recreation(blueprint,result)
+        blueprint['reference_recreation']['shot_mapping'][0]['reference_time_range']=[0,1]
+        with self.assertRaisesRegex(ValueError,'Static'):
+            v.validate_reference_recreation(blueprint,result)
+        self.path.write_text('changed')
+        self.assertEqual(v.analyze(self.data([c]))['status'],'BLOCKED')
+
     def test_unviewed_cannot_score_rhythm_or_qualify(self):
         c = self.candidate(viewed=False)
         r = v.analyze(self.data([c]))
@@ -44,16 +62,16 @@ class ScreeningTests(unittest.TestCase):
         self.assertEqual(r['screening']['coverage'], .8)
         self.assertAlmostEqual(sum(r['screening']['normalized_weights'].values()), 1, places=5)
 
-    def test_readiness_requires_three_reference_layers_and_observation(self):
+    def test_one_qualified_primary_is_enough_without_supplementary_categories(self):
         rows = [self.candidate(i) for i in range(3)]
-        self.assertEqual(v.analyze(self.data(rows))['status'], 'BLOCKED')
+        self.assertEqual(v.analyze(self.data(rows[:1]))['status'], 'READY')
         rows[1].update(reference_class='B', transfer_rationale='locking geometry')
         rows[-1].update(reference_class='C', transfer_rationale='science narrative', professional_benchmark=True, followers=1000000)
         ready = v.analyze(self.data(rows))
         self.assertEqual(ready['status'], 'READY')
         v.validate_viral_analysis(ready)
         rows[1]['style'] = rows[0]['style']
-        self.assertEqual(v.analyze(self.data(rows))['status'], 'BLOCKED')
+        self.assertEqual(v.analyze(self.data(rows))['status'], 'READY')
 
     def test_recent_exact_thresholds_and_future_date(self):
         c = self.candidate(); c['followers'] = 10000
@@ -83,6 +101,89 @@ class ScreeningTests(unittest.TestCase):
         c = self.candidate(); self.path.write_text('changed')
         self.assertFalse(v.full_view(c))
         self.assertNotIn('engagement', v.score_candidate(c)['available'])
+
+    def test_analysis_preserves_per_video_task_binding(self):
+        data = self.data([self.candidate()])
+        data['task_id'] = 'video-123'
+        self.assertEqual(v.analyze(data)['task_id'], 'video-123')
+
+    def test_recreation_requires_selected_primary_and_complete_timed_mapping(self):
+        research = {'selected_ids': ['1'], 'primary_reference_id': '1', 'candidates': [self.candidate()]}
+        blueprint = {
+            'shots': [{'shot_id': 's1'}, {'shot_id': 's2'}],
+            'reference_principles': [{'reference_id': '1'}],
+            'reference_recreation': {'primary_reference_id': '1', 'shot_mapping': [
+                {'shot_id': 's1', 'reference_time_range': [0, 3], 'adaptation': 'Opening'},
+                {'shot_id': 's2', 'reference_time_range': [3, 30], 'adaptation': 'Mechanism'}]}}
+        v.validate_reference_recreation(blueprint, research)
+        for change, error in [
+                ('unselected', 'selected observed'), ('missing', 'every production shot'),
+                ('duplicate', 'every production shot'), ('out_of_bounds', 'within the observed'),
+                ('no_decision', 'adaptation decision')]:
+            bad = copy.deepcopy(blueprint)
+            recreation = bad['reference_recreation']
+            if change == 'unselected': recreation['primary_reference_id'] = 'other'
+            elif change == 'missing': recreation['shot_mapping'].pop()
+            elif change == 'duplicate': recreation['shot_mapping'][1]['shot_id'] = 's1'
+            elif change == 'out_of_bounds': recreation['shot_mapping'][1]['reference_time_range'] = [3, 31]
+            else: recreation['shot_mapping'][1]['adaptation'] = ' '
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, error):
+                v.validate_reference_recreation(bad, research)
+
+    def test_ordinary_reference_can_replace_breakout_without_false_label(self):
+        rows = [self.candidate(i) for i in range(3)]
+        rows[1].update(reference_class='B', transfer_rationale='mechanism')
+        rows[2].update(reference_class='C', transfer_rationale='narrative')
+        qualified = v.analyze(self.data(rows))
+        self.assertEqual(qualified['status'], 'READY')
+        self.assertEqual(qualified['primary_reference_id'], '0')
+        self.assertEqual(qualified['primary_reference_kind'], 'verified-breakout')
+        rows[0].update(followers=1000000, professional_benchmark=True)
+        fallback = v.analyze(self.data(rows))
+        self.assertEqual(fallback['status'], 'READY')
+        self.assertEqual(fallback['primary_reference_kind'], 'observed-reference')
+        data = self.data([self.candidate(0), rows[1], rows[2]])
+        data['primary_reference_id'] = '2'
+        self.assertEqual(v.analyze(data)['status'], 'BLOCKED')
+
+    def test_physical_video_needs_no_popularity_or_scoring_metadata(self):
+        c = self.candidate()
+        c.update(followers=None, likes=None, published_at=None,
+                 metrics_evidence={}, scores={}, scores_evidence={},
+                 style='physical demonstration', source_medium='physical')
+        ready = v.analyze(self.data([c]))
+        self.assertEqual(ready['status'], 'READY')
+        self.assertFalse(ready['breakout_required'])
+        self.assertEqual(ready['primary_reference_kind'], 'observed-reference')
+        self.assertIsNone(ready['candidates'][0]['breakout_follower_cap'])
+        self.assertEqual(ready['candidates'][0]['screening']['coverage'], 0)
+        v.validate_viral_analysis(ready)
+        ready['primary_reference_kind'] = 'verified-breakout'
+        with self.assertRaisesRegex(ValueError, 'Reference kind'):
+            v.validate_viral_analysis(ready)
+
+    def test_old_low_interaction_video_is_still_usable(self):
+        c = self.candidate()
+        c.update(published_at='2020-01-01T00:00:00Z', likes=2, followers=500000)
+        result = v.analyze(self.data([c]))
+        self.assertEqual(result['status'], 'READY')
+        self.assertEqual(result['primary_reference_kind'], 'observed-reference')
+
+    def test_available_breakout_is_preferred_but_observed_reference_can_be_selected(self):
+        ordinary = self.candidate(1)
+        ordinary['followers'] = None
+        result = v.analyze(self.data([ordinary, self.candidate(2)]))
+        self.assertEqual(result['primary_reference_id'], '2')
+        chosen = self.data([ordinary, self.candidate(2)])
+        chosen['primary_reference_id'] = '1'
+        self.assertEqual(v.analyze(chosen)['status'], 'READY')
+
+    def test_search_plan_treats_breakout_thresholds_as_preferences(self):
+        result = v.plan('指甲刀', '2026-11-11T08:00:00+00:00')
+        self.assertFalse(result['breakout_required'])
+        self.assertNotIn('published_after', result)
+        self.assertIn('breakout_preferences', result)
+        self.assertTrue(any('实物演示' in q['keyword'] for q in result['queries']))
 
     def test_blueprint_requires_actual_evidence_and_contiguous_timing(self):
         b = dict.fromkeys(v.BLUEPRINT_FIELDS, 'decision')
