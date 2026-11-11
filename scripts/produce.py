@@ -56,12 +56,16 @@ def asset(metrics):
 
 def panel_spec(render, quality):
     landscape = render['width'] > render['height']
-    width, height = (1120, 720) if landscape else (1080, 1250)
+    width, height = ((render['width'],render['height']) if render.get('framing')=='fullframe'
+                     else (1120, 720) if landscape else (1080, 1250))
     return (width//2, height//2, 15) if quality!='final' else (width,height,30)
 
 def shot_key(shot, quality, render=None):
     render = render or {'width':1080,'height':1920}
-    return digest({'asset':asset_key(),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)})
+    inputs={'asset':asset_key(),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)}
+    if shot.get('visual_profile'):
+        inputs['visual_style_source']=codehash('blender/studio_style.py')
+    return digest(inputs)
 
 def make_shot(shot, quality, model, metrics, render=None):
     start=time.time()
@@ -112,7 +116,8 @@ def tts(shot, voice, metrics):
         path,cues,key,hit=synthesize_shot(shot,voice)
         metrics.record('tts:'+shot['id'],start,hit,key=key,model=voice['model'],voice=voice['voice'])
         return path,cues,key
-    key=digest({'cues':shot['narration'],'voice':voice,'seconds':shot['seconds'],'rate':235,'audio_pipeline':1})
+    key=digest({'cues':shot['narration'],'voice':voice,'seconds':shot['seconds'],'rate':235,'audio_pipeline':1,
+                'processing':codehash('scripts/produce.py')})
     folder=CACHE/'audio'/key
     files=['audio.m4a','cues.json']
     hit=cached(folder,files)
@@ -188,6 +193,13 @@ def validate_video(path, config, cues):
     writejson(path.with_suffix('.validation.json'),result)
     return result
 
+def composition_key(props, quality):
+    if quality not in ['preview', 'final']:
+        raise ValueError('Unsupported composition quality')
+    return digest({'props':props,'quality':quality,
+                   'remotion':codehash('remotion/src/index.tsx','remotion/package-lock.json'),
+                   'composition_code':codehash('scripts/produce.py')})
+
 def compose(cfg, quality, media, metrics):
     from narration import effective_profile
     voice=effective_profile(cfg) or cfg['voice']
@@ -205,7 +217,11 @@ def compose(cfg, quality, media, metrics):
         cues.extend(dict(c,start=round(c['start']+offset,3),end=round(c['end']+offset,3)) for c in sc)
         offset+=s['seconds']
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
-    key=digest({'props':props,'remotion':codehash('remotion/src/index.tsx','remotion/package-lock.json')})
+    if cfg.get('presentation'):
+        if cfg['presentation'] != 'mechanism-fullframe':
+            raise ValueError('Unsupported presentation')
+        props['presentation']=cfg['presentation']
+    key=composition_key(props, quality)
     suffix='preview' if quality=='preview' else 'final'
     target=ROOT/'output'/f'{cfg["id"]}-{suffix}.mp4'
     cachedir=CACHE/'compositions'/key
@@ -241,7 +257,8 @@ def main():
     assert set(cfg['components'])<=set(assembly['required_parts']), 'Unknown requested component'
     assert cfg['motion_template']==assembly['motion']['template'], 'Unverified motion template'
     assert cfg['explosion_sequence']==['Housing_upper','Housing_lower','Ring','Carrier'], 'Only the validated axial sequence is supported in phase one'
-    assert cfg['render'] in [{'width':w,'height':h,'fps':30,'video':'h264','audio':'aac'} for w,h in [(1080,1920),(1920,1080)]]
+    assert {k:cfg['render'][k] for k in ['width','height','fps','video','audio']} in [{'width':w,'height':h,'fps':30,'video':'h264','audio':'aac'} for w,h in [(1080,1920),(1920,1080)]]
+    assert cfg['render'].get('framing','panel') in ['panel','fullframe']
     assert 30<=sum(s['seconds'] for s in cfg['storyboard'])<=45
     assert len({s['id'] for s in cfg['storyboard']})==len(cfg['storyboard'])
     for s in cfg['storyboard']: assert s['seconds']==cfg['shots'][s['shot']]['seconds']

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "reference": "打印机系列 EP03",
+  "selection": "explicit_user_reply",
+  "source_video_local": "/Users/lmj/yuntan/esp32/mechanical-video/series/3d-printer-v2/episodes-current/EP03/benchmark-production/speed-sound-v4/editor/final-versions/ecd6aa99088958c6a5a9/EP03-speed-sound-v4-fpsfix.mp4",
+  "source_sha256": "1fa11d7a5240611bd1f4adde237154a10bfab5f7dac41fb1e34eae3d0057351b",
+  "scope": "visual direction",
+  "principles": [
+    "mechanism as the main image",
+    "neutral grey studio space",
+    "metal material and soft directional shadows",
+    "consistent spatial orientation",
+    "restrained camera push and meaningful closeups",
+    "short labels and bottom captions"
+  ],
+  "presentation": "mechanism-fullframe",
+  "visual_profile": "printer-ep03-studio-v1",
+  "camera_view": "oblique",
+  "narration_profile": "config/narration-neil.json",
+  "render_aspect": "preserve current 1920x1080 landscape",
+  "reference_inspection": "actual encoded video sampled for comparison",
+  "acceptance": "User selected reference; new media not yet accepted"
+}

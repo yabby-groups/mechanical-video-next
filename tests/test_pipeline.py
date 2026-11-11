@@ -27,6 +27,13 @@ class CacheTests(unittest.TestCase):
         after={n:produce.shot_key(s,'final') for n,s in changed['shots'].items()}
         self.assertEqual(before,after)
 
+    def test_preview_using_final_shots_cannot_poison_full_resolution_composition(self):
+        # A fullframe preview deliberately reuses final-quality 3D media. Its
+        # props are identical to final; the 0.5 render scale must still differ.
+        props={'width':1920,'height':1080,'shots':[{'media':'same-final-shot.mp4'}]}
+        self.assertNotEqual(produce.composition_key(props,'preview'),
+                            produce.composition_key(props,'final'))
+
     def test_one_shot_changes_only_that_cache_key(self):
         changed=copy.deepcopy(self.cfg['shots'])
         changed['explode']['distance']=2.2
@@ -41,6 +48,14 @@ class CacheTests(unittest.TestCase):
         self.assertNotEqual(produce.shot_key(shot,'final',portrait),produce.shot_key(shot,'final',wide))
         self.assertEqual(produce.panel_spec(wide,'final'),(1120,720,30))
         self.assertEqual(produce.panel_spec(wide,'preview'),(560,360,15))
+
+    def test_fullframe_renders_native_canvas_instead_of_stretching_old_panel(self):
+        render={'width':1920,'height':1080,'framing':'fullframe'}
+        self.assertEqual(produce.panel_spec(render,'preview'),(960,540,15))
+        self.assertEqual(produce.panel_spec(render,'final'),(1920,1080,30))
+        shot=self.cfg['shots']['motion']
+        self.assertNotEqual(produce.shot_key(shot,'preview',render),
+                            produce.shot_key(shot,'preview',{'width':1920,'height':1080}))
 
     def test_corrupt_or_missing_artifact_never_hits(self):
         with tempfile.TemporaryDirectory() as d:

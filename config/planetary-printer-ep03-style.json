@@ -1,0 +1,161 @@
+{
+  "asset": "planetary-teaching-v1",
+  "voice": "Neil",
+  "render": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "video": "h264",
+    "audio": "aac",
+    "framing": "fullframe"
+  },
+  "shots": {
+    "overall": {
+      "template": "overall",
+      "seconds": 4,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
+    },
+    "explode": {
+      "template": "explode",
+      "seconds": 6,
+      "distance": 1.8,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
+    },
+    "detail": {
+      "template": "detail",
+      "seconds": 5,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
+    },
+    "motion": {
+      "template": "motion",
+      "seconds": 8,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
+    },
+    "assemble": {
+      "template": "assemble",
+      "seconds": 5,
+      "distance": 1.8,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
+    }
+  },
+  "id": "planetary-printer-ep03-style-v1",
+  "title": "行星齿轮，如何减速？",
+  "subtitle": "固定齿圈 / 太阳轮输入 / 行星架输出",
+  "storyboard": [
+    {
+      "id": "s1",
+      "shot": "overall",
+      "seconds": 4,
+      "label": "从外壳看进去",
+      "note": "一个输入，三个行星，一个输出",
+      "narration": [
+        "行星减速器，怎样把转速降下来？"
+      ],
+      "accent": "#ffbd61",
+      "subtitles": [
+        "行星减速器，怎样把转速降下来？"
+      ]
+    },
+    {
+      "id": "s2",
+      "shot": "explode",
+      "seconds": 6,
+      "label": "外壳与轴向拆解",
+      "note": "盖板 → 齿圈 → 行星架",
+      "narration": [
+        "先移开外壳，再分开展示内部结构。"
+      ],
+      "accent": "#b0c7d8",
+      "subtitles": [
+        "先移开外壳，再分开展示内部结构。"
+      ]
+    },
+    {
+      "id": "s3",
+      "shot": "detail",
+      "seconds": 5,
+      "label": "认识三种齿轮",
+      "note": "橙色：太阳轮   蓝色：行星轮",
+      "narration": [
+        "中心是太阳轮，周围是三个行星轮。"
+      ],
+      "accent": "#77d7f7",
+      "subtitles": [
+        "中心是太阳轮，周围是三个行星轮。"
+      ]
+    },
+    {
+      "id": "s4",
+      "shot": "motion",
+      "seconds": 8,
+      "label": "固定齿圈的运动",
+      "note": "银色齿圈固定 · 绿色行星架输出",
+      "narration": [
+        "固定外圈，太阳轮带动行星轮。",
+        "行星轮一边自转，一边绕中心公转。"
+      ],
+      "accent": "#70e7bc",
+      "subtitles": [
+        "固定外圈，太阳轮带动行星轮。",
+        "行星轮一边自转，一边绕中心公转。"
+      ]
+    },
+    {
+      "id": "s5",
+      "shot": "motion",
+      "seconds": 8,
+      "label": "为什么能减速",
+      "note": "太阳轮 18 齿 · 齿圈 54 齿",
+      "narration": [
+        "这里太阳轮十八齿，齿圈五十四齿。",
+        "太阳轮转四圈，行星架才转一圈。"
+      ],
+      "accent": "#ffbd61",
+      "formula": "i = 1 + 54 / 18 = 4 : 1",
+      "subtitles": [
+        "这里太阳轮十八齿，齿圈五十四齿。",
+        "太阳轮转四圈，行星架才转一圈。"
+      ]
+    },
+    {
+      "id": "s6",
+      "shot": "assemble",
+      "seconds": 5,
+      "label": "返回装配状态",
+      "note": "同一套零件，按保存位置回装",
+      "narration": [
+        "最后回装。记住，输出来自行星架。"
+      ],
+      "accent": "#b0c7d8",
+      "subtitles": [
+        "最后回装。记住，输出来自行星架。"
+      ]
+    }
+  ],
+  "components": [
+    "Sun",
+    "Planet_1",
+    "Planet_2",
+    "Planet_3",
+    "Ring",
+    "Carrier",
+    "Housing_lower",
+    "Housing_upper",
+    "Input_shaft"
+  ],
+  "motion_template": "willis-fixed-ring-v1",
+  "explosion_sequence": [
+    "Housing_upper",
+    "Housing_lower",
+    "Ring",
+    "Carrier"
+  ],
+  "channel": "视频号",
+  "narration_profile": "config/narration-neil.json",
+  "presentation": "mechanism-fullframe"
+}

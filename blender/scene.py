@@ -282,7 +282,11 @@ def render_shot(args):
         raise ValueError('Unknown shot template: '+template)
     visible = [o for o in parts if not o.hide_render]
     frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] else [1]
-    cam = frame_camera(visible, frames, top=template in ['motion','detail'])
+    cam = frame_camera(visible, frames, top=template in ['motion','detail'] and shot.get('camera_view')!='oblique')
+    if shot.get('visual_profile'):
+        sys.path.insert(0,str(ROOT/'blender'))
+        import studio_style
+        report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam)
     # Projection only: this does not prove lack of occlusion or visual comprehension.
     margin = 1
     for f in range(1,count+1):

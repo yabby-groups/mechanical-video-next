@@ -6,33 +6,44 @@
     "height": 1080,
     "fps": 30,
     "video": "h264",
-    "audio": "aac"
+    "audio": "aac",
+    "framing": "fullframe"
   },
   "shots": {
     "overall": {
       "template": "overall",
-      "seconds": 4
+      "seconds": 4,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
     },
     "explode": {
       "template": "explode",
       "seconds": 6,
-      "distance": 1.8
+      "distance": 1.8,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
     },
     "detail": {
       "template": "detail",
-      "seconds": 5
+      "seconds": 5,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
     },
     "motion": {
       "template": "motion",
-      "seconds": 8
+      "seconds": 8,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
     },
     "assemble": {
       "template": "assemble",
       "seconds": 5,
-      "distance": 1.8
+      "distance": 1.8,
+      "visual_profile": "printer-ep03-studio-v1",
+      "camera_view": "oblique"
     }
   },
-  "id": "planetary-01-landscape",
+  "id": "planetary-01-fullframe",
   "title": "行星齿轮，如何减速？",
   "subtitle": "固定齿圈 / 太阳轮输入 / 行星架输出",
   "storyboard": [
@@ -145,5 +156,6 @@
     "Carrier"
   ],
   "channel": "视频号",
-  "narration_profile": "config/narration-neil.json"
+  "narration_profile": "config/narration-neil.json",
+  "presentation": "mechanism-fullframe"
 }
