@@ -121,6 +121,12 @@ def finalize(folder, paths, evidence_paths=()):
                                        for name, digest in old.get('outputs', {}).items()) and old.get('outputs'):
             return json.loads((folder / 'report.json').read_text())
         start = time.monotonic()
+        comparison_key = hashlib.sha256(json.dumps({'media': media, 'code': sha(__file__)}, sort_keys=True).encode()).hexdigest()
+        cached_comparison = state['steps'].get('comparison', {})
+        comparison_cache_hit = (cached_comparison.get('key') == comparison_key
+                                and set(cached_comparison.get('outputs', {})) == {'compare.mp4', 'preview.jpg'}
+                                and all((folder / name).is_file() and sha(folder / name) == digest
+                                        for name, digest in cached_comparison['outputs'].items()))
         duration = max(v['duration'] for v in media.values())
         inputs = [item for route in ROUTES for item in ('-i', media[route]['path'])]
         labels = ('2D', '2.5D', '3D')
@@ -131,16 +137,18 @@ def finalize(folder, paths, evidence_paths=()):
             f'tpad=stop_mode=clone:stop_duration=0.04[v{i}]' for i in range(3))
         filters += ';[v0][v1][v2]vstack=inputs=3[out]'
         audio_args = ['-map', '0:a:0', '-c:a', 'aac', '-b:a', '192k'] if shared_audio else ['-an']
-        command(['ffmpeg', '-y', *inputs, '-filter_complex', filters, '-map', '[out]', *audio_args, '-t', str(duration),
-                 '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-pix_fmt', 'yuv420p', folder / 'compare.mp4'], folder / 'compare.log')
+        if not comparison_cache_hit:
+            command(['ffmpeg', '-y', *inputs, '-filter_complex', filters, '-map', '[out]', *audio_args, '-t', str(duration),
+                     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-pix_fmt', 'yuv420p', folder / 'compare.mp4'], folder / 'compare.log')
         comparison_info = probe(folder / 'compare.mp4')
         comparison_video = next(s for s in comparison_info['streams'] if s['codec_type'] == 'video')
         if (comparison_video['width'], comparison_video['height']) != (1080, 1920):
             raise ValueError('Encoded comparison has incorrect portrait dimensions')
         if shared_audio and not any(s['codec_type'] == 'audio' for s in comparison_info['streams']):
             raise ValueError('Encoded comparison lost shared audio')
-        command(['ffmpeg', '-y', '-ss', str(min(1, duration / 2)), '-i', folder / 'compare.mp4',
-                 '-frames:v', '1', '-update', '1', folder / 'preview.jpg'], folder / 'preview.log')
+        if not comparison_cache_hit:
+            command(['ffmpeg', '-y', '-ss', str(min(1, duration / 2)), '-i', folder / 'compare.mp4',
+                     '-frames:v', '1', '-update', '1', folder / 'preview.jpg'], folder / 'preview.log')
         report = {'status': 'TECHNICAL_PASS_UNACCEPTED_COMPARISON', 'routes': media,
                   'comparison': {'order_top_to_bottom': list(ROUTES), 'width': 1080, 'height': 1920, 'fps': 30, 'duration': duration,
                                  'audio': 'shared first-route audio; decoded samples match' if shared_audio else 'silent: route audio missing or different; original audio retained',
@@ -163,6 +171,7 @@ def finalize(folder, paths, evidence_paths=()):
         reported_epoch = time.time()
         report['production_metrics'] = {
             'comparison_seconds': time.monotonic() - start,
+            'comparison_cache_hit': comparison_cache_hit,
             'production_seconds': stats.get('production_seconds'),
             'task_created_epoch': task_data.get('created_epoch'),
             'reported_epoch': reported_epoch,
@@ -179,6 +188,8 @@ def finalize(folder, paths, evidence_paths=()):
             'source_evidence': evidence}
         write(folder / 'report.json', report)
         state['routes'] = media
+        state['steps']['comparison'] = {'key': comparison_key, 'cache_hit': comparison_cache_hit,
+                                        'outputs': {name: sha(folder / name) for name in ('compare.mp4', 'preview.jpg')}}
         state['steps']['finalize'] = {'key': key, 'elapsed_seconds': time.monotonic() - start,
                                      'outputs': {name: sha(folder / name) for name in ('compare.mp4', 'preview.jpg', 'report.json')}}
         state['status'] = report['status']

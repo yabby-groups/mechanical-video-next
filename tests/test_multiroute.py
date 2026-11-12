@@ -181,3 +181,45 @@ class MultiRouteTests(unittest.TestCase):
             self.assertEqual(updated['state'], 'CREATED')
             self.assertEqual(updated['multiroute_status'], report['status'])
             self.assertEqual(updated['route_comparison']['report'], str(folder / 'report.json'))
+
+    def test_evidence_refresh_preserves_comparison_but_media_change_reencodes(self):
+        from mechanical_video_next.multiroute import sha
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            prepare(folder, '指甲刀')
+            paths = {}
+            for route in ('2d', '2.5d', '3d'):
+                media = folder / (route + '.mp4')
+                media.write_bytes(route.encode())
+                paths[route] = media
+            evidence = folder / 'qa.json'
+            evidence.write_text('{"review": "first"}')
+            def fake_probe(path):
+                comparison = Path(path).name == 'compare.mp4'
+                return {'streams': [{'codec_type': 'video', 'width': 1080 if comparison else 1920,
+                                     'height': 1920 if comparison else 1080, 'avg_frame_rate': '30/1',
+                                     'duration': '38.2'}, {'codec_type': 'audio'}], 'format': {'duration': '38.2'}}
+            def fake_command(args, log):
+                # Distinct generations make unintended media rewrites observable.
+                Path(args[-1]).write_bytes(('generation-' + str(encoded.call_count)).encode())
+            with patch('mechanical_video_next.multiroute.probe', side_effect=fake_probe) as probed, \
+                 patch('mechanical_video_next.multiroute.audio_digest', return_value='same-pcm'), \
+                 patch('mechanical_video_next.multiroute.command', side_effect=fake_command) as encoded:
+                first = finalize(folder, paths, [evidence])
+                self.assertEqual(encoded.call_count, 2)
+                hashes = {name: sha(folder / name) for name in ('compare.mp4', 'preview.jpg')}
+                self.assertFalse(first['production_metrics']['comparison_cache_hit'])
+                evidence.write_text('{"review": "updated"}')
+                encoded.reset_mock()
+                probed.reset_mock()
+                refreshed = finalize(folder, paths, [evidence])
+                encoded.assert_not_called()
+                self.assertEqual(probed.call_count, 4)  # all routes and cached comparison still validated
+                self.assertTrue(refreshed['production_metrics']['comparison_cache_hit'])
+                self.assertEqual(hashes, {name: sha(folder / name) for name in hashes})
+                self.assertTrue(any(item['data'].get('review') == 'updated'
+                                    for item in refreshed['production_metrics']['source_evidence']))
+                self.assertEqual(json.loads((folder / 'state.json').read_text())['steps']['comparison']['outputs'], hashes)
+                paths['3d'].write_bytes(b'changed actual media')
+                finalize(folder, paths, [evidence])
+                self.assertEqual(encoded.call_count, 2)
