@@ -1,5 +1,15 @@
 # Mechanical Video Next
 
+## 三路线默认制作（2026-11-11 最新用户要求）
+
+新制作默认同时交付 2D、2.5D、3D，用户只输入机械名称；不要先让用户选路线，不在第一版完成后停止。当前 Codex 主会话是唯一 Producer，复用原生子代理和现有 CLI，不开发常驻 Worker／服务器。共享机械事实、原创旁白、实测音频时间轴、1920×1080/30fps 输出；默认目标30～60秒。用户随后再次明确音色采用既有默认 **Neil（阿闻）**，不得切换 Kai。
+
+参考研究用于学习表达，三路线新任务采用原创脚本和镜头顺序，不直接复用受保护台词、序列与独创表达；下文历史单路线复刻规则不改变本条新政策。真实观看、低粉爆款核验缺失必须记录，不能伪造已完成。CAD 自主生成，2D 为真正平面运动，2.5D 有分层深度／投影／剖示，3D 使用 CAD 装配与 Blender。三版各自具备开场、结尾、配音和字幕。先低成本运动验证与独立 QA，再制作高清候选；候选生成不授予正式验收。
+
+入口为 `uv run python -m mechanical_video_next produce --topic 指甲刀 --routes all`；当前已验证的指甲刀适配计划通过 `route-run <task>` 执行，产物位于 `output/nail-clipper/`。其他机械名由当前 Producer 自主研究、准备其真实资产／计划，不把已有指甲刀适配器冒称任意名称生成器。每阶段保存路径、哈希、状态、问题和下一步；`produce --resume <task>` 恢复，不能另起 Producer。
+
+Blender 串行使用全局锁与分块编码；只删除本次已编码、完整解码确认的临时帧。分路线缓存绑定实际源内容，音频只合成一次。每路线独立 QA，并生成带标签的竖屏三格同步对比。相同策略连续两次无改善就诊断并更换策略，不无限重复生成。技术通过与连续观看、听审、科学判断分开；UNKNOWN 不得标 COMPLETED。人工介入、Token、成本等无计量填 null。用户选中版本后的修改只作用于该版本。不得发布、上传或保存平台草稿。
+
 每条视频都研究参考，爆款热度只是优先参考，不是准入条件。普通实物演示、图片、结构图和结构文档都可作为主参考。缺少爆款或原视频不得停止制作；Producer 自动选 3D CAD、2D 或 2.5D。视频逐镜头映射 reference_time_range，静态资料映射 reference_region（对应部位／结构特征），均记录 adaptation。没有视频不填写虚假的完整观看证据。
 
 图片路线已接入 scripts/layered.py 与 scripts/produce.py：layered 镜头直接生成视频并复用配音、字幕和合成。Producer 在资产／蓝图交接前执行 `uv run python -m mechanical_video_next select-route <task> --route 2.5d --reason "结构图适合分层演示"`；无需用户选择。asset-plan 提供 render_route、source_files 的 path/sha256 和 qualified=true。历史报告仅反映当时快照，以本规则为准。

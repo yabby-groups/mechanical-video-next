@@ -1,5 +1,9 @@
 # Mechanical Video Next
 
+当前默认是**同题三路线制作**：一个机械名称，共享原创脚本、默认 Neil 配音和实测时间轴，生成 2D、2.5D、3D 三个完整版本后再供选择。当前真实端到端验证题目为指甲刀；其他题目仍由当前 Codex Producer 自主准备研究、CAD 和适配计划，不把本题适配器宣传为任意机械的现成生成器。入口和恢复命令见文末“三路线”说明。下文单路线自动选择与复刻说明保留历史兼容，新的三路线原创要求优先。
+
+指甲刀三版的 [EP03 风格修订](docs/productions/nail-clipper-ep03-style-20261112.md) 使用共享视觉配置、全幅 3D 合成与原生局部机位，保留 Neil 配音和既有机械运动。进度与精确媒体验收位于 `output/nail-clipper/shared/style-optimization-state.json` 和版本化 `qa-style-*.json`；旧成片保存在 `shared/style-baseline-v1/`。风格修订不自动取得连续视听或科学验收。
+
 每条视频都研究参考，爆款热度只是优先参考，不是准入条件。普通实物演示、图片、结构图和结构文档都可作为主参考。缺少爆款或原视频不得停止制作；Producer 自动选 3D CAD、2D 或 2.5D。视频逐镜头映射 reference_time_range，静态资料映射 reference_region（对应部位／结构特征），均记录 adaptation。没有视频不填写虚假的完整观看证据。
 
 图片路线已接入 scripts/layered.py 与 scripts/produce.py：layered 镜头直接生成视频并复用配音、字幕和合成。Producer 在资产／蓝图交接前执行 `uv run python -m mechanical_video_next select-route <task> --route 2.5d --reason "结构图适合分层演示"`；无需用户选择。asset-plan 提供 render_route、source_files 的 path/sha256 和 qualified=true。历史报告仅反映当时快照，以本规则为准。
@@ -206,3 +210,44 @@ uv run python scripts/produce.py config/planetary-01.json --phase final --env-fi
 ```
 
 支持保留 1080×1920 配置供历史版式复用；改变配音或字幕不会改变 3D 缓存键。横屏也必须先验证关键帧、低清全片，再输出正式成片。
+
+## 三路线同题对比与恢复
+
+```sh
+uv run python -m mechanical_video_next.multiroute prepare --topic 指甲刀 --output output/tasks/nailclipper-three-routes
+uv run python -m mechanical_video_next.multiroute finalize output/tasks/nailclipper-three-routes --route-2d /absolute/2d.mp4 --route-25d /absolute/25d.mp4 --route-3d /absolute/3d.mp4
+# 已有确定性命令计划可一键顺序执行并恢复，智能研究和建模仍由当前 Codex 原生代理承担
+uv run python -m mechanical_video_next.multiroute run output/tasks/nailclipper-three-routes --plan /absolute/plan.json
+```
+
+`plan.json` 包含 `steps: [{id, command: [argv...], inputs: [文件路径...], outputs: [文件路径...]}]` 和 `routes: {"2d": "...mp4", "2.5d": "...mp4", "3d": "...mp4"}`。命令与路径按项目根目录解释，Python 命令统一 `uv run`；输入须列出配置、代码和资产以正确失效缓存。步骤顺序执行，不并行启动 Blender，不创建服务器或模拟 Agent。名称入口仅建立任务，不能代表任意名称已具备自动 CAD 能力。
+
+共享 `state.json` 保存路径、SHA256、步骤缓存、失败历史与下一步。`finalize` 生成 1080×1920 / 30fps 的 `compare.mp4`、`preview.jpg`、`report.json`，从上到下为带标签的 2D／2.5D／3D 三格16:9画面。输入必须同为30fps、起始时间一致、时长相差不超过一帧；不一致写 FAIL 报告，帧内差异补末帧至最长。三路解码音频哈希完全相同才复用第一路旁白；缺少或不同则保留阻塞问题，原路线有声视频保持独立。精确输入与实现哈希不变时复用已核验输出。状态为 `TECHNICAL_PASS_UNACCEPTED_COMPARISON`，连续视听、结构与参考复刻验收保留 UNKNOWN，独立 QA 不通过前不能宣称完整验收。
+
+三路线现已接入原有 Producer 入口，默认 `--routes all`，也可明确请求单一路线；`render_route` 保留旧主路线兼容，不代表删掉其他 `requested_routes`。
+
+```sh
+uv run python -m mechanical_video_next produce --topic 指甲刀 --routes all --task-id nail-clipper-three-routes
+# 同一个当前 Codex Producer 接续已有记录，不新建任务或启动第二个 Producer
+uv run python -m mechanical_video_next produce --resume output/tasks/nail-clipper-three-routes
+# Producer 完成研究/蓝图/分路线资产与关键帧检查后执行已有确定性渲染计划
+uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three-routes --plan /absolute/nail-clipper-plan.json
+```
+
+新 `task.json` 有 `requested_routes`、`route_runs`、`shared_production` 的共享时间轴／旁白位置与内容哈希契约。真实三路线智能工作仍由当前 Producer 调用既有 Animation、Editor、QA 原生角色完成；`route-run` 仅串行执行已写好的命令计划与比较，不伪装研究或任意机械 CAD。当前指甲刀已知命令为 `uv run python scripts/nail_clipper_video.py audio`，随后分别 `render --route 2d --quality final` 与 `render --route 2.5d --quality final`；对应产物 `output/nail-clipper/2d/final.mp4` 与 `output/nail-clipper/2_5d/final.mp4`。3D使用已接入的 render-3d，完整计划见下文。
+
+计划可附 `evidence: ["output/nail-clipper/shared/production-statistics.json", "...qa.json"]`；或独立 finalize 重复传 `--evidence <json>`。报告保存来源路径／SHA256及明确写出的 visual_differences，不自动推断审美分数。制作耗时、修复次数、人工干预与缓存复用从实际计量导入，缺少计量为 null；比较编码耗时单独实测，不能替代完整制作耗时。
+
+指甲刀适配器的完整计划已跟踪在 [config/nail-clipper-three-routes-plan.json](config/nail-clipper-three-routes-plan.json)。已有同题任务可直接 `uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three-routes`；默认顺序执行共享音频、自主 CAD／时间轴配置准备、2D、2.5D、3D 与竖屏对比。3D实际命令为 `uv run python scripts/nail_clipper_video.py render-3d --quality final`，使用现有 EAS／produce 缓存和共享旁白。首次语音需要有效凭据，可追加 `--env-file /absolute/credentials.env`，计划不保存密钥或任何私人凭据文件路径。已有素材／配置／参数／GLB／运动／时间轴依赖在各步骤执行前核对哈希，恢复不重跑未变步骤；缺少真实资产或凭据会保留失败与下一步，不能伪造通过。默认计划仅适配指甲刀，不承诺任意名称自动 CAD；QA由当前 Producer 派发真实独立代理，确定性 run 不冒称自动感官验收。已有 `output/nail-clipper/shared/production-statistics.json` 和 `output/nail-clipper/shared/qa*.json` 会通过计划 `evidence_globs` 自动作为哈希证据导入。
+
+多路线 COMPLETED 还要求不可变 final-qa 的 `route_checks` 为每个 requested route 提供 `media: {path, sha256}` 与全部既有 QA 检查 PASS，且哈希匹配 route_runs 的实际产物。单路通过不能替其他路线批准，UNKNOWN 继续阻止完成。
+
+新检出的一键计划需要 Producer 先完成并保存 `output/nail-clipper/shared/mechanical-research.json`；缺少该真实研究会在任何付费配音或渲染前停止，记录具体下一步。CAD 的 motion.json 是生成输出，不作为本步骤首次运行前置输入；生成后纳入2D／2.5D／3D缓存依赖。当前3D形变缺陷仍需修复与独立复验，计划执行完成不代表QA通过。
+
+新 protocol 2 任务接受 `--duration 30` 至 `--duration 60`（含边界，省略时仍请求45秒）；历史 protocol 1／旧制作模板保留30–45秒限制。新三路线共享时轴可按30–60秒请求准备，但当前指甲刀适配器使用已测的固定约38.2秒旁白与时轴，接受60秒任务不等于已生成60秒片，不自动拉伸现片或加速声音。实际时长必须核对产物并在未满足请求时继续调整内容。
+
+报告的 `task_created_epoch` 与 `wall_elapsed_since_task_creation_seconds` 表示从任务建立到该报告快照的总历时，包含研究、等待与修复。`route_receipt_timings` 保存每路原始运行 receipt 的路径、哈希和耗时，不能冒充本次缓存恢复的渲染耗时；`comparison_seconds` 单独计量。缺失的主动制作耗时、具体阶段和人工干预仍为 null。
+
+当前新三路线默认任务采用 `production_method=original-shared-script-three-routes`：研究参考用于核验结构与学习讲解方法，使用原创共享脚本和原创镜头顺序，不照搬原片序列；单路线与既有 `reference-recreation` 任务保留原复刻约束。仅复刻专属逐镜映射门禁随 production_method 区分，科学、资产、动态分镜、实际媒体与每路线独立 QA 不降低。
+
+`route-run` 优先使用任务已登记的 `shared_production.comparison_directory` 存放 compare／preview／report，未登记时仍用 task/multiroute。结果同步 `multiroute_status` 与 `next_step`，不会据确定性命令成功改写原 workflow state 或跨过验收门禁。
