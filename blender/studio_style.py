@@ -31,6 +31,24 @@ def apply(profile, objects, frames, camera, options=None):
             shader.inputs['Base Color'].default_value = (*muted,1)
             shader.inputs['Metallic'].default_value = 0.62
             shader.inputs['Roughness'].default_value = 0.34
+    # Explicit episode styling can distinguish parts which share a source
+    # material. Copy locally so source CAD materials and other parts stay intact.
+    overrides = options.get('material_overrides', {})
+    for obj in objects:
+        spec = overrides.get(obj.name)
+        if not spec:
+            continue
+        for slot in obj.material_slots:
+            if slot.material is None:
+                continue
+            mat = slot.material.copy()
+            mat.name = obj.name + ' | episode studio finish'
+            slot.material = mat
+            shader = mat.node_tree.nodes.get('Principled BSDF') if mat.use_nodes else None
+            if shader:
+                shader.inputs['Base Color'].default_value = (*spec['color'], 1)
+                shader.inputs['Metallic'].default_value = spec.get('metallic', .8)
+                shader.inputs['Roughness'].default_value = spec.get('roughness', .26)
     lowest = float('inf')
     for frame in frames:
         scene.frame_set(frame)

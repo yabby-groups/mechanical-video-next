@@ -9,6 +9,8 @@ import hashlib
 from pathlib import Path
 import sys
 import time
+import subprocess
+import bisect
 
 import bpy
 import bmesh
@@ -25,6 +27,75 @@ from add_mesh_gears import add_gear
 
 def savejson(path, data):
     Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def render_chunked(scene, selected, args):
+    """Encode bounded owned PNG batches within this single Blender process.
+
+    Each successful block is fully decoded before its exact PNG list is removed.
+    Failed blocks, encoded files and command logs remain as diagnostic evidence.
+    """
+    if args.chunk_frames < 1 or args.video_output is None:
+        raise ValueError('Chunk rendering requires positive --chunk-frames and --video-output')
+    session = args.out / ('chunk-run-' + str(time.time_ns()))
+    session.mkdir(parents=True, exist_ok=False)
+    selected = list(selected)
+    chunks = []
+    state = {'status': 'RUNNING', 'chunk_frames': args.chunk_frames,
+             'requested_frames': len(selected), 'chunks': [], 'scope': 'Technical encode/decode only'}
+
+    def command(argv, log):
+        with log.open('w') as stream:
+            stream.write(json.dumps([str(v) for v in argv]) + '\n')
+            stream.flush()
+            subprocess.run([str(v) for v in argv], stdout=stream, stderr=subprocess.STDOUT, check=True)
+
+    try:
+        for start in range(0, len(selected), args.chunk_frames):
+            block = selected[start:start+args.chunk_frames]
+            owned = []
+            for f in block:
+                scene.frame_set(f)
+                path = session / f'{f:05d}.png'
+                scene.render.filepath = str(path)
+                bpy.ops.render.render(write_still=True)
+                owned.append(path)
+            chunk = session / f'chunk-{len(chunks):05d}.mp4'
+            command(['ffmpeg', '-v', 'error', '-y', '-framerate', args.fps,
+                     '-start_number', block[0], '-i', session/'%05d.png', '-frames:v', len(block),
+                     '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', '-c:v', 'libx264', '-preset', 'fast',
+                     '-crf', '19', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', chunk],
+                    chunk.with_suffix('.encode.log'))
+            command(['ffmpeg', '-v', 'error', '-xerror', '-i', chunk, '-f', 'null', '-'],
+                    chunk.with_suffix('.decode.log'))
+            chunks.append(chunk)
+            state['chunks'].append({'file': str(chunk), 'first_frame': block[0],
+                                    'frame_count': len(block), 'decode': 'PASS'})
+            savejson(session/'report.json', state)
+            for path in owned:
+                path.unlink()
+        concat = session/'concat.txt'
+        concat.write_text(''.join("file '" + str(p.resolve()).replace("'", "'\\''") + "'\n" for p in chunks))
+        args.video_output.parent.mkdir(parents=True, exist_ok=True)
+        command(['ffmpeg', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', concat,
+                 '-c', 'copy', '-movflags', '+faststart', args.video_output], session/'concat.log')
+        command(['ffmpeg', '-v', 'error', '-xerror', '-i', args.video_output, '-f', 'null', '-'],
+                session/'final-decode.log')
+        probe = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                         '-show_entries', 'stream=nb_frames,width,height', '-of', 'json', str(args.video_output)]))
+        stream = probe['streams'][0]
+        assert int(stream['nb_frames']) == len(selected), probe
+        assert int(stream['width']) == args.width and int(stream['height']) == args.height, probe
+        state.update(status='PASS', output=str(args.video_output), probe=probe, final_decode='PASS')
+        savejson(session/'report.json', state)
+        savejson(args.out/'chunk-result.json', dict(state, evidence_directory=str(session)))
+        # Only this session's individually decoded chunks, after final decode.
+        for chunk in chunks:
+            chunk.unlink()
+    except Exception as exc:
+        state.update(status='FAIL', error=repr(exc))
+        savejson(session/'report.json', state)
+        raise
 
 
 def material(name, color, metal=0.3, roughness=0.32, preserve_surface=False):
@@ -239,18 +310,73 @@ def make_source_asset(cfg, out):
              'scope':'Independent source components; identity and motion require review'})
 
 
+def linear_action(animation_data):
+    """Explicit interpolation for legacy and Blender 4.4+ layered actions."""
+    if animation_data is None or animation_data.action is None:
+        return
+    action = animation_data.action
+    curves = list(getattr(action, 'fcurves', []))
+    for layer in getattr(action, 'layers', []):
+        for strip in layer.strips:
+            for bag in getattr(strip, 'channelbags', []):
+                curves.extend(bag.fcurves)
+    for curve in curves:
+        curve.extrapolation = 'CONSTANT'
+        for key in curve.keyframe_points:
+            key.interpolation = 'LINEAR'
+
+
+def verify_mesh_tracks(shot, count):
+    """Compare evaluated Blender vertices against authored source interpolation.
+
+    Before Boolean section modifiers: vertex identity must still match source.
+    This verifies prescribed motion import, not physical material/contact behavior.
+    """
+    rows = []
+    scene = bpy.context.scene
+    frames = sorted({1, count, *[1+round(i*(count-1)/8) for i in range(9)]})
+    for track in shot.get('mesh_tracks', []):
+        obj = bpy.data.objects[track['object']]
+        poses = track['poses']
+        progress = [p['progress'] for p in poses]
+        for frame in frames:
+            scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            t = (frame-1)/(count-1)
+            hi = min(len(poses)-1, max(1, bisect.bisect_left(progress, t)))
+            lo = hi-1
+            w = (t-progress[lo])/(progress[hi]-progress[lo])
+            evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+            mesh = evaluated.to_mesh()
+            try:
+                assert len(mesh.vertices) == len(poses[lo]['vertices'])
+                error = max((vertex.co-Vector(tuple(a*(1-w)+b*w for a,b in zip(v0,v1)))).length
+                            for vertex,v0,v1 in zip(mesh.vertices,poses[lo]['vertices'],poses[hi]['vertices']))
+            finally:
+                evaluated.to_mesh_clear()
+            keys = obj.data.shape_keys.key_blocks
+            total = sum(key.value for key in list(keys)[1:])
+            rows.append({'object': obj.name, 'frame': frame, 'source_progress': t,
+                         'maximum_vertex_error_m': error, 'relative_weight_sum': total})
+            assert error < 2e-7 and abs(total-1) < 2e-5, rows[-1]
+    return {'status': 'PASS', 'frames': frames, 'samples': rows,
+            'maximum_vertex_error_m': max([r['maximum_vertex_error_m'] for r in rows]+[0]),
+            'scope': 'Evaluated pre-section Blender vertices versus source pose interpolation; finite frames only'}
+
+
 def prepare_data_tracks(shot, count):
     """Apply explicit, source-reviewed rigid transforms, never solve contacts."""
     seen=set()
     for track in shot.get('tracks', []):
         obj=bpy.data.objects[track['object']]
         for pose in track['poses']:
-            frame=1+round(pose['progress']*(count-1))
+            frame=1+pose['progress']*(count-1)
             assert 1<=frame<=count
             for channel in ['location','rotation_euler','scale']:
                 if channel in pose:
                     setattr(obj,channel,pose[channel])
                     obj.keyframe_insert(channel,frame=frame)
+        linear_action(obj.animation_data)
         seen.add(obj.name)
     # Shape-key samples are authored vertex positions, not a geometry solver.
     for track in shot.get('mesh_tracks', []):
@@ -261,15 +387,17 @@ def prepare_data_tracks(shot, count):
             assert len(pose['vertices'])==len(obj.data.vertices)
             key=obj.shape_key_add(name=f'pose_{i:04d}')
             for v,co in zip(key.data,pose['vertices']): v.co=co
-            frame=1+round(pose['progress']*(count-1))
+            frame=1+pose['progress']*(count-1)
             key.value=0
-            if i>0: key.keyframe_insert('value',frame=1+round(poses[i-1]['progress']*(count-1)))
+            if i>0: key.keyframe_insert('value',frame=1+poses[i-1]['progress']*(count-1))
             key.value=1
             key.keyframe_insert('value',frame=frame)
             key.value=0
-            if i+1<len(poses): key.keyframe_insert('value',frame=1+round(poses[i+1]['progress']*(count-1)))
+            if i+1<len(poses): key.keyframe_insert('value',frame=1+poses[i+1]['progress']*(count-1))
+        linear_action(obj.data.shape_keys.animation_data)
         seen.add(obj.name)
     return {'template':'data-keyframes-v1','tracked_objects':sorted(seen),
+            'evaluated_mesh_alignment': verify_mesh_tracks(shot, count),
             'scope':'Explicit source-reviewed transforms; no contact/force simulation'}
 
 
@@ -327,7 +455,54 @@ def configure_explosion(shot, count):
         obj.eas.order = {'Housing_upper':0,'Housing_lower':1,'Ring':2,'Carrier':3}.get(obj.name,3)
 
 
-def frame_camera(objects, frames, top=False, direction=None, roll=0):
+def camera_region_points(region):
+    """World-space editorial focus box; it never clips or changes the mesh."""
+    lo, hi = region['min'], region['max']
+    if len(lo) != 3 or len(hi) != 3 or any(a >= b for a, b in zip(lo, hi)):
+        raise ValueError('camera_focus_region requires increasing 3D min/max')
+    return [Vector((x, y, z)) for x in (lo[0], hi[0])
+            for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+
+
+def add_teaching_nail(shot, count):
+    """Two editorial nail segments, not CAD inventory or fracture simulation."""
+    spec = shot.get('teaching_nail')
+    if not spec:
+        return None
+    edge = float(spec.get('cutting_edge_x', .050))
+    y = float(spec.get('center_y', -.0045))
+    width = float(spec.get('width', .0039))
+    thickness = float(spec.get('thickness', .0004))
+    surface = material('Teaching nail | warm ivory', (.78, .53, .39), 0, .48)
+    objects = []
+    for name, start, end in [('TeachingNail_Held', edge, edge+.0082),
+                             ('TeachingNail_Offcut', edge-.0018, edge)]:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=((start+end)/2, y, 0))
+        obj = bpy.context.object
+        obj.name = name
+        obj.dimensions = (end-start, width, thickness)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        obj.data.materials.append(surface)
+        obj['teaching_prop'] = True
+        objects.append(obj)
+    offcut = objects[1]
+    base = offcut.location.copy()
+    # Move towards the open front edge before dropping, so the fragment does
+    # not visually pass down through the lower steel plate. Prescribed only.
+    for progress, dy, dz, tilt in [(0,0,0,0),(.20,0,0,0),(.32,-.004,-.00025,.10),
+                                   (.65,-.006,-.0025,.35),(1,-.007,-.003,.55)]:
+        offcut.location = base + Vector((0,dy,dz))
+        offcut.rotation_euler = (tilt, tilt*.6, 0)
+        offcut.keyframe_insert('location', frame=1+progress*(count-1))
+        offcut.keyframe_insert('rotation_euler', frame=1+progress*(count-1))
+    linear_action(offcut.animation_data)
+    return {'status': 'TEACHING_PROP', 'objects': [o.name for o in objects],
+            'cutting_edge_x_m': edge, 'held_segment': 'Outside x >= cutting edge',
+            'offcut': 'Inner tip x < cutting edge; prescribed forward release and fall after closure',
+            'scope': 'Illustrated nail and prescribed separation; not fracture/contact/material simulation; excluded from mechanical inventory'}
+
+
+def frame_camera(objects, frames, top=False, direction=None, roll=0, focus_region=None):
     scene = bpy.context.scene
     bpy.ops.object.camera_add()
     cam = bpy.context.object
@@ -339,6 +514,8 @@ def frame_camera(objects, frames, top=False, direction=None, roll=0):
         scene.frame_set(f)
         bpy.context.view_layer.update()
         points.extend(o.matrix_world @ Vector(v) for o in objects for v in o.bound_box)
+    if focus_region:
+        points = camera_region_points(focus_region)
     lo, hi = core.bounds_of(points)
     center = (lo+hi)*0.5
     cam.location = center + direction * 30
@@ -410,7 +587,8 @@ def render_shot(args):
     eas.register()
     bpy.ops.wm.open_mainfile(filepath=str(args.asset))
     cfg = json.loads(args.assembly_config.read_text())
-    shot = json.loads(args.shot.read_text())
+    shot_bytes = args.shot.read_bytes()
+    shot = json.loads(shot_bytes)
     count = max(2,round(shot['seconds']*args.fps))
     setup_render(args.width,args.height,args.fps)
     scene = bpy.context.scene
@@ -420,7 +598,9 @@ def render_shot(args):
         for obj in parts:
             obj.hide_render=obj.name not in shot['visible_parts']
     original = {o.name:o.matrix_world.copy() for o in parts}
-    report = {'shot':shot,'checks':{},'unverified':cfg['unverified']}
+    report = {'shot': {k: v for k, v in shot.items() if k not in {'tracks', 'mesh_tracks'}},
+              'source_shot': {'path': str(args.shot), 'sha256': hashlib.sha256(shot_bytes).hexdigest()},
+              'checks':{},'unverified':cfg['unverified']}
     template = shot['template']
     if template in ['explode','assemble','exploded']:
         configure_explosion(shot,count)
@@ -453,9 +633,28 @@ def render_shot(args):
     elif template != 'overall':
         raise ValueError('Unknown shot template: '+template)
     visible = [o for o in parts if not o.hide_render]
+    if shot.get('section_plane'):
+        # An explicit local teaching section, applied after deformation. It is
+        # geometry removal, not transparency or an asserted disassembly path.
+        plane = shot['section_plane']
+        if plane.get('axis') != 'y' or plane.get('side') not in {'negative', 'positive'}:
+            raise ValueError('Section supports an explicit +/-Y half-space only')
+        offset = float(plane.get('offset', 0))
+        sign = -1 if plane['side'] == 'negative' else 1
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, offset + sign * .5, 0))
+        cutter = bpy.context.object
+        cutter.name = 'TeachingSectionCutter'
+        cutter.hide_render = True
+        for obj in visible:
+            modifier = obj.modifiers.new('Teaching longitudinal section', 'BOOLEAN')
+            modifier.operation = 'DIFFERENCE'
+            modifier.solver = 'EXACT'
+            modifier.object = cutter
+        report['section'] = dict(plane, method='Boolean difference after prescribed deformation')
     frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] else [1]
     cam = frame_camera(visible, frames, top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
-                       direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0))
+                       direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0),
+                       focus_region=shot.get('camera_focus_region'))
     if shot.get('check_pairs'):
         overlaps=[]
         checked_frames=range(1,count+1) if shot.get('check_all_frames') else frames
@@ -482,12 +681,22 @@ def render_shot(args):
     margin = 1
     for f in range(1,count+1):
         scene.frame_set(f)
-        for o in visible:
-            for v in o.bound_box:
-                p = world_to_camera_view(scene,cam,o.matrix_world @ Vector(v))
-                margin = min(margin,p.x,p.y,1-p.x,1-p.y)
-                assert p.z > 0 and 0.01 <= p.x <= 0.99 and 0.01 <= p.y <= 0.99, (o.name,f,list(p))
+        focus = shot.get('camera_focus_region')
+        projected = ([('editorial_focus_region', point) for point in camera_region_points(focus)]
+                     if focus else [(o.name, o.matrix_world @ Vector(v))
+                                    for o in visible for v in o.bound_box])
+        for name, point in projected:
+            p = world_to_camera_view(scene,cam,point)
+            margin = min(margin,p.x,p.y,1-p.x,1-p.y)
+            assert p.z > 0 and 0.01 <= p.x <= 0.99 and 0.01 <= p.y <= 0.99, (name,f,list(p))
     report['checks']['min_projected_margin'] = margin
+    report['checks']['projection_scope'] = ('Editorial focus region only; surrounding assembly intentionally extends outside detail framing'
+                                            if shot.get('camera_focus_region') else 'Whole assembly bounding boxes')
+    if shot.get('camera_focus_region'):
+        report['camera_focus_region'] = shot['camera_focus_region']
+    teaching_nail = add_teaching_nail(shot, count)
+    if teaching_nail:
+        report['teaching_nail'] = teaching_nail
     args.out.mkdir(parents=True,exist_ok=True)
     savejson(args.out/'checks.json',report)
     if args.checks_only:
@@ -499,6 +708,9 @@ def render_shot(args):
         selected = [count if template == 'exploded' else 1]
     else:
         selected = range(1,count+1)
+    if args.chunk_frames and not args.keys:
+        render_chunked(scene, selected, args)
+        return
     for f in selected:
         scene.frame_set(f)
         scene.render.filepath = str(args.out/f'{f:05d}.png')
@@ -517,6 +729,8 @@ def main():
     parser.add_argument('--fps',type=int,default=15)
     parser.add_argument('--keys',action='store_true')
     parser.add_argument('--checks-only',action='store_true')
+    parser.add_argument('--chunk-frames', type=int, default=0)
+    parser.add_argument('--video-output', type=Path)
     args = parser.parse_args(sys.argv[sys.argv.index('--')+1:])
     if args.command == 'asset':
         make_asset(json.loads(args.assembly_config.read_text()),args.out)

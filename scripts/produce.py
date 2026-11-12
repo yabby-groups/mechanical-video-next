@@ -104,7 +104,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     hit=cached(folder,files)
     if not hit:
         folder.mkdir(parents=True,exist_ok=True)
-        writejson(folder/'shot.json',shot)
+        (folder/'shot.json').write_text(json.dumps(shot, ensure_ascii=False, separators=(',', ':'))+'\n')
         frames=folder/'frames'
         args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','shot','--asset',model,'--shot',folder/'shot.json','--out',frames,'--width',width,'--height',height,'--fps',fps]
         args += ['--assembly-config',ROOT/(assembly_path or 'config/assembly.json')]
@@ -114,9 +114,16 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         expected = len(list((frames).glob('*.png')))
         needed = 1 if kind=='image' else round(shot['seconds']*fps)
         ready = quality not in {'keys','checks'} and (frames/'checks.json').exists() and expected==needed
+        chunk_frames = int(render.get('chunk_frames', 16)) if kind=='video' and quality not in {'keys','checks'} else 0
+        chunked = bool(chunk_frames and not ready)
+        if chunked:
+            assert chunk_frames > 0
+            args += ['--chunk-frames', chunk_frames, '--video-output', folder/filename]
         if not ready:
             # Conservative upper bound for an uncompressed RGB frame sequence plus PNG overhead.
-            projected = budget() + width*height*3*needed*1.12
+            projected_frames = (0 if quality=='checks' else min(needed, 3) if quality=='keys'
+                                else min(needed, chunk_frames) if chunked else needed)
+            projected = budget() + width*height*3*projected_frames*1.12
             if projected > 2*1024**3:
                 raise RuntimeError('Projected temporary frame sequence exceeds 2 GiB work budget')
             run(args,folder/'blender.log')
@@ -124,12 +131,19 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         if quality not in {'keys','checks'}:
             if kind=='image': shutil.copy2(next(frames.glob('*.png')),folder/filename)
             else:
-                run(['ffmpeg','-v','error','-y','-framerate',fps,'-i',frames/'%05d.png','-vf','pad=ceil(iw/2)*2:ceil(ih/2)*2','-c:v','libx264','-preset','fast','-crf','19','-pix_fmt','yuv420p','-movflags','+faststart',folder/filename],folder/'encode.log')
-                run(['ffmpeg','-v','error','-i',folder/filename,'-f','null','-'],folder/'decode.log')
+                if chunked:
+                    chunk_report=json.loads((frames/'chunk-result.json').read_text())
+                    assert chunk_report['status']=='PASS' and chunk_report['final_decode']=='PASS', chunk_report
+                    writejson(folder/'chunk-result.json',chunk_report)
+                    files.append('chunk-result.json')
+                else:
+                    run(['ffmpeg','-v','error','-y','-framerate',fps,'-i',frames/'%05d.png','-vf','pad=ceil(iw/2)*2:ceil(ih/2)*2','-c:v','libx264','-preset','fast','-crf','19','-pix_fmt','yuv420p','-movflags','+faststart',folder/filename],folder/'encode.log')
+                    run(['ffmpeg','-v','error','-i',folder/filename,'-f','null','-'],folder/'decode.log')
                 v=probe(folder/filename)['streams'][0]
                 assert int(v['width'])==width and abs(float(v['duration'])-shot['seconds'])<0.1
             # Exact owned files only. Keyframes and originals are never removed here.
-            for p in frames.glob('*.png'): p.unlink()
+            if not chunked:
+                for p in frames.glob('*.png'): p.unlink()
         elif quality=='keys':
             files += [str(p.relative_to(folder)) for p in sorted(frames.glob('*.png'))]
         complete(folder,files)
