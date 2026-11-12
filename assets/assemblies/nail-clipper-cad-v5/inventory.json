@@ -1,0 +1,209 @@
+{
+  "count": 4,
+  "parts": [
+    {
+      "name": "lower_blade_spring",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 431.85823055906735,
+      "bounds_world_mm": [
+        [
+          -7.518189541422332e-17,
+          -5.0,
+          -2.5767092411720527
+        ],
+        [
+          50.0,
+          5.0,
+          0.0
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 431.8604806054287,
+      "local_frame": {
+        "origin_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_y_rad": 0
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          45.5,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -2.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    },
+    {
+      "name": "upper_blade_spring",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 438.25823055906676,
+      "bounds_world_mm": [
+        [
+          -7.518189541422332e-17,
+          -5.0,
+          0.0
+        ],
+        [
+          50.0,
+          5.0,
+          3.3128474830954167
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 438.2604806054287,
+      "local_frame": {
+        "origin_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_y_rad": 0
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          45.5,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -2.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    },
+    {
+      "name": "pull_post_axle",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 17.963437402877954,
+      "bounds_world_mm": [
+        [
+          43.7,
+          -1.8,
+          -3.076709241172051
+        ],
+        [
+          47.3,
+          1.8,
+          4.55
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 17.954359626430065,
+      "local_frame": {
+        "origin_mm": [
+          0,
+          0,
+          0
+        ],
+        "rotation_y_rad": 0
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          45.5,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -2.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    },
+    {
+      "name": "operating_lever_cam",
+      "valid": true,
+      "solid_count": 1,
+      "volume_mm3": 386.20527285272516,
+      "bounds_world_mm": [
+        [
+          10.02871912370722,
+          -4.0,
+          2.4499651932522557
+        ],
+        [
+          44.80717979650342,
+          4.0,
+          23.601263384608814
+        ]
+      ],
+      "mesh_watertight": true,
+      "mesh_volume_mm3": 386.19744479363646,
+      "local_frame": {
+        "origin_mm": [
+          44,
+          0,
+          3.4
+        ],
+        "rotation_y_rad": 0.5134431218246465
+      },
+      "datums": {
+        "rear_weld_mm": [
+          0,
+          0,
+          0
+        ],
+        "jaw_center_mm": [
+          50,
+          0,
+          0
+        ],
+        "post_axis_mm": [
+          45.5,
+          0,
+          0
+        ],
+        "cam_center_local_mm": [
+          -4,
+          0,
+          -2.6
+        ]
+      },
+      "physical_constraints": "Prescribed seat relation and two-spring bending; no persisted dynamics joints"
+    }
+  ]
+}
