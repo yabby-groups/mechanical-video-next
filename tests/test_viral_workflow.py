@@ -21,7 +21,7 @@ class ViralWorkflowTests(unittest.TestCase):
         self.config = self.root / 'config.json'
         self.config.write_text(json.dumps({'shots': ['fixture']}))
         self.task = w.create_task('拉链原理', config=self.config, root=self.root,
-                                  asset_strategy='verified-existing')
+                                  asset_strategy='verified-existing', routes='3d')
         # These fixtures isolate downstream DAG/media gates from reference-first admission.
         data = w.load(self.task)
         data['autonomy_policy']['reference_first'] = False

@@ -120,11 +120,15 @@ def event(task, kind, **fields):
 
 
 def create_task(topic, duration=45, voice=None, config=None, task_id=None, root=ROOT,
-                protocol_version=2, asset_strategy='autonomous-cad'):
-    if not topic.strip() or not 30 <= duration <= 45:
-        raise ValueError('Nonempty topic and duration 30–45 required by current templates')
+                protocol_version=2, asset_strategy='autonomous-cad', routes='all'):
+    requested_routes = ['2d', '2.5d', '3d'] if routes == 'all' else [routes]
+    if not set(requested_routes) <= {'2d', '2.5d', '3d'}:
+        raise ValueError('Unsupported requested routes')
     if type(protocol_version) is not int or protocol_version not in {1, 2}:
         raise ValueError('Unsupported production protocol_version')
+    maximum_duration = 45 if protocol_version == 1 else 60
+    if not topic.strip() or not 30 <= duration <= maximum_duration:
+        raise ValueError(f'Nonempty topic and duration 30–{maximum_duration} required for protocol {protocol_version}')
     if protocol_version == 1:
         asset_strategy = None  # Explicit historical tasks retain their original asset contract.
     elif asset_strategy not in {'autonomous-cad', 'verified-existing', 'illustrated'}:
@@ -143,12 +147,35 @@ def create_task(topic, duration=45, voice=None, config=None, task_id=None, root=
                  tokens=None, tokens_source='Not exposed to deterministic runner',
                  agent_runs=[], engineering_changes=None)
     if protocol_version == 2:
-        value['production_method'] = 'reference-recreation'
+        value['production_method'] = ('original-shared-script-three-routes'
+                                      if len(requested_routes) == 3 else 'reference-recreation')
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
+        value['requested_routes'] = requested_routes
+        value['route_runs'] = {route: {'status': 'PENDING', 'outputs': {}} for route in requested_routes}
+        value['shared_production'] = {
+            'directory': str(task / 'shared'),
+            'timeline': {'path': str(task / 'shared/timeline.json'), 'sha256': None},
+            'narration': {'path': str(task / 'shared/narration.wav'), 'sha256': None},
+            'cache_policy': 'content-and-config-sha256; narration shared across routes; geometry scoped by route',
+            'comparison_directory': str(task / 'multiroute')}
     write(task / 'task.json', value)
     prompt = f'''Act as the sole Producer in this Codex session. Produce: {topic}
 Target duration: {duration}s. Requested voice: {voice or 'existing approved default'}.
+Protocol 2 accepts 30–60s requests; historical templates may still be limited to 45s.
+Match narration and shared shot timings naturally. Do not stretch the fixed nail-clipper
+adapter or accelerate audio merely to claim a requested duration was achieved.
 Task folder: {task}. Config hint: {config or 'select verified existing template'}.
+Requested output routes: {', '.join(requested_routes)}. Produce ALL requested routes;
+render_route remains the legacy primary-route field, not permission to omit other requested routes.
+Use one shared reference, script, shot order, timeline and approved narration under {task}/shared.
+Animation owns route-scoped keys, shots and manifests; Editor composes every requested route.
+Keep route-specific asset/config/media hashes and caches separate; identical narration is shared.
+Independent QA records each route and exact hash plus the synchronized comparison.
+For multi-route completion final-qa must include route_checks keyed by every requested route,
+each with media={{path,sha256}} and all standard QA checks PASS; UNKNOWN never completes a route.
+Use the existing workflow route-run command with an authored deterministic plan to resume renders.
+If a requested route is unavailable, record its concrete issue and next step; do not silently drop it.
+Task preparation does not prove arbitrary mechanical names already have a CAD/render adapter.
 Every new video requires its own reference research before script/blueprint freeze.
 Breakout videos are inspiration, not a prerequisite. Followers, likes and publication
 age do not gate production. Ordinary physical demonstrations, teardowns and manufacturer
@@ -272,6 +299,23 @@ This is a Producer policy, not a Python agent loop or proof of unattended capabi
 Unavailable required evidence stays UNKNOWN. Never waive listening/continuous-video
 acceptance merely because the user asks to discuss the non-audiovisual case.
 '''
+    if value.get('production_method') == 'original-shared-script-three-routes':
+        start = prompt.index('Every new video requires its own reference research')
+        end = prompt.index('Read AGENTS.md and the three mechanical Skills.', start)
+        prompt = prompt[:start] + f'''Production method: original-shared-script-three-routes.
+Research observed references to learn verified structure, motion, and explanatory techniques;
+reference learning is not recreation of a video's opening, narrative or shot sequence.
+Write an original shared script and original shot order. Do not copy a reference shot sequence.
+Keep one original script, narration and timeline across all three routes so they are comparable.
+Preserve the approved EP03 look and Neil voice. Do not invent unsupported mechanical facts,
+hidden structures, or an industrial-design claim. Bind research to task_id={identity} and topic.
+Record factual sources and uncertainty. No fabricated viewing, metrics or qualification.
+The FROZEN blueprint binds this original script, factual sources, mechanical claims,
+observable shot goals and executable config/hash; it does not require reference_recreation
+or a one-to-one mapping to an existing video's shot sequence.
+Independent QA checks the original teaching goals, actual mechanical evidence, frozen blueprint,
+exact media, all three route hashes and shared timeline. Scientific and sensory gates remain.
+''' + prompt[end:]
     (task / 'producer-prompt.md').write_text(prompt)
     event(task, 'created', topic=topic)
     return task
@@ -404,8 +448,11 @@ def check_research_binding(data, research):
 
 def check_recreation(task, blueprint):
     from .viral import validate_reference_recreation
+    data = load(task)
+    if data.get('production_method') != 'reference-recreation':
+        return
     research = artifact(task, 'viral-analysis')
-    check_research_binding(load(task), research)
+    check_research_binding(data, research)
     validate_reference_recreation(blueprint, research)
 
 
@@ -615,9 +662,29 @@ def advance(task, target):
         if target == 'COMPLETED':
             check_qa(task, 'preview-qa')
             check_qa(task, 'final-qa')
+            check_requested_routes(task, data)
         data['state'] = target
         write(Path(task) / 'task.json', data)
         event(task, 'state', previous=current, state=target)
+
+
+def check_requested_routes(task, data):
+    routes = data.get('requested_routes', [])
+    if len(routes) <= 1:
+        return  # Existing single-route and historical ledgers keep their gates.
+    report = artifact(task, 'final-qa')
+    route_checks = report.get('route_checks', {})
+    for route in routes:
+        result = route_checks.get(route, {})
+        media = result.get('media')
+        if not media:
+            raise ValueError('Missing route-specific final QA media: ' + route)
+        check_media([media])
+        if not all(result.get('checks', {}).get(check) == 'PASS' for check in QA_CHECKS):
+            raise ValueError('Requested route final QA has FAIL/UNKNOWN/missing checks: ' + route)
+        recorded = data.get('route_runs', {}).get(route, {}).get('outputs', {})
+        if not recorded or recorded.get('sha256') != media.get('sha256'):
+            raise ValueError('Final QA does not match recorded route output: ' + route)
 
 
 def validate_defect_key(value):
@@ -888,13 +955,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     p = sub.add_parser('produce')
-    p.add_argument('--topic', required=True)
+    p.add_argument('--topic')
+    p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
+    p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['autonomous-cad','verified-existing','illustrated'], default='autonomous-cad')
     p.add_argument('--duration', type=int, default=45)
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
+    p = sub.add_parser('route-run', help='Resume authored route render plan; no agent impersonation')
+    p.add_argument('task', type=Path)
+    p.add_argument('--plan', type=Path, default=ROOT / 'config/nail-clipper-three-routes-plan.json')
+    p.add_argument('--env-file', type=Path, help='Credentials file forwarded only to opted-in audio step; no secrets in plan')
     for name in ['status', 'advance', 'stage', 'handoff', 'repair', 'agent-run', 'resume-repair', 'resume-asset-inspection', 'resume-stage', 'adopt-autonomy', 'select-route']:
         p = sub.add_parser(name)
         p.add_argument('task', type=Path)
@@ -929,8 +1002,21 @@ def main():
             p.add_argument('--tokens', type=int)
     args = parser.parse_args()
     if args.command == 'produce':
+        if args.resume:
+            if args.codex:
+                raise ValueError('Resume uses current Producer; do not start another Producer')
+            data = load(args.resume)
+            if args.topic and args.topic != data['topic']:
+                raise ValueError('Resume topic differs from existing task')
+            if args.routes and (['2d', '2.5d', '3d'] if args.routes == 'all' else [args.routes]) != data.get('requested_routes', [data.get('render_route', '3d')]):
+                raise ValueError('Resume must preserve requested routes; create an explicit new task to change scope')
+            event(args.resume, 'producer_resumed', dispatch_mode='current_native_codex_session')
+            print(args.resume)
+            return
+        if not args.topic:
+            parser.error('--topic is required unless --resume is supplied')
         task = create_task(args.topic, args.duration, args.voice, args.config, args.task_id,
-                           asset_strategy=args.asset_strategy)
+                           asset_strategy=args.asset_strategy, routes=args.routes or 'all')
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')
@@ -944,6 +1030,41 @@ def main():
                     event(task, 'codex_launch_failed', reason=str(error),
                           log=str(task / 'codex.jsonl'))
                     raise
+        return
+    if args.command == 'route-run':
+        from .multiroute import prepare, run_plan
+        data = load(args.task)
+        plan_data = json.loads(args.plan.read_text())
+        if plan_data.get('topic') and plan_data['topic'] != data['topic']:
+            raise ValueError('Adapter topic does not match task; arbitrary topics require their own production plan')
+        if data.get('requested_routes') and set(data['requested_routes']) != set(plan_data['routes']):
+            raise ValueError('Plan route scope must match task requested_routes; single-route tasks use their assigned production stages')
+        folder = Path(data.get('shared_production', {}).get('comparison_directory') or args.task / 'multiroute')
+        prepare(folder, data['topic'])
+        try:
+            report = run_plan(folder, args.plan, args.env_file, [args.task / 'task.json'])
+        except Exception:
+            with lock(args.task / '.ledger.lock'):
+                data = load(args.task)
+                state = json.loads((folder / 'state.json').read_text())
+                data['multiroute_status'] = state['status']
+                data['next_step'] = state['next_step']
+                write(args.task / 'task.json', data)
+            raise
+        with lock(args.task / '.ledger.lock'):
+            data = load(args.task)
+            data['route_comparison'] = {'report': str(folder / 'report.json'),
+                                        'sha256': filehash(folder / 'report.json'),
+                                        'status': report['status']}
+            data['multiroute_status'] = report['status']
+            data['next_step'] = 'Current Producer dispatches independent exact-media route QA; UNKNOWN prevents completion.'
+            for route, media in report['routes'].items():
+                data.setdefault('route_runs', {})[route] = {'status': 'TECHNICAL_PASS_UNACCEPTED', 'outputs': media}
+            for name, path in plan_data.get('shared', {}).items():
+                data.setdefault('shared_production', {})[name] = {'path': str(Path(path).resolve()), 'sha256': filehash(path)}
+            write(args.task / 'task.json', data)
+            event(args.task, 'route_comparison_generated', report=data['route_comparison'])
+        print(json.dumps(report, ensure_ascii=False, indent=2))
         return
     if args.command == 'select-route':
         print(json.dumps(select_route(args.task, args.route, args.reason)))
@@ -1008,6 +1129,7 @@ def main():
                 check_qa(args.task, 'preview-qa')
             if target == 'COMPLETED':
                 check_qa(args.task, 'final-qa')
+                check_requested_routes(args.task, data)
             if any(not issue['strategies'] for issue in data['repairs'].values()):
                 raise ValueError('Baseline without measured repair cannot resume')
             data['state'] = data.pop('repair_return_state')
