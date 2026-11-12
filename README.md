@@ -66,9 +66,9 @@ uv run python scripts/produce.py config/planetary-printer-ep03-style.json --phas
 
 ```sh
 # 在当前 Codex 会话中创建制作任务，由该会话继续派发真实子代理
-uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json
+uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 90 --config config/planetary-01.json
 # 从终端启动一个新的 Codex Producer，原生子代理由 Codex 调用
-uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 36 --config config/planetary-01.json --codex
+uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能减速" --duration 90 --config config/planetary-01.json --codex
 ```
 
 默认命令只创建 `output/tasks/<id>/task.json` 和 `producer-prompt.md`，不会凭 Python 自动拥有智能调度。`--codex` 调用真实 `codex exec --json`，保存原生日志 `codex.jsonl`；需要已登录、受信任的项目和可用的 Codex 服务。已在 Codex 内工作时不要嵌套启动 Producer。原有 `scripts/produce.py` 为单 Agent 回退。
@@ -244,7 +244,7 @@ uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three
 
 新检出的一键计划需要 Producer 先完成并保存 `output/nail-clipper/shared/mechanical-research.json`；缺少该真实研究会在任何付费配音或渲染前停止，记录具体下一步。CAD 的 motion.json 是生成输出，不作为本步骤首次运行前置输入；生成后纳入2D／2.5D／3D缓存依赖。当前3D形变缺陷仍需修复与独立复验，计划执行完成不代表QA通过。
 
-新 protocol 2 任务接受 `--duration 30` 至 `--duration 60`（含边界，省略时仍请求45秒）；历史 protocol 1／旧制作模板保留30–45秒限制。新三路线共享时轴可按30–60秒请求准备，但当前指甲刀适配器使用已测的固定约38.2秒旁白与时轴，接受60秒任务不等于已生成60秒片，不自动拉伸现片或加速声音。实际时长必须核对产物并在未满足请求时继续调整内容。
+新 protocol 2 任务接受 `--duration 60` 至 `--duration 120`（含边界，省略时请求90秒）；历史 protocol 1 保留30–45秒限制和45秒默认值。三路线保持快节奏、高信息密度：开场直接展示关键动作或悬念，每镜头推进新信息，动作与讲解同步，结尾回扣开场。增加时长依靠有依据的解释和不同演示，不降速、重复、空停或强行加速配音。当前指甲刀适配器仍为已测约38.2秒，不能直接满足新请求；须重新编写内容与时间轴并验证实际媒体，不自动拉伸旧片。独立 QA 检查实际时长与节奏，缺少观看、听审能力保留 UNKNOWN。
 
 报告的 `task_created_epoch` 与 `wall_elapsed_since_task_creation_seconds` 表示从任务建立到该报告快照的总历时，包含研究、等待与修复。`route_receipt_timings` 保存每路原始运行 receipt 的路径、哈希和耗时，不能冒充本次缓存恢复的渲染耗时；`comparison_seconds` 单独计量。缺失的主动制作耗时、具体阶段和人工干预仍为 null。
 

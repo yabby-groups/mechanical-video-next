@@ -119,16 +119,18 @@ def event(task, kind, **fields):
                            ensure_ascii=False) + '\n')
 
 
-def create_task(topic, duration=45, voice=None, config=None, task_id=None, root=ROOT,
+def create_task(topic, duration=None, voice=None, config=None, task_id=None, root=ROOT,
                 protocol_version=2, asset_strategy='autonomous-cad', routes='all'):
     requested_routes = ['2d', '2.5d', '3d'] if routes == 'all' else [routes]
     if not set(requested_routes) <= {'2d', '2.5d', '3d'}:
         raise ValueError('Unsupported requested routes')
     if type(protocol_version) is not int or protocol_version not in {1, 2}:
         raise ValueError('Unsupported production protocol_version')
-    maximum_duration = 45 if protocol_version == 1 else 60
-    if not topic.strip() or not 30 <= duration <= maximum_duration:
-        raise ValueError(f'Nonempty topic and duration 30–{maximum_duration} required for protocol {protocol_version}')
+    minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else (60, 120)
+    if duration is None:
+        duration = 45 if protocol_version == 1 else 90
+    if not topic.strip() or not minimum_duration <= duration <= maximum_duration:
+        raise ValueError(f'Nonempty topic and duration {minimum_duration}–{maximum_duration} required for protocol {protocol_version}')
     if protocol_version == 1:
         asset_strategy = None  # Explicit historical tasks retain their original asset contract.
     elif asset_strategy not in {'autonomous-cad', 'verified-existing', 'illustrated'}:
@@ -161,7 +163,15 @@ def create_task(topic, duration=45, voice=None, config=None, task_id=None, root=
     write(task / 'task.json', value)
     prompt = f'''Act as the sole Producer in this Codex session. Produce: {topic}
 Target duration: {duration}s. Requested voice: {voice or 'existing approved default'}.
-Protocol 2 accepts 30–60s requests; historical templates may still be limited to 45s.
+Protocol 2 accepts 60–120s requests (default 90s); historical protocol 1 retains 30–45s.
+Keep a fast, information-dense pace: open immediately with a striking action, surprising
+fact or concrete question; every shot advances a new fact or causal step. Synchronize
+explanation with visible motion; use close-ups, sections and comparisons where useful.
+Build length through supported explanation and distinct demonstrations, never slower
+playback, repeated footage, filler holds or artificially accelerated narration.
+End by resolving the opening question. QA must inspect the exact media for hook,
+information progression, action/narration alignment, repetition and actual duration;
+retain UNKNOWN for unavailable perceptual checks, never infer audience retention.
 Match narration and shared shot timings naturally. Do not stretch the fixed nail-clipper
 adapter or accelerate audio merely to claim a requested duration was achieved.
 Task folder: {task}. Config hint: {config or 'select verified existing template'}.
@@ -959,7 +969,7 @@ def main():
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['autonomous-cad','verified-existing','illustrated'], default='autonomous-cad')
-    p.add_argument('--duration', type=int, default=45)
+    p.add_argument('--duration', type=int, default=None, help='Target seconds: protocol 2 defaults to 90 (60–120); protocol 1 defaults to 45 (30–45)')
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')
