@@ -40,9 +40,12 @@ def referenced_keys():
         result.update(re.findall(r'(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])', path.read_text()))
     return result
 
-def candidates(older_hours):
+def candidates(older_hours, only_keys=None):
     if older_hours < 0:
         raise ValueError('Age must be nonnegative')
+    selected = None if only_keys is None else set(only_keys)
+    if selected is not None and any(not re.fullmatch(r'[0-9a-f]{64}', key) for key in selected):
+        raise ValueError('Only-key must be a complete lowercase SHA256 cache key')
     root = ROOT/'work/cache'
     if root.is_symlink():
         raise ValueError('Refuse symlink cache root')
@@ -54,6 +57,7 @@ def candidates(older_hours):
         if parent.is_symlink(): raise ValueError('Refuse symlink category')
         for folder in parent.glob('*'):
             if folder.is_symlink() or not folder.is_dir(): continue
+            if selected is not None and folder.name not in selected: continue
             if folder.name in protected: continue
             if any(p.name in {'.lock', '.protected'} for p in folder.rglob('*')): continue
             marker=folder/'complete.json'
@@ -65,11 +69,11 @@ def candidates(older_hours):
                     result.append(folder)
     return result
 
-def cleanup(older_hours=168, apply=False):
+def cleanup(older_hours=168, apply=False, only_keys=None):
     """Serialize with production and retain locks, handoff references and failed work."""
     rows = []
     with production_lock():
-        for p in candidates(older_hours):
+        for p in candidates(older_hours, only_keys):
             row = {'path':str(p.relative_to(ROOT)), 'bytes':treebytes(p), 'delete':apply}
             if apply:
                 shutil.rmtree(p)
@@ -81,9 +85,11 @@ def main():
     ap.add_argument('--older-hours',type=float,default=168)
     ap.add_argument('--apply',action='store_true',help='Delete listed completed cache entries; default is dry run')
     ap.add_argument('--auto',action='store_true',help='Apply safe age-based cleanup before production; never bypass locks or references')
+    ap.add_argument('--only-key', action='append', default=None,
+                    help='Restrict eligible entries to this SHA256 key; repeat for multiple keys. Age, completion, locks, protections and references still apply')
     args=ap.parse_args()
     if args.older_hours<0: ap.error('Age must be nonnegative')
-    for row in cleanup(args.older_hours, args.apply or args.auto):
+    for row in cleanup(args.older_hours, args.apply or args.auto, args.only_key):
         print(json.dumps(row))
 
 if __name__=='__main__': main()

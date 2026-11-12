@@ -73,6 +73,37 @@ class CleanupLockTests(unittest.TestCase):
             self.assertEqual(rows[0]['delete'], False)
             self.assertTrue(folder.exists())
 
+    def test_only_keys_restricts_deletion_without_bypassing_protection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            selected = self.make_entry(root, '1'*64)
+            unselected = self.make_entry(root, '2'*64)
+            protected = self.make_entry(root, '3'*64)
+            referenced = self.make_entry(root, '4'*64)
+            failed = self.make_entry(root, '5'*64)
+            (protected/'.protected').touch()
+            (failed/'complete.json').unlink()
+            handoff = root/'output/tasks/pilot/evidence.json'
+            handoff.parent.mkdir(parents=True)
+            handoff.write_text(json.dumps({'key': referenced.name}))
+            with patch.object(clean, 'ROOT', root):
+                rows = clean.cleanup(0, apply=True, only_keys=[p.name for p in [selected, protected, referenced, failed]])
+            self.assertEqual([r['path'] for r in rows], [str(selected.relative_to(root))])
+            self.assertFalse(selected.exists())
+            self.assertTrue(all(p.exists() for p in [unselected, protected, referenced, failed]))
+
+    def test_only_keys_retains_age_filter_and_rejects_paths_or_prefixes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = self.make_entry(root, '6'*64)
+            with patch.object(clean, 'ROOT', root):
+                self.assertEqual(clean.cleanup(24, apply=True, only_keys=[folder.name]), [])
+                self.assertEqual(clean.cleanup(0, apply=True, only_keys=[]), [])
+                for invalid in ['../shots', '6'*12, 'A'*64]:
+                    with self.assertRaisesRegex(ValueError, 'SHA256'):
+                        clean.cleanup(0, apply=True, only_keys=[invalid])
+            self.assertTrue(folder.exists())
+
 
 if __name__ == '__main__':
     unittest.main()
