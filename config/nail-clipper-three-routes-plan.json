@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "topic": "指甲刀",
+  "scope": "Deterministic authored nail-clipper adapter; independent sensory QA remains with current Producer native agents.",
+  "steps": [
+    {
+      "id": "shared-audio",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "scripts/nail_clipper_video.py",
+        "audio"
+      ],
+      "accepts_env_file": true,
+      "inputs": [
+        "scripts/nail_clipper_video.py",
+        "config/narration-neil.json",
+        "config/narration-default.json",
+        "scripts/narration.py",
+        "scripts/common.py"
+      ],
+      "outputs": [
+        "output/nail-clipper/shared/timeline.json",
+        "output/nail-clipper/shared/narration.wav"
+      ]
+    },
+    {
+      "id": "cad-prepare",
+      "command": [
+        "uv",
+        "run",
+        "--with-requirements",
+        "requirements-cad.txt",
+        "python",
+        "scripts/nail_clipper_cad.py",
+        "--generate",
+        "--timeline",
+        "output/nail-clipper/shared/timeline.json"
+      ],
+      "inputs": [
+        "scripts/nail_clipper_cad.py",
+        "requirements-cad.txt",
+        "assets/assemblies/nail-clipper-cad-v5/generate.py",
+        "assets/assemblies/nail-clipper-cad-v5/parameters.json",
+        "output/nail-clipper/shared/timeline.json",
+        "output/nail-clipper/shared/mechanical-research.json",
+        "config/nail-clipper-studio-style.json"
+      ],
+      "outputs": [
+        "output/nail-clipper/3d/config/full.json",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.json",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.glb",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.step",
+        "assets/assemblies/nail-clipper-cad-v5/motion.json",
+        "assets/assemblies/nail-clipper-cad-v5/validation.json",
+        "assets/assemblies/nail-clipper-cad-v5/inventory.json",
+        "config/nail-clipper-diagnostic-v5-assembly.json",
+        "config/nail-clipper-diagnostic-v5-close.json",
+        "config/nail-clipper-diagnostic-v5-exploded.json",
+        "config/nail-clipper-diagnostic-v5-open.json",
+        "config/nail-clipper-diagnostic-v5-section.json"
+      ]
+    },
+    {
+      "id": "render-2d",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "scripts/nail_clipper_video.py",
+        "render",
+        "--route",
+        "2d",
+        "--quality",
+        "final"
+      ],
+      "inputs": [
+        "scripts/nail_clipper_video.py",
+        "output/nail-clipper/shared/timeline.json",
+        "output/nail-clipper/shared/narration.wav",
+        "assets/assemblies/nail-clipper-cad-v5/motion.json",
+        "assets/assemblies/nail-clipper-cad-v5/parameters.json",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.json",
+        "assets/assemblies/nail-clipper-cad-v5/generate.py",
+        "config/nail-clipper-visual-style.json"
+      ],
+      "outputs": [
+        "output/nail-clipper/2d/final.mp4",
+        "output/nail-clipper/2d/final.json"
+      ]
+    },
+    {
+      "id": "render-2_5d",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "scripts/nail_clipper_video.py",
+        "render",
+        "--route",
+        "2.5d",
+        "--quality",
+        "final"
+      ],
+      "inputs": [
+        "scripts/nail_clipper_video.py",
+        "output/nail-clipper/shared/timeline.json",
+        "output/nail-clipper/shared/narration.wav",
+        "assets/assemblies/nail-clipper-cad-v5/motion.json",
+        "assets/assemblies/nail-clipper-cad-v5/parameters.json",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.json",
+        "assets/assemblies/nail-clipper-cad-v5/generate.py",
+        "config/nail-clipper-visual-style.json"
+      ],
+      "outputs": [
+        "output/nail-clipper/2_5d/final.mp4",
+        "output/nail-clipper/2_5d/final.json"
+      ]
+    },
+    {
+      "id": "render-3d",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "scripts/nail_clipper_video.py",
+        "render-3d",
+        "--quality",
+        "final"
+      ],
+      "inputs": [
+        "scripts/nail_clipper_video.py",
+        "scripts/produce.py",
+        "scripts/common.py",
+        "blender/scene.py",
+        "blender/studio_style.py",
+        "output/nail-clipper/3d/config/full.json",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.json",
+        "assets/assemblies/nail-clipper-cad-v5/assembly.glb",
+        "assets/assemblies/nail-clipper-cad-v5/parameters.json",
+        "assets/assemblies/nail-clipper-cad-v5/motion.json",
+        "output/nail-clipper/shared/timeline.json",
+        "output/nail-clipper/shared/narration.wav",
+        "config/nail-clipper-visual-style.json",
+        "config/nail-clipper-studio-style.json"
+      ],
+      "outputs": [
+        "output/nail-clipper/3d/final.mp4",
+        "output/nail-clipper/3d/final.json"
+      ]
+    }
+  ],
+  "routes": {
+    "2d": "output/nail-clipper/2d/final.mp4",
+    "2.5d": "output/nail-clipper/2_5d/final.mp4",
+    "3d": "output/nail-clipper/3d/final.mp4"
+  },
+  "shared": {
+    "timeline": "output/nail-clipper/shared/timeline.json",
+    "narration": "output/nail-clipper/shared/narration.wav"
+  },
+  "evidence": [],
+  "evidence_globs": [
+    "output/nail-clipper/shared/production-statistics.json",
+    "output/nail-clipper/shared/qa*.json",
+    "output/nail-clipper/2d/final.json",
+    "output/nail-clipper/2_5d/final.json",
+    "output/nail-clipper/3d/final.json"
+  ],
+  "prerequisites": [
+    "Current Producer must provide observed mechanical research at output/nail-clipper/shared/mechanical-research.json before CAD generation.",
+    "Existing 3D deformation defects must be repaired and independently rechecked; deterministic render completion never claims sensory QA PASS.",
+    "First narration requires credentials; use explicit --env-file or existing .env.local, never embed secrets in plan."
+  ],
+  "prerequisite_inputs": [
+    "output/nail-clipper/shared/mechanical-research.json"
+  ],
+  "duration_contract": {
+    "protocol2_request_seconds": [
+      30,
+      60
+    ],
+    "current_authored_adapter": "Uses measured shared timeline; does not automatically stretch fixed narration to 60s.",
+    "historical_templates_max_seconds": 45
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "nail-clipper-ep03-style-v1",
+  "reference": "config/visual-reference.json",
+  "scope": "Editorial camera and surface styling only; verified CAD and prescribed motion unchanged",
+  "studio_lighting": {
+    "scale_to_subject": true,
+    "floor_gap": 0.002,
+    "floor_color": [0.085, 0.12, 0.165],
+    "world_strength": 0.38,
+    "key_strength": 1.25,
+    "fill_strength": 0.48,
+    "rim_strength": 1.2,
+    "key_size": 0.7,
+    "fill_size": 0.85,
+    "rim_size": 0.65,
+    "material_overrides": {
+      "lower_blade_spring": {"color": [0.17, 0.22, 0.28], "metallic": 0.8, "roughness": 0.29},
+      "upper_blade_spring": {"color": [0.50, 0.61, 0.65], "metallic": 0.84, "roughness": 0.25},
+      "operating_lever_cam": {"color": [0.70, 0.74, 0.78], "metallic": 0.87, "roughness": 0.23},
+      "pull_post_axle": {"color": [0.54, 0.30, 0.12], "metallic": 0.75, "roughness": 0.29}
+    }
+  },
+  "shots": {
+    "hook": {"camera_direction": [0.25, -1, 0.58]},
+    "parts": {"camera_direction": [0.18, -1, 0.55]},
+    "lever": {
+      "camera_direction": [0.06, -1, 0.32],
+      "camera_focus_region": {"min": [0.028, -0.006, -0.0033], "max": [0.052, 0.006, 0.009]}
+    },
+    "cut": {
+      "camera_direction": [0, -1, 0.12],
+      "camera_focus_region": {"min": [0.031, -0.005, -0.0033], "max": [0.052, 0.005, 0.0075]}
+    },
+    "return": {
+      "camera_direction": [0.12, -1, 0.30],
+      "camera_focus_region": {"min": [0.029, -0.012, -0.0055], "max": [0.059, 0.006, 0.008]},
+      "teaching_nail": {"cutting_edge_x": 0.050, "center_y": -0.0045, "width": 0.0039, "thickness": 0.0004}
+    },
+    "summary": {"camera_direction": [0.38, -1, 0.65]}
+  }
+}
