@@ -17,7 +17,7 @@
 
 **当前自主执行目标：输入名称，自主完成。** 根据实际资料自动选择 CAD、2D 或 2.5D 路线并制作。新任务不设 Token 或修复轮次上限，无改善更换策略并保留历史，中间不要求用户逐步确认。旧任务通过 `adopt-autonomy` 登记新政策后继续，历史失败证据保留。这是已落实的执行政策与门禁，尚无任意名称输入后自动交付合格全片的端到端验证。
 
-**Python 统一通过 uv 运行。** 使用 `uv run python ...`，首次自动建立项目 `.venv`；Python 3.11 与基础/开发依赖由 `pyproject.toml`、`.python-version` 和 `uv.lock` 管理。CAD 命令使用 `uv run --with-requirements requirements-cad.txt python scripts/cad_generate.py ...`，按需加载已固定版本的 CAD 依赖。临时校验依赖用 `uv run --with <package> python ...`。Blender 内嵌 Python 保持由 Blender 执行。受限沙箱可设置 `UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache`。
+**Python 统一通过 uv 运行。** 使用 `uv run python ...`，首次自动建立项目 `.venv`；Python 3.14.2 与基础/开发依赖由 `pyproject.toml`、`.python-version` 和 `uv.lock` 管理。CAD 命令使用 `uv run --extra cad python scripts/cad_generate.py ...`，按需加载已固定版本的 CAD 依赖。临时校验依赖用 `uv run --with <package> python ...`。Blender 内嵌 Python 保持由 Blender 执行。受限沙箱可设置 `UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache`。
 
 **每条视频必须研究爆款并采用主参考复刻。** 每次制作先筛选、核验并分析参考视频，选定一条主参考，再复刻其开场、内容结构、镜头顺序、节奏和关键演示，以自主 CAD、动画及 Neil 配音重新制作，沿用打印机 EP03 视觉。缓存可复用，但每条须有自己的研究结论和逐镜头对应表。新任务默认 `production_method=reference-recreation`；研究 `task_id/topic` 不匹配、缺主参考或镜头映射时拒绝冻结蓝图，并在生产配置门禁再次核对。未完成研究不能直接开始完整制作。
 
@@ -63,6 +63,9 @@ uv run python scripts/produce.py config/planetary-printer-ep03-style.json --phas
 ```
 
 本地、素材优先的机械科普生产项目。三个 Skills 保留；Codex 主会话作为 Producer，五个窄职责子代理负责研究、资产、动画、剪辑、独立 QA。Blender/EAS 制作镜头，Remotion 合成，FFmpeg 检测。视频号统一默认旁白为 Qwen3-TTS / Neil，与卷尺同款。首期是有独立零件的简化行星齿轮教学装配，不是工业 CAD 或接触仿真。
+
+
+CAD 与项目共用 uv 管理的 Python 3.14.2：先执行 `uv sync --extra cad --locked`，建模使用 `uv run --extra cad cad run <model.py>`，诊断使用 `uv run --extra cad cad doctor --check`。CAD 依赖统一锁定在 `uv.lock`；`requirements-cad.txt` 仅保留旧入口兼容，不再作为默认依赖入口。Blender 内嵌 Python 是随软件分发的运行时例外。
 
 ## 多 Agent 入口
 

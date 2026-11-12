@@ -2,8 +2,18 @@
 name = "mechanical-video-next"
 version = "0.1.0"
 description = "Evidence-gated mechanical video production tools"
-requires-python = ">=3.11,<3.12"
+requires-python = "==3.14.2"
 dependencies = ["pillow>=11,<13"]
+
+[project.optional-dependencies]
+cad = [
+  "cad-server==0.11.9",
+  "cad[build123d]==0.11.9",
+  "build123d==0.13.0",
+  "cadquery-ocp-novtk==8.0.1.1.0",
+  "numpy==2.4.6",
+  "trimesh==5.2.0",
+]
 
 [dependency-groups]
 dev = ["pyyaml>=6,<7"]

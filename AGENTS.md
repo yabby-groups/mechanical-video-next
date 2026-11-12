@@ -29,7 +29,9 @@ Blender 串行使用全局锁与分块编码；只删除本次已编码、完整
 
 ## Python execution
 
-所有由项目或 Agent 启动的 Python 命令统一使用 `uv run`，包括临时脚本、`-c`、模块、测试和校验；脚本内部启动 Python 子进程也必须通过 uv。常用入口为 `uv run python ...` / `uv run python -m ...`，项目 Python 3.11 与基础依赖由 `.python-version`、`pyproject.toml` 和 `uv.lock` 管理。CAD 使用 `uv run --with-requirements requirements-cad.txt python ...`；临时依赖使用 `uv run --with <package> python ...`，不再直接调用系统 Python 或借用旧项目解释器。Blender 的 bpy 脚本由 Blender 内嵌解释器执行，仍使用现有 Blender 入口。沙箱无法写默认 uv 缓存时，设置 `UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache`。
+CAD 与项目共用 uv 管理的 Python 3.14.2：先执行 `uv sync --extra cad --locked`，建模使用 `uv run --extra cad cad run <model.py>`，诊断使用 `uv run --extra cad cad doctor --check`。CAD 依赖统一锁定在 `uv.lock`；`requirements-cad.txt` 仅保留旧入口兼容，不再作为默认依赖入口。Blender 内嵌 Python 是随软件分发的运行时例外。
+
+所有由项目或 Agent 启动的 Python 命令统一使用 `uv run`，包括临时脚本、`-c`、模块、测试和校验；脚本内部启动 Python 子进程也必须通过 uv。常用入口为 `uv run python ...` / `uv run python -m ...`，项目 Python 3.14.2 与基础依赖由 `.python-version`、`pyproject.toml` 和 `uv.lock` 管理。CAD 使用 `uv run --extra cad python ...`；临时依赖使用 `uv run --with <package> python ...`，不再直接调用系统 Python 或借用旧项目解释器。Blender 的 bpy 脚本由 Blender 内嵌解释器执行，仍使用现有 Blender 入口。沙箱无法写默认 uv 缓存时，设置 `UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache`。
 
 ## Autonomous CAD asset policy (2026-11-11 user correction)
 

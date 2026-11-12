@@ -1,6 +1,6 @@
 """Reuse authored nail-clipper CAD and prepare timeline-bound EAS shots.
 
-Use uv run --with-requirements requirements-cad.txt python this_file --generate
+Use uv run --extra cad python this_file --generate
 to regenerate solids. No Blender processes are launched by this tool.
 """
 import argparse
