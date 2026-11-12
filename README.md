@@ -1,3 +1,7 @@
+<!-- Repository boundary: see config/README.md. -->
+
+> 仓库只跟踪公共工具、共享音色和视觉配置。单片 CAD、素材、制作配置与报告保留本地；下文历史制作命令需要相应本地输入，新检出不包含旧视频工程。详见 [配置边界](config/README.md)。
+
 # Mechanical Video Next
 
 当前默认是**同题三路线制作**：一个机械名称，共享原创脚本、默认 Neil 配音和实测时间轴，生成 2D、2.5D、3D 三个完整版本后再供选择。当前真实端到端验证题目为指甲刀；其他题目仍由当前 Codex Producer 自主准备研究、CAD 和适配计划，不把本题适配器宣传为任意机械的现成生成器。入口和恢复命令见文末“三路线”说明。下文单路线自动选择与复刻说明保留历史兼容，新的三路线原创要求优先。
@@ -238,7 +242,7 @@ uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three
 
 计划可附 `evidence: ["output/nail-clipper/shared/production-statistics.json", "...qa.json"]`；或独立 finalize 重复传 `--evidence <json>`。报告保存来源路径／SHA256及明确写出的 visual_differences，不自动推断审美分数。制作耗时、修复次数、人工干预与缓存复用从实际计量导入，缺少计量为 null；比较编码耗时单独实测，不能替代完整制作耗时。
 
-指甲刀适配器的完整计划已跟踪在 [config/nail-clipper-three-routes-plan.json](config/nail-clipper-three-routes-plan.json)。已有同题任务可直接 `uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three-routes`；默认顺序执行共享音频、自主 CAD／时间轴配置准备、2D、2.5D、3D 与竖屏对比。3D实际命令为 `uv run python scripts/nail_clipper_video.py render-3d --quality final`，使用现有 EAS／produce 缓存和共享旁白。首次语音需要有效凭据，可追加 `--env-file /absolute/credentials.env`，计划不保存密钥或任何私人凭据文件路径。已有素材／配置／参数／GLB／运动／时间轴依赖在各步骤执行前核对哈希，恢复不重跑未变步骤；缺少真实资产或凭据会保留失败与下一步，不能伪造通过。默认计划仅适配指甲刀，不承诺任意名称自动 CAD；QA由当前 Producer 派发真实独立代理，确定性 run 不冒称自动感官验收。已有 `output/nail-clipper/shared/production-statistics.json` 和 `output/nail-clipper/shared/qa*.json` 会通过计划 `evidence_globs` 自动作为哈希证据导入。
+指甲刀适配器的历史完整计划仅在本地保留于 [config/nail-clipper-three-routes-plan.json](config/nail-clipper-three-routes-plan.json)。已有同题任务可直接 `uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three-routes`；默认顺序执行共享音频、自主 CAD／时间轴配置准备、2D、2.5D、3D 与竖屏对比。3D实际命令为 `uv run python scripts/nail_clipper_video.py render-3d --quality final`，使用现有 EAS／produce 缓存和共享旁白。首次语音需要有效凭据，可追加 `--env-file /absolute/credentials.env`，计划不保存密钥或任何私人凭据文件路径。已有素材／配置／参数／GLB／运动／时间轴依赖在各步骤执行前核对哈希，恢复不重跑未变步骤；缺少真实资产或凭据会保留失败与下一步，不能伪造通过。默认计划仅适配指甲刀，不承诺任意名称自动 CAD；QA由当前 Producer 派发真实独立代理，确定性 run 不冒称自动感官验收。已有 `output/nail-clipper/shared/production-statistics.json` 和 `output/nail-clipper/shared/qa*.json` 会通过计划 `evidence_globs` 自动作为哈希证据导入。
 
 多路线 COMPLETED 还要求不可变 final-qa 的 `route_checks` 为每个 requested route 提供 `media: {path, sha256}` 与全部既有 QA 检查 PASS，且哈希匹配 route_runs 的实际产物。单路通过不能替其他路线批准，UNKNOWN 继续阻止完成。
 

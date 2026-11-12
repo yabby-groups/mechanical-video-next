@@ -52,6 +52,10 @@ class SubtitleConfigTests(unittest.TestCase):
 
 class RepairExecutionTests(unittest.TestCase):
     def setUp(self):
+        import produce
+        patcher = patch.object(produce, 'assembly_spec', return_value={'id': 'repair-test', 'required_parts': []})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)

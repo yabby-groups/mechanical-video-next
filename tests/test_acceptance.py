@@ -15,8 +15,8 @@ spec.loader.exec_module(a)
 
 class AcceptanceTests(unittest.TestCase):
     def setUp(self):
-        self.first = json.loads((ROOT / 'config/planetary-01.json').read_text())
-        self.second = json.loads((ROOT / 'config/planetary-02.json').read_text())
+        self.first = json.loads((ROOT / 'tests/fixtures/production/planetary-01.json').read_text())
+        self.second = json.loads((ROOT / 'tests/fixtures/production/planetary-02.json').read_text())
 
     def test_mutation_boundaries(self):
         for number in (3, 4, 5):

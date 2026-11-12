@@ -16,7 +16,11 @@ import clean
 
 class CacheTests(unittest.TestCase):
     def setUp(self):
-        self.cfg=json.loads((ROOT/'config/planetary-01.json').read_text())
+        original_spec = produce.assembly_spec
+        patcher = patch.object(produce, 'assembly_spec', side_effect=lambda path=None: original_spec(path or 'tests/fixtures/production/assembly.json'))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.cfg=json.loads((ROOT/'tests/fixtures/production/planetary-01.json').read_text())
 
     def test_narration_and_subtitles_do_not_invalidate_3d(self):
         before={n:produce.shot_key(s,'final') for n,s in self.cfg['shots'].items()}
@@ -88,7 +92,7 @@ class CacheTests(unittest.TestCase):
             self.assertFalse(produce.cached(p,['media.mp4']))
 
     def test_second_story_uses_same_shot_hashes(self):
-        second=json.loads((ROOT/'config/planetary-02.json').read_text())
+        second=json.loads((ROOT/'tests/fixtures/production/planetary-02.json').read_text())
         self.assertNotEqual(self.cfg['storyboard'],second['storyboard'])
         self.assertEqual({produce.shot_key(s,'final') for s in self.cfg['shots'].values()},
                          {produce.shot_key(s,'final') for s in second['shots'].values()})
@@ -134,7 +138,7 @@ class LifecycleTests(unittest.TestCase):
 
 class EvidenceTests(unittest.TestCase):
     def test_teaching_parameters_and_independent_motion_evidence(self):
-        cfg=json.loads((ROOT/'config/assembly.json').read_text())
+        cfg=json.loads((ROOT/'tests/fixtures/production/assembly.json').read_text())
         self.assertEqual(cfg['sun_teeth']+2*cfg['planet_teeth'],cfg['ring_teeth'])
         self.assertEqual((cfg['sun_teeth']+cfg['ring_teeth'])%cfg['planet_count'],0)
         p=ROOT/'output/motion-independent-check.json'

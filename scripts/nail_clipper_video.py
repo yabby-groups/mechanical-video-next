@@ -153,12 +153,15 @@ def arrow(draw,a,b,color,width=5):
 
 
 STYLE_PATH = ROOT / 'config/nail-clipper-visual-style.json'
-STYLE = json.loads(STYLE_PATH.read_text())
+STYLE = None
 _FRAMING = {}
 
 
 def frame(route,shot,t,size=(1920,1080),overlay_only=False):
     """EP03 art direction; illustrations retain their own real geometry/projection."""
+    global STYLE
+    if STYLE is None:
+        STYLE = json.loads(STYLE_PATH.read_text())
     w,h=size; sc=w/1920
     im=Image.new('RGBA',size,(0,0,0,0))
     d=ImageDraw.Draw(im)

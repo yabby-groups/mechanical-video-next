@@ -30,7 +30,9 @@ class NailClipperCacheTests(unittest.TestCase):
                 (root / name).write_text('source')
             (out / '3d/config').mkdir(parents=True)
             (out / '3d/config/full.json').write_text('{"assembly_config": "assembly.json"}')
-            with patch.object(video, 'ROOT', root), patch.object(video, 'OUT', out):
+            style = root / 'style.json'
+            style.write_text('{}')
+            with patch.object(video, 'ROOT', root), patch.object(video, 'OUT', out), patch.object(video, 'STYLE_PATH', style):
                 for route, render in (('2d', lambda: video.render('2d')),
                                       ('3d', lambda: video.render_3d('final'))):
                     with self.subTest(route=route):

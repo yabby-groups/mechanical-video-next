@@ -76,7 +76,7 @@ def keys_are_safe(cfg):
     import produce
     evidence = []
     for shot in cfg['shots'].values():
-        folder = produce.CACHE / 'shots' / produce.shot_key(shot, 'keys', cfg['render'])
+        folder = produce.CACHE / 'shots' / produce.shot_key(shot, 'keys', cfg['render'], cfg.get('assembly_config'))
         marker = folder / 'complete.json'
         if not marker.is_file():
             raise ValueError('Missing keyframe cache')
@@ -153,8 +153,8 @@ def reject_single_mesh(directory):
 def run_scenarios(selected, execute=False, destination=None):
     destination = destination or ROOT / 'output/multi-agent-pilot'
     destination.mkdir(parents=True, exist_ok=True)
-    first = json.loads((ROOT / 'config/planetary-01.json').read_text())
-    second = json.loads((ROOT / 'config/planetary-02.json').read_text())
+    first = json.loads((ROOT / 'tests/fixtures/production/planetary-01.json').read_text())
+    second = json.loads((ROOT / 'tests/fixtures/production/planetary-02.json').read_text())
     started = time.time()
     report = dict(schema_version=1, mode='deterministic-regression-not-agent-dispatch',
                   started_epoch=started, tokens=None, agent_seconds=None,
@@ -186,8 +186,8 @@ def run_scenarios(selected, execute=False, destination=None):
         import produce
         row['shot_key_changes'] = {
             quality: [name for name in first['shots']
-                      if produce.shot_key(first['shots'][name], quality, first['render']) !=
-                      produce.shot_key(cfg['shots'][name], quality, cfg['render'])]
+                      if produce.shot_key(first['shots'][name], quality, first['render'], first.get('assembly_config')) !=
+                      produce.shot_key(cfg['shots'][name], quality, cfg['render'], cfg.get('assembly_config'))]
             for quality in ('keys', 'preview', 'final')}
         expected_changes = ['explode'] if number == 5 else []
         if any(changes != expected_changes for changes in row['shot_key_changes'].values()):

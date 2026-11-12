@@ -157,5 +157,6 @@
   ],
   "channel": "视频号",
   "narration_profile": "config/narration-neil.json",
-  "presentation": "mechanism-fullframe"
+  "presentation": "mechanism-fullframe",
+  "assembly_config": "tests/fixtures/production/assembly.json"
 }

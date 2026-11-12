@@ -85,7 +85,7 @@ class MultiRouteTests(unittest.TestCase):
 
     def test_default_plan_contains_actual_routes_and_late_generated_inputs(self):
         root = Path(__file__).resolve().parents[1]
-        plan = json.loads((root / 'config/nail-clipper-three-routes-plan.json').read_text())
+        plan = json.loads((root / 'tests/fixtures/production/nail-clipper-three-routes-plan.json').read_text())
         self.assertEqual(set(plan['routes']), {'2d', '2.5d', '3d'})
         steps = {step['id']: step for step in plan['steps']}
         self.assertIn('render-3d', steps['render-3d']['command'])
@@ -109,7 +109,7 @@ class MultiRouteTests(unittest.TestCase):
 
     def test_plan_cad_does_not_require_its_own_generated_motion(self):
         root = Path(__file__).resolve().parents[1]
-        plan = json.loads((root / 'config/nail-clipper-three-routes-plan.json').read_text())
+        plan = json.loads((root / 'tests/fixtures/production/nail-clipper-three-routes-plan.json').read_text())
         steps = {step['id']: step for step in plan['steps']}
         motion = 'assets/assemblies/nail-clipper-cad-v5/motion.json'
         self.assertNotIn(motion, steps['cad-prepare']['inputs'])
