@@ -637,15 +637,25 @@ def render_shot(args):
         # An explicit local teaching section, applied after deformation. It is
         # geometry removal, not transparency or an asserted disassembly path.
         plane = shot['section_plane']
-        if plane.get('axis') != 'y' or plane.get('side') not in {'negative', 'positive'}:
-            raise ValueError('Section supports an explicit +/-Y half-space only')
+        if plane.get('axis') not in {'x', 'y', 'z'} or plane.get('side') not in {'negative', 'positive'}:
+            raise ValueError('Section requires an explicit X/Y/Z axis and +/- half-space')
         offset = float(plane.get('offset', 0))
         sign = -1 if plane['side'] == 'negative' else 1
-        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, offset + sign * .5, 0))
+        cutter_location = [0, 0, 0]
+        cutter_location['xyz'.index(plane['axis'])] = offset + sign * .5
+        bpy.ops.mesh.primitive_cube_add(size=1, location=cutter_location)
         cutter = bpy.context.object
         cutter.name = 'TeachingSectionCutter'
         cutter.hide_render = True
+        section_parts = plane.get('parts')
+        if section_parts is not None:
+            if (not isinstance(section_parts, list) or not section_parts
+                    or any(not isinstance(name, str) for name in section_parts)
+                    or not set(section_parts) <= {obj.name for obj in visible}):
+                raise ValueError('Section parts must name visible objects explicitly')
         for obj in visible:
+            if section_parts is not None and obj.name not in section_parts:
+                continue
             modifier = obj.modifiers.new('Teaching longitudinal section', 'BOOLEAN')
             modifier.operation = 'DIFFERENCE'
             modifier.solver = 'EXACT'

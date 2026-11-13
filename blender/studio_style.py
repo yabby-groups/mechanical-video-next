@@ -14,7 +14,9 @@ def apply(profile, objects, frames, camera, options=None):
     scene = bpy.context.scene
     options = options or {}
     scene.render.engine = 'BLENDER_EEVEE'
-    samples=8 if scene.render.resolution_x<=960 else 24
+    samples = options.get('render_samples', 8 if scene.render.resolution_x<=960 else 24)
+    if isinstance(samples, bool) or not isinstance(samples, int) or not 1 <= samples <= 512:
+        raise ValueError('Studio render_samples must be an integer from 1 to 512')
     if hasattr(scene.eevee,'taa_render_samples'):
         scene.eevee.taa_render_samples=samples
     scene.view_settings.view_transform = 'AgX'
