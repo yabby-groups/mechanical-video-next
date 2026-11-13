@@ -20,3 +20,7 @@ TTS 不自动重试；submitted.json 表示请求已提交，状态不确定时�
 完整 MP4 必须通过 ffprobe 规格、字幕区间、音轨和完整解码。技术通过只标 TECHNICAL_PASS_UNACCEPTED_TEACHING_DEMO；完整视听、遮挡、接触力学和发布权利不得冒充已验收。不得自动发布。
 
 默认成片为横屏 1920×1080 / 30fps / H.264 + AAC。视觉参考已由用户明确为**打印机系列 EP03**，不是卷尺。采用 `presentation: mechanism-fullframe` 和 `render.framing: fullframe`：机械主体全画面、小标题与底部字幕，不恢复右侧说明栏、大标题卡或进度条。现有镜头用 `visual_profile: printer-ep03-studio-v1`、`camera_view: oblique`，经现有 EEVEE 渲染器呈现金属、灰色空间、柔和投影和克制推进；不复制旧项目架构。旁白保留已选择的 Neil，本次视觉参考不自动切换声音。旧左右分栏配置保留于 config/planetary-0*-panel.json，不覆盖旧成片。先验证关键帧和低清预览，再正式合成；不能仅凭全画面布局声称已匹配 EP03 全部质感或通过视听验收。
+
+
+## Compressed visual evidence
+Before inspection run uv run python -m mechanical_video_next.qa_images SOURCE (video: --times T1 T2 T3 T4). Read returned WebP/JPEG qa_path only, not source PNG. Reuse work/qa-images cache paths. Maximum four frames and one contact sheet per round; select chapter/motion events. Use prepare_crop for unreadable regions; retain UNKNOWN until adequate evidence. No inline/base64 images in handoffs. Production paths are bindings, not image-read instructions. Use record_reads only after actual tool reads; byte savings are not token savings. Static images never replace numerical CAD, continuous-motion or listening checks. Producer forwards paths, hashes, timecodes and conclusions.

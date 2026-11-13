@@ -569,3 +569,7 @@ download: give its path. Never screenshot the viewer to check your own work; rev
 
 Exact selection and measurement need a model's document, an `.xbf` or a STEP; mesh viewers
 measure approximately, on triangles.
+
+
+## Compressed visual evidence
+Before inspection run uv run python -m mechanical_video_next.qa_images SOURCE (video: --times T1 T2 T3 T4). Read returned WebP/JPEG qa_path only, not source PNG. Reuse work/qa-images cache paths. Maximum four frames and one contact sheet per round; select chapter/motion events. Use prepare_crop for unreadable regions; retain UNKNOWN until adequate evidence. No inline/base64 images in handoffs. Production paths are bindings, not image-read instructions. Use record_reads only after actual tool reads; byte savings are not token savings. Static images never replace numerical CAD, continuous-motion or listening checks. Producer forwards paths, hashes, timecodes and conclusions.

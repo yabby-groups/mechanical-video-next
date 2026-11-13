@@ -33,3 +33,7 @@ Producer 对 observation_basis、mechanics、model_motion、tool_support、unsup
 记录研究耗时、搜索预算、缓存来源、制作工具耗时、工程修改、原生线程 ID 与事件；人工干预、Token、费用若无运行时计量则 null。减少返工需同口径前后基线，单例不能证明效果。不发布或保存平台草稿。
 
 静态候选 source_kind=image/diagram/structure；image/diagram 的 viewing.status=IMAGE_INSPECTED，structure 为 STRUCTURE_READ。记录 viewing.evidence、observations、source_files（path/sha256）或来源 URL。不得编造视频 duration 或观看证据。2D/2.5D 使用 layered 实际渲染，结构文本可据其绘制示意图层并注明依据。
+
+
+## Compressed visual evidence
+Before inspection run uv run python -m mechanical_video_next.qa_images SOURCE (video: --times T1 T2 T3 T4). Read returned WebP/JPEG qa_path only, not source PNG. Reuse work/qa-images cache paths. Maximum four frames and one contact sheet per round; select chapter/motion events. Use prepare_crop for unreadable regions; retain UNKNOWN until adequate evidence. No inline/base64 images in handoffs. Production paths are bindings, not image-read instructions. Use record_reads only after actual tool reads; byte savings are not token savings. Static images never replace numerical CAD, continuous-motion or listening checks. Producer forwards paths, hashes, timecodes and conclusions.

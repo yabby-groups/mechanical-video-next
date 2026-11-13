@@ -16,3 +16,7 @@ description: 为自主机械 CAD 提供可追溯的结构事实、尺寸边界�
 保留旧失败、持久问题 ID 和全部修复历史；不设总轮次上限。无可测改善时由 Producer 更换策略继续，不能通过换名称丢弃失败证据。
 
 研究通过 `uv run python -m mechanical_video_next handoff <task> --role Research --name research --input <research.vN.json>` 生成不可变版本；修改创建新版本。正式脚本先读当前获批蓝图和知识目标，CAD 可行性研究不擅自决定视频创意。未暴露的 token、费用和人工介入计量填 null。不得上传、发布或保存平台草稿。
+
+
+## Compressed visual evidence
+Before inspection run uv run python -m mechanical_video_next.qa_images SOURCE (video: --times T1 T2 T3 T4). Read returned WebP/JPEG qa_path only, not source PNG. Reuse work/qa-images cache paths. Maximum four frames and one contact sheet per round; select chapter/motion events. Use prepare_crop for unreadable regions; retain UNKNOWN until adequate evidence. No inline/base64 images in handoffs. Production paths are bindings, not image-read instructions. Use record_reads only after actual tool reads; byte savings are not token savings. Static images never replace numerical CAD, continuous-motion or listening checks. Producer forwards paths, hashes, timecodes and conclusions.
