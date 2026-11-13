@@ -80,16 +80,32 @@ def cleanup(older_hours=168, apply=False, only_keys=None):
             rows.append(row)
     return rows
 
+def cleanup_npm_cache(apply=False):
+    """Explicitly clear disposable npm download data, never installed modules."""
+    target = ROOT/'work/npm-cache'
+    with production_lock():
+        if target.is_symlink() or any(p.is_symlink() for p in target.rglob('*')):
+            raise ValueError('Refuse npm cache containing symlink')
+        row = {'path': str(target.relative_to(ROOT)), 'bytes': treebytes(target),
+               'delete': apply, 'kind': 'regenerable_npm_download_cache'}
+        if apply and target.exists():
+            shutil.rmtree(target)
+        return [row]
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--older-hours',type=float,default=168)
     ap.add_argument('--apply',action='store_true',help='Delete listed completed cache entries; default is dry run')
     ap.add_argument('--auto',action='store_true',help='Apply safe age-based cleanup before production; never bypass locks or references')
+    ap.add_argument('--npm-cache-only', action='store_true',
+                    help='Explicit disposable npm download cache only; leaves node_modules and media intact')
     ap.add_argument('--only-key', action='append', default=None,
                     help='Restrict eligible entries to this SHA256 key; repeat for multiple keys. Age, completion, locks, protections and references still apply')
     args=ap.parse_args()
     if args.older_hours<0: ap.error('Age must be nonnegative')
-    for row in cleanup(args.older_hours, args.apply or args.auto, args.only_key):
+    rows = (cleanup_npm_cache(args.apply) if args.npm_cache_only else
+            cleanup(args.older_hours, args.apply or args.auto, args.only_key))
+    for row in rows:
         print(json.dumps(row))
 
 if __name__=='__main__': main()
