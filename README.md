@@ -1,4 +1,17 @@
+
+## 2026-11-12 长视频与增长契约（覆盖旧时长和照搬参考序列规则）
+新建 protocol-v2 任务 content_policy_version=1：120～300秒，省略时长为 null，Producer 根据可靠知识、原创脚本和 Neil 实测音频确定；指定范围内时长优先。历史任务无此标志，保持原时长、缓存和媒体，不自动重制。
+参考用于原创叙事，不复制完整台词或独创镜头序列。研究需覆盖首个答案、中段逐层新增知识、核心机械画面顿悟和结尾兑现；观察不足如实记录。
+制作前执行 docs/longform-contract.md 的增长契约和镜头检查。现有角色承担研究、脚本、CAD、动画、剪辑和独立 QA，不新增 Agent。共享事实、原创旁白、实测时轴和增长目标；三路线用不同的机械画面表达同一知识。
+正式渲染前完整动态分镜必须有运动、旁白、字幕、标注及章节时轴；静态 blueprint animatic 仅占位诊断，不能通过动态或增长 QA。
+保留按镜头内容缓存、Blender 串行锁、分块编码和磁盘门禁；字幕改动只重合成，配音调整按实测时轴处理受影响镜头。3D 正式渲染前核查 work 2 GiB 与剩余盘3 GiB门禁及实际资源预算，不在鸡蛋搅拌器切换引擎。
+增长检查验证内容与实际媒体，不预测完播、点赞或关注。UNKNOWN阻止验收；不得上传、发布或保存平台草稿。
+
 <!-- Repository boundary: see config/README.md. -->
+
+<!-- operations-growth-20261113 -->
+> 2026-11-13现行运营交接：[制作优化执行要求](docs/plans/operations-growth-optimization-20261113.md)。首2秒呈现动作/问题，5秒内开始因果解释，中段逐镜头新增知识；按实际媒体时间码做独立QA。新任务遵循长视频契约120—300秒，未指定duration=null，由知识与Neil实测音频确定；旧60—120秒/90秒运营建议已被覆盖。历史媒体不自动重制。同期复盘与9份原始证据已同步，仅更新制作要求。
+
 
 > 仓库只跟踪公共工具、共享音色和视觉配置。单片 CAD、素材、制作配置与报告保留本地；下文历史制作命令需要相应本地输入，新检出不包含旧视频工程。详见 [配置边界](config/README.md)。
 
@@ -258,3 +271,7 @@ uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three
 当前新三路线默认任务采用 `production_method=original-shared-script-three-routes`：研究参考用于核验结构与学习讲解方法，使用原创共享脚本和原创镜头顺序，不照搬原片序列；单路线与既有 `reference-recreation` 任务保留原复刻约束。仅复刻专属逐镜映射门禁随 production_method 区分，科学、资产、动态分镜、实际媒体与每路线独立 QA 不降低。
 
 `route-run` 优先使用任务已登记的 `shared_production.comparison_directory` 存放 compare／preview／report，未登记时仍用 task/multiroute。结果同步 `multiroute_status` 与 `next_step`，不会据确定性命令成功改写原 workflow state 或跨过验收门禁。
+
+### 正式交付封面（3:4 / 4:3）
+
+三路线与对比视频完成后，Producer 在任务交付根目录填写 `cover-plan.json`，确定推荐版本、三路线候选适用性、关键动作时间点和短标题。运行 `uv run python -m mechanical_video_next.covers <task>` 生成 `cover/` 下两张标准 PNG、候选与封面报告；增长报告入口也会执行此步骤。封面独立 QA 的 FAIL / UNKNOWN / 缺失，以及来源版本或文案变化都会阻止新增长契约任务正式完成。只使用已有视频帧与排版，不触发视频重制。完整方案格式及独立 QA 契约见 [封面交付](docs/cover-delivery.md)。

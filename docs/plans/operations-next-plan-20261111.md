@@ -1,5 +1,9 @@
 # 日常机械后续执行计划｜2026-11-11 更新
 
+<!-- operations-growth-20261113 -->
+> 2026-11-13现行运营交接：[制作优化执行要求](operations-growth-optimization-20261113.md)。首2秒呈现动作/问题，5秒内开始因果解释，中段逐镜头新增知识；按实际媒体时间码做独立QA。新任务遵循长视频契约120—300秒，未指定duration=null，由知识与Neil实测音频确定；旧60—120秒/90秒运营建议已被覆盖。历史媒体不自动重制。同期复盘与9份原始证据已同步，仅更新制作要求。
+
+
 用户要求根据最新数据与 mechanical-video-next 的制作能力更新计划。本文件为当前执行入口，覆盖11月9日月度日历及增长补充中的近期顺序、旧制作路径和过时数据判断；原文件保留为历史候选库。
 
 制作项目：`/Users/lmj/yuntan/esp32/mechanical-video-next`。制作端入口为 `docs/plans/operations-next-plan-20261111.md`，历史剩余清单为 `docs/plans/remaining-video-plan-20261111.md`。本次只更新文档与交接，不新建生产任务，不启动建模、渲染、TTS或付费调用。

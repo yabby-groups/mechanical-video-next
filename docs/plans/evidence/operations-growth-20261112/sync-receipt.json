@@ -1,0 +1,85 @@
+{
+  "status": "synced_verified",
+  "observed_at": "2026-11-12T01:53:27.854Z",
+  "source_root": "/Users/lmj/yuntan/esp32/xiaohongshu-workflow",
+  "target_root": "/Users/lmj/yuntan/esp32/mechanical-video-next",
+  "scope": "documentation_and_evidence_only",
+  "files": [
+    {
+      "source": "07_运营/日常机械_制作优化执行要求_20261112.md",
+      "destination": "docs/plans/operations-growth-optimization-20261112.md",
+      "sha256": "6ee1f452f41ba8a4b7c3b72bcd67fb39787d26ac0e563dd44e45c2c7f899a510",
+      "verified": true
+    },
+    {
+      "source": "07_运营/机械系列_数据复盘_20261112.md",
+      "destination": "docs/plans/evidence/operations-growth-20261112/review.md",
+      "sha256": "978c7c3b3247731b0c957eab7cb79cad7053f4cb6c65fd21e4791327fb455b84",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/dy-content.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/dy-content.json",
+      "sha256": "9c90c275844ad8b55b647ffb210f334494e6ffc74d8406a9b2f708ffe05995be",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/dy-dashboard.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/dy-dashboard.json",
+      "sha256": "2ab428a2d513f48acc844118b1d676f12c14e34ba3bbc8bee0294ac1ecfbb007",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/pen-xhs.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/pen-xhs.json",
+      "sha256": "77d8fce9f1d150375c79397cf1e7e3dbc5dff09cd9ed2fcebb5f1e1486a8f93c",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/ratchet-xhs.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/ratchet-xhs.json",
+      "sha256": "59da312dca91878e11bfcc9ef5f76fb1b508866eea215d3136f0e6a4a9861e7c",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/tape-xhs.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/tape-xhs.json",
+      "sha256": "ac1438dd322d83fb3fb94e32cb159a66877a753d0ae604e0fcc48ed9abe45091",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/xhs-home.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/xhs-home.json",
+      "sha256": "894af8370dc1217b12577f593b030b7e77c30de138a60bfca66fc79d361b765c",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/xhs-list.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/xhs-list.json",
+      "sha256": "194e9b1c7b07868df3b145be03b42a8ef147f5a217e9562aa0ce7fa97a5d5122",
+      "verified": true
+    },
+    {
+      "source": "07_运营/evidence/mechanical-review-20261112/zipper-xhs.json",
+      "destination": "docs/plans/evidence/operations-growth-20261112/zipper-xhs.json",
+      "sha256": "0812fa92aa86f629b6dbcf2f76ddb6705963b96f7cd7295ebcffaed3d64274b6",
+      "verified": true
+    }
+  ],
+  "pointers": [
+    {
+      "path": "README.md",
+      "sha256": "a361f37342dc639e96f51fb7b2b2d5c93f0a610eb430c544c98c2bef50d98f81"
+    },
+    {
+      "path": "docs/plans/operations-next-plan-20261111.md",
+      "sha256": "42e04bb790ae53cbb685766f88d4bbb3221b9db60c743b2b7e1f39faa23d9279"
+    },
+    {
+      "path": "docs/plans/remaining-video-plan-20261111.md",
+      "sha256": "c7feb902f222dfc28be53876cc884d429d7afe04ea998bee7dbfd3e93ebfb2ab"
+    }
+  ],
+  "production_started": false,
+  "other_session_reading_confirmed": false
+}
