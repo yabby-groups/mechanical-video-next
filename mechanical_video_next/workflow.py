@@ -126,10 +126,10 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         raise ValueError('Unsupported requested routes')
     if type(protocol_version) is not int or protocol_version not in {1, 2}:
         raise ValueError('Unsupported production protocol_version')
-    minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else (60, 120)
+    minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else (120, 300)
     if duration is None:
-        duration = 45 if protocol_version == 1 else 90
-    if not topic.strip() or not minimum_duration <= duration <= maximum_duration:
+        duration = 45 if protocol_version == 1 else None
+    if not topic.strip() or (duration is not None and (isinstance(duration, bool) or not isinstance(duration, (int, float)) or not minimum_duration <= duration <= maximum_duration)):
         raise ValueError(f'Nonempty topic and duration {minimum_duration}–{maximum_duration} required for protocol {protocol_version}')
     if protocol_version == 1:
         asset_strategy = None  # Explicit historical tasks retain their original asset contract.
@@ -149,6 +149,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                  tokens=None, tokens_source='Not exposed to deterministic runner',
                  agent_runs=[], engineering_changes=None)
     if protocol_version == 2:
+        value['content_policy_version'] = 1
+        value['duration_policy'] = {'minimum': 120, 'maximum': 300, 'mode': 'knowledge-driven' if duration is None else 'requested', 'requested_seconds': duration}
         value['production_method'] = ('original-shared-script-three-routes'
                                       if len(requested_routes) == 3 else 'reference-recreation')
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
@@ -163,7 +165,12 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     write(task / 'task.json', value)
     prompt = f'''Act as the sole Producer in this Codex session. Produce: {topic}
 Target duration: {duration}s. Requested voice: {voice or 'existing approved default'}.
-Protocol 2 accepts 60–120s requests (default 90s); historical protocol 1 retains 30–45s.
+New content policy accepts 120–300s; unspecified duration is knowledge-driven, not fixed.
+Before freezing, choose duration from reliable knowledge and measured Neil narration.
+Bind content_policy_version=1 and growth_goals in the blueprint. See docs/longform-contract.md.
+Use original narration and shot order informed by observed references, not copied expression.
+Complete the current question before bridging to a documented next episode.
+Historical tasks retain their existing duration and assets.
 Keep a fast, information-dense pace: open immediately with a striking action, surprising
 fact or concrete question; every shot advances a new fact or causal step. Synchronize
 explanation with visible motion; use close-ups, sections and comparisons where useful.
@@ -199,7 +206,7 @@ One verified reproducible primary is sufficient; B/C references are optional sup
 If a candidate lacks useful content, reselect autonomously; candidate lists alone
 never authorize production. MechanicalResearch may assess feasibility without full modeling.
 Production method: reference-recreation. Select one observed primary reference,
-recreate its opening, narrative structure, shot sequence, pacing and key demonstrations
+study its opening, narrative structure, pacing and key demonstrations; write original shot order
 using our own CAD, animation and narration. Preserve the approved EP03 look and Neil voice.
 Cached observations can be reused with dates and freshness checks, but each video
 needs a task-specific research conclusion. Include task_id={identity} and the exact
@@ -381,6 +388,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
             if name == 'viral-analysis' and data.get('production_method') == 'reference-recreation':
                 check_research_binding(data, payload)
             if name == 'creative-blueprint':
+                if data.get('content_policy_version') == 1:
+                    from .growth import validate_contract
+                    if payload.get('content_policy_version') != 1:
+                        raise ValueError('New task requires content_policy_version=1 blueprint')
+                    validate_contract(payload, data.get('duration'))
                 selected = set(artifact(task, 'viral-analysis').get('selected_ids', []))
                 used = {item.get('reference_id') for item in payload.get('reference_principles', [])}
                 if not used or not used <= selected:
@@ -491,6 +503,11 @@ def check_qa(task, name):
                 if Path(m['path']).suffix.lower() == '.mp4'}
     if not expected or not expected <= reviewed:
         raise ValueError('QA must review the exact production MP4')
+    if load(task).get('content_policy_version') == 1:
+        from .growth import validate_media_checks, check_media_duration
+        blueprint = artifact(task, 'creative-blueprint')
+        validate_media_checks(blueprint, qa)
+        check_media_duration(blueprint, production['media'])
     checks = qa.get('checks', {})
     required_checks = ANIMATIC_CHECKS if name == 'animatic-qa' else QA_CHECKS
     if not required_checks <= set(checks) or any(value != 'PASS' for value in checks.values()):
@@ -606,6 +623,11 @@ def check_production_config(task, config=None):
     if protocol_version(data) == 1:
         return
     blueprint = artifact(task, 'creative-blueprint')
+    if data.get('content_policy_version') == 1:
+        from .growth import validate_contract
+        if blueprint.get('content_policy_version') != 1:
+            raise ValueError('New task requires versioned growth blueprint')
+        validate_contract(blueprint, data.get('duration'))
     if data.get('production_method') == 'reference-recreation':
         check_recreation(task, blueprint)
     binding = blueprint.get('production_config')
@@ -690,6 +712,11 @@ def check_requested_routes(task, data):
         if not media:
             raise ValueError('Missing route-specific final QA media: ' + route)
         check_media([media])
+        if data.get('content_policy_version') == 1:
+            from .growth import validate_media_checks, check_media_duration
+            blueprint = artifact(task, 'creative-blueprint')
+            validate_media_checks(blueprint, dict(result, media=[media]))
+            check_media_duration(blueprint, [media])
         if not all(result.get('checks', {}).get(check) == 'PASS' for check in QA_CHECKS):
             raise ValueError('Requested route final QA has FAIL/UNKNOWN/missing checks: ' + route)
         recorded = data.get('route_runs', {}).get(route, {}).get('outputs', {})
@@ -969,7 +996,7 @@ def main():
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['autonomous-cad','verified-existing','illustrated'], default='autonomous-cad')
-    p.add_argument('--duration', type=int, default=None, help='Target seconds: protocol 2 defaults to 90 (60–120); protocol 1 defaults to 45 (30–45)')
+    p.add_argument('--duration', type=int, default=None, help='Target seconds: protocol 2 knowledge-driven (120–300); protocol 1 defaults to 45 (30–45)')
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')

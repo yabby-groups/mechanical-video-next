@@ -24,6 +24,9 @@ class ViralWorkflowTests(unittest.TestCase):
                                   asset_strategy='verified-existing', routes='3d')
         # These fixtures isolate downstream DAG/media gates from reference-first admission.
         data = w.load(self.task)
+        # Explicit historical v2 fixture: preserve pre-longform DAG coverage.
+        data.pop('content_policy_version')
+        data['duration'] = 90
         data['autonomy_policy']['reference_first'] = False
         w.write(self.task / 'task.json', data)
 

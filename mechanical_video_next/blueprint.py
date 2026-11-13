@@ -25,6 +25,10 @@ def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
     if not isinstance(data.get('shots'), list) or not data['shots']:
         raise ValueError('Nonempty structured shots required')
+    if data.get('content_policy_version') == 1:
+        from .growth import validate_contract
+        validate_contract(data)
+    maximum = 300 if data.get('content_policy_version') == 1 else 120
     end, ids = 0, set()
     for s in data['shots']:
         required = {'shot_id', 'time_range', 'knowledge_goal', 'mechanical_action',
@@ -39,8 +43,8 @@ def validate(data):
         ids.add(s['shot_id'])
         t = s['time_range']
         if (not isinstance(t, list) or len(t) != 2 or not all(number(x) for x in t)
-                or abs(t[0]-end) > 1e-8 or t[1] <= t[0] or t[1] > 60):
-            raise ValueError('Timeline must be contiguous from zero, positive, at most 60 seconds')
+                or abs(t[0]-end) > 1e-8 or t[1] <= t[0] or t[1] > maximum):
+            raise ValueError('Timeline must be contiguous from zero, positive, within the versioned duration limit')
         end = t[1]
         camera = s['camera']
         if not isinstance(camera, dict) or not camera or not set(camera) <= CAMERA:
@@ -97,6 +101,13 @@ def compile_config(blueprint, base, output, draft=False):
     result.update(id=cfg.get('id', 'video') + '-blueprint-' + filehash(blueprint)[:16], shots=shots, storyboard=storyboard,
                   blueprint_program_sha256=digest({k: val for k, val in data.items() if k != 'production_config'}),
                   production_status='DRAFT_UNAPPROVED' if draft else 'BLUEPRINT_BOUND_UNVALIDATED')
+    if data.get('content_policy_version') == 1:
+        from .growth import shot_requirements
+        result.update(content_policy_version=1, growth_goals=copy.deepcopy(data['growth_goals']))
+        for row, shot in zip(storyboard, data['shots']):
+            row.update(shot_requirements(shot))
+        for row, shot in zip(mappings, data['shots']):
+            row.update(shot_requirements(shot))
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),
                    blueprint_program_sha256=result['blueprint_program_sha256'],

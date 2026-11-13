@@ -78,12 +78,17 @@ class BlueprintTests(unittest.TestCase):
                     b.compile_config(self.blueprint, self.base, self.output)
 
     def test_timeline_and_utterance_mismatch_rejected(self):
-        for patch in ({'time_range': [1, 3]}, {'time_range': [0, 61]}, {'time_range': [0, 0]},
+        for patch in ({'time_range': [1, 3]}, {'time_range': [0, 121]}, {'time_range': [0, 0]},
                       {'subtitles': []}, {'camera': {'zoom': 4}}):
             with self.subTest(patch=patch):
                 data = copy.deepcopy(self.data); data['shots'][0].update(patch)
                 with self.assertRaises(ValueError):
                     b.validate(data)
+
+    def test_ninety_second_production_timeline_is_supported(self):
+        data = copy.deepcopy(self.data)
+        data['shots'][0]['time_range'] = [0, 90]
+        self.assertEqual(b.validate(data), 90)
 
     def test_image_hash_is_verified_before_any_generation(self):
         image = self.root/'frame.png'; image.write_bytes(b'fixture')

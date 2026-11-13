@@ -242,6 +242,9 @@ def validate_reference_recreation(blueprint, research):
 
 
 def validate_creative_blueprint(payload):
+    if payload.get('content_policy_version') == 1:
+        from .growth import validate_contract
+        validate_contract(payload)
     if payload.get('status') != 'FROZEN' or not BLUEPRINT_FIELDS <= payload.keys():
         raise ValueError('Complete FROZEN blueprint required')
     if any(payload.get(k) in (None, '', [], {}) for k in BLUEPRINT_FIELDS):

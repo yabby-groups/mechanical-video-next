@@ -132,19 +132,19 @@ class MultiRouteTests(unittest.TestCase):
                 command.assert_not_called()
             self.assertEqual(json.loads((Path(tmp) / 'state.json').read_text())['history'][-1]['event'], 'prerequisite_missing')
 
-    def test_protocol2_duration_60_to_120_legacy_stays_45(self):
+    def test_protocol2_knowledge_duration_legacy_stays_45(self):
         from mechanical_video_next import workflow
         with tempfile.TemporaryDirectory() as tmp:
             default_task = workflow.create_task('默认新任务', root=tmp)
-            self.assertEqual(workflow.load(default_task)['duration'], 90)
+            self.assertIsNone(workflow.load(default_task)['duration'])
             self.assertIn('every shot advances a new fact', (default_task / 'producer-prompt.md').read_text())
             legacy_task = workflow.create_task('历史默认', root=tmp, protocol_version=1)
             self.assertEqual(workflow.load(legacy_task)['duration'], 45)
-            for duration in (60, 90, 120):
+            for duration in (120, 180, 240, 300):
                 task = workflow.create_task('指甲刀', duration=duration, root=tmp)
                 self.assertEqual(workflow.load(task)['duration'], duration)
-            for duration in (30, 59, 121):
-                with self.assertRaisesRegex(ValueError, '60–120'):
+            for duration in (30, 90, 119, 301):
+                with self.assertRaisesRegex(ValueError, '120–300'):
                     workflow.create_task('指甲刀', duration=duration, root=tmp)
             with self.assertRaisesRegex(ValueError, '30–45'):
                 workflow.create_task('历史模板', duration=60, root=tmp, protocol_version=1)
