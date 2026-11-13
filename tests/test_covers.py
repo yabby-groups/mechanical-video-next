@@ -69,6 +69,17 @@ class CoverTests(unittest.TestCase):
         self.assertIn('source_crop', report['compositions']['portrait_cover_3x4.png'])
         c.validate(self.task)
 
+    def test_explicit_candidate_source_is_hash_bound(self):
+        candidate=self.task/'candidate.v7.mp4'
+        candidate.write_bytes(self.paths['3d'].read_bytes())
+        self.plan['source_overrides']={'3d':c.binding(candidate)}
+        self.save()
+        report=c.generate(self.task)
+        self.assertEqual(report['source_media']['3d']['path'], str(candidate.resolve()))
+        c.validate(self.task)
+        candidate.write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError, 'STALE'):c.validate(self.task)
+
     def test_bad_input_blocks(self):
         for change, message in (({'title':[]},'title'),({'title':[' ']},'title'),
                 ({'topic':'wrong'},'topic'),({'candidates':[]},'candidate missing')):

@@ -47,6 +47,10 @@ def prepare(task, paths=None):
             candidate = run.get('outputs', {}).get('candidate', {})
             if r in ROUTES and not paths[r].is_file() and candidate.get('path'):
                 paths[r] = Path(candidate['path'])
+    for r, ref in plan.get('source_overrides', {}).items():
+        if r not in ROUTES or not Path(ref['path']).is_file() or sha(ref['path']) != ref.get('sha256'):
+            raise ValueError('Cover source override missing or STALE')
+        paths[r] = Path(ref['path'])
     if plan.get('topic') != data['topic']:
         raise ValueError('Cover topic does not match task')
     route = plan.get('recommended_route')
