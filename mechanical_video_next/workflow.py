@@ -448,9 +448,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     validate_defect_key(issue.get('defect_key'))
             if any(v not in {'PASS', 'FAIL', 'UNKNOWN'} for v in payload.get('checks', {}).values()):
                 raise ValueError('QA checks must be PASS, FAIL or UNKNOWN')
+        from .qa_images import handoff_visuals
+        visual_evidence = handoff_visuals(payload)
         version = data['handoffs'].get(name, {}).get('version', 0) + 1
         envelope = dict(schema_version=1, role=role, name=name, version=version,
-                        dependencies=deps, payload=payload)
+                        dependencies=deps, payload=payload, visual_evidence=visual_evidence)
         envelope['sha256'] = digest(envelope)
         path = f'handoffs/{name}.v{version}.json'
         if (Path(task) / path).exists():

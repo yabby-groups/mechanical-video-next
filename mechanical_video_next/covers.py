@@ -162,11 +162,13 @@ def generate(task, paths=None):
                     final = folder/name
                     final.write_bytes(target.read_bytes())
                     outputs.append(binding(final)); compositions[name] = composition
+    from .qa_images import prepare_cover_preview, visual_packet
+    qa_previews = visual_packet([prepare_cover_preview(folder/name) for name in SIZES])
     report = {'schema_version': 1, 'topic': plan['topic'], 'recommended_route': plan['recommended_route'],
               'source_media': sources, 'plan': binding(task/'cover-plan.json'), 'generator': binding(__file__),
               'font': binding(plan.get('font_path') or font_path()),
               'selected_candidate': selected, 'title': plan['title'], 'rationale': plan,
-              'compositions': compositions, 'artifacts': outputs,
+              'compositions': compositions, 'artifacts': outputs, 'visual_evidence': qa_previews,
               'growth_goals': {'retention': '准确预告视频兑现的问题', 'engagement': '突出关键机械关系',
                                'following': '统一系列标题与视觉'},
               'cover_checks': {k: {'status': 'UNKNOWN', 'evidence': 'Independent exact-cover review required'} for k in CHECKS},

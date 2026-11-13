@@ -186,6 +186,11 @@ def finalize(folder, paths, evidence_paths=()):
             'visual_differences': [dict(path=item['path'], sha256=item['sha256'], observations=item['data']['visual_differences'])
                                    for item in evidence if 'visual_differences' in item['data']],
             'source_evidence': evidence}
+        from .qa_images import prepare_image, visual_packet
+        try:
+            report['visual_evidence'] = visual_packet([prepare_image(folder/'preview.jpg')])
+        except (OSError, ValueError) as error:
+            report['visual_evidence'] = dict(visual_packet(), error=str(error))
         write(folder / 'report.json', report)
         state['routes'] = media
         state['steps']['comparison'] = {'key': comparison_key, 'cache_hit': comparison_cache_hit,

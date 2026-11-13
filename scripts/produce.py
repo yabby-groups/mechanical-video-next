@@ -168,6 +168,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
             files += [str(p.relative_to(folder)) for p in sorted(frames.glob('*.png'))]
         complete(folder,files)
     metrics.record(quality+':'+shot['template'],start,hit,key=key)
+    prepare_shot_evidence(folder)
     return folder/filename,kind,key
 
 def tts(shot, voice, metrics):
