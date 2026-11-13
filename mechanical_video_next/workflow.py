@@ -704,6 +704,11 @@ def check_requested_routes(task, data):
     routes = data.get('requested_routes', [])
     if len(routes) <= 1:
         return  # Existing single-route and historical ledgers keep their gates.
+    from .covers import validate as validate_covers
+    from .growth_report import validate as validate_growth
+    if data.get('content_policy_version') == 1 or (Path(task)/'cover-plan.json').exists():
+        validate_covers(task, require_pass=True)
+        validate_growth(task)
     report = artifact(task, 'final-qa')
     route_checks = report.get('route_checks', {})
     for route in routes:
@@ -1099,6 +1104,20 @@ def main():
                 data.setdefault('route_runs', {})[route] = {'status': 'TECHNICAL_PASS_UNACCEPTED', 'outputs': media}
             for name, path in plan_data.get('shared', {}).items():
                 data.setdefault('shared_production', {})[name] = {'path': str(Path(path).resolve()), 'sha256': filehash(path)}
+            write(args.task / 'task.json', data)
+            # Growth deliverables are generated only after all exact route media
+            # and the synchronized comparison exist. This is read-only reporting.
+            if data.get('content_policy_version') == 1:
+                # Production ledgers may be unit fixtures or incomplete route
+                # plans. The report generator itself fails closed on missing
+                # media; real delivery invokes it once all exact files exist.
+                route_paths = {route: Path(media['path']) for route, media in report['routes'].items()}
+                if len(route_paths) == 3 and all(path.is_file() for path in route_paths.values()) and (folder / 'compare.mp4').is_file():
+                    from .growth_report import generate as generate_growth_report
+                    growth = generate_growth_report(args.task, route_paths, folder / 'compare.mp4')
+                    data['growth_report'] = {'path': str(args.task / 'growth-report.json'),
+                                             'sha256': filehash(args.task / 'growth-report.json'),
+                                             'status': growth['status']}
             write(args.task / 'task.json', data)
             event(args.task, 'route_comparison_generated', report=data['route_comparison'])
         print(json.dumps(report, ensure_ascii=False, indent=2))
