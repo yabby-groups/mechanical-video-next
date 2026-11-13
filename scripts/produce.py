@@ -70,6 +70,16 @@ def panel_spec(render, quality):
             if quality!='final' and not render.get('preview_native', False)
             else (width,height,30))
 
+def bounded_chunk_frames(requested, needed, width, height, used_bytes):
+    """Shrink the batch, never the image, when retained caches fill work space."""
+    per_frame = width * height * 3 * 1.12
+    # Keep space for encoded chunks, concatenation and metadata as well as PNGs.
+    available = 2 * 1024**3 - used_bytes - 8 * 1024**2
+    capacity = math.floor(available / per_frame)
+    if capacity < 1:
+        raise RuntimeError('Insufficient work budget for one frame and encoding reserve')
+    return min(requested, needed, capacity)
+
 def shot_key(shot, quality, render=None, assembly_path=None):
     render = render or {'width':1080,'height':1920}
     if shot.get('template') == 'layered':
@@ -80,6 +90,14 @@ def shot_key(shot, quality, render=None, assembly_path=None):
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
     return digest(inputs)
+
+def prepare_shot_evidence(folder):
+    from mechanical_video_next.qa_images import prepare_image, visual_packet
+    frames = sorted(folder.glob('key-*.png')) or sorted((folder/'frames').glob('*.png'))
+    if frames:
+        indices = sorted({round(i*(len(frames)-1)/3) for i in range(4)})
+        writejson(folder/'qa-images.json', visual_packet([prepare_image(frames[i]) for i in indices]))
+
 
 def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     start=time.time()
@@ -97,6 +115,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
             render_layers(shot, folder, width, height, fps, quality)
             complete(folder, files)
         metrics.record(quality+':layered', start, hit, key=key)
+        prepare_shot_evidence(folder)
         return folder/'media.mp4', 'video', key
     kind='image' if shot['template'] in ['overall','detail','exploded'] else 'video'
     filename='media.png' if kind=='image' else 'media.mp4'
@@ -118,6 +137,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         chunked = bool(chunk_frames and not ready)
         if chunked:
             assert chunk_frames > 0
+            chunk_frames = bounded_chunk_frames(chunk_frames, needed, width, height, budget())
             args += ['--chunk-frames', chunk_frames, '--video-output', folder/filename]
         if not ready:
             # Conservative upper bound for an uncompressed RGB frame sequence plus PNG overhead.
@@ -353,7 +373,9 @@ def main():
         assert len(selected)==1 and selected[0] in cfg['shots']
         assert 0<cfg['shots'][selected[0]]['seconds']<=5
     else:
-        assert 30<=sum(s['seconds'] for s in cfg['storyboard'])<=45
+        duration = sum(s['seconds'] for s in cfg['storyboard'])
+        minimum, maximum = (120, 300) if cfg.get('content_policy_version') == 1 else (30, 45)
+        assert minimum <= duration <= maximum, 'Storyboard duration outside its content policy'
     assert len({s['id'] for s in cfg['storyboard']})==len(cfg['storyboard'])
     for s in cfg['storyboard']: assert s['seconds']==cfg['shots'][s['shot']]['seconds']
     metrics=Metrics(cfg['id']+'-'+args.phase)
@@ -375,6 +397,10 @@ def main():
         names=list(dict.fromkeys(s['shot'] for s in cfg['storyboard']))
         if args.diagnostic:
             names=cfg['local_preview_shots']
+        elif args.phase == 'local':
+            selected = cfg.get('local_preview_shots', [])
+            assert selected and set(selected) <= set(names), 'Explicit local preview shots required'
+            names = selected
         if args.phase=='checks':
             selected=cfg.get('local_preview_shots',[])
             assert selected and set(selected)<=set(names)
