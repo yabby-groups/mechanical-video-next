@@ -35,6 +35,7 @@ def get_cached_image(cache_key, cache_dir=CACHE):
     if path.exists():
         data = json.loads(path.read_text())
         if Path(data['qa_path']).exists() and sha(data['qa_path']) == data['qa_sha256']:
+            path.touch()  # Last successful access, never source mtime.
             return dict(data, cache_hit=True)
     return None
 
@@ -122,10 +123,13 @@ def prepare_contact_sheet(sources, *, cache_dir=CACHE):
     return result
 
 
-def prepare_video_frames(source, times, *, shot_ids=None, cache_dir=CACHE):
+def prepare_video_frames(source, times, *, shot_ids=None, format='webp', quality=80,
+                         max_size=1024, cache_dir=CACHE):
     times = list(times)
     if not times or len(times) > 4 or any(not math.isfinite(t) or t < 0 for t in times):
         raise ValueError('Each review round requires 1..4 finite nonnegative event times')
+    if shot_ids is not None and len(shot_ids) != len(times):
+        raise ValueError('One shot_id is required per event time')
     source = Path(source).resolve(); source_sha = sha(source)
     folder = Path(cache_dir); folder.mkdir(parents=True, exist_ok=True)
     refs = []
@@ -137,7 +141,8 @@ def prepare_video_frames(source, times, *, shot_ids=None, cache_dir=CACHE):
                 subprocess.run(['ffmpeg','-v','error','-nostdin','-ss',str(t),'-i',str(source),
                                 '-frames:v','1',str(extracted)], check=True, capture_output=True)
                 extracted.replace(frame)
-        ref = prepare_image(frame, source_time=t, shot_id=shot_ids[i] if shot_ids else None, cache_dir=folder)
+        ref = prepare_image(frame, source_time=t, shot_id=shot_ids[i] if shot_ids else None,
+                            format=format, quality=quality, max_size=max_size, cache_dir=folder)
         ref.update(video_path=str(source), video_sha256=source_sha)
         refs.append(ref)
     return refs
@@ -192,7 +197,7 @@ def main():
     ap.add_argument('--sheet', action='store_true'); ap.add_argument('--format', default='webp')
     args = ap.parse_args()
     if args.times:
-        refs = prepare_video_frames(args.source[0], args.times)
+        refs = prepare_video_frames(args.source[0], args.times, format=args.format)
     else:
         fn = prepare_cover_preview if args.cover else prepare_image
         refs = [(prepare_crop(p,args.crop,format=args.format) if args.crop else fn(p,format=args.format)) for p in args.source]

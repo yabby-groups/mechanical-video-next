@@ -56,6 +56,16 @@ class QAImagesTests(unittest.TestCase):
         self.assertEqual(visual_packet()['acceptance'],'UNKNOWN')
         self.assertEqual(a['readability'],'UNKNOWN')
         with self.assertRaises(ValueError): handoff_visuals({'image':'data:image/png;base64,AAAA'})
+        with self.assertRaises(ValueError):
+            visual_packet([dict(a,qa_path=str(self.real),qa_sha256=sha(self.real))])
+
+    def test_corrupt_compressed_cache_is_rebuilt(self):
+        a=self.prep()
+        Path(a['qa_path']).write_bytes(b'not an image')
+        b=self.prep()
+        self.assertFalse(b['cache_hit'])
+        with Image.open(b['qa_path']) as im:
+            self.assertEqual(im.format,'WEBP')
 
     def test_contact_cache(self):
         a=prepare_contact_sheet([self.real],cache_dir=self.cache)
@@ -84,6 +94,13 @@ class VideoEvidenceTests(unittest.TestCase):
             self.assertTrue(all(r['cache_hit'] for r in b))
             self.assertEqual(a[1]['source_time'],1)
             self.assertEqual(a[0]['video_sha256'],before)
+            jpeg=prepare_video_frames(source,[0],format='jpeg',cache_dir=folder)[0]
+            self.assertTrue(jpeg['qa_path'].endswith('.jpg'))
+            self.assertNotEqual(jpeg['cache_key'],a[0]['cache_key'])
+            with Image.open(jpeg['qa_path']) as im:
+                self.assertEqual(im.format,'JPEG')
+            with self.assertRaises(ValueError):
+                prepare_video_frames(source,[0,1],shot_ids=['only-one'],cache_dir=folder)
             with self.assertRaises(ValueError): prepare_video_frames(source,range(5),cache_dir=folder)
         self.assertEqual(sha(source),before)
 
