@@ -18,6 +18,9 @@ from common import ROOT, BLENDER, Metrics, budget, codehash, digest, filehash, p
 
 CACHE = ROOT/'work/cache'
 PUBLIC = ROOT/'remotion/public/cache'
+# Freeze the unchanged legacy say/FFmpeg audio recipe identity. Text-only edits
+# must retain existing audio keys; bump this only when that recipe changes.
+LEGACY_AUDIO_PROCESSING = '499692624f28ded76480fdd5a7519bfd2d2095d73d9fccd50fae3ec1295fbade'
 
 def cached(folder, files):
     marker = folder/'complete.json'
@@ -184,7 +187,7 @@ def tts(shot, voice, metrics):
         metrics.record('tts:'+shot['id'],start,hit,key=key,model=voice['model'],voice=voice['voice'])
         return path,cues,key
     key=digest({'cues':shot['narration'],'voice':voice,'seconds':shot['seconds'],'rate':235,'audio_pipeline':1,
-                'processing':codehash('scripts/produce.py')})
+                'processing':LEGACY_AUDIO_PROCESSING})
     folder=CACHE/'audio'/key
     files=['audio.m4a','cues.json']
     hit=cached(folder,files)
@@ -264,18 +267,20 @@ def composition_key(props, quality):
     if quality not in ['preview', 'final']:
         raise ValueError('Unsupported composition quality')
     return digest({'props':props,'quality':quality,
-                   'remotion':codehash('remotion/src/index.tsx','remotion/package-lock.json'),
-                   'composition_code':codehash('scripts/produce.py')})
+                   'remotion':codehash('remotion/src/index.tsx','remotion/src/TextOverlay.tsx','remotion/package-lock.json'),
+                   'composition_code':codehash('scripts/produce.py', 'mechanical_video_next/text_layout.py', 'config/text-style.json')})
 
 def compose(cfg, quality, media, metrics):
     from narration import effective_profile
     voice=effective_profile(cfg) or cfg['voice']
     start=time.time()
     render_shots=[]
+    audio_sources=[]
     cues=[]
     offset=0
     for s in cfg['storyboard']:
         audio,sc,_=tts(s,voice,metrics)
+        audio_sources.append(filehash(audio))
         path,kind,key=media[s['shot']]
         render_shots.append({k:s[k] for k in ['id','label','note','seconds','accent']}|{'formula':s.get('formula'),'media':expose(path,key),'kind':kind,'audio':expose(audio,filehash(audio))})
         subtitles=s.get('subtitles',[c['text'] for c in sc])
@@ -293,6 +298,17 @@ def compose(cfg, quality, media, metrics):
             if not isinstance(cfg[field],str):
                 raise ValueError(f'{field} must be a string')
             props[field]=cfg[field]
+    from mechanical_video_next.text_layout import prepare_text_props
+    from mechanical_video_next.style_lock import verify_lock
+    lock = verify_lock(ROOT / 'assets/style-reference/style-lock.json', shared_only=True)
+    if lock['status'] != 'PASS':
+        raise ValueError('Protected visual reference changed or unavailable; inspect style lock')
+    props['annotations'] = cfg.get('text_annotations', [])
+    props['critical_boxes'] = cfg.get('text_critical_boxes', [])
+    props['platform_insets'] = cfg.get('platform_insets')
+    props['subtitle_alignment'] = cfg.get('subtitle_alignment')
+    props = prepare_text_props(props, audio_sha256=digest(audio_sources))
+    cues = props['cues']
     key=composition_key(props, quality)
     suffix='preview' if quality=='preview' else 'final'
     target=ROOT/'output'/f'{cfg["id"]}-{suffix}.mp4'

@@ -1,3 +1,11 @@
+## 2026-11-13 原有视觉风格锁定与手机文字
+
+用户实际截图是正式风格基准：`assets/style-reference/approved-original.png`，来源及保护参数见 `style-lock.json`。增长、参考研究和效率优化不得覆盖已确认的浅灰摄影棚、蓝灰/金属材质、柔和照明、原相机和运动。只调整文字字号、单行、布局及安全边距；不得生成相似图冒充原截图。
+
+新后期文字采用 `config/text-style.json` 与 `mechanical_video_next.text_layout`；字幕必须单行、实测宽度合格且不重叠。超宽句缺可信音频对齐时阻止，不按字数分配时长、不缩字号、不重做已正确TTS/CAD/机械动画。原字体不可用不得静默换字体。历史烧录文字和冻结媒体不自动重制。
+
+风格保护使用 `mechanical_video_next.style_lock`，同时间码/姿态比较非文字区域，禁止用缩放或大面积遮罩隐瞒变化。手机核查使用360/390/430px等比预览。所有Agent常规视觉读取只使用 `qa_images` 返回的压缩路径；每轮最多四关键帧、一联系图；无连续观看/听审能力仍为UNKNOWN。实测范围及未解决事项见 `docs/qa/text-readability-style-lock-20261113.md`。
+
 <!-- mechanical-direction-confirmed-20261113 -->
 ## 2026-11-13 用户确认：继续机械拆解方向
 

@@ -1,0 +1,853 @@
+{
+  "schema_version": 1,
+  "source": {
+    "kind": "user-supplied actual screenshot",
+    "original_path": "/var/folders/t0/z5fmfnjn5xv1884nc6h2bsyw0000gn/T/TemporaryItems/NSIRD_screencaptureui_MUElZv/Screenshot 2026-11-13 at 23.27.14.png",
+    "sha256": "49e2b782422c04994cbd79c56e1e3900416e6a117ff8145c8fc32e7453a572ed",
+    "exact_video_version": "UNKNOWN: screenshot-to-encoded-frame identity not yet established",
+    "candidate_videos": [
+      {
+        "path": "output/tasks/stapler-3d-20261113/editor/final-hd-v1/candidate-ffmpeg-v1/final.mp4",
+        "sha256": "5deb1a6b337e8b684027ec6e8be7778b94ca7233e550cb45794e9f6506c58a5a"
+      },
+      {
+        "path": "output/tasks/stapler-3d-20261113/editor/original-style-text-v1/candidate-v1/final.mp4",
+        "sha256": "162aab51dd9687be2867fb0c3bcbca5339031f4e11b103b20f06008a27d2e8a6"
+      }
+    ]
+  },
+  "background": "original light grey photographic studio",
+  "materials": "original blue-grey housing and metallic mechanical parts; true material colours allowed",
+  "lighting": "original soft studio lights, natural shadows and reflections",
+  "composition": "original centered oblique mechanical view and restrained camera movement",
+  "text_style": "original white text, dark outlines, top-left chapter hierarchy, bottom-centered subtitle",
+  "allowed_changes": [
+    "single-line subtitles",
+    "text font size and measured line width",
+    "text margins and timing from verified alignment",
+    "separate postproduction labels"
+  ],
+  "forbidden_changes": [
+    "background",
+    "materials",
+    "lights",
+    "camera",
+    "mechanical geometry",
+    "motion",
+    "approved narration"
+  ],
+  "protected_files": [
+    {
+      "path": "assets/style-reference/approved-original.png",
+      "sha256": "49e2b782422c04994cbd79c56e1e3900416e6a117ff8145c8fc32e7453a572ed"
+    },
+    {
+      "path": "blender/studio_style.py",
+      "sha256": "98f51bb4e9e13bd4f8ae6d4574401ba7b9d6bdee954d7fbbb952dd12cf4585de"
+    },
+    {
+      "path": "blender/scene.py",
+      "sha256": "a1652cf5351950c110e768bf85ca27af15cf4abafd1c284fdf62b83320c5a65c",
+      "maintenance_note": "2026-11-14: cache lifecycle only; rendering/geometry/motion functions unchanged. Prior source identity in config/cache-code-equivalence.json."
+    },
+    {
+      "path": "config/visual-reference.json",
+      "sha256": "cdb0da7a5919cf12293be013ff5c06712862a04db92338f4b36f03fe64a9e6b7"
+    },
+    {
+      "path": "output/tasks/stapler-3d-20261113/producer/compiled-config.v5.json",
+      "sha256": "81c9ef689dff65d54172595bd395bc534b2453d7b1e67d1686d6f3e0352d7f20"
+    },
+    {
+      "path": "output/tasks/stapler-3d-20261113/animation/v8/spring-diagnostic-assembly.v1.json",
+      "sha256": "eb837ae7fac69787478173252ef8e2b549ac9e2c438ab4cd70e6013354009053"
+    },
+    {
+      "path": "assets/style-reference/approved-renderer.tsx",
+      "sha256": "562fbbcbeeb899951112f850ef9d1dbdc7c6f4512a46f017b76977ad41ca10ce",
+      "purpose": "Exact tracked renderer before this text-only change; diagnostic comparison baseline"
+    }
+  ],
+  "scene_parameter_snapshot": {
+    "render": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "video": "h264",
+      "audio": "aac",
+      "framing": "fullframe",
+      "preview_native": false,
+      "chunk_frames": 16
+    },
+    "assembly_config": "output/tasks/stapler-3d-20261113/animation/v8/spring-diagnostic-assembly.v1.json",
+    "shots": {
+      "s01": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            0.85,
+            -1,
+            0.55
+          ]
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            },
+            "FeedSpringRound": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            },
+            "ReturnLeafCurved": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "3a807a2993f5a90e7f85bdb7e269989b1a24b583360cfc26d33306e44316a01b",
+        "track_count": 22,
+        "seconds": 5.066666666666666,
+        "visible_parts": [
+          "source0_000",
+          "source1_000",
+          "source2_000",
+          "source3_000",
+          "source4_000",
+          "source5_000",
+          "source6_000",
+          "source7_000",
+          "source8_000",
+          "source10_000",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000",
+          "ActiveStaple",
+          "FeedSpringRound",
+          "ReturnLeafCurved",
+          "source27_000",
+          "source28_000",
+          "source29_000",
+          "source30_000"
+        ]
+      },
+      "s02": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            0.85,
+            -1,
+            0.55
+          ]
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            },
+            "FeedSpringRound": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            },
+            "ReturnLeafCurved": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "7cec6a5879717a749fd4f5bdd313daba1bf43ebaedc79bf68f0209edf9a61929",
+        "track_count": 20,
+        "seconds": 10.5,
+        "visible_parts": [
+          "source0_000",
+          "source1_000",
+          "source2_000",
+          "source3_000",
+          "source4_000",
+          "source5_000",
+          "source6_000",
+          "source7_000",
+          "source8_000",
+          "source10_000",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000",
+          "ActiveStaple",
+          "FeedSpringRound",
+          "ReturnLeafCurved",
+          "source27_000",
+          "source28_000",
+          "source29_000",
+          "source30_000"
+        ]
+      },
+      "s03": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            0.7,
+            -1,
+            0.5
+          ]
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "c53362e133205869969ec758d4b8dc7e3392de676ed9c9e86de366e66c846e8a",
+        "track_count": 15,
+        "seconds": 12.600000000000001,
+        "visible_parts": [
+          "ActiveStaple",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000"
+        ]
+      },
+      "s04": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            0.7,
+            -1,
+            0.55
+          ]
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            },
+            "FeedSpringRound": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            },
+            "ReturnLeafCurved": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "2e481b8fbf189a09496a4ca00407b39e0ebf01d5fe8cbbecfd92ded9c3bb3f7d",
+        "track_count": 18,
+        "seconds": 13.033333333333335,
+        "visible_parts": [
+          "source0_000",
+          "source1_000",
+          "source2_000",
+          "source3_000",
+          "source4_000",
+          "source5_000",
+          "source6_000",
+          "source7_000",
+          "source8_000",
+          "source10_000",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000",
+          "FeedSpringRound",
+          "ReturnLeafCurved",
+          "source27_000",
+          "source28_000",
+          "source29_000",
+          "source30_000"
+        ]
+      },
+      "s05": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            1,
+            -0.1,
+            0.3
+          ],
+          "camera_focus_region": {
+            "min": [
+              0.043,
+              -0.01,
+              0.01
+            ],
+            "max": [
+              0.053,
+              0.01,
+              0.052
+            ]
+          }
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "d27b37a998d50ec1d5148e44cd2c7c199f2b2124596c6ab0f347f64e50fc2798",
+        "track_count": 19,
+        "seconds": 12.899999999999999,
+        "visible_parts": [
+          "source0_000",
+          "source1_000",
+          "source2_000",
+          "source3_000",
+          "source4_000",
+          "source5_000",
+          "source6_000",
+          "source7_000",
+          "source8_000",
+          "source9_000",
+          "source10_000",
+          "source11_000",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000",
+          "ActiveStaple"
+        ]
+      },
+      "s06": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            1,
+            -0.1,
+            0.3
+          ],
+          "camera_focus_region": {
+            "min": [
+              0.043,
+              -0.009,
+              0.0055
+            ],
+            "max": [
+              0.053,
+              0.009,
+              0.027
+            ]
+          }
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "c0b4058a78054c7ec0dc1fa8140f6afba9505592d0acac29469ffea0270fb736",
+        "track_count": 15,
+        "seconds": 13.033333333333339,
+        "visible_parts": [
+          "source4_000",
+          "source5_000",
+          "source7_000",
+          "ActiveStaple"
+        ]
+      },
+      "s07": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            1,
+            -0.1,
+            0.3
+          ],
+          "camera_focus_region": {
+            "min": [
+              0.043,
+              -0.009,
+              0.0055
+            ],
+            "max": [
+              0.053,
+              0.009,
+              0.027
+            ]
+          }
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "ab6484b1a0b8c91d4c0ab568480a42a9b7a7658ba3ce3cafc65d8f9c643793d0",
+        "track_count": 15,
+        "seconds": 13.066666666666663,
+        "visible_parts": [
+          "source4_000",
+          "source5_000",
+          "source7_000",
+          "ActiveStaple"
+        ]
+      },
+      "s08": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            1,
+            -0.1,
+            0.3
+          ],
+          "camera_focus_region": {
+            "min": [
+              0.043,
+              -0.009,
+              0.0055
+            ],
+            "max": [
+              0.059,
+              0.009,
+              0.031
+            ]
+          }
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "a07b480f4859cfaf4088f6359ee3e3d5ce923669d2a93402c24b3165ece2bb88",
+        "track_count": 17,
+        "seconds": 11.799999999999997,
+        "visible_parts": [
+          "source4_000",
+          "source5_000",
+          "source7_000",
+          "ActiveStaple"
+        ]
+      },
+      "s09": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            1,
+            0,
+            0.2
+          ],
+          "camera_focus_region": {
+            "min": [
+              0.044,
+              -0.035,
+              0.0055
+            ],
+            "max": [
+              0.052,
+              0.035,
+              0.016
+            ]
+          }
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "e904696b888ee0ec71c28c571ecf55bfe6a7885036f9e00f178014253c71734f",
+        "track_count": 2,
+        "seconds": 13.066666666666663,
+        "visible_parts": [
+          "ComparisonLeft",
+          "ComparisonLeftAnvil",
+          "ComparisonLeftPaper",
+          "ComparisonRight",
+          "ComparisonRightAnvil",
+          "ComparisonRightPaper"
+        ]
+      },
+      "s10": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            0.85,
+            -1,
+            0.55
+          ]
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            },
+            "FeedSpringRound": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            },
+            "ReturnLeafCurved": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "28cbd3d302b4e5d5fa47b0d8811c2d61169a5c04ace90e10ba488715744c728c",
+        "track_count": 20,
+        "seconds": 13.533333333333331,
+        "visible_parts": [
+          "source0_000",
+          "source1_000",
+          "source2_000",
+          "source3_000",
+          "source4_000",
+          "source5_000",
+          "source6_000",
+          "source7_000",
+          "source8_000",
+          "source10_000",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000",
+          "FeedSpringRound",
+          "ReturnLeafCurved",
+          "source27_000",
+          "source28_000",
+          "source29_000",
+          "source30_000"
+        ]
+      },
+      "s11": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            1,
+            -0.1,
+            0.3
+          ],
+          "camera_focus_region": {
+            "min": [
+              0.043,
+              -0.009,
+              0.003
+            ],
+            "max": [
+              0.053,
+              0.009,
+              0.015
+            ]
+          }
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "935585c658f219364732ebcd59894507557e713414945892169c83f5baf4267c",
+        "track_count": 16,
+        "seconds": 14.0,
+        "visible_parts": [
+          "source5_000",
+          "ActiveStaple"
+        ]
+      },
+      "s12": {
+        "camera": {
+          "camera_view": "oblique",
+          "camera_direction": [
+            0.85,
+            -1,
+            0.55
+          ]
+        },
+        "studio_lighting": {
+          "scale_to_subject": true,
+          "floor_gap": 0.01,
+          "render_samples": 16,
+          "material_overrides": {
+            "source10_000": {
+              "color": [
+                0.08,
+                0.3,
+                0.43
+              ],
+              "metallic": 0.05,
+              "roughness": 0.5
+            },
+            "FeedSpringRound": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            },
+            "ReturnLeafCurved": {
+              "color": [
+                0.62,
+                0.66,
+                0.7
+              ],
+              "metallic": 0.9,
+              "roughness": 0.3
+            }
+          }
+        },
+        "visual_profile": "printer-ep03-studio-v1",
+        "motion_sha256": "29c173be5f8bc2121408e303d1a005f745e0eb7008b192c17fb724b34867ab26",
+        "track_count": 22,
+        "seconds": 14.333333333333343,
+        "visible_parts": [
+          "source0_000",
+          "source1_000",
+          "source2_000",
+          "source3_000",
+          "source4_000",
+          "source5_000",
+          "source6_000",
+          "source7_000",
+          "source8_000",
+          "source10_000",
+          "source12_000",
+          "source13_000",
+          "source14_000",
+          "source15_000",
+          "source16_000",
+          "source17_000",
+          "source18_000",
+          "source19_000",
+          "source20_000",
+          "source21_000",
+          "source22_000",
+          "source23_000",
+          "source24_000",
+          "source25_000",
+          "ActiveStaple",
+          "FeedSpringRound",
+          "ReturnLeafCurved",
+          "source27_000",
+          "source28_000",
+          "source29_000",
+          "source30_000"
+        ]
+      }
+    }
+  },
+  "task_snapshot": {
+    "id": "stapler-3d-20261113",
+    "state": "RESEARCHING",
+    "sha256_at_capture": "5b2b489027459518b3e8e3f23a87b770694b54d69d35756baf1041ffd9cfa03b"
+  },
+  "acceptance": "APPROVED_REFERENCE_ONLY; new text output acceptance UNKNOWN"
+}

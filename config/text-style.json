@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "reference_size": [
+    1920,
+    1080
+  ],
+  "routes": [
+    "2d",
+    "2.5d",
+    "3d"
+  ],
+  "font_family": "PingFang SC",
+  "font_style": "Medium",
+  "font_weight": 500,
+  "font_candidates": [
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*/AssetData/PingFang.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+  ],
+  "fill": "#ffffff",
+  "stroke": "#242424",
+  "stroke_width": 3,
+  "subtitle": {
+    "font_size": 64,
+    "min_font_size": 52,
+    "preferred_characters": [
+      8,
+      14
+    ],
+    "safe_box": [
+      90,
+      940,
+      1830,
+      1040
+    ],
+    "align": "center",
+    "single_line": true
+  },
+  "chapter": {
+    "font_size": 76,
+    "min_font_size": 68,
+    "safe_box": [
+      64,
+      38,
+      1856,
+      142
+    ]
+  },
+  "part": {
+    "font_size": 64,
+    "min_font_size": 48,
+    "safe_box": [
+      64,
+      162,
+      1856,
+      282
+    ]
+  },
+  "principle": {
+    "font_size": 64,
+    "min_font_size": 48,
+    "safe_box": [
+      64,
+      802,
+      1856,
+      914
+    ]
+  },
+  "numeric": {
+    "font_size": 72,
+    "min_font_size": 56,
+    "safe_box": [
+      64,
+      802,
+      1856,
+      914
+    ]
+  },
+  "auxiliary": {
+    "font_size": 48,
+    "min_font_size": 40,
+    "safe_box": [
+      64,
+      288,
+      1856,
+      360
+    ]
+  },
+  "platform_insets": {
+    "left": 0,
+    "top": 0,
+    "right": 0,
+    "bottom": 0,
+    "verification": "UNKNOWN",
+    "note": "Profile-specific UI occlusion must be supplied and verified; these defaults describe the video only."
+  },
+  "protected_terms": [
+    "行星齿轮",
+    "太阳轮",
+    "行星架",
+    "传动比",
+    "订书钉",
+    "订书机",
+    "推块",
+    "压簧",
+    "斜舌",
+    "回位弹簧",
+    "棘轮",
+    "棘爪",
+    "直齿轮",
+    "啮合",
+    "打蛋器",
+    "钉冠",
+    "钉脚",
+    "钉腿",
+    "砧座",
+    "驱动片",
+    "驱动件",
+    "钉仓",
+    "钉条",
+    "工作原理",
+    "送料",
+    "折脚"
+  ]
+}

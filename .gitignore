@@ -28,3 +28,7 @@ output/narration-audition/*
 output/narration-audition/neil-documentary-audition-v1/*
 !output/narration-audition/neil-documentary-audition-v1/approved-74e4c330ab3a-82e9cd54172b.json
 !output/narration-audition/neil-documentary-audition-v1/audition.wav
+
+!/config/text-style.json
+
+!/config/cache-code-equivalence.json
