@@ -934,7 +934,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     # skips protected/task-referenced entries and shares our global lock.
     sys.path.insert(0, str(ROOT / 'scripts'))
     from clean import cleanup
-    cleanup(older_hours=168, apply=True)
+    cleanup(older_hours=720, apply=True)
     with lock(ROOT / 'work/production.lock'):
         start = time.time()
         args = ['uv', 'run', '--project', str(ROOT), 'python',

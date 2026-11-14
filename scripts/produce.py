@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import threading
 import time
-from common import ROOT, BLENDER, Metrics, budget, codehash, digest, filehash, probe, run, writejson
+from common import ROOT, BLENDER, Metrics, budget, codehash, digest, filehash, probe, run, writejson, work_budget_limit
 
 CACHE = ROOT/'work/cache'
 PUBLIC = ROOT/'remotion/public/cache'
@@ -25,7 +25,10 @@ def cached(folder, files):
         return False
     try:
         m = json.loads(marker.read_text())
-        return set(files)<=set(m) and all((folder/f).is_file() and filehash(folder/f)==h for f,h in m.items())
+        valid = set(files)<=set(m) and all((folder/f).is_file() and filehash(folder/f)==h for f,h in m.items())
+        if valid:
+            (folder/'.last-used').touch()
+        return valid
     except (KeyError, ValueError):
         return False
 
@@ -74,7 +77,8 @@ def bounded_chunk_frames(requested, needed, width, height, used_bytes):
     """Shrink the batch, never the image, when retained caches fill work space."""
     per_frame = width * height * 3 * 1.12
     # Keep space for encoded chunks, concatenation and metadata as well as PNGs.
-    available = 2 * 1024**3 - used_bytes - 8 * 1024**2
+    reserve = max(8 * 1024**2, needed * width * height * 3 // 4)
+    available = min(work_budget_limit() - used_bytes - 8 * 1024**2, shutil.disk_usage(ROOT).free - 3 * 1024**3 - reserve)
     capacity = math.floor(available / per_frame)
     if capacity < 1:
         raise RuntimeError('Insufficient work budget for one frame and encoding reserve')
@@ -144,8 +148,8 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
             projected_frames = (0 if quality=='checks' else min(needed, 3) if quality=='keys'
                                 else min(needed, chunk_frames) if chunked else needed)
             projected = budget() + width*height*3*projected_frames*1.12
-            if projected > 2*1024**3:
-                raise RuntimeError('Projected temporary frame sequence exceeds 2 GiB work budget')
+            if projected > work_budget_limit():
+                raise RuntimeError('Projected temporary frame sequence exceeds work budget')
             run(args,folder/'blender.log')
         shutil.copy2(frames/'checks.json',folder/'checks.json')
         if quality not in {'keys','checks'}:
@@ -155,6 +159,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
                     chunk_report=json.loads((frames/'chunk-result.json').read_text())
                     assert chunk_report['status']=='PASS' and chunk_report['final_decode']=='PASS', chunk_report
                     writejson(folder/'chunk-result.json',chunk_report)
+                    metrics.cleanup_rows = getattr(metrics, 'cleanup_rows', []) + [chunk_report]
                     files.append('chunk-result.json')
                 else:
                     run(['ffmpeg','-v','error','-y','-framerate',fps,'-i',frames/'%05d.png','-vf','pad=ceil(iw/2)*2:ceil(ih/2)*2','-c:v','libx264','-preset','fast','-crf','19','-pix_fmt','yuv420p','-movflags','+faststart',folder/filename],folder/'encode.log')

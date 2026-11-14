@@ -1,0 +1,17 @@
+{
+  "test": "Real FFmpeg 4-frame / 2-chunk encoding, 32x32; fake raster source, no Blender render",
+  "generated_temp_bytes": 3836,
+  "deleted_files": 7,
+  "deleted_bytes": 3836,
+  "retained_test_bytes": 6785,
+  "remaining_png_files": 0,
+  "scope": "Measured logical file lengths; filesystem allocated blocks differ",
+  "live_after": {
+    "work": 905916275,
+    "assets": 365727946,
+    "output": 9762667853
+  },
+  "live_free_bytes_after": 32645120000,
+  "live_deleted_bytes": 0,
+  "live_note": "Production lock busy; changes in live occupancy are not attributed to cleanup."
+}

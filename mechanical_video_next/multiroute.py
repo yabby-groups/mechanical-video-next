@@ -186,6 +186,19 @@ def finalize(folder, paths, evidence_paths=()):
             'visual_differences': [dict(path=item['path'], sha256=item['sha256'], observations=item['data']['visual_differences'])
                                    for item in evidence if 'visual_differences' in item['data']],
             'source_evidence': evidence}
+        cleanup_receipts = [dict(path=item['path'], sha256=item['sha256'], measurements=item['data']['cache_cleanup'])
+                            for item in evidence if 'cache_cleanup' in item['data']]
+        report['cache_cleanup'] = {
+            'source_receipts': cleanup_receipts,
+            'generated_temp_bytes': None,
+            'automatically_deleted_files': None,
+            'automatically_deleted_bytes': None,
+            'retained_cache_bytes': None,
+            'protected_asset_bytes': None,
+            'peak_disk_bytes': None,
+            'cache_hits': stats.get('cache_reuse', state.get('last_run')),
+            'measurement_scope': 'See exact source receipts; task-wide totals unknown without complete nonoverlapping producer receipts.',
+            'failures_and_skips': [] if cleanup_receipts else ['No cleanup receipts supplied; measurements remain unknown.']}
         from .qa_images import prepare_image, visual_packet
         try:
             report['visual_evidence'] = visual_packet([prepare_image(folder/'preview.jpg')])

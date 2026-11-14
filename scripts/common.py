@@ -24,7 +24,13 @@ def codehash(*paths):
     for p in paths:
         p = ROOT / p
         files += sorted(p.rglob('*.py')) if p.is_dir() else [p]
-    return digest({str(p.relative_to(ROOT)): filehash(p) for p in files})
+    hashes = {str(p.relative_to(ROOT)): filehash(p) for p in files}
+    equivalence = ROOT/'config/cache-code-equivalence.json'
+    if equivalence.exists():
+        for name, item in json.loads(equivalence.read_text()).items():
+            if hashes.get(name) == item['current_sha256']:
+                hashes[name] = item['media_equivalent_sha256']
+    return digest(hashes)
 
 def writejson(path, value):
     p = Path(path)
@@ -56,9 +62,16 @@ def treebytes(path):
                 continue
     return total
 
+def work_budget_limit():
+    """Default 2 GiB; an explicitly authorized run may supply a byte limit."""
+    value = int(os.environ.get('MVN_WORK_LIMIT_BYTES', 2 * 1024**3))
+    if value <= 0:
+        raise ValueError('MVN_WORK_LIMIT_BYTES must be positive')
+    return value
+
 def budget():
     used = treebytes(ROOT / 'work')
-    limit = 2 * 1024**3
+    limit = work_budget_limit()
     if used > limit:
         raise RuntimeError(f'work budget exceeded: {used} > {limit}; use explicit clean command')
     if __import__('shutil').disk_usage(ROOT).free < 3 * 1024**3:
@@ -79,7 +92,17 @@ class Metrics:
         print(json.dumps(row, ensure_ascii=False), flush=True)
 
     def finish(self, **extra):
-        value = dict(name=self.name, started_epoch=self.start, total_seconds=round(time.time()-self.start,3),
+        cleanup_rows = getattr(self, 'cleanup_rows', [])
+        cache_report = dict(generated_temp_bytes=sum(r.get('generated_temp_bytes', 0) for r in cleanup_rows),
+                            automatically_deleted_files=sum(r.get('deleted_files', 0) for r in cleanup_rows),
+                            automatically_deleted_bytes=sum(r.get('deleted_bytes', 0) for r in cleanup_rows),
+                            measurement_scope='Blender chunk temporary files executed in this run; other producers not measured',
+                            retained_cache_bytes=treebytes(ROOT/'work/cache') + treebytes(ROOT/'work/qa-images'),
+                            protected_asset_bytes=treebytes(ROOT/'assets') + treebytes(ROOT/'output'),
+                            cache_hits=sum(bool(r.get('cache_hit')) for r in self.rows),
+                            peak_work_sampled_bytes=self.peak,
+                            failures_and_skips=[e for r in cleanup_rows for e in r.get('cleanup_errors', [])])
+        value = dict(cache_cleanup=cache_report, name=self.name, started_epoch=self.start, total_seconds=round(time.time()-self.start,3),
                      stages=self.rows, temp_peak_sampled_bytes=self.peak, **extra)
         writejson(ROOT / 'output' / (self.name + '-metrics.json'), value)
         return value

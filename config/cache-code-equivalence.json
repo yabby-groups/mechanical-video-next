@@ -1,0 +1,7 @@
+{
+  "blender/scene.py": {
+    "current_sha256": "a1652cf5351950c110e768bf85ca27af15cf4abafd1c284fdf62b83320c5a65c",
+    "media_equivalent_sha256": "b3b3e83dd0170ba1f7d67c7526b8c5c74a3f01bc8291963c5b465e171d57d759",
+    "reason": "Only post-encode validation, durable save and owned temporary cleanup changed; no scene or motion changes."
+  }
+}

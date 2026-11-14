@@ -11,6 +11,7 @@ import sys
 import time
 import subprocess
 import bisect
+import os
 
 import bpy
 import bmesh
@@ -26,7 +27,13 @@ from add_mesh_gears import add_gear
 
 
 def savejson(path, data):
-    Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    path = Path(path)
+    temporary = path.with_suffix(path.suffix + '.tmp')
+    with temporary.open('w') as handle:
+        handle.write(json.dumps(data, ensure_ascii=False, indent=2))
+        handle.flush()
+        os.fsync(handle.fileno())
+    temporary.replace(path)
 
 
 def render_chunked(scene, selected, args):
@@ -37,12 +44,26 @@ def render_chunked(scene, selected, args):
     """
     if args.chunk_frames < 1 or args.video_output is None:
         raise ValueError('Chunk rendering requires positive --chunk-frames and --video-output')
-    session = args.out / ('chunk-run-' + str(time.time_ns()))
-    session.mkdir(parents=True, exist_ok=False)
     selected = list(selected)
+    signature = {'selected': selected, 'fps': args.fps, 'width': args.width, 'height': args.height,
+                 'chunk_frames': args.chunk_frames}
+    session = None
+    for prior in sorted(args.out.glob('chunk-run-*'), reverse=True):
+        marker = prior/'report.json'
+        if prior.is_symlink() or not marker.is_file() or marker.is_symlink():
+            continue
+        previous = json.loads(marker.read_text())
+        if previous.get('signature') == signature and previous.get('status') in {'FAIL', 'RUNNING'}:
+            session, state = prior, previous
+            break
+    if session is None:
+        session = args.out / ('chunk-run-' + str(time.time_ns()))
+        session.mkdir(parents=True, exist_ok=False)
+        state = {'status': 'RUNNING', 'chunk_frames': args.chunk_frames,
+                 'requested_frames': len(selected), 'generated_temp_bytes': 0, 'generated_temp_files': 0,
+                 'chunks': [], 'signature': signature, 'scope': 'Technical encode/decode only'}
+    state['status'] = 'RUNNING'
     chunks = []
-    state = {'status': 'RUNNING', 'chunk_frames': args.chunk_frames,
-             'requested_frames': len(selected), 'chunks': [], 'scope': 'Technical encode/decode only'}
 
     def command(argv, log):
         with log.open('w') as stream:
@@ -53,6 +74,16 @@ def render_chunked(scene, selected, args):
     try:
         for start in range(0, len(selected), args.chunk_frames):
             block = selected[start:start+args.chunk_frames]
+            if start//args.chunk_frames < len(state['chunks']):
+                entry = state['chunks'][start//args.chunk_frames]
+                saved = Path(entry['file'])
+                if (saved.parent != session or saved.is_symlink() or not saved.is_file()
+                        or hashlib.sha256(saved.read_bytes()).hexdigest() != entry.get('sha256')):
+                    raise ValueError('Recovery chunk changed; preserve evidence for diagnosis')
+                command(['ffmpeg', '-v', 'error', '-xerror', '-i', saved, '-f', 'null', '-'],
+                        saved.with_suffix('.resume-decode.log'))
+                chunks.append(saved)
+                continue
             owned = []
             for f in block:
                 scene.frame_set(f)
@@ -60,6 +91,8 @@ def render_chunked(scene, selected, args):
                 scene.render.filepath = str(path)
                 bpy.ops.render.render(write_still=True)
                 owned.append(path)
+                state['generated_temp_bytes'] += path.stat().st_size
+                state['generated_temp_files'] += 1
             chunk = session / f'chunk-{len(chunks):05d}.mp4'
             command(['ffmpeg', '-v', 'error', '-y', '-framerate', args.fps,
                      '-start_number', block[0], '-i', session/'%05d.png', '-frames:v', len(block),
@@ -68,12 +101,31 @@ def render_chunked(scene, selected, args):
                     chunk.with_suffix('.encode.log'))
             command(['ffmpeg', '-v', 'error', '-xerror', '-i', chunk, '-f', 'null', '-'],
                     chunk.with_suffix('.decode.log'))
+            probe_chunk = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-count_frames', '-show_entries', 'stream=nb_read_frames,width,height', '-of', 'json', str(chunk)]))
+            stream = probe_chunk['streams'][0]
+            assert int(stream['nb_read_frames']) == len(block), probe_chunk
+            assert (int(stream['width']), int(stream['height'])) == (args.width, args.height), probe_chunk
+            with chunk.open('rb') as saved:
+                os.fsync(saved.fileno())
+            state['generated_temp_bytes'] += chunk.stat().st_size
+            state['generated_temp_files'] += 1
             chunks.append(chunk)
             state['chunks'].append({'file': str(chunk), 'first_frame': block[0],
-                                    'frame_count': len(block), 'decode': 'PASS'})
+                                    'frame_count': len(block), 'sha256': hashlib.sha256(chunk.read_bytes()).hexdigest(), 'decode': 'PASS'})
+            savejson(session/'report.json', state)
+            state['deletion_plan'] = [str(path) for path in owned]
             savejson(session/'report.json', state)
             for path in owned:
-                path.unlink()
+                if path.is_symlink() or path.parent != session or path.stat().st_nlink != 1:
+                    raise ValueError('Unsafe temporary frame ownership')
+                size = path.stat().st_size
+                try:
+                    path.unlink()
+                except OSError as exc:
+                    state.setdefault('cleanup_errors', []).append({'path':str(path), 'error':str(exc)})
+                    continue
+                state['deleted_files'] = state.get('deleted_files', 0) + 1
+                state['deleted_bytes'] = state.get('deleted_bytes', 0) + size
         concat = session/'concat.txt'
         concat.write_text(''.join("file '" + str(p.resolve()).replace("'", "'\\''") + "'\n" for p in chunks))
         args.video_output.parent.mkdir(parents=True, exist_ok=True)
@@ -86,12 +138,32 @@ def render_chunked(scene, selected, args):
         stream = probe['streams'][0]
         assert int(stream['nb_frames']) == len(selected), probe
         assert int(stream['width']) == args.width and int(stream['height']) == args.height, probe
+        with args.video_output.open('rb') as saved:
+            os.fsync(saved.fileno())
         state.update(status='PASS', output=str(args.video_output), probe=probe, final_decode='PASS')
         savejson(session/'report.json', state)
         savejson(args.out/'chunk-result.json', dict(state, evidence_directory=str(session)))
         # Only this session's individually decoded chunks, after final decode.
         for chunk in chunks:
-            chunk.unlink()
+            size = chunk.stat().st_size
+            try:
+                chunk.unlink()
+            except OSError as exc:
+                state.setdefault('cleanup_errors', []).append({'path':str(chunk), 'error':str(exc)})
+                continue
+            state['deleted_files'] = state.get('deleted_files', 0) + 1
+            state['deleted_bytes'] = state.get('deleted_bytes', 0) + size
+        size = concat.stat().st_size
+        state['generated_temp_bytes'] += size
+        state['generated_temp_files'] += 1
+        try:
+            concat.unlink()
+            state['deleted_bytes'] = state.get('deleted_bytes', 0) + size
+            state['deleted_files'] = state.get('deleted_files', 0) + 1
+        except OSError as exc:
+            state.setdefault('cleanup_errors', []).append({'path':str(concat), 'error':str(exc)})
+        savejson(session/'report.json', state)
+        savejson(args.out/'chunk-result.json', dict(state, evidence_directory=str(session)))
     except Exception as exc:
         state.update(status='FAIL', error=repr(exc))
         savejson(session/'report.json', state)
