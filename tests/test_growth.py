@@ -47,6 +47,56 @@ class GrowthTests(unittest.TestCase):
             data=copy.deepcopy(self.data); mutate(data)
             with self.assertRaises(ValueError): g.validate_contract(data)
 
+    def test_concise_recut_requires_intact_instruction_and_retains_growth_checks(self):
+        data = copy.deepcopy(self.data)
+        data['duration_seconds'] = 60
+        for i, shot in enumerate(data['shots']):
+            shot.update(start_time=i*20, end_time=(i+1)*20,
+                        time_range=[i*20, (i+1)*20])
+        with self.assertRaises(ValueError):
+            g.validate_contract(data)
+        data['duration_policy_override'] = {
+            'kind': 'user-requested-concise-recut', 'evidence': [self.ref]}
+        self.assertEqual(g.validate_contract(data), 60)
+        data['status'] = 'FROZEN'
+        bp = self.root/'compact.json'; bp.write_text(json.dumps(data))
+        base = self.root/'compact-base.json'
+        base.write_text(json.dumps({'asset':'model','shots':{'motion':{'template':'motion'}}}))
+        out = self.root/'compact-config.json'
+        with patch('mechanical_video_next.blueprint.validate_creative_blueprint'):
+            b.compile_config(bp, base, out)
+        compiled = json.loads(out.read_text())
+        self.assertEqual(compiled['duration_policy_override'], data['duration_policy_override'])
+        self.assertEqual(g.duration_bounds(compiled), (1, 300))
+        data['shots'][1]['new_information'] = 'relation 0'
+        with self.assertRaisesRegex(ValueError, 'Repeated new_information'):
+            g.validate_contract(data)
+        data['shots'][1]['new_information'] = 'relation 1'
+        self.evidence.write_text('changed instruction after freeze')
+        with self.assertRaisesRegex(ValueError, 'instruction evidence'):
+            g.validate_contract(data)
+
+    def test_payoff_can_precede_only_a_final_specific_bridge(self):
+        data = copy.deepcopy(self.data)
+        following = data['growth_goals']['following']
+        following['final_payoff']['shot_id'] = 's1'
+        with self.assertRaisesRegex(ValueError, 'Final payoff'):
+            g.validate_contract(data)
+        following['next_episode_bridge']['shot_id'] = 's2'
+        self.assertEqual(g.validate_contract(data), 180)
+        following['final_payoff']['shot_id'] = 's0'
+        with self.assertRaisesRegex(ValueError, 'Final payoff'):
+            g.validate_contract(data)
+
+    def test_blueprint_cannot_self_authorize_duration_override(self):
+        blueprint = copy.deepcopy(self.data)
+        blueprint['duration_policy_override'] = {
+            'kind': 'user-requested-concise-recut', 'evidence': [self.ref]}
+        task_data = {'protocol_version': 2, 'content_policy_version': 1}
+        with patch.object(w, 'load', return_value=task_data), patch.object(w, 'artifact', return_value=blueprint):
+            with self.assertRaisesRegex(ValueError, 'task authorization'):
+                w.check_production_config(self.root)
+
     def test_compilation_preserves_executable_growth_requirements(self):
         self.data['status']='FROZEN'
         bp=self.root/'bp.json'; bp.write_text(json.dumps(self.data))

@@ -19,11 +19,25 @@ def shot_requirements(shot):
     return {k: shot[k] for k in SHOT_FIELDS}
 
 
+def duration_bounds(data):
+    """Keep the longform default; trace an explicitly requested concise recut."""
+    override = data.get('duration_policy_override')
+    if override is None:
+        return 120, 300
+    from .viral import evidence_exists
+    if (not isinstance(override, dict)
+            or override.get('kind') != 'user-requested-concise-recut'
+            or not evidence_exists(override.get('evidence'))):
+        raise ValueError('Concise recut requires recorded user instruction evidence')
+    return 1, 300
+
+
 def validate_contract(data, requested=None):
     shots = data.get('shots', [])
     duration = data.get('duration_seconds')
-    if not finite(duration) or not 120 <= duration <= 300:
-        raise ValueError('New content duration must be 120–300 seconds')
+    minimum, maximum = duration_bounds(data)
+    if not finite(duration) or not minimum <= duration <= maximum:
+        raise ValueError(f'Content duration must be {minimum}–{maximum} seconds')
     if requested is not None and abs(duration-requested) > 1/30:
         raise ValueError('Blueprint differs from requested duration')
     if not data.get('duration_reason') or not shots:
@@ -68,7 +82,11 @@ def validate_contract(data, requested=None):
                 if key == 'opening_action' and shot is not shots[0]:
                     raise ValueError('Opening action must bind first shot')
                 if key == 'final_payoff' and shot is not shots[-1]:
-                    raise ValueError('Final payoff must bind last shot')
+                    bridge = goals.get('following', {}).get('next_episode_bridge', {})
+                    if (len(shots) < 2 or shot is not shots[-2]
+                            or not isinstance(bridge, dict)
+                            or bridge.get('shot_id') != shots[-1]['shot_id']):
+                        raise ValueError('Final payoff must end the explanation before any final bridge')
     t = goals['retention'].get('first_answer_time')
     answer = ids[goals['retention']['first_answer']['shot_id']]
     if not finite(t) or not answer['start_time'] <= t < answer['end_time']:
@@ -112,11 +130,12 @@ def check_media_duration(blueprint, media):
     import json
     import subprocess
     from pathlib import Path
+    minimum, maximum = duration_bounds(blueprint)
     for item in media:
         if Path(item['path']).suffix.lower() != '.mp4':
             continue
         result = subprocess.run(['ffprobe', '-v', 'error', '-show_format', '-of', 'json', item['path']],
                                 capture_output=True, text=True, check=True)
         duration = float(json.loads(result.stdout)['format']['duration'])
-        if not finite(duration) or not 120 <= duration <= 300 or abs(duration-blueprint['duration_seconds']) > .1:
-            raise ValueError('Actual media duration differs from longform contract')
+        if not finite(duration) or not minimum <= duration <= maximum or abs(duration-blueprint['duration_seconds']) > .1:
+            raise ValueError('Actual media duration differs from content contract')

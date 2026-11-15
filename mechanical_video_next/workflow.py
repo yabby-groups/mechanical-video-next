@@ -392,6 +392,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     from .growth import validate_contract
                     if payload.get('content_policy_version') != 1:
                         raise ValueError('New task requires content_policy_version=1 blueprint')
+                    if payload.get('duration_policy_override') != data.get('duration_policy_override'):
+                        raise ValueError('Blueprint duration override differs from task authorization')
                     validate_contract(payload, data.get('duration'))
                 selected = set(artifact(task, 'viral-analysis').get('selected_ids', []))
                 used = {item.get('reference_id') for item in payload.get('reference_principles', [])}
@@ -629,6 +631,8 @@ def check_production_config(task, config=None):
         from .growth import validate_contract
         if blueprint.get('content_policy_version') != 1:
             raise ValueError('New task requires versioned growth blueprint')
+        if blueprint.get('duration_policy_override') != data.get('duration_policy_override'):
+            raise ValueError('Blueprint duration override differs from task authorization')
         validate_contract(blueprint, data.get('duration'))
     if data.get('production_method') == 'reference-recreation':
         check_recreation(task, blueprint)

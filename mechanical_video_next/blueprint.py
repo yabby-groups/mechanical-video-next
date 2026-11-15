@@ -104,6 +104,10 @@ def compile_config(blueprint, base, output, draft=False):
     if data.get('content_policy_version') == 1:
         from .growth import shot_requirements
         result.update(content_policy_version=1, growth_goals=copy.deepcopy(data['growth_goals']))
+        if 'duration_policy_override' in data:
+            result['duration_policy_override'] = copy.deepcopy(data['duration_policy_override'])
+        else:
+            result.pop('duration_policy_override', None)
         for row, shot in zip(storyboard, data['shots']):
             row.update(shot_requirements(shot))
         for row, shot in zip(mappings, data['shots']):

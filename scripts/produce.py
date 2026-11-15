@@ -396,7 +396,13 @@ def main():
         assert 0<cfg['shots'][selected[0]]['seconds']<=5
     else:
         duration = sum(s['seconds'] for s in cfg['storyboard'])
-        minimum, maximum = (120, 300) if cfg.get('content_policy_version') == 1 else (30, 45)
+        if cfg.get('content_policy_version') == 1:
+            import sys
+            sys.path.insert(0, str(ROOT))
+            from mechanical_video_next.growth import duration_bounds
+            minimum, maximum = duration_bounds(cfg)
+        else:
+            minimum, maximum = 30, 45
         assert minimum <= duration <= maximum, 'Storyboard duration outside its content policy'
     assert len({s['id'] for s in cfg['storyboard']})==len(cfg['storyboard'])
     for s in cfg['storyboard']: assert s['seconds']==cfg['shots'][s['shot']]['seconds']
