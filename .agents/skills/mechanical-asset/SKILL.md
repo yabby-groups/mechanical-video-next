@@ -5,7 +5,7 @@ description: 检索、导入和验证可独立拆解的机械装配资产，记�
 
 # mechanical-asset
 
-新制作的默认模型来源已改为自主参数化 CAD。先读 `.agents/skills/mechanical-research/SKILL.md` 和 `.agents/skills/cad/SKILL.md`，由 MechanicalResearch + CAD 生成独立实体与 STEP/GLB。网络模型下载不是默认路线，登录失败不阻断 CAD。下文导入流程只适用明确选择的既有资产或历史任务。新任务机械门禁独立于视频门禁，每缺陷不设自动修复总轮次上限，无改善更换策略并保留历史。
+未来新任务优先选择可信、匹配且可合法使用的现成媒体，其次检查现成 CAD 装配；仅在没有合格现成内容且有可靠技术依据时自主建模。先查本地已验证参考与资产缓存，再补网络。记录候选、许可范围、未采用原因、具体机构与实际复用口径，不能把许可未知或外观猜测标为合格。遵循 docs/reference-first-contract.md；历史任务保留原策略与状态。
 
 多 Agent 制作时由 Asset 子代理与 Research 并行准备，只输出自己的 asset-plan.json。记录 qualified、实际 model.path/model.sha256、independent_meshes、missing_required_parts、来源与许可、可复用镜头和制作路线。只有实际检查过的资产可合格；无合格资产时 BLOCKED，不生成虚构复杂结构。Producer 用版本化 handoff 交接，不覆盖其他角色产物。
 

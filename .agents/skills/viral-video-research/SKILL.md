@@ -5,7 +5,7 @@ description: 每条机械视频制作前研究可核验的低粉高互动作品�
 
 # Viral video research
 
-当前新任务以 docs/longform-contract.md 为准：120～300秒，Producer按可靠知识与实测Neil旁白决定。growth_goals绑定镜头、机械动作、旁白、可观察证据和检查方法。研究首个答案、中段逐层新知识、机械画面顿悟和结尾兑现。参考用于原创脚本与原创镜头顺序，不复制完整台词或独创镜头序列；本条覆盖下文历史复刻规则。缺少完整观看据实记录。历史任务保持原时长和锁定资产。
+未来新任务先读 docs/reference-first-contract.md：先查本地参考，核验实际观察范围，机械真实性由 MechanicalResearch 独立确认，热度不能作真实性证明。蓝图主要结论必须有 evidence_map；内容不足120秒时保留研究并阻止虚构制作。当前新任务以 docs/longform-contract.md 为准：120～300秒，Producer按可靠知识与实测Neil旁白决定。growth_goals绑定镜头、机械动作、旁白、可观察证据和检查方法。研究首个答案、中段逐层新知识、机械画面顿悟和结尾兑现。参考用于原创脚本与原创镜头顺序，不复制完整台词或独创镜头序列；本条覆盖下文历史复刻规则。缺少完整观看据实记录。历史任务保持原时长和锁定资产。
 
 
 
@@ -26,7 +26,7 @@ Producer 启动该角色后、最终脚本和分镜冻结前执行。先读 READ
 
 每条研究结论映射 requirement_id、shot_id、production_requirement、expected_observable_effect、verification_method、minimal_repair，并记录 decision_basis 与 implementation_cost（无实测金额/时间填 null，可列低/中/高相对成本及依据）。科学知识目标、原始问题、相机、部件、模型、配音字幕与结尾都要明确。使用 `uv run python -m mechanical_video_next.blueprint compile` 将镜头、时长、相机、旁白字幕写入真实生产 JSON；`animatic` 生成实际时间轴 MP4。PROVISIONAL 的占位分镜只用于发现缺陷，不能通过正式门禁。缓存通过 reference_library ingest，未验证蓝图不得进入已验证蓝图库。
 
-输出 viral-analysis.json、reference-videos.md、creative-blueprint.json。蓝图需要核心问题、0–3 秒复刻开场设计、首次运动时间、拆解顺序、特写、标注位置、解说结构、音效、结尾因果解释、每镜头现有资产/模板映射，以及参考原则的原始证据。观察不足时只给 PROVISIONAL 蓝图，不能冻结。按主参考复刻镜头组织和表达方法，旁白结合本题事实重新撰写，媒体由本项目重新制作；其他参考补充主参考的表达。保留来源与使用范围记录。
+输出 viral-analysis.json、reference-videos.md、creative-blueprint.json。蓝图需要核心问题、0–3 秒复刻开场设计、首次运动时间、拆解顺序、特写、标注位置、解说结构、音效、结尾因果解释、每镜头现有资产/模板映射，以及参考原则的原始证据。观察不足时只给 PROVISIONAL 蓝图，不能冻结。为新任务创作原创旁白及视觉编排；参考只约束事实并启发表达，不复制受保护的完整台词、配乐或独创镜头序列。合法匹配的现成内容可经资产检查复用，保留具体来源及许可范围。保留来源与使用范围记录。
 
 Producer 对 observation_basis、mechanics、model_motion、tool_support、unsupported_effects 逐项 PASS / FAIL / UNKNOWN，核对实际模型哈希和验证报告；只有全部 PASS 才交接 feasibility 并冻结蓝图。简化 3D/2.5D/2D 仅在已有实现且有事实依据时使用，不自行假设降级可行。冻结后先低成本 animatic（模型截图/现有预览/临时旁白/字幕/切换）和 3–5 秒关键动作；独立 QA 比较知识目标、提取原则、冻结蓝图与实际媒体。UNKNOWN 阻止高清制作与 COMPLETED。QA 保存真实 MP4 哈希、连续/抽样/听审能力与覆盖。修复不设总轮次上限；未改善更换策略，保留证据并持续独立复验。
 
