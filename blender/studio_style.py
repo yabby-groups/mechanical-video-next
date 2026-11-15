@@ -86,7 +86,7 @@ def apply(profile, objects, frames, camera, options=None):
         light.data.shape = 'DISK'
         light.data.size = size*light_scale*options.get(name.lower()+'_size',1.0)
         light.rotation_euler = (light_center-light.location).to_track_quat('-Z','Y').to_euler()
-    if len(frames)>1:
+    if len(frames)>1 and options.get('camera_push', True):
         scale = camera.data.ortho_scale
         camera.data.ortho_scale = scale*1.02
         camera.data.keyframe_insert('ortho_scale',frame=frames[0])
