@@ -262,6 +262,35 @@ def make_asset(cfg, out):
     savejson(out.with_suffix('.inventory.json'), {'parts': inventory, 'count':len(inventory), 'independent_meshes':True})
 
 
+def source_mesh_smooth_normals(mesh, angle_degrees):
+    """Shade coincident CAD triangles smoothly without changing their geometry.
+
+    CAD tessellation can duplicate vertices at face boundaries. Average only
+    adjoining normals within the requested crease angle, preserving hard edges.
+    This is opt-in and must not be used on animated deforming source meshes.
+    """
+    if (isinstance(angle_degrees, bool) or not isinstance(angle_degrees, (int, float))
+            or not 0 < angle_degrees < 90):
+        raise ValueError('smooth_angle_degrees must be between 0 and 90')
+    mesh.update()
+    groups = {}
+    keys = [tuple(round(c, 10) for c in vertex.co) for vertex in mesh.vertices]
+    for face in mesh.polygons:
+        for index in face.vertices:
+            groups.setdefault(keys[index], {})[face.index] = face
+    threshold = math.cos(math.radians(angle_degrees))
+    normals = [None] * len(mesh.loops)
+    for face in mesh.polygons:
+        face.use_smooth = True
+        for loop_index in face.loop_indices:
+            neighbors = groups[keys[mesh.loops[loop_index].vertex_index]].values()
+            normal = sum((other.normal * other.area for other in neighbors
+                          if face.normal.dot(other.normal) >= threshold), Vector())
+            normals[loop_index] = tuple(normal.normalized() if normal.length else face.normal)
+    mesh.normals_split_custom_set(normals)
+    mesh['source_smooth_angle_degrees'] = angle_degrees
+
+
 def make_source_asset(cfg, out):
     """Import licensed independent source meshes; no inferred hidden geometry."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -340,6 +369,10 @@ def make_source_asset(cfg, out):
         mesh=bpy.data.meshes.new(spec['name'])
         mesh.from_pydata(spec['vertices'],[],spec['faces'])
         mesh.update()
+        if 'smooth_angle_degrees' in spec:
+            if spec.get('shape_keys'):
+                raise ValueError('Static custom normals cannot be used with deforming shape keys')
+            source_mesh_smooth_normals(mesh, spec['smooth_angle_degrees'])
         obj=bpy.data.objects.new(spec['name'],mesh)
         bpy.context.scene.collection.objects.link(obj)
         finish(obj,spec['name'],palette[spec.get('material','steel')],
