@@ -128,6 +128,7 @@ class GrowthTests(unittest.TestCase):
         with patch.object(w,'artifact',return_value={'selected_ids':['r']}), patch('mechanical_video_next.viral.validate_creative_blueprint'):
             # Satisfy immutable DAG prerequisites using a historical ledger fixture.
             data=w.load(task)
+            data.pop('reference_policy_version')
             for dep in w.V2_DEPENDENCIES['creative-blueprint']: data['handoffs'][dep]={'sha256':'unit'}
             w.write(task/'task.json',data)
             with self.assertRaisesRegex(ValueError,'content_policy_version'):

@@ -34,7 +34,7 @@ class MultiRouteTests(unittest.TestCase):
             plan = Path(tmp) / 'plan.json'
             plan.write_text(json.dumps({'steps': [{'id': 'bad', 'command': ['python', 'x.py'], 'outputs': []}]}))
             with self.assertRaises(ValueError):
-                run_plan(tmp, plan)
+                run_plan(tmp, plan, legacy_workprint=True)
 
     def test_timeline_difference_is_not_silently_truncated(self):
         from mechanical_video_next.multiroute import validate_timeline
@@ -128,7 +128,7 @@ class MultiRouteTests(unittest.TestCase):
             plan.write_text(json.dumps({'prerequisite_inputs': [str(Path(tmp) / 'research.json')], 'steps': []}))
             with patch('mechanical_video_next.multiroute.command') as command:
                 with self.assertRaisesRegex(ValueError, 'before any render or paid audio'):
-                    run_plan(tmp, plan)
+                    run_plan(tmp, plan, legacy_workprint=True)
                 command.assert_not_called()
             self.assertEqual(json.loads((Path(tmp) / 'state.json').read_text())['history'][-1]['event'], 'prerequisite_missing')
 
@@ -172,6 +172,8 @@ class MultiRouteTests(unittest.TestCase):
             data = workflow.load(task)
             folder = Path(tmp) / 'delivery'
             data['shared_production']['comparison_directory'] = str(folder)
+            # Historical ledger fixture for bookkeeping, without production QA.
+            data.pop('reference_policy_version')
             workflow.write(task / 'task.json', data)
             plan = Path(tmp) / 'plan.json'
             plan.write_text(json.dumps({'topic': '指甲刀', 'routes': dict.fromkeys(data['requested_routes'], 'fixture.mp4')}))

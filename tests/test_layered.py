@@ -50,6 +50,10 @@ class LayeredTests(unittest.TestCase):
 
     def test_producer_route_and_illustrated_asset(self):
         task=w.create_task('test',root=self.root)
+        # Exercise the historical illustrated contract; new reference-first
+        # layered sources are covered in test_reference_workflow.
+        data=w.load(task); data.pop('reference_policy_version')
+        w.write(task/'task.json',data)
         w.select_route(task,'2.5d','structure illustration')
         payload={'qualified':True,'render_route':'2.5d','source_files':[{'path':str(self.source),'sha256':filehash(self.source)}]}
         with patch.object(w,'artifact',return_value=payload):

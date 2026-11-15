@@ -28,6 +28,8 @@ def validate(data):
     if data.get('content_policy_version') == 1:
         from .growth import validate_contract
         validate_contract(data)
+    if data.get('reference_policy_version') == 1 and not all(data.get(k) for k in ('evidence_map', 'content_timing')):
+        raise ValueError('Reference-first blueprint requires evidence_map and content_timing')
     maximum = 300 if data.get('content_policy_version') == 1 else 120
     end, ids = 0, set()
     for s in data['shots']:
@@ -112,6 +114,11 @@ def compile_config(blueprint, base, output, draft=False):
             row.update(shot_requirements(shot))
         for row, shot in zip(mappings, data['shots']):
             row.update(shot_requirements(shot))
+    if data.get('reference_policy_version') == 1:
+        for key in ('reference_policy_version', 'evidence_map', 'content_timing'):
+            result[key] = copy.deepcopy(data[key])
+        for row, shot in zip(result['storyboard'], data['shots']):
+            row['knowledge_ids'] = copy.deepcopy(shot['knowledge_ids'])
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),
                    blueprint_program_sha256=result['blueprint_program_sha256'],

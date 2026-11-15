@@ -14,8 +14,9 @@ class CADWorkflowTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.task = w.create_task('molded zipper', root=self.root,
                                   asset_strategy='autonomous-cad')
-        # Isolate mechanical acceptance; reference-first admission is tested separately.
+        # Historical ledger isolates mechanical acceptance from the new reference contract.
         data = w.load(self.task)
+        data.pop('reference_policy_version')
         data['autonomy_policy']['reference_first'] = False
         w.write(self.task / 'task.json', data)
         w.put_handoff(self.task, 'MechanicalResearch', 'research', {'fixture': True})
@@ -39,6 +40,13 @@ class CADWorkflowTests(unittest.TestCase):
                    'issues': []}
         w.put_handoff(self.task, 'Animation', 'mechanical-diagnostics',
                       {'media': self.qa['media']}, ['research', 'asset-plan', 'cad-model'])
+
+    def historical_reference_task(self, topic):
+        task = w.create_task(topic, root=self.root, asset_strategy='autonomous-cad')
+        data = w.load(task)
+        data.pop('reference_policy_version')
+        w.write(task / 'task.json', data)
+        return task
 
     def handoff_qa(self):
         return w.put_handoff(self.task, 'QA', 'mechanical-qa', self.qa,
@@ -78,13 +86,14 @@ class CADWorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Missing handoff: mechanical-qa'):
             w.run_stage(self.task, 'keys', config, diagnostic=True)
 
-    def test_default_new_task_uses_autonomous_cad(self):
+    def test_default_new_task_uses_reference_first(self):
         other = w.create_task('new mechanical topic', root=self.root)
-        self.assertEqual(w.load(other)['asset_strategy'], 'autonomous-cad')
+        self.assertEqual(w.load(other)['asset_strategy'], 'reference-first')
+        self.assertEqual(w.load(other)['reference_policy_version'], 1)
         self.assertTrue(w.load(other)['autonomy_policy']['reference_first'])
 
     def test_missing_qualified_reference_blocks_cad_admission(self):
-        other = w.create_task('new mechanical topic', root=self.root)
+        other = self.historical_reference_task('new mechanical topic')
         w.put_handoff(other, 'MechanicalResearch', 'research', {'fixture': True})
         with self.assertRaisesRegex(ValueError, 'Missing handoff: viral-analysis'):
             w.put_handoff(other, 'CAD', 'cad-model', {'files': self.files}, ['research'])
@@ -92,7 +101,7 @@ class CADWorkflowTests(unittest.TestCase):
 
     def test_observed_physical_reference_without_metrics_allows_cad_admission(self):
         from mechanical_video_next import viral
-        other = w.create_task('ordinary machine', root=self.root)
+        other = self.historical_reference_task('ordinary machine')
         w.put_handoff(other, 'MechanicalResearch', 'research', {'fixture': True})
         evidence = [self.files['source']]  # Schema fixture only, not a real viewing claim.
         report = viral.analyze({

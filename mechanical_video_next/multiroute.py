@@ -231,11 +231,24 @@ def finalize(folder, paths, evidence_paths=()):
         raise
 
 
-def run_plan(folder, plan_path, env_file=None, extra_evidence=()):
+def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workprint=False):
     """Run already-authored deterministic commands serially, never spawn agents."""
     folder = Path(folder)
-    state = json.loads((folder / 'state.json').read_text())
     plan = json.loads(Path(plan_path).read_text())
+    contexts = [*extra_evidence, *plan.get('evidence', [])]
+    if plan.get('task'):
+        contexts.append(str(Path(plan['task']) / 'task.json'))
+    if not any(Path(p).name == 'task.json' for p in contexts) and not legacy_workprint:
+        raise ValueError('Task context required; standalone historical plans require explicit legacy_workprint')
+    for evidence in contexts:
+        evidence = Path(evidence)
+        if evidence.name == 'task.json' and json.loads(evidence.read_text()).get('reference_policy_version') == 1:
+            from .workflow import require_animatic, artifact
+            from .reference_policy import validate_route_plan
+            require_animatic(evidence.parent)
+            binding = artifact(evidence.parent, 'content-qa').get('route_plan', {})
+            validate_route_plan(plan_path, binding)
+    state = json.loads((folder / 'state.json').read_text())
     state['last_run'] = {'started_epoch': time.time(), 'cache_hits': 0, 'executed_steps': 0}
     state['status'] = 'RUNNING'
     missing = [path for path in plan.get('prerequisite_inputs', []) if not Path(path).is_file()]
@@ -305,11 +318,15 @@ def main():
     for flag in ('2d', '25d', '3d'):
         p.add_argument('--route-' + flag, required=True)
     p = sub.add_parser('run'); p.add_argument('folder'); p.add_argument('--plan', required=True)
+    p.add_argument('--task', type=Path)
+    p.add_argument('--legacy-workprint', action='store_true')
     args = parser.parse_args()
     if args.action == 'prepare':
         result = prepare(args.output, args.topic)
     elif args.action == 'run':
-        result = run_plan(args.folder, args.plan)
+        result = run_plan(args.folder, args.plan,
+                          extra_evidence=[args.task / 'task.json'] if args.task else (),
+                          legacy_workprint=args.legacy_workprint)
     else:
         result = finalize(args.folder, {'2d': args.route_2d, '2.5d': args.route_25d, '3d': args.route_3d}, args.evidence)
     print(json.dumps(result, ensure_ascii=False, indent=2))

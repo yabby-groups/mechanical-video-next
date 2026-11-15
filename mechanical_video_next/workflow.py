@@ -22,7 +22,7 @@ ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
          'Producer': {'feasibility', 'diagnostic-animatic'},
          'Animation': {'animation-manifest', 'animatic-manifest', 'mechanical-diagnostics'},
          'Editor': {'timeline', 'audio-preparation'},
-         'QA': {'preview-qa', 'final-qa', 'animatic-qa', 'diagnostic-qa', 'mechanical-qa'}}
+         'QA': {'preview-qa', 'final-qa', 'content-qa', 'animatic-qa', 'diagnostic-qa', 'mechanical-qa'}}
 NEXT = {'CREATED': 'RESEARCHING', 'RESEARCHING': 'ASSET_READY',
         'ASSET_READY': 'ANIMATING', 'ANIMATING': 'PREVIEW_READY',
         'PREVIEW_READY': 'PREVIEW_CHECKING', 'PREVIEW_CHECKING': 'EDITING',
@@ -120,7 +120,7 @@ def event(task, kind, **fields):
 
 
 def create_task(topic, duration=None, voice=None, config=None, task_id=None, root=ROOT,
-                protocol_version=2, asset_strategy='autonomous-cad', routes='all'):
+                protocol_version=2, asset_strategy='reference-first', routes='all'):
     requested_routes = ['2d', '2.5d', '3d'] if routes == 'all' else [routes]
     if not set(requested_routes) <= {'2d', '2.5d', '3d'}:
         raise ValueError('Unsupported requested routes')
@@ -133,7 +133,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         raise ValueError(f'Nonempty topic and duration {minimum_duration}–{maximum_duration} required for protocol {protocol_version}')
     if protocol_version == 1:
         asset_strategy = None  # Explicit historical tasks retain their original asset contract.
-    elif asset_strategy not in {'autonomous-cad', 'verified-existing', 'illustrated'}:
+    elif asset_strategy not in {'reference-first', 'existing-media', 'autonomous-cad', 'verified-existing', 'illustrated'}:
         raise ValueError('New tasks require an explicit supported asset strategy')
     identity = task_id or ('production-' + str(time.time_ns()))
     if not re.fullmatch(r'[A-Za-z0-9_-]+', identity):
@@ -149,6 +149,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                  tokens=None, tokens_source='Not exposed to deterministic runner',
                  agent_runs=[], engineering_changes=None)
     if protocol_version == 2:
+        value['reference_policy_version'] = 1
         value['content_policy_version'] = 1
         value['duration_policy'] = {'minimum': 120, 'maximum': 300, 'mode': 'knowledge-driven' if duration is None else 'requested', 'requested_seconds': duration}
         value['production_method'] = ('original-shared-script-three-routes'
@@ -333,6 +334,8 @@ or a one-to-one mapping to an existing video's shot sequence.
 Independent QA checks the original teaching goals, actual mechanical evidence, frozen blueprint,
 exact media, all three route hashes and shared timeline. Scientific and sensory gates remain.
 ''' + prompt[end:]
+    if value.get('reference_policy_version') == 1:
+        prompt += '\nReference policy v1 overrides historical asset instructions: read docs/reference-first-contract.md. Search verified local references first; prefer legal existing-media, then verified-existing assemblies, then evidence-based CAD. No appearance-only internal inventions. Bind research/asset-plan/evidence_map/content_timing and independent content-qa before production. Preserve approved style, original expression and all historical assets.\n'
     (task / 'producer-prompt.md').write_text(prompt)
     event(task, 'created', topic=topic)
     return task
@@ -367,6 +370,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
             deps[dep] = data['handoffs'][dep]['sha256']
         v2 = protocol_version(data) == 2
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
+        if data.get('reference_policy_version') == 1:
+            if name == 'creative-blueprint':
+                required = required | {'research', 'asset-plan'}
+            elif name == 'content-qa':
+                required = {'creative-blueprint', 'research', 'asset-plan'}
         if not v2 and name in {'viral-analysis', 'creative-blueprint', 'feasibility',
                                'animatic-manifest', 'animatic-qa',
                                'diagnostic-animatic', 'diagnostic-qa'}:
@@ -401,6 +409,28 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     raise ValueError('Blueprint principles must bind selected observed references')
                 if data.get('production_method') == 'reference-recreation':
                     check_recreation(task, payload)
+        if data.get("reference_policy_version") == 1:
+            from . import reference_policy as rp
+            if name == "research":
+                rp.validate_research(payload)
+            elif name == 'cad-model':
+                chosen = artifact(task, 'asset-plan')
+                rp.validate_asset(artifact(task, 'research'), chosen)
+                if chosen['strategy'] != 'autonomous-cad':
+                    raise ValueError('New CAD requires prior evidence-based asset selection')
+            elif name == "asset-plan":
+                rp.validate_asset(artifact(task, "research"), payload)
+            elif name == "creative-blueprint":
+                if payload.get('reference_policy_version') != 1:
+                    raise ValueError('New blueprint requires reference_policy_version=1')
+                rp.validate_plan(payload, artifact(task, "research"), artifact(task, "asset-plan"))
+            elif name == "content-qa":
+                rp.validate_preproduction(artifact(task, "creative-blueprint"), artifact(task, "research"), artifact(task, "asset-plan"), payload)
+                reviewer = payload.get("reviewer_thread_id")
+                if not reviewer or reviewer in {r["thread_id"] for r in data["agent_runs"] if r["role"] != "QA"}:
+                    raise ValueError("Independent content QA reviewer required")
+            elif name == "final-qa":
+                rp.validate_final_report(payload.get("reference_report", {}), payload.get("media", []))
         if v2 and name == 'feasibility':
             checks = payload.get('checks', {})
             if not FEASIBILITY_CHECKS <= set(checks) or any(
@@ -460,6 +490,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if (Path(task) / path).exists():
             raise ValueError('Immutable handoff already exists')
         write(Path(task) / path, envelope)
+        if data.get('reference_policy_version') == 1 and name == 'asset-plan':
+            data['asset_strategy'] = payload['strategy']
         data['handoffs'][name] = dict(path=path, version=version, sha256=envelope['sha256'])
         write(Path(task) / 'task.json', data)
         event(task, 'handoff', role=role, name=name, version=version,
@@ -487,7 +519,7 @@ def check_media(evidence):
         raise ValueError('Actual media evidence is required')
     for item in evidence:
         path = Path(item['path'])
-        if path.suffix.lower() not in {'.mp4', '.png', '.wav', '.jpg', '.m4a'}:
+        if path.suffix.lower() not in {'.mp4', '.png', '.wav', '.jpg', '.jpeg', '.webp', '.m4a'}:
             raise ValueError('Evidence must reference media, not a log')
         if not path.is_file() or filehash(path) != item['sha256']:
             raise ValueError('Media evidence missing or changed')
@@ -497,6 +529,9 @@ def check_qa(task, name):
     if name not in {'preview-qa', 'animatic-qa', 'final-qa'}:
         raise ValueError('Diagnostic reports cannot grant production acceptance')
     qa = artifact(task, name)
+    if name == 'final-qa' and load(task).get('reference_policy_version') == 1:
+        from .reference_policy import validate_final_report
+        validate_final_report(qa.get('reference_report', {}), qa.get('media', []))
     check_media(qa.get('media'))
     production = artifact(task, {'preview-qa': 'animation-manifest',
                                  'animatic-qa': 'animatic-manifest',
@@ -529,6 +564,13 @@ def check_qa(task, name):
 
 def check_asset(task):
     asset = artifact(task, 'asset-plan')
+    if load(task).get('reference_policy_version') == 1:
+        from .reference_policy import validate_asset
+        validate_asset(artifact(task, 'research'), asset)
+        if asset['strategy'] == 'existing-media':
+            candidate = next(c for c in asset['candidates'] if c.get('id') == asset['selected_candidate_id'])
+            check_media(candidate['source_files'])
+            return asset
     if asset.get('qualified') is not True:
         raise ValueError('Asset not qualified')
     if load(task).get('asset_strategy') == 'illustrated':
@@ -607,6 +649,15 @@ def require_mechanical(task):
     return qa
 
 
+def require_reference_content(task):
+    if load(task).get("reference_policy_version") != 1:
+        return
+    from .reference_policy import validate_preproduction
+    return validate_preproduction(artifact(task, "creative-blueprint"),
+                                 artifact(task, "research"), artifact(task, "asset-plan"),
+                                 artifact(task, "content-qa"))
+
+
 def require_animatic(task):
     """Fail closed for full renders; a v1 ledger is an explicit legacy path."""
     if protocol_version(load(task)) == 1:
@@ -627,6 +678,7 @@ def check_production_config(task, config=None):
     if protocol_version(data) == 1:
         return
     blueprint = artifact(task, 'creative-blueprint')
+    require_reference_content(task)
     if data.get('content_policy_version') == 1:
         from .growth import validate_contract
         if blueprint.get('content_policy_version') != 1:
@@ -649,12 +701,23 @@ def check_production_config(task, config=None):
     if not expected.is_file() or filehash(expected) != binding['sha256']:
         raise ValueError('Production config missing or changed after blueprint freeze')
     compiled = json.loads(expected.read_text())
+    if data.get('reference_policy_version') == 1:
+        for key in ('evidence_map', 'content_timing'):
+            if compiled.get(key) != blueprint.get(key):
+                raise ValueError('Executable config lost reference evidence: ' + key)
     route = compiled.get('render_route', '3d')
-    if data.get('asset_strategy') == 'illustrated':
+    reference_layers = (data.get('reference_policy_version') == 1
+                        and data.get('asset_strategy') == 'existing-media'
+                        and route in {'2d', '2.5d'})
+    if data.get('asset_strategy') == 'illustrated' or reference_layers:
         asset = check_asset(task)
         if route != asset['render_route'] or data.get('render_route', route) != route:
             raise ValueError('Illustrated route differs from approved asset')
-        approved = {(str((ROOT / f['path']).resolve()), f['sha256']) for f in asset['source_files']}
+        sources = asset.get('source_files', [])
+        if reference_layers:
+            sources = next(c['source_files'] for c in asset['candidates']
+                           if c.get('id') == asset['selected_candidate_id'])
+        approved = {(str((ROOT / f['path']).resolve()), f['sha256']) for f in sources}
         for shot in compiled.get('shots', {}).values():
             if shot.get('template') != 'layered' or shot.get('render_route') != route or not shot.get('layers'):
                 raise ValueError('Illustrated config requires matching layered shots')
@@ -952,6 +1015,18 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     if phase not in {'asset', 'checks', 'keys', 'local', 'preview', 'final'}:
         raise ValueError('Unsupported stage')
     data = load(task)
+    if data.get('reference_policy_version') == 1:
+        if phase == 'asset':
+            from .reference_policy import validate_asset
+            chosen = artifact(task, 'asset-plan')
+            validate_asset(artifact(task, 'research'), chosen)
+            if chosen['strategy'] != 'autonomous-cad':
+                raise ValueError('Asset generation requires evidence-based CAD selection; reuse approved assets directly')
+        elif phase in {'preview', 'final'}:
+            require_reference_content(task)
+        if data.get('asset_strategy') == 'existing-media' and not (
+                phase != 'asset' and json.loads(Path(config).read_text()).get('render_route') in {'2d', '2.5d'}):
+            raise ValueError('Existing media requires an authored editing route plan; do not invoke CAD rendering')
     if data.get('asset_strategy') == 'autonomous-cad' and phase != 'asset':
         candidate_config = json.loads(Path(config).read_text())
         if candidate_config.get('render', {}).get('preview_native'):
@@ -1053,7 +1128,8 @@ def select_route(task, route, reason):
         if data['state'] not in {'CREATED', 'RESEARCHING'} or any(
                 name in data['handoffs'] for name in ('asset-plan', 'creative-blueprint', 'feasibility')):
             raise ValueError('Select route before asset and blueprint handoffs')
-        data['asset_strategy'] = 'autonomous-cad' if route == '3d' else 'illustrated'
+        if data.get('reference_policy_version') != 1:
+            data['asset_strategy'] = 'autonomous-cad' if route == '3d' else 'illustrated'
         data['render_route'] = route
         write(Path(task) / 'task.json', data)
         event(task, 'route_selected', route=route, reason=reason)
@@ -1067,7 +1143,7 @@ def main():
     p.add_argument('--topic')
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
-    p.add_argument('--asset-strategy', choices=['autonomous-cad','verified-existing','illustrated'], default='autonomous-cad')
+    p.add_argument('--asset-strategy', choices=['reference-first','existing-media','autonomous-cad','verified-existing','illustrated'], default='reference-first')
     p.add_argument('--duration', type=int, default=None, help='Target seconds: protocol 2 knowledge-driven (120–300); protocol 1 defaults to 45 (30–45)')
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
@@ -1143,6 +1219,8 @@ def main():
     if args.command == 'route-run':
         from .multiroute import prepare, run_plan
         data = load(args.task)
+        if data.get('reference_policy_version') == 1:
+            require_animatic(args.task)
         plan_data = json.loads(args.plan.read_text())
         if plan_data.get('topic') and plan_data['topic'] != data['topic']:
             raise ValueError('Adapter topic does not match task; arbitrary topics require their own production plan')
