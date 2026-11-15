@@ -889,6 +889,64 @@ def repair_attempt(task, issue_id, strategy, score):
     return issue
 
 
+def require_hd_workprint_request(task, config):
+    """Verify explicit native-HD candidate authorization without granting acceptance."""
+    data = load(task)
+    binding = data.get('hd_workprint_authorization', {})
+    source = Path(binding.get('path', ''))
+    if not source.is_file() or filehash(source) != binding.get('sha256'):
+        raise ValueError('HD workprint requires a bound explicit user request')
+    request = json.loads(source.read_text())
+    if (request.get('kind') != 'explicit-user-native-hd-candidate'
+            or not request.get('user_request', '').strip()
+            or request.get('formal_acceptance') is not False
+            or request.get('config_sha256') != filehash(config)):
+        raise ValueError('HD workprint authorization does not bind this candidate')
+    baseline = request.get('baseline_config', {})
+    baseline_path = Path(baseline.get('path', ''))
+    if not baseline_path.is_file() or filehash(baseline_path) != baseline.get('sha256'):
+        raise ValueError('HD workprint source config binding is invalid')
+    expected_config = json.loads(baseline_path.read_text())
+    expected_config['render']['preview_native'] = True
+    # Native frame sampling can change the studio's derived AABB floor anchor.
+    # Permit only a small, evidenced scalar correction, never motion/geometry edits.
+    for correction in request.get('derived_floor_corrections', []):
+        evidence = correction.get('evidence', {})
+        evidence_path = Path(evidence.get('path', ''))
+        old, new = correction.get('from'), correction.get('to')
+        if (not evidence_path.is_file() or filehash(evidence_path) != evidence.get('sha256')
+                or not isinstance(old, (int, float)) or not isinstance(new, (int, float))
+                or not 0 < abs(new - old) <= .001):
+            raise ValueError('Native-HD floor correction requires bounded, hashed evidence')
+        lighting = expected_config['shots'][correction['shot_id']]['studio_lighting']
+        if lighting.get('floor_gap') != old:
+            raise ValueError('Native-HD floor correction source changed')
+        lighting['floor_gap'] = new
+    candidate_config = json.loads(Path(config).read_text())
+    if (candidate_config != expected_config
+            or tuple(candidate_config['render'].get(k) for k in ('width', 'height', 'fps')) != (1920, 1080, 30)):
+        raise ValueError('HD workprint may only enable native resolution on the reviewed source')
+    qa = artifact(task, 'animatic-qa')
+    current = data['handoffs']['animatic-qa']
+    if request.get('baseline_animatic_qa_sha256') != current['sha256']:
+        raise ValueError('HD workprint baseline QA changed')
+    checks = qa.get('checks', {})
+    if not checks or any(v not in {'PASS', 'UNKNOWN'} for v in checks.values()):
+        raise ValueError('Known failed or invalid QA cannot authorize HD workprint')
+    if any(i.get('severity') in {'critical', 'major', 'error'} for i in qa.get('issues', [])):
+        raise ValueError('Unresolved major defects block HD workprint')
+    media = qa.get('media', [])
+    check_media(media)
+    if request.get('baseline_media_sha256') not in {m['sha256'] for m in media}:
+        raise ValueError('HD workprint must bind the exact reviewed baseline media')
+    asset = check_asset(task)
+    if (asset.get('qualified') is not True or asset.get('independent_meshes') is not True
+            or asset.get('missing_required_parts') != []):
+        raise ValueError('HD workprint requires the qualified existing asset')
+    event(task, 'hd_workprint_authorized', request=binding, config_sha256=filehash(config),
+          formal_acceptance=False)
+
+
 def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=False):
     """Execute existing deterministic script once; serialize all Blender work."""
     if phase not in {'asset', 'checks', 'keys', 'local', 'preview', 'final'}:
@@ -897,7 +955,10 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     if data.get('asset_strategy') == 'autonomous-cad' and phase != 'asset':
         candidate_config = json.loads(Path(config).read_text())
         if candidate_config.get('render', {}).get('preview_native'):
-            require_mechanical(task)
+            if phase == 'local' and workprint and not diagnostic:
+                require_hd_workprint_request(task, config)
+            else:
+                require_mechanical(task)
     if diagnostic:
         # Inspect an evidenced candidate without granting production approval.
         # Never permit this route to render a full preview, final, or montage.
@@ -1031,7 +1092,7 @@ def main():
             p.add_argument('--config', required=True, type=Path)
             p.add_argument('--env-file', type=Path)
             p.add_argument('--workprint', action='store_true',
-                           help='Explicitly render unaccepted final workprint after preview QA UNKNOWN')
+                           help='Explicitly render an unaccepted final workprint, or bound user-authorized native-HD local candidate')
             p.add_argument('--diagnostic', action='store_true',
                            help='Inspect one evidenced candidate shot, at most five seconds; never full production')
         elif name == 'handoff':
