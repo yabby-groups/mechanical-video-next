@@ -1,7 +1,37 @@
 ---
 name: viral-video-research
-description: 每条机械视频制作前研究可核验的低粉高互动作品，分析实际媒体、选定主参考并交接逐镜头复刻蓝图；不预测爆款，不改渲染代码。
+description: 每条机械视频制作前研究可核验的低粉高互动作品，分析实际媒体与可迁移表达，交接有证据映射的原创蓝图；不预测爆款，不改渲染代码。
 ---
+
+## 2026-11-16 单一主参考与方案淘汰（覆盖旧局部修复规则）
+
+先查本地参考，再实际连续观看并选定一条合格主参考，确认可识别的真实产品、实际操作和同一具体机构。记录来源、产品/型号、观看方法、实际区间、关键动作时间码及未知项；未观看、只读标题/摘要或截图均不合格。补充手册、拆解或专利只用于核对该产品的同一机构，不拼接不同实施例。主参考不足以证明隐藏结构时继续研究，不先猜测建模。
+
+先检查结构正确、零件可独立运动且许可匹配的现成3D装配；只有找不到合格资产且产品和机构证据充分时才自主CAD。产品身份错误、机构依据错误或无法对应真实操作属于根本错误：立即淘汰该方案，保留失败原因与历史，重新选择合格参考和资产；`until_pass`不授权对错误方案无限局部修补。已验证正确方案的字幕、遮挡、相机等局部问题才按责任修复。
+
+完整制作前先交付连续10–15秒真实3D动作预览，依次看清“真实产品外形与用途—用户操作—旋转/功能输出—外部与内部零件对应—核心运动及回程”。不是独立零件空转、静态拼图或互不连贯的测试镜头。沿用现有研究、蓝图、handoff和独立QA报告，绑定精确媒体/音频SHA256、观看区间、实际观察与能力；独立QA确认产品识别、操作对应、机械因果及可理解性全部PASS后，才继续完整动态分镜和全片3D制作。没有连续观看/听审能力仍为UNKNOWN并阻止通过，不能用截图、数值测试或代码检查替代。
+
+保留浅灰摄影棚、金属语言、Neil、1920×1080/30fps和单行大字号字幕。研究、代码修改、CAD及局部测试完成仅为子任务完成；完整3D影片、双比例封面、来源/来源链、机械与理解QA及五目标增长报告实际提供给用户才构成交付。只修订现有流程，不开发新的QA系统。
+
+
+## 2026-11-16 3D-only production — highest priority
+
+New production is permanently 3D-only: `requested_routes=["3d"]`, `render_route="3d"`.
+Requests for `2d`, `2.5d`, `all`, illustrated or layered mechanical subjects fail explicitly.
+Never downgrade a failed 3D shot or replace its action with images or text. Licensed,
+verified 3D assemblies take priority; otherwise model from reliable product evidence.
+Every core shot needs inspectable 3D geometry, camera, spatial motion, scene and render
+provenance bound through the complete MP4 build in `3d-provenance.json`. A name, extension,
+perspective screenshot or ffprobe result is insufficient. Subtitles and explanatory
+overlays may accompany real 3D; they cannot replace the mechanism.
+Deliver one 1920×1080/30fps 3D film with Neil, both 3:4 and 4:3 covers, references,
+provenance, mechanical/comprehension QA and five-goal growth report. No comparison or
+other route is required. Preserve historical media/data; historical route examples
+below are read-only documentation, not authorization to produce them. Continue scoped
+repair until actual delivery or a documented external evidence/tool/resource boundary;
+never claim UNKNOWN as acceptance. Do not recreate the pull-back car.
+
+
 
 # Viral video research
 
@@ -26,14 +56,20 @@ Producer 启动该角色后、最终脚本和分镜冻结前执行。先读 READ
 
 每条研究结论映射 requirement_id、shot_id、production_requirement、expected_observable_effect、verification_method、minimal_repair，并记录 decision_basis 与 implementation_cost（无实测金额/时间填 null，可列低/中/高相对成本及依据）。科学知识目标、原始问题、相机、部件、模型、配音字幕与结尾都要明确。使用 `uv run python -m mechanical_video_next.blueprint compile` 将镜头、时长、相机、旁白字幕写入真实生产 JSON；`animatic` 生成实际时间轴 MP4。PROVISIONAL 的占位分镜只用于发现缺陷，不能通过正式门禁。缓存通过 reference_library ingest，未验证蓝图不得进入已验证蓝图库。
 
-输出 viral-analysis.json、reference-videos.md、creative-blueprint.json。蓝图需要核心问题、0–3 秒复刻开场设计、首次运动时间、拆解顺序、特写、标注位置、解说结构、音效、结尾因果解释、每镜头现有资产/模板映射，以及参考原则的原始证据。观察不足时只给 PROVISIONAL 蓝图，不能冻结。为新任务创作原创旁白及视觉编排；参考只约束事实并启发表达，不复制受保护的完整台词、配乐或独创镜头序列。合法匹配的现成内容可经资产检查复用，保留具体来源及许可范围。保留来源与使用范围记录。
+输出 viral-analysis.json、reference-videos.md、creative-blueprint.json。蓝图需要核心问题、0–3秒原创开场设计、首次运动时间、拆解顺序、特写、标注位置、解说结构、音效、结尾因果解释、每镜头现有资产/模板映射，以及参考原则的原始证据。观察不足时只给 PROVISIONAL 蓝图，不能冻结。为新任务创作原创旁白及视觉编排；参考只约束事实并启发表达，不复制受保护的完整台词、配乐或独创镜头序列。合法匹配的现成3D装配可经资产检查复用，保留具体来源及许可范围。保留来源与使用范围记录。
 
-Producer 对 observation_basis、mechanics、model_motion、tool_support、unsupported_effects 逐项 PASS / FAIL / UNKNOWN，核对实际模型哈希和验证报告；只有全部 PASS 才交接 feasibility 并冻结蓝图。简化 3D/2.5D/2D 仅在已有实现且有事实依据时使用，不自行假设降级可行。冻结后先低成本 animatic（模型截图/现有预览/临时旁白/字幕/切换）和 3–5 秒关键动作；独立 QA 比较知识目标、提取原则、冻结蓝图与实际媒体。UNKNOWN 阻止高清制作与 COMPLETED。QA 保存真实 MP4 哈希、连续/抽样/听审能力与覆盖。修复不设总轮次上限；未改善更换策略，保留证据并持续独立复验。
+Producer 对 observation_basis、mechanics、model_motion、tool_support、unsupported_effects 逐项 PASS / FAIL / UNKNOWN，核对实际模型哈希和验证报告；只有全部 PASS 才交接 feasibility 并冻结蓝图。3D简化必须保留关键机构并有事实依据，明确教学近似；禁止降级为图片或其他路线。冻结后先连续10–15秒真实3D产品—操作—输出—内部对应—核心运动预览，经独立QA通过再做完整低成本动态分镜；静态模型截图和3–5秒局部动作仅作诊断；独立 QA 比较知识目标、提取原则、冻结蓝图与实际媒体。UNKNOWN 阻止高清制作与 COMPLETED。QA 保存真实 MP4 哈希、连续/抽样/听审能力与覆盖。修复不设总轮次上限；未改善更换策略，保留证据并持续独立复验。
 
 记录研究耗时、搜索预算、缓存来源、制作工具耗时、工程修改、原生线程 ID 与事件；人工干预、Token、费用若无运行时计量则 null。减少返工需同口径前后基线，单例不能证明效果。不发布或保存平台草稿。
 
-静态候选 source_kind=image/diagram/structure；image/diagram 的 viewing.status=IMAGE_INSPECTED，structure 为 STRUCTURE_READ。记录 viewing.evidence、observations、source_files（path/sha256）或来源 URL。不得编造视频 duration 或观看证据。2D/2.5D 使用 layered 实际渲染，结构文本可据其绘制示意图层并注明依据。
+静态候选 source_kind=image/diagram/structure；image/diagram 的 viewing.status=IMAGE_INSPECTED，structure 为 STRUCTURE_READ。记录 viewing.evidence、observations、source_files（path/sha256）或来源 URL。不得编造视频 duration 或观看证据。静态来源用于结构核实和辅助标注，不能替代核心3D机制。
 
+
+## 产品与理解门禁
+
+执行 docs/product-comprehension-contract.md：建模前确认可识别真实产品、用途、操作和具体实施例；把实物来源、CAD零件/连接、输入—传动—输出—回程及成片逐项对应。专利/CAD不能单独证明产品身份，外观照片不能证明隐藏传动。视频记录实际观看区间、关键时间码、观看方法、确认动作和未知项；静态资料记录检查区域，截图不冒充连续观看。
+
+首5秒呈现产品、动作、为什么及答案承诺，镜头新增有依据知识，结尾回到产品功能。独立QA绑定精确MP4/音频SHA256、完整动作区间、听到的旁白与能力；先盲看记录八个理解答案，再核对脚本，分别检查产品识别、机械因果与观众理解。留存/点赞/收藏/评论/关注各自绑定来源、知识、镜头、动作、旁白、时间码及实际媒体回执。无真实观察为UNKNOWN，不以技术测试代替感知验收或预测增长。沿用现有研究、蓝图、QA、增长报告与handoff。
 
 ## Compressed visual evidence
 Before inspection run uv run python -m mechanical_video_next.qa_images SOURCE (video: --times T1 T2 T3 T4). Read returned WebP/JPEG qa_path only, not source PNG. Reuse work/qa-images cache paths. Maximum four frames and one contact sheet per round; select chapter/motion events. Use prepare_crop for unreadable regions; retain UNKNOWN until adequate evidence. No inline/base64 images in handoffs. Production paths are bindings, not image-read instructions. Use record_reads only after actual tool reads; byte savings are not token savings. Static images never replace numerical CAD, continuous-motion or listening checks. Producer forwards paths, hashes, timecodes and conclusions.

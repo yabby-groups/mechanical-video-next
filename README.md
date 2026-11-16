@@ -1,3 +1,30 @@
+## 2026-11-16 单一主参考与方案淘汰（覆盖旧局部修复规则）
+
+先查本地参考，再实际连续观看并选定一条合格主参考，确认可识别的真实产品、实际操作和同一具体机构。记录来源、产品/型号、观看方法、实际区间、关键动作时间码及未知项；未观看、只读标题/摘要或截图均不合格。补充手册、拆解或专利只用于核对该产品的同一机构，不拼接不同实施例。主参考不足以证明隐藏结构时继续研究，不先猜测建模。
+
+先检查结构正确、零件可独立运动且许可匹配的现成3D装配；只有找不到合格资产且产品和机构证据充分时才自主CAD。产品身份错误、机构依据错误或无法对应真实操作属于根本错误：立即淘汰该方案，保留失败原因与历史，重新选择合格参考和资产；`until_pass`不授权对错误方案无限局部修补。已验证正确方案的字幕、遮挡、相机等局部问题才按责任修复。
+
+完整制作前先交付连续10–15秒真实3D动作预览，依次看清“真实产品外形与用途—用户操作—旋转/功能输出—外部与内部零件对应—核心运动及回程”。不是独立零件空转、静态拼图或互不连贯的测试镜头。沿用现有研究、蓝图、handoff和独立QA报告，绑定精确媒体/音频SHA256、观看区间、实际观察与能力；独立QA确认产品识别、操作对应、机械因果及可理解性全部PASS后，才继续完整动态分镜和全片3D制作。没有连续观看/听审能力仍为UNKNOWN并阻止通过，不能用截图、数值测试或代码检查替代。
+
+保留浅灰摄影棚、金属语言、Neil、1920×1080/30fps和单行大字号字幕。研究、代码修改、CAD及局部测试完成仅为子任务完成；完整3D影片、双比例封面、来源/来源链、机械与理解QA及五目标增长报告实际提供给用户才构成交付。只修订现有流程，不开发新的QA系统。
+
+## 2026-11-16 3D-only production — highest priority
+
+New production is permanently 3D-only: `requested_routes=["3d"]`, `render_route="3d"`.
+Requests for `2d`, `2.5d`, `all`, illustrated or layered mechanical subjects fail explicitly.
+Never downgrade a failed 3D shot or replace its action with images or text. Licensed,
+verified 3D assemblies take priority; otherwise model from reliable product evidence.
+Every core shot needs inspectable 3D geometry, camera, spatial motion, scene and render
+provenance bound through the complete MP4 build in `3d-provenance.json`. A name, extension,
+perspective screenshot or ffprobe result is insufficient. Subtitles and explanatory
+overlays may accompany real 3D; they cannot replace the mechanism.
+Deliver one 1920×1080/30fps 3D film with Neil, both 3:4 and 4:3 covers, references,
+provenance, mechanical/comprehension QA and five-goal growth report. No comparison or
+other route is required. Preserve historical media/data; historical route examples
+below are read-only documentation, not authorization to produce them. Continue scoped
+repair until actual delivery or a documented external evidence/tool/resource boundary;
+never claim UNKNOWN as acceptance. Do not recreate the pull-back car.
+
 ## 2026-11-16 Real product and comprehension gates
 
 New tasks default to `product_policy_version=1` and `growth_policy_version=2`.
@@ -8,22 +35,28 @@ Retention, like, save, comment and follow bind separately to actual shots and
 media evidence. Content failures take precedence over cached render approvals.
 See [the executable contract](docs/product-comprehension-contract.md).
 
+## 产品、参考观察与理解门禁
+
+执行 `docs/product-comprehension-contract.md` 的现有门禁：在建模前确认可识别的真实产品、用途、操作和具体实施例；实际产品来源、CAD零件、连接、输入—传动—输出—回程及成片画面逐项对应。专利或CAD不能单独证明零售产品身份，外观照片不能证明隐藏传动。视频记录实际观看区间、关键时间码、方法、确认动作和未知项，图片/手册记录实际检查区域；不得用标题、搜索摘要、截图或仿真输出冒充连续观看。
+
+蓝图首5秒呈现产品、真实动作、为什么及答案承诺，各镜头新增有来源的知识，最终回到产品功能。独立QA绑定确切MP4/音频SHA256、动作完整区间、听到的旁白和观察能力，分别检查产品识别、机械因果与观众理解；先盲看记录八个理解答案，再核对脚本。五目标（留存、点赞、收藏、评论、关注）分别绑定知识、来源、镜头、动作、旁白、时间码及实际媒体观察回执。不能靠无关讨论或扣留答案；没有真实观测为UNKNOWN，测试和技术检查不授予感知验收，不预测平台表现。只使用现有研究/蓝图/QA/增长报告和handoff，不另建系统。
+
 ## 2026-11-15 Reference-First：未来新任务最高优先级
 
 新任务先查本地已验证参考库，再按缺口检索真实拆解/工作视频、制造商手册、可靠结构图、专利具体实施例及可信装配模型。热度只指导表达研究，不能证明机械真实性。采用 `reference_policy_version=1`；历史任务不迁移，不重制回力车，不改已有成片或历史 CAD，不自动恢复失败任务。
 
-资产优先顺序：合法且匹配的现成媒体 → 经检查的现成 CAD 装配 → 依据可靠结构资料的 build123d/Open CASCADE 教学模型。只有外观照片不得猜测内部机构；证据不足继续研究或缩小讲解范围，不能用反复建模替代研究。具体型号与实施例必须统一，参考有冲突先解决机构定义。许可未知的内容可作研究线索，不可直接进入成片。复用媒体仍须符合锁定视觉，不能为复用覆盖原有风格。
+资产优先顺序：经检查、可信且许可匹配的现成3D装配 → 依据可靠结构资料的 build123d/Open CASCADE 教学模型。只有外观照片不得猜测内部机构；证据不足继续研究或缩小讲解范围，不能用反复建模替代研究。具体型号与实施例必须统一，参考有冲突先解决机构定义。许可未知的内容可作研究线索，不可直接进入成片。复用媒体仍须符合锁定视觉，不能为复用覆盖原有风格。
 
 蓝图必须有主要机械结论到来源位置、零件、动作、素材、镜头及验证方法的 `evidence_map`。先确定核心问题、已核实知识点、可见动作和章节新增信息，再按实测 Neil 音频确定120～300秒；内容不足时保留研究并记录选题与时长不匹配，禁止重复、降速或虚构凑时长。独立 QA 在昂贵正式3D渲染前核对可靠来源、具体机构、模型、动作、证据映射、时长和可执行镜头，重要缺口/UNKNOWN 阻止制作。
 
 沿用现有 Producer 和角色，不增加 Agent 或第二套系统。结构失败先区分资料/模型/装配/动画原因，修正错误依据，保留实质修复历史；已验证结构的普通镜头改动不得触发 CAD 重建。原创解说与视觉编排，不复制未经授权的完整视频、配乐或独创表达。
 
-保留浅灰摄影棚、金属语言、Neil、1920×1080/30fps、2D/2.5D/3D、单行大字号字幕、手机核查、3:4/4:3封面、增长报告、压缩图片证据和安全缓存清理。最终报告绑定实际媒体及版本，记录参考/素材来源、实际复用比例及口径、有依据知识点数、教学近似、未验证结论、增加的有效知识、删除的重复镜头、错误结构重复建模和人工干预次数；无计量填 null，不虚构节省时间或Token。详细契约见 [Reference-First契约](docs/reference-first-contract.md)。
+保留浅灰摄影棚、金属语言、Neil、1920×1080/30fps、真实3D、单行大字号字幕、手机核查、3:4/4:3封面、增长报告、压缩图片证据和安全缓存清理。最终报告绑定实际媒体及版本，记录参考/素材来源、实际复用比例及口径、有依据知识点数、教学近似、未验证结论、增加的有效知识、删除的重复镜头、错误结构重复建模和人工干预次数；无计量填 null，不虚构节省时间或Token。详细契约见 [Reference-First契约](docs/reference-first-contract.md)。
 
 <!-- mechanical-direction-confirmed-20261113 -->
 
 <!-- spin-mop-next-confirmed-20261115 -->
-> 2026-11-15 用户确认：当前回力车之后，下一条为旋转拖把。先核实具体手压结构及下压、旋转、回程关系，沿完整动作连续解释；执行当前制作契约。见[旋转拖把制作交接](docs/plans/spin-mop-next-handoff-20261115.md)。本次仅同步计划，未启动制作。
+> 历史计划：2026-11-15选择旋转拖把，见[当时交接](docs/plans/spin-mop-next-handoff-20261115.md)。2026-11-16当前spin-mop旧方案已被否决，禁止沿用或无限局部修补；保留历史证据，重新实际观看合格主参考并确认真实产品、操作和同一机构后才可选择新方案。
 
 ## 2026-11-13 用户确认：继续机械拆解方向
 
@@ -33,7 +66,7 @@ See [the executable contract](docs/product-comprehension-contract.md).
 ## 2026-11-12 长视频与增长契约（覆盖旧时长和照搬参考序列规则）
 新建 protocol-v2 任务 content_policy_version=1：120～300秒，省略时长为 null，Producer 根据可靠知识、原创脚本和 Neil 实测音频确定；指定范围内时长优先。历史任务无此标志，保持原时长、缓存和媒体，不自动重制。
 参考用于原创叙事，不复制完整台词或独创镜头序列。研究需覆盖首个答案、中段逐层新增知识、核心机械画面顿悟和结尾兑现；观察不足如实记录。
-制作前执行 docs/longform-contract.md 的增长契约和镜头检查。现有角色承担研究、脚本、CAD、动画、剪辑和独立 QA，不新增 Agent。共享事实、原创旁白、实测时轴和增长目标；三路线用不同的机械画面表达同一知识。
+制作前执行 docs/longform-contract.md 的增长契约和镜头检查。现有角色承担研究、脚本、CAD、动画、剪辑和独立 QA，不新增 Agent。共享事实、原创旁白、实测时轴和增长目标；只以真实3D表达经核实的知识。
 正式渲染前完整动态分镜必须有运动、旁白、字幕、标注及章节时轴；静态 blueprint animatic 仅占位诊断，不能通过动态或增长 QA。
 保留按镜头内容缓存、Blender 串行锁、分块编码和磁盘门禁；字幕改动只重合成，配音调整按实测时轴处理受影响镜头。3D 正式渲染前核查 work 2 GiB 与剩余盘3 GiB门禁及实际资源预算，不在鸡蛋搅拌器切换引擎。
 增长检查验证内容与实际媒体，不预测完播、点赞或关注。UNKNOWN阻止验收；不得上传、发布或保存平台草稿。
@@ -48,24 +81,18 @@ See [the executable contract](docs/product-comprehension-contract.md).
 
 # Mechanical Video Next
 
-当前默认是**同题三路线制作**：一个机械名称，共享原创脚本、默认 Neil 配音和实测时间轴，生成 2D、2.5D、3D 三个完整版本后再供选择。当前真实端到端验证题目为指甲刀；其他题目仍由当前 Codex Producer 自主准备研究、CAD 和适配计划，不把本题适配器宣传为任意机械的现成生成器。入口和恢复命令见文末“三路线”说明。下文单路线自动选择与复刻说明保留历史兼容，新的三路线原创要求优先。
-
-指甲刀三版的 [EP03 风格修订](docs/productions/nail-clipper-ep03-style-20261112.md) 使用共享视觉配置、全幅 3D 合成与原生局部机位，保留 Neil 配音和既有机械运动。进度与精确媒体验收位于 `output/nail-clipper/shared/style-optimization-state.json` 和版本化 `qa-style-*.json`；旧成片保存在 `shared/style-baseline-v1/`。风格修订不自动取得连续视听或科学验收。
-
-每条视频都研究参考，爆款热度只是优先参考，不是准入条件。普通实物演示、图片、结构图和结构文档都可作为主参考。缺少爆款或原视频不得停止制作；Producer 自动选 3D CAD、2D 或 2.5D。视频逐镜头映射 reference_time_range，静态资料映射 reference_region（对应部位／结构特征），均记录 adaptation。没有视频不填写虚假的完整观看证据。
-
-图片路线已接入 scripts/layered.py 与 scripts/produce.py：layered 镜头直接生成视频并复用配音、字幕和合成。Producer 在资产／蓝图交接前执行 `uv run python -m mechanical_video_next select-route <task> --route 2.5d --reason "结构图适合分层演示"`；无需用户选择。asset-plan 提供 render_route、source_files 的 path/sha256 和 qualified=true。历史报告仅反映当时快照，以本规则为准。
+当前默认是**单条真实3D制作**，共享可靠机械事实、原创旁白与实测Neil时间轴。先查可信参考及合法匹配的现成装配，缺少合格资产时依据可靠产品证据建模。没有视频不伪造观看，图片和文字资料不替代3D机制镜头。名称入口不承诺任意名称已经具备端到端自动交付能力。
 
 当前流程与进度见[视频复刻流程报告 v3](docs/plans/project-flow-status-20261111-v3.md)（2026-11-11 22:05 快照）。
 
 
-**当前自主执行目标：输入名称，自主完成。** 根据实际资料自动选择 CAD、2D 或 2.5D 路线并制作。新任务不设 Token 或修复轮次上限，无改善更换策略并保留历史，中间不要求用户逐步确认。旧任务通过 `adopt-autonomy` 登记新政策后继续，历史失败证据保留。这是已落实的执行政策与门禁，尚无任意名称输入后自动交付合格全片的端到端验证。
+**当前自主执行目标：输入名称，自主完成。** 依据实际资料制作真实3D，优先可信现成装配，必要时建模。新任务不设 Token 或修复轮次上限，无改善更换策略并保留历史，中间不要求用户逐步确认。旧任务通过 `adopt-autonomy` 登记新政策后继续，历史失败证据保留。这是已落实的执行政策与门禁，尚无任意名称输入后自动交付合格全片的端到端验证。
 
 **Python 统一通过 uv 运行。** 使用 `uv run python ...`，首次自动建立项目 `.venv`；Python 3.14.2 与基础/开发依赖由 `pyproject.toml`、`.python-version` 和 `uv.lock` 管理。CAD 命令使用 `uv run --extra cad python scripts/cad_generate.py ...`，按需加载已固定版本的 CAD 依赖。临时校验依赖用 `uv run --with <package> python ...`。Blender 内嵌 Python 保持由 Blender 执行。受限沙箱可设置 `UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache`。
 
-**历史主参考复刻策略（新任务采用文首原创、证据优先规则）。** 每次制作先筛选、核验并分析参考视频，选定一条主参考，再复刻其开场、内容结构、镜头顺序、节奏和关键演示，以自主 CAD、动画及 Neil 配音重新制作，沿用打印机 EP03 视觉。缓存可复用，但每条须有自己的研究结论和逐镜头对应表。新任务默认 `production_method=reference-recreation`；研究 `task_id/topic` 不匹配、缺主参考或镜头映射时拒绝冻结蓝图，并在生产配置门禁再次核对。未完成研究不能直接开始完整制作。
+**历史主参考复刻策略（新任务采用文首原创、证据优先规则）。** 每次制作先筛选、核验并分析参考视频，选定一条主参考，再复刻其开场、内容结构、镜头顺序、节奏和关键演示，以自主 CAD、动画及 Neil 配音重新制作，沿用打印机 EP03 视觉。缓存可复用，但每条须有自己的研究结论和逐镜头对应表。当时任务默认 `production_method=reference-recreation`；研究 `task_id/topic` 不匹配、缺主参考或镜头映射时拒绝冻结蓝图，并在生产配置门禁再次核对。未完成研究不能直接开始完整制作。
 
-**后续运营计划已更新（2026-11-11）：**详见[当前执行计划](docs/plans/operations-next-plan-20261111.md)。近期按指甲刀→手摇打蛋器→门锁斜舌→订书机（条件候选）做预检，只锁定下一条制作并准备两条合格储备；拉链重制阻塞不挡其他题预检。沿用自主CAD；修复上限按下述当前自主执行政策更新，低清阶段检查小红书/抖音手机显示；本次仅计划更新，不启动制作。
+**后续运营计划已更新（2026-11-11）：**详见[当前执行计划](docs/plans/operations-next-plan-20261111.md)。当时按指甲刀→手摇打蛋器→门锁斜舌→订书机（条件候选）做预检，只锁定下一条制作并准备两条合格储备；拉链重制阻塞不挡其他题预检。该历史计划使用自主CAD；当前采用可信现成装配优先，修复按现行自主政策执行，低清阶段检查小红书/抖音手机显示；本次仅计划更新，不启动制作。
 
 **历史自主 CAD 策略（被2026-11-15新任务规则覆盖）。** 当时 CLI 默认 `asset_strategy=autonomous-cad`：MechanicalResearch → build123d/Open CASCADE CAD → 独立机械 QA → 动态分镜 QA → 高清制作。网络资料只作结构和创意依据，默认不下载成品模型。当前拉链验证任务为 `output/tasks/zipper-cad-20261111`，源码、STEP/GLB、独立链牙、装配及短动作验证先于全片；历史工作片与旧缺陷记录保留。角色入口新增 `mechanical_research.toml` 与 `cad.toml`；旧 Asset/Research 接口保留历史兼容。每个缺陷自动修复不设总轮次上限，未知不视为通过。
 
@@ -124,7 +151,7 @@ uv run python -m mechanical_video_next produce --topic "行星齿轮为什么能
 
 默认命令只创建 `output/tasks/<id>/task.json` 和 `producer-prompt.md`，不会凭 Python 自动拥有智能调度。`--codex` 调用真实 `codex exec --json`，保存原生日志 `codex.jsonl`；需要已登录、受信任的项目和可用的 Codex 服务。已在 Codex 内工作时不要嵌套启动 Producer。原有 `scripts/produce.py` 为单 Agent 回退。
 
-`--voice` 是给 Producer 的明确音色要求，不能绕过现有语音批准与试听流程；默认保留已选 Neil。现有 3D 模板及 layered 图片模板可执行；2D/2.5D 已完成短片编码回归，任意名称到完整合格成片尚未完成端到端验证。Producer 根据选题资料自动选择可表达的路线。45 秒是可请求目标，首条回归基线为现有 36 秒；不能为凑时长加速声音。
+`--voice` 是给 Producer 的明确音色要求，不能绕过现有语音批准与试听流程；默认保留已选 Neil。新生产只允许3D；历史layered回归不授权新路线。任意名称到完整合格成片尚未完成端到端验证。120～300秒由可靠知识和Neil实测音频确定，不能为凑时长加速声音。
 
 Research 与 Asset 并行，Animation 等待其合格交接，Editor 等待镜头时间轴，QA 独立读取实际媒体。每个 JSON 经 `handoff` 保存独立版本、所有权和依赖哈希，变化后旧依赖失效。状态前进用 `advance`，不是根据退出码直接 COMPLETED。
 
@@ -262,47 +289,17 @@ uv run python scripts/produce.py config/planetary-01.json --phase final --env-fi
 
 支持保留 1080×1920 配置供历史版式复用；改变配音或字幕不会改变 3D 缓存键。横屏也必须先验证关键帧、低清全片，再输出正式成片。
 
-## 三路线同题对比与恢复
+## 3D制作与恢复
 
 ```sh
-uv run python -m mechanical_video_next.multiroute prepare --topic 指甲刀 --output output/tasks/nailclipper-three-routes
-uv run python -m mechanical_video_next.multiroute finalize output/tasks/nailclipper-three-routes --route-2d /absolute/2d.mp4 --route-25d /absolute/25d.mp4 --route-3d /absolute/3d.mp4
-# 已有确定性命令计划可一键顺序执行并恢复，智能研究和建模仍由当前 Codex 原生代理承担
-uv run python -m mechanical_video_next.multiroute run output/tasks/nailclipper-three-routes --plan /absolute/plan.json
+uv run python -m mechanical_video_next produce --topic 机械名称 --routes 3d
+uv run python -m mechanical_video_next produce --resume output/tasks/TASK
 ```
 
-`plan.json` 包含 `steps: [{id, command: [argv...], inputs: [文件路径...], outputs: [文件路径...]}]` 和 `routes: {"2d": "...mp4", "2.5d": "...mp4", "3d": "...mp4"}`。命令与路径按项目根目录解释，Python 命令统一 `uv run`；输入须列出配置、代码和资产以正确失效缓存。步骤顺序执行，不并行启动 Blender，不创建服务器或模拟 Agent。名称入口仅建立任务，不能代表任意名称已具备自动 CAD 能力。
+名称入口建立任务；当前唯一 Producer 继续研究、可信现成装配检查、必要建模、低成本动态分镜、独立 QA、正式渲染和实际交付。`route-run` 只执行本主题经审查的确定性3D计划，不伪装研究、CAD能力或感官验收。缓存绑定实际内容和配置，所有阶段保存路径、SHA256、失败历史与下一步。历史指甲刀三路线配置和已有比较媒体保留为只读记录，不重跑旧路线。
 
-共享 `state.json` 保存路径、SHA256、步骤缓存、失败历史与下一步。`finalize` 生成 1080×1920 / 30fps 的 `compare.mp4`、`preview.jpg`、`report.json`，从上到下为带标签的 2D／2.5D／3D 三格16:9画面。输入必须同为30fps、起始时间一致、时长相差不超过一帧；不一致写 FAIL 报告，帧内差异补末帧至最长。三路解码音频哈希完全相同才复用第一路旁白；缺少或不同则保留阻塞问题，原路线有声视频保持独立。精确输入与实现哈希不变时复用已核验输出。状态为 `TECHNICAL_PASS_UNACCEPTED_COMPARISON`，连续视听、结构与参考复刻验收保留 UNKNOWN，独立 QA 不通过前不能宣称完整验收。
-
-三路线现已接入原有 Producer 入口，默认 `--routes all`，也可明确请求单一路线；`render_route` 保留旧主路线兼容，不代表删掉其他 `requested_routes`。
-
-```sh
-uv run python -m mechanical_video_next produce --topic 指甲刀 --routes all --task-id nail-clipper-three-routes
-# 同一个当前 Codex Producer 接续已有记录，不新建任务或启动第二个 Producer
-uv run python -m mechanical_video_next produce --resume output/tasks/nail-clipper-three-routes
-# Producer 完成研究/蓝图/分路线资产与关键帧检查后执行已有确定性渲染计划
-uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three-routes --plan /absolute/nail-clipper-plan.json
-```
-
-新 `task.json` 有 `requested_routes`、`route_runs`、`shared_production` 的共享时间轴／旁白位置与内容哈希契约。真实三路线智能工作仍由当前 Producer 调用既有 Animation、Editor、QA 原生角色完成；`route-run` 仅串行执行已写好的命令计划与比较，不伪装研究或任意机械 CAD。当前指甲刀已知命令为 `uv run python scripts/nail_clipper_video.py audio`，随后分别 `render --route 2d --quality final` 与 `render --route 2.5d --quality final`；对应产物 `output/nail-clipper/2d/final.mp4` 与 `output/nail-clipper/2_5d/final.mp4`。3D使用已接入的 render-3d，完整计划见下文。
-
-计划可附 `evidence: ["output/nail-clipper/shared/production-statistics.json", "...qa.json"]`；或独立 finalize 重复传 `--evidence <json>`。报告保存来源路径／SHA256及明确写出的 visual_differences，不自动推断审美分数。制作耗时、修复次数、人工干预与缓存复用从实际计量导入，缺少计量为 null；比较编码耗时单独实测，不能替代完整制作耗时。
-
-指甲刀适配器的历史完整计划仅在本地保留于 [config/nail-clipper-three-routes-plan.json](config/nail-clipper-three-routes-plan.json)。已有同题任务可直接 `uv run python -m mechanical_video_next route-run output/tasks/nail-clipper-three-routes`；默认顺序执行共享音频、自主 CAD／时间轴配置准备、2D、2.5D、3D 与竖屏对比。3D实际命令为 `uv run python scripts/nail_clipper_video.py render-3d --quality final`，使用现有 EAS／produce 缓存和共享旁白。首次语音需要有效凭据，可追加 `--env-file /absolute/credentials.env`，计划不保存密钥或任何私人凭据文件路径。已有素材／配置／参数／GLB／运动／时间轴依赖在各步骤执行前核对哈希，恢复不重跑未变步骤；缺少真实资产或凭据会保留失败与下一步，不能伪造通过。默认计划仅适配指甲刀，不承诺任意名称自动 CAD；QA由当前 Producer 派发真实独立代理，确定性 run 不冒称自动感官验收。已有 `output/nail-clipper/shared/production-statistics.json` 和 `output/nail-clipper/shared/qa*.json` 会通过计划 `evidence_globs` 自动作为哈希证据导入。
-
-多路线 COMPLETED 还要求不可变 final-qa 的 `route_checks` 为每个 requested route 提供 `media: {path, sha256}` 与全部既有 QA 检查 PASS，且哈希匹配 route_runs 的实际产物。单路通过不能替其他路线批准，UNKNOWN 继续阻止完成。
-
-新检出的一键计划需要 Producer 先完成并保存 `output/nail-clipper/shared/mechanical-research.json`；缺少该真实研究会在任何付费配音或渲染前停止，记录具体下一步。CAD 的 motion.json 是生成输出，不作为本步骤首次运行前置输入；生成后纳入2D／2.5D／3D缓存依赖。当前3D形变缺陷仍需修复与独立复验，计划执行完成不代表QA通过。
-
-新 protocol 2 任务接受 `--duration 60` 至 `--duration 120`（含边界，省略时请求90秒）；历史 protocol 1 保留30–45秒限制和45秒默认值。三路线保持快节奏、高信息密度：开场直接展示关键动作或悬念，每镜头推进新信息，动作与讲解同步，结尾回扣开场。增加时长依靠有依据的解释和不同演示，不降速、重复、空停或强行加速配音。当前指甲刀适配器仍为已测约38.2秒，不能直接满足新请求；须重新编写内容与时间轴并验证实际媒体，不自动拉伸旧片。独立 QA 检查实际时长与节奏，缺少观看、听审能力保留 UNKNOWN。
-
-报告的 `task_created_epoch` 与 `wall_elapsed_since_task_creation_seconds` 表示从任务建立到该报告快照的总历时，包含研究、等待与修复。`route_receipt_timings` 保存每路原始运行 receipt 的路径、哈希和耗时，不能冒充本次缓存恢复的渲染耗时；`comparison_seconds` 单独计量。缺失的主动制作耗时、具体阶段和人工干预仍为 null。
-
-当前新三路线默认任务采用 `production_method=original-shared-script-three-routes`：研究参考用于核验结构与学习讲解方法，使用原创共享脚本和原创镜头顺序，不照搬原片序列；单路线与既有 `reference-recreation` 任务保留原复刻约束。仅复刻专属逐镜映射门禁随 production_method 区分，科学、资产、动态分镜、实际媒体与每路线独立 QA 不降低。
-
-`route-run` 优先使用任务已登记的 `shared_production.comparison_directory` 存放 compare／preview／report，未登记时仍用 task/multiroute。结果同步 `multiroute_status` 与 `next_step`，不会据确定性命令成功改写原 workflow state 或跨过验收门禁。
+新任务仅 `requested_routes=["3d"]`、`render_route="3d"`，120～300秒，省略时长为 null。完整产品识别、实物-CAD对应、因果动作、观众理解、真实参考观察和五目标媒体证据见[产品与理解契约](docs/product-comprehension-contract.md)。技术成功、渲染成功与正式验收分别记录；UNKNOWN阻止验收。交付只要求一条3D片、两种比例封面与报告，不生成比较视频。
 
 ### 正式交付封面（3:4 / 4:3）
 
-三路线与对比视频完成后，Producer 在任务交付根目录填写 `cover-plan.json`，确定推荐版本、三路线候选适用性、关键动作时间点和短标题。运行 `uv run python -m mechanical_video_next.covers <task>` 生成 `cover/` 下两张标准 PNG、候选与封面报告；增长报告入口也会执行此步骤。封面独立 QA 的 FAIL / UNKNOWN / 缺失，以及来源版本或文案变化都会阻止新增长契约任务正式完成。只使用已有视频帧与排版，不触发视频重制。完整方案格式及独立 QA 契约见 [封面交付](docs/cover-delivery.md)。
+3D影片完成后，Producer 在任务交付根目录填写 `cover-plan.json`，绑定实际3D版本、关键动作时间点和短标题。运行 `uv run python -m mechanical_video_next.covers <task>` 生成 `cover/` 下两张标准 PNG、候选与封面报告；增长报告入口也会执行此步骤。封面独立 QA 的 FAIL / UNKNOWN / 缺失，以及来源版本或文案变化都会阻止新增长契约任务正式完成。只使用已有视频帧与排版，不触发视频重制。完整方案格式及独立 QA 契约见 [封面交付](docs/cover-delivery.md)。
