@@ -5,6 +5,16 @@ description: 用单一视频 JSON 编排分镜、普通话配音、字幕、Remo
 
 # mechanical-video
 
+## Producer 续接与交付
+
+子 Agent Completed 只表示 SUBTASK_COMPLETED。全局分别记录 RESEARCH_READY、MODEL_READY、PREVIEW_READY、FINAL_RENDERED、QA_ACCEPTED、DELIVERED；研究、CAD、配音、局部诊断片均不是交付。每次交接或阶段运行后由现有 ledger 自动刷新 continuation，Producer 必须执行其中可继续的工作，不要求用户逐阶段说“继续”。
+
+`uv run python -m mechanical_video_next continue <task>` 核对真实媒体及不可变交接，返回下一责任人、具体动作、剩余工作与恢复命令。已编写本主题确定性计划时，`continue <task> --plan <plan.json>` 绑定路径/哈希，`continue <task> --execute` 通过原有门禁执行计划；不得借用其他题目的默认计划。需原生 Agent 的研究、修复、验收仍由当前唯一 Producer 派工，不模拟后台 Agent。
+
+完整低成本动态分镜可在 RESEARCHING 用 `continue <task> --animatic-config <config> --preproduction-qa <qa> --execute` 续作，底层仅允许 `stage local --animatic-diagnostic`。独立 QA 必须绑定完整配置及外部依赖哈希，明确允许 raw 全片、禁止昂贵渲染和正式验收；实际预览限制960×540/15fps，保留原 state，完成后转有声合成与独立实际媒体检查。该入口不能借局部四秒诊断通过正式制作门禁。
+
+所有规定章节、完整中文旁白、单行字幕、三路线完整 MP4、同步对比、3:4/4:3封面、增长及参考模型报告均须实际存在并绑定哈希。独立 QA 接受后先向用户提供文件，再运行 `record-delivery <task> --file <path> ... --reason <说明>` 登记。完整渲染与 QA 接受仍不同于已经交付；会话退出码或子代理完成事件不得替代交付。运行环境无法持续时保留准确恢复命令并明确 `background_execution=false`，不承诺会自行继续。
+
 先读 README.md 与视频 JSON。Producer 主线程通过真实 Codex Research、Asset、Animation、Editor、QA 子代理编排三个 Skills；Python 只提供确定性运行与交接，不创建多 Agent 平台。沿用 produce.py 固定镜头、预览和缓存；修改旁白或字幕不重做 3D。结构化交接与状态门禁见 AGENTS.md 和 mechanical_video_next。
 
 视频号统一默认旁白按用户最新选择为 config/narration-neil.json：qwen3-tts-flash / Neil（阿闻），与卷尺 EVERYDAY_EP03 的实际合成记录一致，目标 1.0 倍。Kai 只保留为历史试听。当前接口没有已验证的原生语速、风格或重音控制；不要把这些词拼进发音文本或发送被静默忽略的参数。使用口语分句、自然标点与叙述措辞引导停顿和重点；技术检查不能代替听感判断。

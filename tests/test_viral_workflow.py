@@ -27,6 +27,8 @@ class ViralWorkflowTests(unittest.TestCase):
         # Explicit historical v2 fixture: preserve pre-longform DAG coverage.
         data.pop('content_policy_version')
         data.pop('reference_policy_version')
+        data.pop('product_policy_version')
+        data.pop('growth_policy_version')
         data['production_method'] = 'reference-recreation'
         data['duration'] = 90
         data['autonomy_policy']['reference_first'] = False
@@ -93,7 +95,12 @@ class ViralWorkflowTests(unittest.TestCase):
         w.write(self.task / 'task.json', data)
 
     def test_defaults_and_removed_protocol_fail_closed(self):
+        current = w.create_task('current product defaults', root=self.root)
+        self.assertEqual(w.load(current)['product_policy_version'], 1)
+        self.assertEqual(w.load(current)['growth_policy_version'], 2)
         data = w.load(self.task)
+        self.assertNotIn('product_policy_version', data)
+        self.assertNotIn('growth_policy_version', data)
         self.assertEqual(data['protocol_version'], 2)
         self.assertEqual(data['production_method'], 'reference-recreation')
         del data['protocol_version']

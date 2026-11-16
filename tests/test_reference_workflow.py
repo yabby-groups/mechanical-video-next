@@ -16,6 +16,13 @@ class ReferenceWorkflowTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.task = w.create_task('synthetic two gear', root=self.root)
+        # Exercise the preserved reference-policy-v1 contract. New reference-
+        # model-policy ledgers are covered by test_producer_continuation.
+        data = w.load(self.task)
+        data.pop('reference_model_policy_version')
+        data.pop('product_policy_version')
+        data.pop('growth_policy_version')
+        w.write(self.task / 'task.json', data)
         self.blueprint,self.research,self.asset,self.qa = fixture()
         self.qa['reviewer_thread_id']='independent-fixture-qa'
         # These independent contracts have their own suites. Keep real handoff,
@@ -38,7 +45,12 @@ class ReferenceWorkflowTests(unittest.TestCase):
                       ['viral-analysis','research','asset-plan'])
 
     def test_new_default_and_historical_ledger_preserved(self):
+        current = w.create_task('current product defaults', root=self.root)
+        self.assertEqual(w.load(current)['product_policy_version'], 1)
+        self.assertEqual(w.load(current)['growth_policy_version'], 2)
         data=w.load(self.task)
+        self.assertNotIn('product_policy_version', data)
+        self.assertNotIn('growth_policy_version', data)
         self.assertEqual(data['asset_strategy'],'reference-first')
         self.assertEqual(data['reference_policy_version'],1)
         historic=w.create_task('historic fixture',protocol_version=1,root=self.root)
