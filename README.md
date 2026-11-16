@@ -1,3 +1,13 @@
+## 2026-11-16 Real product and comprehension gates
+
+New tasks default to `product_policy_version=1` and `growth_policy_version=2`.
+Observed real-product identity and model correspondence precede asset selection;
+patents alone cannot establish a retail product. Product recognition, mechanical
+causality and viewer comprehension require independent exact-video/audio review.
+Retention, like, save, comment and follow bind separately to actual shots and
+media evidence. Content failures take precedence over cached render approvals.
+See [the executable contract](docs/product-comprehension-contract.md).
+
 ## 2026-11-15 Reference-First：未来新任务最高优先级
 
 新任务先查本地已验证参考库，再按缺口检索真实拆解/工作视频、制造商手册、可靠结构图、专利具体实施例及可信装配模型。热度只指导表达研究，不能证明机械真实性。采用 `reference_policy_version=1`；历史任务不迁移，不重制回力车，不改已有成片或历史 CAD，不自动恢复失败任务。
