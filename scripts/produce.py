@@ -35,10 +35,15 @@ def cached(folder, files):
     try:
         m = json.loads(marker.read_text())
         valid = set(files)<=set(m) and all((folder/f).is_file() and filehash(folder/f)==h for f,h in m.items())
+        if valid and (folder/'checks.json').is_file():
+            scene_ref = json.loads((folder/'checks.json').read_text()).get('scene_artifact')
+            if scene_ref:
+                scene_path = Path(scene_ref['path'])
+                valid = scene_path.is_file() and filehash(scene_path) == scene_ref['sha256']
         if valid:
             (folder/'.last-used').touch()
         return valid
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, OSError):
         return False
 
 def complete(folder, files):
@@ -100,6 +105,7 @@ def shot_key(shot, quality, render=None, assembly_path=None):
         return digest({'sources':sources(shot), 'shot':shot, 'panel':panel_spec(render,quality),
                        'quality':quality, 'renderer':codehash('scripts/layered.py')})
     inputs={'asset':asset_key(assembly_path),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)}
+    inputs['provenance_renderer'] = codehash('blender/render_with_provenance.py')
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
     return digest(inputs)
@@ -113,6 +119,8 @@ def prepare_shot_evidence(folder):
 
 
 def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
+    from mechanical_video_next.three_d import validate_config
+    validate_config({'shots': {'shot': shot}})
     start=time.time()
     render = render or {'width':1080,'height':1920}
     width,height,fps = panel_spec(render,quality)
@@ -132,13 +140,17 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         return folder/'media.mp4', 'video', key
     kind='image' if shot['template'] in ['overall','detail','exploded'] else 'video'
     filename='media.png' if kind=='image' else 'media.mp4'
-    files=['checks.json'] if quality in {'keys','checks'} else [filename,'checks.json']
+    files=['checks.json'] + ([] if shot.get('scene_artifact_dir') else ['frames/scene.blend'])
+    if quality not in {'keys','checks'}:
+        files.insert(0, filename)
     hit=cached(folder,files)
+    if hit and shot.get('scene_artifact_dir'):
+        hit = bool(json.loads((folder/'checks.json').read_text()).get('scene_artifact'))
     if not hit:
         folder.mkdir(parents=True,exist_ok=True)
         (folder/'shot.json').write_text(json.dumps(shot, ensure_ascii=False, separators=(',', ':'))+'\n')
         frames=folder/'frames'
-        args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','shot','--asset',model,'--shot',folder/'shot.json','--out',frames,'--width',width,'--height',height,'--fps',fps]
+        args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/render_with_provenance.py','--','shot','--asset',model,'--shot',folder/'shot.json','--out',frames,'--width',width,'--height',height,'--fps',fps]
         args += ['--assembly-config',ROOT/(assembly_path or 'config/assembly.json')]
         if quality=='keys': args+=['--keys']
         if quality=='checks': args+=['--checks-only']
@@ -161,6 +173,11 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
                 raise RuntimeError('Projected temporary frame sequence exceeds work budget')
             run(args,folder/'blender.log')
         shutil.copy2(frames/'checks.json',folder/'checks.json')
+        if shot.get('scene_artifact_dir'):
+            scene_ref = json.loads((folder/'checks.json').read_text())['scene_artifact']
+            scene_path = Path(scene_ref['path']).resolve()
+            assert scene_path.is_relative_to(Path(shot['scene_artifact_dir']).resolve())
+            assert scene_path.is_file() and filehash(scene_path) == scene_ref['sha256']
         if quality not in {'keys','checks'}:
             if kind=='image': shutil.copy2(next(frames.glob('*.png')),folder/filename)
             else:
@@ -374,6 +391,8 @@ def main():
     from narration import load_env,effective_profile
     load_env(args.env_file or (ROOT/'.env.local' if (ROOT/'.env.local').exists() else None))
     cfg=json.loads(args.config.read_text())
+    from mechanical_video_next.three_d import validate_config
+    validate_config(cfg)
     effective_profile(cfg)
     assembly_path=cfg.get('assembly_config')
     illustrated = cfg.get('render_route', '3d') in {'2d', '2.5d'}
