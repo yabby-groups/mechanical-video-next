@@ -10,8 +10,25 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import shutil
 
-from scripts.common import ROOT, BLENDER, filehash, probe
+from scripts.common import ROOT, BLENDER, filehash, probe, digest, writejson
+
+
+def verification_key(doc, stage, replay):
+    """Rehash every bound dependency, including inputs nested in receipts."""
+    def visit(value):
+        if isinstance(value, dict):
+            if 'path' in value and 'sha256' in value:
+                bound(value)
+            for item in value.values(): visit(item)
+        elif isinstance(value, list):
+            for item in value: visit(item)
+    visit(doc)
+    return digest(dict(document=doc, stage=stage, replay=replay,
+        verifier=filehash(__file__), audit=filehash(ROOT/'blender/provenance_audit.py'),
+        blender=subprocess.check_output([BLENDER, '--version'], text=True),
+        ffmpeg=subprocess.check_output(['ffmpeg', '-version'], text=True)))
 
 
 def binding(path):
@@ -27,19 +44,22 @@ def bound(value):
 
 
 def compose(build, output):
-    """Only real rendered segments plus ASS text and Neil audio are supported."""
+    """Compose only real 3D renders with subtitles and narration."""
     audio=bound(build['narration']);ass=bound(build['subtitles'])
     for font in build.get('fonts',[]): bound(font)
     segments=build['segments']
     if not segments: raise ValueError('Complete 3D timeline required')
     inputs=[];filters=[];cursor=0
     for i,segment in enumerate(segments):
+        role = segment.get('media_kind', 'mechanical-3d')
+        if role != 'mechanical-3d':
+            raise ValueError('3D-only production requires mechanical 3D segments')
         src=bound(segment['render_output'])
         start=segment.get('source_start_frame',0);count=segment['frame_count']
         if type(start)!=int or type(count)!=int or start<0 or count<=0:
             raise ValueError('Positive integer segment frame range required')
         if segment['start_frame']!=cursor: raise ValueError('3D build timeline has gap/overlap')
-        inputs+=['-i',str(src)]
+        inputs+=['-threads','2','-i',str(src)]
         filters.append(f'[{i}:v]trim=start_frame={start}:end_frame={start+count},setpts=PTS-STARTPTS[v{i}]')
         cursor+=count
     if cursor!=build['frame_count']:raise ValueError('Incomplete 3D build timeline')
@@ -50,7 +70,7 @@ def compose(build, output):
     fontdir=Path(build['fonts'][0]['path']).parent if build.get('fonts') else ass.parent
     filters.append(''.join(f'[v{i}]' for i in range(len(segments)))+
                    f'concat=n={len(segments)}:v=1:a=0,ass={ass}:fontsdir={fontdir},fps=30,format=yuv420p[v]')
-    cmd=['ffmpeg','-v','error','-y',*inputs,'-i',str(audio),'-filter_complex',';'.join(filters),
+    cmd=['ffmpeg','-v','error','-y',*inputs,'-i',str(audio),'-filter_complex_threads','1','-filter_complex',';'.join(filters),
          '-map','[v]','-map',f'{len(segments)}:a:0','-frames:v',str(cursor),'-c:v','libx264',
          '-preset','fast','-crf','18','-threads','2','-c:a','aac','-b:a','192k','-movflags','+faststart',str(output)]
     subprocess.run(cmd,check=True)
@@ -74,10 +94,13 @@ def frame_rgb(path, frame, crop=None):
         f'select=eq(n\\,{frame}),{region}scale=320:320','-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','-'])
 
 
-def validate(path, media=None, *, replay=True):
+def validate(path, media=None, *, replay=True, stage='final'):
     # Reject malformed evidence without acquiring the heavy-production lock.
     # A missing film must not be obscured by another legitimate Blender job.
     document=json.loads(Path(path).read_text())
+    if stage not in {'preview', 'workprint', 'final'}:
+        raise ValueError('Unknown provenance verification stage')
+    if stage != 'final': replay = False
     bound(document['media'])
     if not document.get('shots'):
         raise ValueError('Unique core mechanical shots required')
@@ -85,11 +108,23 @@ def validate(path, media=None, *, replay=True):
         if not shot.get('model_assets') or not shot.get('product_references'):
             raise ValueError('Traceable model and product reference evidence required')
     from .workflow import lock
+    key = digest(dict(inputs=verification_key(document, stage, replay), provenance=str(Path(path).resolve())))
+    receipt = ROOT/'work/cache/provenance'/(key+'.json')
+    if receipt.is_file():
+        cached = json.loads(receipt.read_text())
+        if cached.get('verification_key') == key:
+            if media is not None and media != document['media']:
+                raise ValueError('3D proof belongs to a different final MP4')
+            return dict(cached, cache_hit=True)
+    # Cache hits never start Blender and must not contend with a real render.
     with lock(ROOT/'work/production.lock'):
-        return _validate(path,media,replay=replay)
+        result = _validate(path,media,replay=replay,stage=stage)
+        result.update(verification_key=key, cache_hit=False, stage=stage)
+        writejson(receipt,result)
+        return result
 
 
-def _validate(path, media=None, *, replay=True):
+def _validate(path, media=None, *, replay=True, stage='final'):
     doc=json.loads(Path(path).read_text());final=bound(doc['media'])
     if media is not None and (Path(media['path']).resolve()!=final.resolve() or media['sha256']!=filehash(final)):
         raise ValueError('3D proof belongs to a different final MP4')
@@ -97,15 +132,34 @@ def _validate(path, media=None, *, replay=True):
     if len(ids)!=len(shots) or not shots:raise ValueError('Unique core mechanical shots required')
     stream=next(s for s in probe(final)['streams'] if s['codec_type']=='video')
     rate=stream['avg_frame_rate'].split('/')
-    if ((stream['width'],stream['height'])!=(1920,1080)
-            or abs(float(rate[0])/float(rate[1])-30)>0.001
+    expected = ([1920,1080,30] if stage == 'final' else
+                [build.get('width',1920),build.get('height',1080),build.get('fps',30)])
+    # Stream-copy previews may round segment timestamps by a time-base tick.
+    rate_tolerance = .001 if stage == 'final' else max(.001, 1/float(stream['duration']))
+    if ((stream['width'],stream['height'])!=tuple(expected[:2])
+            or abs(float(rate[0])/float(rate[1])-expected[2])>rate_tolerance
             or int(stream['nb_frames'])!=build['frame_count']):
         raise ValueError('Actual final MP4 must match complete native 3D build frame count and format')
     segments=build['segments']
-    if {s['shot_id'] for s in segments}!=ids:raise ValueError('All core shots must match the actual MP4 build')
+    if {s['shot_id'] for s in segments if s.get('media_kind','mechanical-3d')=='mechanical-3d'}!=ids:
+        raise ValueError('All core shots must match the actual MP4 build')
+    cursor=0
+    for segment in segments:
+        bound(segment['render_output'])
+        if segment.get('start_frame')!=cursor or type(segment.get('frame_count'))!=int or segment['frame_count']<=0:
+            raise ValueError('Build timeline has gap/overlap or invalid frame count')
+        cursor+=segment['frame_count']
+        role=segment.get('media_kind','mechanical-3d')
+        if role!='mechanical-3d':
+            raise ValueError('3D-only production requires mechanical 3D segments')
+    if cursor!=build['frame_count']:raise ValueError('Incomplete build timeline')
+    if stage!='preview':
+        subprocess.run(['ffmpeg','-v','error','-i',str(final),'-f','null','-'],check=True)
     checks=[]
-    with tempfile.TemporaryDirectory(prefix='mvn-3d-',dir='/private/tmp') as temporary:
+    with tempfile.TemporaryDirectory(prefix='mvn-3d-') as temporary:
         temp=Path(temporary)
+        if replay and shutil.disk_usage(temp).free < 3*1024**3 + final.stat().st_size*2 + 64*1024**2:
+            raise ValueError('Insufficient temporary disk space for provenance replay')
         for i,shot in enumerate(shots):
             scene=bound(shot['scene']);raw=bound(shot['render_output'])
             bound(shot['motion_data'])
@@ -116,7 +170,8 @@ def _validate(path, media=None, *, replay=True):
                 if not asset.get('source'):raise ValueError('Model origin required')
             for reference in shot['product_references']:bound(reference)
             for segment in segments:
-                if segment['shot_id']==shot['shot_id'] and segment['render_output']!=shot['render_output']:
+                if (segment.get('media_kind','mechanical-3d')=='mechanical-3d'
+                        and segment['shot_id']==shot['shot_id'] and segment['render_output']!=shot['render_output']):
                     raise ValueError('Timeline substituted another video for verified 3D render')
             frames=shot['verification_frames']
             if len(set(frames))<3:raise ValueError('At least three distinct actual render witness frames required')
@@ -131,7 +186,7 @@ def _validate(path, media=None, *, replay=True):
                 raise ValueError('Render witness outside actual scene timeline')
             if not audit['spatial_motion'] and shot.get('shot_role') != 'structural_detail':
                 raise ValueError('Core mechanical shot has no evidenced spatial motion: '+shot['shot_id'])
-            if audit['resolution']!=[1920,1080] or audit['fps']!=30:
+            if audit['resolution']!=expected[:2] or audit['fps']!=expected[2]:
                 raise ValueError('Actual 3D scene must render native 1920x1080/30')
             errors=[]
             if replay:
@@ -164,7 +219,8 @@ def _validate(path, media=None, *, replay=True):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('provenance',type=Path);p.add_argument('--report',type=Path,required=True)
-    a=p.parse_args();result=validate(a.provenance);a.report.write_text(json.dumps(result,indent=2)+'\n')
+    p.add_argument('--stage', choices=['preview','workprint','final'], default='final')
+    a=p.parse_args();result=validate(a.provenance,stage=a.stage);a.report.write_text(json.dumps(result,indent=2)+'\n')
 
 
 if __name__=='__main__':main()
