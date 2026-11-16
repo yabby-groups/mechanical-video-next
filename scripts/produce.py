@@ -12,9 +12,15 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from common import ROOT, BLENDER, Metrics, budget, codehash, digest, filehash, probe, run, writejson, work_budget_limit
+
+# Direct script execution otherwise exposes only scripts/, while diagnostic
+# stages also need the project's evidence helpers without a duration import.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 CACHE = ROOT/'work/cache'
 PUBLIC = ROOT/'remotion/public/cache'
@@ -394,7 +400,7 @@ def main():
         selected=cfg.get('local_preview_shots',[])
         assert len(selected)==1 and selected[0] in cfg['shots']
         assert 0<cfg['shots'][selected[0]]['seconds']<=5
-    else:
+    elif args.phase != 'asset':
         duration = sum(s['seconds'] for s in cfg['storyboard'])
         if cfg.get('content_policy_version') == 1:
             import sys
