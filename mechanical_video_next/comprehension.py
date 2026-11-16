@@ -85,7 +85,8 @@ def validate_product_sources(data, research=None):
             _required(observation, ('figure_or_region',), 'Located source observation')
             if ref['type'] == 'patent':
                 _required(observation, ('embodiment',), 'Specific patent implementation')
-            real_product = real_product or (ref['type'] in {'photo', 'manual'} and ref.get('depicts_real_product') is True)
+            real_product = real_product or (ref['type'] in {'photo', 'manual', 'document'}
+                and ref.get('depicts_real_product') is True)
             # A documented implementation is a legitimate teaching subject.
             # This identifies that embodiment, never a claimed retail product.
             if product.get('identity_basis') == 'documented_mechanism' and ref['type'] in {'drawing', 'manual', 'patent', 'document'}:

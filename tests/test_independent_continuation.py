@@ -52,6 +52,8 @@ class IndependentContinuationTests(unittest.TestCase):
             w.write(task / 'task.json', data)
             self.assertEqual(w.continuation(task)['lifecycle'], 'REPAIRING')
             data['production_blockers'] = [dict(status='OPEN', kind='resource', reason='Actual disk space below production minimum',
+                                                evidence=['disk usage measured below required minimum'],
+                                                alternatives=['no owned encoded frames available to clean'],
                                                 alternatives_checked=True, remaining_executable_work=False)]
             w.write(task / 'task.json', data)
             self.assertEqual(w.continuation(task)['lifecycle'], 'BLOCKED')

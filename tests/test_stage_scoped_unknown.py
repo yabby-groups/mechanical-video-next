@@ -51,6 +51,13 @@ class StageScopedUnknownTests(unittest.TestCase):
                 source_bindings=[dict(path=str(plan), sha256=w.filehash(plan))]),
             production_binding=dict(handoffs=data['handoffs'], production_plan=data['production_plan']))
         w.require_current_scheme(data)
+        # A local mechanism preview precedes the full creative/growth blueprint
+        # and its own media QA. Source-bound mechanical evidence still applies.
+        candidate = copy.deepcopy(data)
+        del candidate['handoffs']['creative-blueprint']
+        del candidate['handoffs']['mechanical-qa']
+        w.require_current_scheme(candidate, candidate_preview=True)
+        w.require_current_scheme(candidate)
         data['reference_remake']['mechanism_basis']['status'] = 'UNKNOWN'
         with self.assertRaisesRegex(ValueError, 'User-rejected'):
             w.require_current_scheme(data)

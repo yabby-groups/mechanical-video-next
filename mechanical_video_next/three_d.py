@@ -24,6 +24,9 @@ def validate_config(config):
         require_route(shot.get('render_route', '3d'))
         if shot.get('template') == 'layered' or shot.get('layers'):
             raise ValueError('Layered mechanical imagery cannot replace a real 3D scene')
+        if (config.get('production_scope') != 'verified-shots'
+                and shot.get('evidence_status') == 'RESEARCH_REQUIRED'):
+            raise ValueError('Unverified mechanism shot cannot enter the full film')
 
 
 def migrate(task, reason):

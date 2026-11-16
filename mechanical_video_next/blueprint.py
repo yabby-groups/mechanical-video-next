@@ -48,6 +48,8 @@ def validate(data):
         if s['shot_id'] in ids or s['template'] not in TEMPLATES:
             raise ValueError('Duplicate shot ID or unknown template mapping')
         ids.add(s['shot_id'])
+        if s.get('evidence_status') == 'RESEARCH_REQUIRED':
+            raise ValueError('Research-required mechanism must be resolved before full blueprint compilation')
         t = s['time_range']
         if (not isinstance(t, list) or len(t) != 2 or not all(number(x) for x in t)
                 or abs(t[0]-end) > 1e-8 or t[1] <= t[0] or t[1] > maximum):

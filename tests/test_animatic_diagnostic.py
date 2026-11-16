@@ -63,7 +63,7 @@ class AnimaticDiagnosticTests(unittest.TestCase):
         w.write(other_qa, qa)
         failure = subprocess.CalledProcessError(1, ['uv', 'run', 'python', 'produce.py'])
         with patch.dict('sys.modules', {'clean': types.SimpleNamespace(cleanup=lambda **kwargs: None)}), \
-                patch.object(w, 'lock', side_effect=lambda path: nullcontext()), \
+                patch.object(w, 'lock', side_effect=lambda path, **kwargs: nullcontext()), \
                 patch.object(w.subprocess, 'run', side_effect=[failure, None]) as run:
             with self.assertRaises(subprocess.CalledProcessError):
                 w.run_stage(self.task, 'local', self.config, animatic_diagnostic=True, preproduction_qa=self.qa_path)

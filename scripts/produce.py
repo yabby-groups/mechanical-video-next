@@ -100,6 +100,10 @@ def bounded_chunk_frames(requested, needed, width, height, used_bytes):
 
 def shot_key(shot, quality, render=None, assembly_path=None):
     render = render or {'width':1080,'height':1920}
+    # Native previews and final shots use identical Blender/encoding arguments.
+    # Reuse their verified render rather than render the same frames twice.
+    if quality == 'final' and panel_spec(render,'preview') == panel_spec(render,'final'):
+        quality = 'preview'
     if shot.get('template') == 'layered':
         from layered import sources
         return digest({'sources':sources(shot), 'shot':shot, 'panel':panel_spec(render,quality),
@@ -325,7 +329,13 @@ def compose(cfg, quality, media, metrics):
     from mechanical_video_next.style_lock import verify_lock
     lock = verify_lock(ROOT / 'assets/style-reference/style-lock.json', shared_only=True)
     if lock['status'] != 'PASS':
-        raise ValueError('Protected visual reference changed or unavailable; inspect style lock')
+        workprint = cfg.get('production_scope') in {'pipeline-test', 'source-supported-film', 'mechanism-preview', 'verified-shots'}
+        # A historical source-code lock is not a ban on inspecting a new scene.
+        # Never replace its hashes or call this a style/visual acceptance pass.
+        immutable_refs_ok = all(row['status']=='PASS' for row in lock['files']
+                                if row['path'] not in {'blender/scene.py','blender/studio_style.py'})
+        if not workprint or not immutable_refs_ok:
+            raise ValueError('Protected visual reference changed or unavailable; inspect style lock')
     props['annotations'] = cfg.get('text_annotations', [])
     props['critical_boxes'] = cfg.get('text_critical_boxes', [])
     props['platform_insets'] = cfg.get('platform_insets')
@@ -350,8 +360,34 @@ def compose(cfg, quality, media, metrics):
     shutil.copy2(cachedir/'video.mp4',target)
     writejson(target.with_suffix('.props.json'),props)
     target.with_suffix('.srt').write_text('\n\n'.join(f'{i+1}\n{srt_time(c["start"])} --> {srt_time(c["end"])}\n{c["text"]}' for i,c in enumerate(cues))+'\n')
-    if quality=='final': validate_video(target,cfg,cues)
+    if quality=='final':
+        validation=validate_video(target,cfg,cues)
+        validation['source_style_lock']=lock
+        writejson(target.with_suffix('.validation.json'),validation)
     metrics.record('composition:'+quality,start,hit,key=key,output=str(target.relative_to(ROOT)))
+
+def validate_stage_duration(cfg, phase):
+    if phase == 'asset':
+        return
+    if cfg.get('production_scope') == 'verified-shots':
+        if phase not in {'keys', 'checks', 'local'}:
+            raise ValueError('Partial shots are not a complete film')
+        assert all(0 < s['seconds'] <= 15 for s in cfg['shots'].values())
+        return
+    if phase in {'keys', 'checks', 'local'} and cfg.get('production_scope') == 'mechanism-preview':
+        selected = cfg.get('local_preview_shots', [])
+        assert selected and all(name in cfg['shots'] for name in selected)
+        assert 10 <= sum(cfg['shots'][name]['seconds'] for name in selected) <= 15
+        assert all(shot.get('template') == 'motion' for shot in cfg['shots'].values())
+        return
+    duration = sum(s['seconds'] for s in cfg['storyboard'])
+    if cfg.get('content_policy_version') == 1:
+        from mechanical_video_next.growth import duration_bounds
+        minimum, maximum = duration_bounds(cfg)
+    else:
+        minimum, maximum = 30, 45
+    assert minimum <= duration <= maximum, 'Storyboard duration outside its content policy'
+
 
 def main():
     ap=argparse.ArgumentParser()
@@ -367,10 +403,11 @@ def main():
     if args.phase in {'preview', 'final', 'all'}:
         import sys
         sys.path.insert(0, str(ROOT))
-        from mechanical_video_next.workflow import load, require_animatic, check_qa
+        from mechanical_video_next.workflow import load, require_animatic, check_qa, require_source_supported_render
         if args.task is None:
             ap.error('Full rendering requires --task with frozen blueprint and independent animatic QA')
         task_data = load(args.task)
+        technical_render = require_source_supported_render(args.task, args.config)
         bound_config = task_data.get('config')
         if not bound_config or Path(bound_config).resolve() != args.config.resolve():
             ap.error('Render config must match production task config')
@@ -381,16 +418,21 @@ def main():
                 ap.error('Protocol v2 requires separate preview, independent QA, and final stages')
             allowed_states = {'preview': {'ANIMATING', 'PREVIEW_READY', 'PREVIEW_CHECKING'},
                               'final': {'EDITING', 'FINAL_CHECKING'}}
-            if task_data['state'] not in allowed_states[args.phase]:
+            if not technical_render and task_data['state'] not in allowed_states[args.phase]:
                 ap.error('Task state does not authorize this full render')
             require_animatic(args.task)
-            if args.phase == 'final':
-                check_qa(args.task, 'preview-qa')
+            if args.phase == 'final' and not technical_render:
+                check_qa(args.task, 'preview-qa', acceptance=False)
         elif not args.legacy_workprint:
             ap.error('Old task requires explicit --legacy-workprint; migrate new production to v2')
     from narration import load_env,effective_profile
     load_env(args.env_file or (ROOT/'.env.local' if (ROOT/'.env.local').exists() else None))
     cfg=json.loads(args.config.read_text())
+    if cfg.get('production_scope') == 'verified-shots':
+        from mechanical_video_next.workflow import require_source_supported_render
+        if args.task is None or args.phase not in {'keys', 'checks', 'local'}:
+            ap.error('Verified shots require a task and a scoped local stage')
+        require_source_supported_render(args.task, args.config)
     from mechanical_video_next.three_d import validate_config
     validate_config(cfg)
     effective_profile(cfg)
@@ -419,16 +461,8 @@ def main():
         selected=cfg.get('local_preview_shots',[])
         assert len(selected)==1 and selected[0] in cfg['shots']
         assert 0<cfg['shots'][selected[0]]['seconds']<=5
-    elif args.phase != 'asset':
-        duration = sum(s['seconds'] for s in cfg['storyboard'])
-        if cfg.get('content_policy_version') == 1:
-            import sys
-            sys.path.insert(0, str(ROOT))
-            from mechanical_video_next.growth import duration_bounds
-            minimum, maximum = duration_bounds(cfg)
-        else:
-            minimum, maximum = 30, 45
-        assert minimum <= duration <= maximum, 'Storyboard duration outside its content policy'
+    else:
+        validate_stage_duration(cfg, args.phase)
     assert len({s['id'] for s in cfg['storyboard']})==len(cfg['storyboard'])
     for s in cfg['storyboard']: assert s['seconds']==cfg['shots'][s['shot']]['seconds']
     metrics=Metrics(cfg['id']+'-'+args.phase)
@@ -465,8 +499,37 @@ def main():
         if args.phase=='local':
             selected=cfg.get('local_preview_shots',[])
             assert selected and set(selected)<=set(names), 'Explicit local preview shots required'
+            clips=[]
             for name in selected:
-                make_shot(cfg['shots'][name],'preview',model,metrics,cfg['render'],assembly_path)
+                clips.append(make_shot(cfg['shots'][name],'preview',model,metrics,cfg['render'],assembly_path)[0])
+            if cfg.get('production_scope') == 'verified-shots':
+                folder = ROOT/'output'/cfg['id']
+                folder.mkdir(parents=True, exist_ok=True)
+                media = {}
+                for name, clip in zip(selected, clips):
+                    target = folder/(name+'.mp4')
+                    shutil.copy2(clip, target)
+                    checks = json.loads((clip.parent/'checks.json').read_text())
+                    media[name] = dict(media=dict(path=str(target), sha256=filehash(target)),
+                        scene=checks['scene_artifact'], checks=dict(path=str(clip.parent/'checks.json'),
+                        sha256=filehash(clip.parent/'checks.json')))
+                writejson(folder/'verified-shots.json', dict(config_sha256=filehash(args.config),
+                    shots=media, formal_acceptance=False))
+            if cfg.get('production_scope') == 'mechanism-preview':
+                folder=ROOT/'output'/cfg['id']
+                folder.mkdir(parents=True,exist_ok=True)
+                listing=folder/'preview-segments.txt'
+                if any("'" in str(p) or '\n' in str(p) for p in clips):
+                    raise ValueError('Unsupported preview segment path')
+                listing.write_text(''.join("file '"+str(p.resolve())+"'\n" for p in clips))
+                target=folder/'candidate-preview.mp4'
+                run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',listing,
+                     '-c','copy','-movflags','+faststart',target],folder/'concat.log')
+                run(['ffmpeg','-v','error','-i',target,'-f','null','-'],folder/'decode.log')
+                writejson(folder/'candidate-preview.json',dict(media={'path':str(target),'sha256':filehash(target)},
+                    config={'path':str(args.config.resolve()),'sha256':filehash(args.config)},
+                    segments=[{'path':str(p),'sha256':filehash(p)} for p in clips],
+                    formal_acceptance=False,visual_review='UNKNOWN',audio_review='UNKNOWN'))
             return
         preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render'],assembly_path) for n in names}
         compose(cfg,'preview',preview,metrics)

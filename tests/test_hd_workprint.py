@@ -58,7 +58,7 @@ class HDWorkprintTests(unittest.TestCase):
         w.write(task / 'task.json', data)
         with patch.object(w, 'require_hd_workprint_request') as authorize, \
                 patch.dict('sys.modules', {'clean': types.SimpleNamespace(cleanup=lambda **kwargs: None)}), patch.object(w.subprocess, 'run'), \
-                patch.object(w, 'lock', side_effect=lambda path: nullcontext()), \
+                patch.object(w, 'lock', side_effect=lambda path, **kwargs: nullcontext()), \
                 patch.object(w, 'continuation'):
             w.run_stage(task, 'local', self.config, workprint=True)
         authorize.assert_called_once_with(task, self.config)
@@ -77,7 +77,7 @@ class HDWorkprintTests(unittest.TestCase):
         w.write(task / 'task.json', data)
         with patch.object(w, 'require_mechanical'), \
                 patch.dict('sys.modules', {'clean': types.SimpleNamespace(cleanup=lambda **kwargs: None)}), \
-                patch.object(w, 'lock', side_effect=lambda path: nullcontext()), \
+                patch.object(w, 'lock', side_effect=lambda path, **kwargs: nullcontext()), \
                 patch.object(w.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, ['render'])):
             with self.assertRaises(subprocess.CalledProcessError):
                 w.run_stage(task, 'local', self.config)
@@ -100,7 +100,7 @@ class HDWorkprintTests(unittest.TestCase):
             w.write(self.config, cfg)
             with patch.object(w, 'require_hd_workprint_request'), \
                     patch.dict('sys.modules', {'clean': types.SimpleNamespace(cleanup=lambda **kwargs: None)}), \
-                    patch.object(w, 'lock', side_effect=lambda path: nullcontext()), \
+                    patch.object(w, 'lock', side_effect=lambda path, **kwargs: nullcontext()), \
                     patch.object(w.subprocess, 'run') as run:
                 w.run_stage(task, 'local', self.config, workprint=True)
             self.assertEqual('--diagnostic' in run.call_args.args[0], expect_flag)

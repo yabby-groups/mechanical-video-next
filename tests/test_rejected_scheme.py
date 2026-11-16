@@ -28,7 +28,7 @@ class RejectedSchemeTests(unittest.TestCase):
         with patch.object(w.subprocess, 'run') as run, patch.object(w, 'complete_media') as media:
             report = w.continue_production(self.task)
         self.assertEqual(report['milestone'], 'SCHEME_REJECTED')
-        self.assertEqual(report['lifecycle'], 'BLOCKED')
+        self.assertEqual(report['lifecycle'], 'REPAIRING')
         self.assertFalse(report['delivered'])
         self.assertEqual(report['rendered_routes'], {})
         self.assertIsNone(report['next_action']['command'])

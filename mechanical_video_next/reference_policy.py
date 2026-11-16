@@ -61,6 +61,45 @@ def _required(row, fields, label):
         raise ValueError(label + ' missing required evidence fields')
 
 
+def validate_shot_evidence(shot, mechanism_id):
+    """Validate only the claims depicted by an independently executable shot.
+
+    Unknown third-party viewing and unrelated transmissions are not evidence
+    for this shot, nor prerequisites for it. This never grants final acceptance.
+    """
+    _required(shot, ('shot_id', 'mechanism_id', 'claims', 'model_bindings'), 'Scoped shot')
+    if shot['mechanism_id'] != mechanism_id:
+        raise ValueError('Scoped shot mixes product implementations')
+    if shot.get('status') == 'RESEARCH_REQUIRED':
+        raise ValueError('MECHANISM_UNKNOWN: research this shot before rendering')
+    if shot.get('status') not in {'VERIFIED', 'RENDER_READY', 'RENDERED', 'QA_PENDING'}:
+        raise ValueError('Explicit scoped shot readiness required')
+    for claim in shot['claims']:
+        if claim.get('status') != 'VERIFIED' or not claim.get('statement'):
+            raise ValueError('MECHANISM_UNKNOWN: unverified depicted claim')
+        _required(claim, ('sources',), 'Scoped claim')
+        usable_sources = []
+        for source in claim['sources']:
+            _required(source, ('path', 'sha256', 'position', 'evidence', 'type'), 'Located shot source')
+            path = Path(source['path'])
+            if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != source['sha256']:
+                raise ValueError('Scoped source missing or stale')
+            if source['type'] == 'video':
+                if source.get('observation_status') != 'VIDEO_INSPECTED' or not source.get('viewed_ranges'):
+                    # An honest research lead contributes no evidence; it does
+                    # not invalidate another independently sufficient source.
+                    continue
+            usable_sources.append(source)
+        if not usable_sources:
+            raise ValueError('REFERENCE_VIEW_UNKNOWN cannot support a depicted claim')
+    for model in shot['model_bindings']:
+        path = Path(model.get('path', ''))
+        if (not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != model.get('sha256')
+                or not model.get('license')):
+            raise ValueError('Scoped model missing, stale or unlicensed')
+    return shot
+
+
 def validate_research(research):
     _required(research, ('mechanism_id', 'references'), 'Research')
     refs = {}

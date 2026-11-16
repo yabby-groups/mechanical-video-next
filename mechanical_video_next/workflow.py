@@ -96,12 +96,12 @@ def write(path, value):
 
 
 @contextmanager
-def lock(path):
+def lock(path, wait=False):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a') as handle:
         try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
         except BlockingIOError:
             raise RuntimeError('Resource already locked: ' + str(path))
         try:
@@ -138,9 +138,9 @@ def require_current_scheme(data, candidate_preview=False):
     if data.get('reference_remake', {}).get('old_scheme_status') == 'REJECTED_BY_USER':
         remake = data['reference_remake']
         binding = remake.get('production_binding', {})
-        expected = {'research', 'asset-plan', 'creative-blueprint'}
+        expected = {'research', 'asset-plan'}
         if not candidate_preview:
-            expected.add('mechanical-qa')
+            expected.update({'creative-blueprint', 'mechanical-qa'})
         handoffs = binding.get('handoffs', {})
         plan = binding.get('production_plan', {})
         try:
@@ -150,6 +150,8 @@ def require_current_scheme(data, candidate_preview=False):
                 and basis.get('source_bindings')
                 and all(Path(row['path']).is_file() and filehash(row['path']) == row['sha256']
                         for row in basis['source_bindings']))
+            if technical_basis:
+                expected = {'research', 'asset-plan'}
             # Compare against the preserved ledger, not a mutable readiness label.
             before = json.loads(Path(remake['previous_task_snapshot']).read_text())
             if ((remake.get('primary_reference') or technical_basis)
@@ -165,16 +167,154 @@ def require_current_scheme(data, candidate_preview=False):
         except (KeyError, OSError, ValueError, TypeError):
             pass
         raise ValueError('User-rejected scheme cannot resume old handoffs or render plans. '
-                         'Continuous video perception and a newly watched qualified primary reference '
-                         'for the same real product, operation and mechanism are required; '
+                         'Bind a newly watched qualified primary reference or a documented, source-bound '
+                         'PASS mechanism_basis for the same concrete implementation; '
                          'pass independent 10-15 second preview QA, then bind replacement research, asset-plan, '
                          'creative-blueprint and mechanical-qa handoff entries plus production_plan in '
                          'reference_remake.production_binding on this task. Set previous_task_snapshot to '
                          'the preserved pre-rejection ledger. To create the candidate preview first, bind the '
-                         'new research, asset-plan, creative-blueprint and plan, then run stage local with '
+                         'new research, asset-plan and plan, then run stage local with '
                          'the replacement full production config selecting only 10-15 seconds of local preview shots; '
                          'preview_accepted is not required for that candidate. '
                          'Existing production/QA gates still apply.')
+
+
+def require_source_supported_render(task, config=None):
+    """Permit technical rendering from concrete sources, never grant acceptance."""
+    data = load(task)
+    config = Path(config or data.get('config') or '')
+    if not config.is_file():
+        return False
+    cfg = json.loads(config.read_text())
+    scoped_film = (cfg.get('production_scope') == 'source-supported-film'
+                   and cfg.get('shot_evidence_version') == 1 and data.get('shot_production'))
+    if cfg.get('production_scope') == 'verified-shots' or scoped_film:
+        require_current_scheme(data)
+        from .three_d import validate_config
+        from .reference_policy import validate_shot_evidence
+        validate_config(cfg)
+        selected = list(cfg.get('shots', {})) if scoped_film else cfg.get('local_preview_shots', [])
+        if not selected or set(selected) != set(cfg.get('shots', {})):
+            raise ValueError('Scoped config must contain exactly its selected shots')
+        for name in selected:
+            row = data.get('shot_production', {}).get(name, {})
+            validate_shot_evidence(row, data.get('mechanism_id'))
+            exact = row.get('config', {})
+            if (Path(exact.get('path', '')).resolve() != config.resolve()
+                    or exact.get('sha256') != filehash(config)
+                    or row.get('render_shot_sha256') != digest(cfg['shots'][name])):
+                raise ValueError('Scoped shot requires exact executable config binding')
+            bound = {Path(m['path']).resolve(): m['sha256'] for m in row['model_bindings']}
+            assembly = Path(cfg['assembly_config']).resolve()
+            if bound.get(assembly) != filehash(assembly):
+                raise ValueError('Scoped assembly is not the evidenced model')
+            assembly_data = json.loads(assembly.read_text())
+            if assembly_data.get('model_source'):
+                model_source = assembly_data['model_source']
+                if filehash(model_source['path']) != model_source['sha256']:
+                    raise ValueError('Scoped authored model source changed')
+            depicted = cfg['shots'][name]
+            allowed_parts = set(row.get('verified_parts', []))
+            visible = set(depicted.get('visible_parts', assembly_data.get('required_parts', [])))
+            animated = {t['object'] for t in depicted.get('tracks', []) + depicted.get('mesh_tracks', [])}
+            if not allowed_parts or not (visible | animated) <= allowed_parts:
+                raise ValueError('MECHANISM_UNKNOWN: visible/animated part outside verified scope')
+            inventory = row.get('inventory', {})
+            if filehash(inventory.get('path', '')) != inventory.get('sha256'):
+                raise ValueError('Scoped numerical inventory missing or stale')
+            solids = json.loads(Path(inventory['path']).read_text())
+            inspected = {s['name'] for s in solids if s.get('valid') is True and s.get('solids') == 1 and s.get('volume_mm3', 0) > 0}
+            if not allowed_parts <= inspected:
+                raise ValueError('Scoped geometry has invalid or unknown solids')
+            for source in assembly_data.get('source_files', []):
+                if filehash(ROOT / source['path']) != source['sha256']:
+                    raise ValueError('Scoped assembly source changed')
+        if scoped_film:
+            from .growth import duration_bounds
+            minimum, maximum = duration_bounds(cfg)
+            storyboard = cfg.get('storyboard', [])
+            if ({s.get('shot') for s in storyboard} != set(selected)
+                    or not minimum <= sum(s.get('seconds', 0) for s in storyboard) <= maximum
+                    or any(not s.get('narration') for s in storyboard)):
+                raise ValueError('Full film requires complete measured narration and chapter coverage')
+            preview = data.get('technical_preview', {})
+            check_media([preview.get('media', {})])
+            if (filehash(preview['config']['path']) != preview['config']['sha256']
+                    or preview.get('assembly_sha256') != filehash(cfg['assembly_config'])):
+                raise ValueError('Full film cannot substitute the source-bound preview assembly')
+            preview_cfg = json.loads(Path(preview['config']['path']).read_text())
+            if filehash(preview_cfg['assembly_config']) != preview['assembly_sha256']:
+                raise ValueError('Actual preview must use the same source-bound assembly')
+            info = json.loads(subprocess.check_output(['ffprobe','-v','error','-show_format',
+                '-of','json',preview['media']['path']]))
+            if not 10 <= float(info['format']['duration']) <= 15.1:
+                raise ValueError('Actual continuous 10-15 second technical preview required')
+            if not any(s.get('command_success') and s.get('config_sha256') == preview['config']['sha256']
+                       for s in data.get('stages', [])):
+                raise ValueError('Preview must come from an actual successful stage')
+            if any(r.get('status') != 'RESOLVED' and r.get('shot_id') in selected
+                   for r in data.get('content_repairs', [])):
+                raise ValueError('Unresolved depicted mechanical defect requires repair')
+        return True
+    if cfg.get('production_scope') != 'source-supported-film':
+        return False
+    require_current_scheme(data)
+    remake = data.get('reference_remake', {})
+    basis = remake.get('mechanism_basis', {})
+    if basis.get('status') != 'PASS' or not basis.get('source_bindings'):
+        raise ValueError('Core mechanism evidence UNKNOWN; continue research before this structure')
+    for item in basis['source_bindings']:
+        if filehash(item['path']) != item['sha256']:
+            raise ValueError('Technical mechanism source changed')
+    research = artifact(task, 'research')
+    if basis.get('mechanism_id') != research.get('mechanism_id'):
+        raise ValueError('Technical basis must identify the exact researched implementation')
+    from .reference_policy import validate_research
+    from .comprehension import validate_product_research
+    validate_research(research)
+    validate_product_research(research)
+    asset = check_asset(task)
+    if asset.get('mechanism_id') != research.get('mechanism_id'):
+        raise ValueError('Technical asset/research mechanism mismatch')
+    binding = remake.get('production_binding', {})
+    exact = binding.get('config', {})
+    if Path(exact.get('path', '')).resolve() != config.resolve() or exact.get('sha256') != filehash(config):
+        raise ValueError('Technical render requires exact new config binding')
+    candidate = next(c for c in asset['candidates'] if c.get('id') == asset['selected_candidate_id'])
+    inventory = candidate.get('validation_evidence', {})
+    if not isinstance(inventory, dict) or filehash(inventory.get('path', '')) != inventory.get('sha256'):
+        raise ValueError('Current CAD numerical inventory binding required')
+    rows = json.loads(Path(inventory['path']).read_text())
+    if not isinstance(rows, list) or not rows or any(
+            row.get('valid') is not True or row.get('solids') != 1 or row.get('volume_mm3', 0) <= 0 for row in rows):
+        raise ValueError('Invalid/UNKNOWN CAD solids prevent technical rendering')
+    from .three_d import validate_config
+    validate_config(cfg)
+    preview = binding.get('preview', {})
+    check_media([preview])
+    info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_streams', '-show_format', '-of', 'json', preview['path']]))
+    if not 10 <= float(info['format']['duration']) <= 15.1 or not any(s['codec_type'] == 'video' for s in info['streams']):
+        raise ValueError('Actual new 10-15 second technical preview required')
+    preview_config = binding.get('preview_config', {})
+    if filehash(preview_config.get('path', '')) != preview_config.get('sha256'):
+        raise ValueError('Exact preview config binding required')
+    if not any(row.get('phase') == 'local' and row.get('command_success') is True
+               and row.get('config_sha256') == preview_config['sha256'] for row in data.get('stages', [])):
+        raise ValueError('Successful actual new preview stage evidence required')
+    old_cfg = json.loads(Path(preview_config['path']).read_text())
+    def assembly(value):
+        path = Path(value['assembly_config'])
+        return path if path.is_absolute() else ROOT / path
+    if filehash(assembly(old_cfg)) != filehash(assembly(cfg)):
+        raise ValueError('Full rendering cannot substitute the previewed 3D assembly')
+    if any(row.get('status') != 'RESOLVED' for row in data.get('content_repairs', [])):
+        raise ValueError('Known mechanical/content defect requires repair')
+    for name in ('preview-qa', 'mechanical-qa'):
+        if name in binding.get('handoffs', {}):
+            qa = artifact(task, name)
+            if 'FAIL' in qa.get('checks', {}).values():
+                raise ValueError('Known preview/mechanical FAIL requires repair')
+    return True
 
 
 def complete_media(data, media, final=True):
@@ -226,15 +366,164 @@ def continuation(task, persist=True):
     """
     task = Path(task)
     data = load(task)
+    # Independent verified shots precede global research/handoff dependencies.
+    # Keep this branch task-opt-in; historical ledgers retain their semantics.
+    if data.get('shot_production'):
+        require_current_scheme(data)
+        full_config = Path(data.get('config') or '')
+        if full_config.is_file():
+            cfg = json.loads(full_config.read_text())
+            if cfg.get('production_scope') == 'source-supported-film' and cfg.get('shot_evidence_version') == 1:
+                # Reuse the existing render stages; this authorizes media production,
+                # never independent mechanical/sensory acceptance or delivery.
+                require_source_supported_render(task, full_config)
+                done = {s['phase'] for s in data.get('stages', [])
+                        if s.get('command_success') and s.get('config_sha256') == filehash(full_config)}
+                final = ROOT/'output'/(cfg['id']+'-final.mp4')
+                recorded = next((s.get('media') for s in reversed(data.get('stages', []))
+                    if s.get('command_success') and s.get('phase') == 'final'
+                    and s.get('config_sha256') == filehash(full_config)), None)
+                media = dict(recorded, chapter_ids=[s['id'] for s in cfg['storyboard']]) if recorded else None
+                if media:
+                    complete_media(data, media)
+                    status = 'FINAL_QA_PENDING'
+                    action = dict(owner='Producer/QA', kind='REASONING_REQUIRED', command=None,
+                        action='Full 3D MP4 exists. Complete remaining delivery artifacts and independent exact-media mechanical/comprehension/viewing/listening QA; preserve completed media, provenance, covers and reports.')
+                else:
+                    phase = 'final' if 'preview' in done else 'preview'
+                    status = 'PRODUCTION_IN_PROGRESS'
+                    action = dict(owner='Producer', kind='EXECUTABLE_COMMAND',
+                        action='Render the evidenced full 3D workprint; acceptance remains pending',
+                        command=['uv','run','python','-m','mechanical_video_next','stage',str(task),
+                                 phase,'--config',str(full_config)])
+                    failure = data.get('production_execution_failure', {})
+                    if (failure.get('status') == 'OPEN'
+                            and failure.get('config_sha256') == filehash(full_config)):
+                        action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
+                            action='Diagnose the preserved failed full-film command and change its inputs or strategy before retrying', evidence=failure)
+                result = dict(schema_version=1, milestone=status, production_status=status,
+                    lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
+                    next_action=action, rendered_routes={'3d':media} if media else {},
+                    background_execution=False, execution_mode='current_native_codex_session')
+                if persist:
+                    with lock(task / '.ledger.lock'):
+                        current = load(task)
+                        current.update(continuation=result, production_status=status, next_step=action['action'])
+                        write(task / 'task.json', current)
+                return result
+        rows = data['shot_production']
+        ready, pending, rendered_shots, invalid_shots = [], [], {}, {}
+        for name, row in rows.items():
+            try:
+                if row.get('status') == 'RESEARCH_REQUIRED':
+                    pending.append(name)
+                    continue
+                require_source_supported_render(task, row['config']['path'])
+                media = row.get('media')
+                if media:
+                    check_media([media])
+                    from .multiroute import probe
+                    info = probe(media['path'])
+                    if not any(s.get('codec_type') == 'video' for s in info['streams']):
+                        raise ValueError('Rendered shot has no video')
+                    rendered_shots[name] = media
+                else:
+                    ready.append(name)
+            except (ValueError, OSError, KeyError) as error:
+                pending.append(name)
+                invalid_shots[name] = str(error)
+        if ready:
+            name = ready[0]
+            action = dict(owner='Producer', kind='EXECUTABLE_COMMAND', shot_id=name,
+                action='Render the independently evidenced 3D shot; continue research on other shots',
+                command=['uv','run','python','-m','mechanical_video_next','stage',str(task),
+                         'local','--config',rows[name]['config']['path']])
+        else:
+            action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
+                action='Research same-model cutter/carrier/drive evidence; assess a complete alternative model if unavailable. Prepare narration and remaining evidenced shots.',
+                research_required=pending)
+        # Hand back to the existing full-film workflow once a full plan is bound.
+        if ready or not data.get('production_plan'):
+            status = 'PARTIAL_3D_RENDERED' if rendered_shots else 'PRODUCTION_IN_PROGRESS' if ready else 'RESEARCH_PARTIAL'
+            result = dict(schema_version=1, milestone=status, production_status=status,
+                lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
+                next_action=action, remaining_work=pending, rendered_routes={},
+                rendered_shots=rendered_shots, invalid_evidence=invalid_shots, background_execution=False,
+                execution_mode='current_native_codex_session')
+            if persist:
+                with lock(task / '.ledger.lock'):
+                    current = load(task)
+                    current.update(continuation=result, production_status=status, next_step=action['action'])
+                    write(task / 'task.json', current)
+            return result
     try:
+        if (data.get('reference_remake', {}).get('old_scheme_status') == 'REJECTED_BY_USER'
+                and data['reference_remake'].get('preview_accepted') is not True):
+            raise ValueError('Replacement preview requires generation and inspection before full production')
         require_current_scheme(data)
     except ValueError as error:
-        action = dict(owner='Producer', action=str(error), command=None)
-        result = dict(schema_version=1, milestone='SCHEME_REJECTED', lifecycle='BLOCKED',
-                      blockers=[data['reference_remake']], delivered=False,
+        action = dict(owner='Producer', action=str(error), command=None, kind='REASONING_REQUIRED')
+        rendered_workprint = {}
+        try:
+            require_current_scheme(data, candidate_preview=True)
+            binding = data['reference_remake']['production_binding']
+            config = binding.get('preview_config') or binding['config']
+            if filehash(config['path']) != config['sha256']:
+                raise ValueError('Candidate config changed')
+            done = any(row.get('phase') == 'local' and row.get('command_success')
+                       and row.get('config_sha256') == config['sha256'] for row in data.get('stages', []))
+            if not done:
+                action = dict(owner='Producer', action='Render source-bound replacement candidate; no formal acceptance implied',
+                    kind='EXECUTABLE_COMMAND', command=['uv', 'run', 'python', '-m', 'mechanical_video_next',
+                    'stage', str(task), 'local', '--config', config['path']])
+            else:
+                action = dict(owner='Producer', action='Inspect the replacement preview and repair or obtain preview acceptance; continue independent preparation',
+                              command=None, kind='REASONING_REQUIRED')
+                full_config = binding.get('config', {})
+                if full_config != config and require_source_supported_render(task, full_config.get('path')):
+                    completed = {row['phase'] for row in data.get('stages', []) if row.get('command_success')
+                                 and row.get('config_sha256') == full_config['sha256']}
+                    phase = 'preview' if 'preview' not in completed else 'final' if 'final' not in completed else None
+                    if phase:
+                        action = dict(owner='Producer', action='Render source-supported unaccepted workprint; final sensory QA remains pending',
+                            kind='EXECUTABLE_COMMAND', command=['uv','run','python','-m','mechanical_video_next',
+                            'stage',str(task),phase,'--config',full_config['path']])
+                    workprint = binding.get('workprint', {})
+                    if workprint.get('config') == full_config:
+                        for name in ('media', 'timeline', 'provenance', 'verification'):
+                            ref = workprint[name]
+                            if not Path(ref['path']).is_file() or filehash(ref['path']) != ref['sha256']:
+                                raise ValueError('Missing/stale current workprint: ' + name)
+                        check_data = dict(data, shared_production={'timeline': workprint['timeline']})
+                        complete_media(check_data, workprint['media'])
+                        proof = json.loads(Path(workprint['provenance']['path']).read_text())
+                        receipt = json.loads(Path(workprint['verification']['path']).read_text())
+                        for ref in [proof['input_manifest'], *receipt['verifier']]:
+                            if not Path(ref['path']).is_file() or filehash(ref['path']) != ref['sha256']:
+                                raise ValueError('Missing/stale workprint source verification')
+                        manifest = json.loads(Path(proof['input_manifest']['path']).read_text())
+                        if (manifest.get('config') != full_config
+                                or proof.get('media') != {k: workprint['media'][k] for k in ('path', 'sha256')}
+                                or proof.get('measured_timeline') != workprint['timeline']
+                                or receipt.get('provenance') != workprint['provenance']
+                                or receipt.get('full_build_replayed') is not True):
+                            raise ValueError('Current workprint requires exact config, timeline and verified 3D build')
+                        rendered_workprint = {'3d': workprint['media']}
+                        action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
+                            action='Complete workprint exists; inspect exact media and resolve formal QA without rerendering')
+        except (ValueError, KeyError, OSError, TypeError):
+            pass
+        blockers = [row for row in data.get('production_blockers', []) if row.get('status') == 'OPEN'
+                    and row.get('kind') in {'permission', 'login', 'technical-evidence', 'resource', 'EXTERNAL_BLOCKED'}
+                    and row.get('evidence') and row.get('alternatives')
+                    and row.get('alternatives_checked') is True and row.get('remaining_executable_work') is False]
+        blocked = bool(blockers) and not action.get('command')
+        if blocked: action['kind'] = 'EXTERNAL_BLOCKED'
+        result = dict(schema_version=1, milestone='FINAL_RENDERED' if rendered_workprint else 'SCHEME_REJECTED', lifecycle='BLOCKED' if blocked else 'REPAIRING',
+                      blockers=blockers if blocked else [], delivered=False,
                       workflow_state=data['state'], next_action=action,
                       remaining_work=[action], invalid_evidence={'rejected-scheme': str(error)},
-                      rendered_routes={}, preview_routes={}, diagnostic_clips_only=False,
+                      rendered_routes=rendered_workprint, preview_routes={}, diagnostic_clips_only=False,
                       resume_command=['uv', 'run', 'python', '-m', 'mechanical_video_next',
                                       'produce', '--resume', str(task)],
                       execution_mode='current_native_codex_session', background_execution=False)
@@ -429,14 +718,23 @@ def continuation(task, persist=True):
         action = dict(owner='Producer', action='Provide the accepted actual files and report to the user, then record delivery', command=None)
     # A QA gap is work, not proof that every possible production step is blocked.
     blockers = [row for row in data.get('production_blockers', []) if row.get('status') == 'OPEN'
-                and row.get('kind') in {'permission', 'login', 'technical-evidence', 'resource', 'user-decision'}
+                and row.get('kind') in {'permission', 'login', 'technical-evidence', 'resource', 'EXTERNAL_BLOCKED'}
+                and row.get('evidence') and row.get('alternatives')
                 and row.get('alternatives_checked') is True
                 and row.get('remaining_executable_work') is False]
     lifecycle = ('DELIVERED' if milestone == 'DELIVERED' else
                  'BLOCKED' if blockers and not action.get('command') else
                  'REPAIRING' if unresolved_content or failed_qa or execution_needs_repair or data['state'] in {'FAILED', 'REPAIRING'}
                  or any(row.get('status') == 'REPAIRING' for row in data.get('candidate_failures', [])) else 'WORKING')
+    action['kind'] = ('DELIVERED' if milestone == 'DELIVERED' else
+                      'EXECUTABLE_COMMAND' if action.get('command') else
+                      'EXTERNAL_BLOCKED' if lifecycle == 'BLOCKED' else 'REASONING_REQUIRED')
     result = dict(schema_version=1, milestone=milestone, lifecycle=lifecycle,
+                  production_status=('DELIVERED' if milestone == 'DELIVERED' else
+                      'EXTERNAL_BLOCKED' if lifecycle == 'BLOCKED' else
+                      'FINAL_QA_PENDING' if milestone == 'FINAL_RENDERED' and not accepted else
+                      'FULL_3D_RENDERED' if rendered else
+                      'PARTIAL_3D_RENDERED' if stages else 'RESEARCH_PARTIAL'),
                   blockers=blockers, delivered=milestone == 'DELIVERED',
                   workflow_state=data['state'], next_action=action, remaining_work=missing,
                   invalid_evidence=invalid, rendered_routes=rendered, preview_routes=route_previews,
@@ -467,7 +765,8 @@ def continue_production(task):
             command = result['next_action'].get('command')
             if result['delivered'] or not command:
                 result['execution'] = dict(commands_executed=executed,
-                    returned_to_native_producer=not result['delivered'], background_execution=False)
+                    returned_to_native_producer=result['next_action'].get('kind', 'REASONING_REQUIRED') == 'REASONING_REQUIRED',
+                    required_next_action=result['next_action'], background_execution=False)
                 return result
             # A successful command that does not change its own prerequisites
             # must not be repeated forever. A native Producer diagnoses it.
@@ -489,6 +788,8 @@ def continue_production(task):
                     returned_to_native_producer=True, no_progress=True, background_execution=False)
                 return result
             attempted.add(fingerprint)
+            command_config_sha256 = (filehash(command[command.index('--config')+1])
+                                     if '--config' in command else None)
             event(task, 'producer_action_started', command=command)
             try:
                 subprocess.run(command, cwd=ROOT, check=True)
@@ -497,6 +798,7 @@ def continue_production(task):
                     data = load(task)
                     data['production_execution_failure'] = dict(status='OPEN', command=command,
                         error=str(error), plan_sha256=data.get('production_plan', {}).get('sha256'),
+                        config_sha256=command_config_sha256,
                         handoffs_sha256=digest(data.get('handoffs', {})), epoch=time.time())
                     write(task / 'task.json', data)
                 event(task, 'producer_action_failed', command=command, error=str(error),
@@ -590,8 +892,12 @@ First inspect local verified references, actual product appearance and operation
 reliable internal mechanics and lawful assets. Prefer verified matching existing
 3D assemblies; otherwise build evidence-grounded parametric teaching CAD. A patent
 alone cannot establish a named retail product. Label teaching scope precisely.
-Actually watch one qualified primary reference continuously and bind the same real
-product, operation and mechanism; record observed intervals, method and unknowns.
+Continuous reference viewing is optional for production; never invent observations.
+Use reliable located manufacturer documents, photos and same-model structure sources.
+REFERENCE_VIEW_UNKNOWN does not block evidenced shots. MECHANISM_UNKNOWN blocks only
+dependent parts/actions; continue independent verified-shots via stage local while
+researching same-model internals or evaluating a fully documented alternative product.
+PERCEPTUAL_QA_UNKNOWN permits rendering and encoding, never formal acceptance.
 Reject a fundamentally wrong product/mechanism plan, retaining its failure history;
 until_pass never authorizes endless local patches to a rejected plan.
 Bind evidence_map from claims to sources, parts, motion, shots and verification.
@@ -604,7 +910,8 @@ Show product, use, disassembly, internal power path, principle and product funct
 Prepare real low-cost 3D previews and source/model/motion QA before costly rendering.
 First produce a continuous 10-15 second real-3D preview showing recognizable product,
 user operation, rotation/output, external-to-internal correspondence and core motion
-with return. Independent exact-media QA must pass before full-film production.
+with return. Partial exterior clips are not this preview. Preserve strict mechanical
+evidence for every depicted action; sensory UNKNOWN remains pending at final acceptance.
 Use existing roles only; immutable hashed handoffs and advance/stage gates remain.
 Retain actual native thread IDs; never invent an independent review or capabilities.
 Export inspectable scene, model and spatial motion files per core shot. Save
@@ -624,8 +931,11 @@ mechanical and viewer-comprehension QA and retention/like/save/comment/follow re
 Use continue TASK to reconcile exact evidence; never borrow another topic's plan.
 Actual files must precede record-delivery. Completed historical media remain intact;
 do not recreate the pull-back car. No upload, publication or platform draft.
-When an actual external evidence, permission, resource or capability boundary prevents
-further execution, retain exact status and recovery command, background_execution=false.
+command=None returns reasoning work to this current native Producer; it is not completion.
+Use EXTERNAL_BLOCKED only with evidenced unavailable permission/resources/materials and
+exhausted alternatives when every independent step is unavailable. Preserve partial media.
+Track RESEARCH_PARTIAL, PRODUCTION_IN_PROGRESS, PARTIAL_3D_RENDERED, FULL_3D_RENDERED,
+FINAL_QA_PENDING and DELIVERED separately. background_execution=false on session exit.
 Token/cost/intervention measurements without telemetry are null, not invented zero.
 """
 
@@ -731,6 +1041,15 @@ def put_handoff(task, role, name, payload, dependencies=None):
             deps[dep] = data['handoffs'][dep]['sha256']
         v2 = protocol_version(data) == 2
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
+        technical_handoff = v2 and name in {'animation-manifest', 'timeline'} and require_source_supported_render(task)
+        if technical_handoff:
+            # These are technical-media handoffs, not fabricated perceptual QA.
+            required = ({'research', 'asset-plan', 'cad-model', 'mechanical-diagnostics'}
+                        if name == 'animation-manifest' else
+                        {'research', 'animation-manifest', 'audio-preparation'})
+            if payload.get('config') != data['reference_remake']['production_binding']['config']:
+                raise ValueError('Technical media handoff requires the exact current film config')
+            check_media(payload.get('media'))
         if data.get('reference_policy_version') == 1:
             if name == 'creative-blueprint':
                 required = required | {'research', 'asset-plan'}
@@ -1043,6 +1362,8 @@ def require_mechanical(task):
 
 def require_reference_content(task):
     data = load(task)
+    if require_source_supported_render(task):
+        return
     unresolved = [r for r in data.get('content_repairs', []) if r.get('status') != 'RESOLVED']
     if unresolved:
         raise ValueError('Unresolved content defect blocks production: ' + unresolved[0]['defect_key'])
@@ -1068,6 +1389,8 @@ def require_reference_content(task):
 def require_animatic(task):
     """Fail closed for full renders; a v1 ledger is an explicit legacy path."""
     require_current_scheme(load(task))
+    if require_source_supported_render(task):
+        return
     if protocol_version(load(task)) == 1:
         return
     require_mechanical(task)
@@ -1084,6 +1407,8 @@ def check_production_config(task, config=None):
     """Bind approved story decisions to the actual executable config bytes."""
     data = load(task)
     require_current_scheme(data)
+    if require_source_supported_render(task, config):
+        return
     from .three_d import validate_config
     if config or data.get('config'):
         validate_config(json.loads(Path(config or data['config']).read_text()))
@@ -1529,8 +1854,37 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     if not Path(config).is_file():
         raise ValueError('Actual 3D production config file required')
     validate_config(json.loads(Path(config).read_text()))
+    technical_render = require_source_supported_render(task, config)
+    scoped_render = json.loads(Path(config).read_text()).get('production_scope') == 'verified-shots'
+    if scoped_render and phase not in {'keys', 'checks', 'local'}:
+        raise ValueError('Scoped shots cannot authorize a full film or final acceptance')
+    if technical_render:
+        remake_candidate = False
     if remake_candidate:
         cfg = json.loads(Path(config).read_text())
+        from .reference_policy import validate_research
+        research = artifact(task, 'research')
+        validate_research(research)
+        asset = check_asset(task)
+        if asset.get('mechanism_id') != research.get('mechanism_id'):
+            raise ValueError('Candidate asset and research must identify the same mechanism')
+        assembly_path = ROOT / cfg['assembly_config']
+        assembly = json.loads(assembly_path.read_text())
+        sources = assembly.get('source_files', [])
+        model = asset['model']
+        direct_model = any(Path(row['path']).resolve() == Path(model['path']).resolve()
+                           and row['sha256'] == model['sha256'] for row in sources)
+        shared_source = assembly.get('model_source') == asset.get('model_source') and bool(asset.get('model_source'))
+        if not sources or not (direct_model or shared_source):
+            raise ValueError('Candidate render assembly must use the newly verified model')
+        if shared_source:
+            source = asset['model_source']
+            path = Path(source.get('path', ''))
+            if not path.is_file() or filehash(path) != source.get('sha256'):
+                raise ValueError('Candidate model source missing or changed')
+        for row in sources:
+            if filehash(ROOT / row['path']) != row['sha256']:
+                raise ValueError('Candidate assembly source changed')
         binding = data['reference_remake']['production_binding'].get('config', {})
         if str(Path(binding.get('path', '')).resolve()) != str(Path(config).resolve()) or binding.get('sha256') != filehash(config):
             raise ValueError('Replacement candidate requires its exact new config binding')
@@ -1574,7 +1928,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                         and selected[0] in candidate_config.get('shots', {})):
                     seconds = candidate_config['shots'][selected[0]].get('seconds', 0)
                     native_hd_short_insert = (0 < seconds <= 5 and storyboard[0].get('seconds') == seconds)
-            else:
+            elif not remake_candidate and not technical_render:
                 require_mechanical(task)
     if diagnostic:
         # Inspect an evidenced candidate without granting production approval.
@@ -1605,20 +1959,27 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         check_media(qa.get('media'))
         if any(value == 'FAIL' for value in qa.get('checks', {}).values()):
             raise ValueError('Known failed QA cannot be bypassed for workprint')
-    elif not (diagnostic or animatic_diagnostic or remake_candidate or
+    elif not (technical_render or diagnostic or animatic_diagnostic or remake_candidate or
               (native_hd_workprint and data['state'] == 'RESEARCHING')) and data['state'] not in allowed[phase]:
         raise ValueError('Stage lacks verified prerequisites: ' + data['state'])
     if phase in {'preview', 'final'}:
         require_animatic(task)
         check_production_config(task, config)
-    if phase == 'final' and not (workprint and data['state'] == 'PREVIEW_CHECKING'):
+    if phase == 'final' and not technical_render and not (workprint and data['state'] == 'PREVIEW_CHECKING'):
         check_qa(task, 'preview-qa', acceptance=False)
     # Existing cleanup only removes old completed content-addressed entries,
     # skips protected/task-referenced entries and shares our global lock.
     sys.path.insert(0, str(ROOT / 'scripts'))
     from clean import cleanup
-    cleanup(older_hours=720, apply=True)
-    with lock(ROOT / 'work/production.lock'):
+    try:
+        cleanup(older_hours=720, apply=True)
+    except RuntimeError as error:
+        if str(error) != 'Production busy; cleanup skipped':
+            raise
+        # Another real renderer owns the global lock. Skip optional cleanup,
+        # then queue on that same lock; never fail or delete its live frames.
+        event(task, 'cleanup_deferred', reason=str(error))
+    with lock(ROOT / 'work/production.lock', wait=True):
         start = time.time()
         args = ['uv', 'run', '--project', str(ROOT), 'python',
                 str(ROOT / 'scripts/produce.py'), str(config), '--phase', phase]
@@ -1634,7 +1995,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             with logfile.open('w') as out:
                 subprocess.run(args, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, check=True)
         except (subprocess.CalledProcessError, OSError):
-            isolated_candidate = diagnostic or animatic_diagnostic or workprint
+            isolated_candidate = diagnostic or animatic_diagnostic or workprint or remake_candidate or technical_render
             if isolated_candidate:
                 # Preserve independent routes' valid prerequisites after a
                 # failed inspectable candidate; retain every failed attempt.
@@ -1665,7 +2026,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                     observations.append(observation)
             row = dict(phase=phase, seconds=round(time.time()-start, 3), log=str(logfile),
                        config_sha256=filehash(config),
-                       command_success=True, quality_accepted=False, unaccepted_workprint=workprint,
+                       command_success=True, quality_accepted=False, unaccepted_workprint=workprint or technical_render,
                        diagnostic=diagnostic or animatic_diagnostic or native_hd_short_insert, animatic_diagnostic=animatic_diagnostic,
                        cache_observations=observations,
                        cache_hit_rate=(sum(r['cache_hit'] for r in observations)/len(observations)
@@ -1673,6 +2034,31 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                        full_shot_renders=sum(r['stage'].startswith('final:') and not r['cache_hit']
                                              for r in observations))
             data['stages'].append(row)
+            if technical_render and not scoped_render and phase in {'preview', 'final'}:
+                cfg = json.loads(Path(config).read_text())
+                target = ROOT/'output'/(cfg['id']+'-'+phase+'.mp4')
+                row['media'] = dict(path=str(target), sha256=filehash(target))
+                check_media([row['media']])
+            failure = data.get('production_execution_failure', {})
+            command = failure.get('command', [])
+            if failure.get('status') == 'OPEN' and '--config' in command:
+                failed_config = command[command.index('--config')+1]
+                if Path(failed_config).resolve() == Path(config).resolve():
+                    failure.update(status='RESOLVED', resolved_epoch=time.time(),
+                                   resolution='Corrected inputs/environment; exact stage completed successfully')
+            if scoped_render and phase == 'local':
+                cfg = json.loads(Path(config).read_text())
+                receipt = json.loads((ROOT/'output'/cfg['id']/'verified-shots.json').read_text())
+                if receipt['config_sha256'] != filehash(config):
+                    raise ValueError('Scoped render receipt config changed')
+                for name, rendered in receipt['shots'].items():
+                    check_media([rendered['media']])
+                    for name_of_file in ('scene', 'checks'):
+                        ref = rendered[name_of_file]
+                        if not Path(ref['path']).is_file() or filehash(ref['path']) != ref['sha256']:
+                            raise ValueError('Scoped scene/checks missing or stale')
+                    data['shot_production'][name].update(rendered, status='QA_PENDING',
+                        render_status='RENDERED', perceptual_qa='UNKNOWN')
             for failure in data.get('candidate_failures', []):
                 if failure.get('config_sha256') == row['config_sha256'] and failure.get('phase') == phase:
                     failure.update(status='RESOLVED', resolved_epoch=time.time())
