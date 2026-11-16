@@ -242,7 +242,7 @@ def validate_reference_recreation(blueprint, research):
 
 
 def validate_creative_blueprint(payload):
-    if payload.get('content_policy_version') == 1:
+    if payload.get('content_policy_version') == 1 or payload.get('growth_policy_version') == 2:
         from .growth import validate_contract
         validate_contract(payload)
     if payload.get('status') != 'FROZEN' or not BLUEPRINT_FIELDS <= payload.keys():
@@ -314,8 +314,10 @@ def plan(topic, observed_at=None):
                 'follower_caps': [10000, 50000, 100000], 'likes_exclusive_min': 1000},
             'local_references': cached, 'network_policy': 'Search local cache first; browse only documented gaps',
             'queries': urls, 'max_candidates': 30, 'max_deep_analyses': 10, 'reference_mix': REFERENCE_MIX,
-            'source_policy': 'Physical demonstrations, teardowns, manufacturer videos and animations are usable regardless of popularity; recreate in CAD.',
-            'cache_key': hashlib.sha256(json.dumps(['v3-reference-not-popularity-gate', topic, stamp.date().isoformat(), WEIGHTS, REFERENCE_MIX, 30, 10], sort_keys=True).encode()).hexdigest(),
+            'source_policy': 'Inspect actual product use and teardown first; verify product/model identity and exact observed intervals or regions. Prefer licensed correct media, then verified assemblies, then evidence-based teaching models. Patents do not prove all market products share one mechanism.',
+            'growth_policy_version': 2,
+            'growth_objectives': ['retention', 'like', 'save', 'comment', 'follow'],
+            'cache_key': hashlib.sha256(json.dumps(['v4-real-product-five-growth-goals', topic, stamp.date().isoformat(), WEIGHTS, REFERENCE_MIX, 30, 10], sort_keys=True).encode()).hexdigest(),
             'cache_policy': 'Reuse dated evidence; refresh live metrics before new qualification. No automatic network requests.'}
 
 

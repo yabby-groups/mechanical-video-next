@@ -23,6 +23,9 @@ def number(v):
 
 def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
+    from .comprehension import enabled, validate_product_plan
+    if enabled(data):
+        validate_product_plan(data)
     if not isinstance(data.get('shots'), list) or not data['shots']:
         raise ValueError('Nonempty structured shots required')
     if data.get('content_policy_version') == 1:
@@ -106,6 +109,10 @@ def compile_config(blueprint, base, output, draft=False):
     if data.get('content_policy_version') == 1:
         from .growth import shot_requirements
         result.update(content_policy_version=1, growth_goals=copy.deepcopy(data['growth_goals']))
+        if data.get('growth_policy_version') == 2:
+            result['growth_policy_version'] = 2
+        else:
+            result.pop('growth_policy_version', None)
         if 'duration_policy_override' in data:
             result['duration_policy_override'] = copy.deepcopy(data['duration_policy_override'])
         else:
@@ -119,6 +126,14 @@ def compile_config(blueprint, base, output, draft=False):
             result[key] = copy.deepcopy(data[key])
         for row, shot in zip(result['storyboard'], data['shots']):
             row['knowledge_ids'] = copy.deepcopy(shot['knowledge_ids'])
+    from .comprehension import enabled
+    if enabled(data):
+        for key in ('product_identity', 'product_references', 'product_opening'):
+            result[key] = copy.deepcopy(data[key])
+        result['product_policy_version'] = 1
+        for collection in (storyboard, mappings):
+            for row, shot in zip(collection, data['shots']):
+                row['comprehension'] = copy.deepcopy(shot['comprehension'])
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),
                    blueprint_program_sha256=result['blueprint_program_sha256'],

@@ -69,6 +69,26 @@ class BlueprintTests(unittest.TestCase):
         self.assertFalse(self.output.exists())
         self.assertEqual(b.compile_config(self.blueprint, self.base, self.output, draft=True)['status'], 'DRAFT_UNAPPROVED')
 
+    def test_compiler_preserves_current_growth_version_and_removes_stale_base_version(self):
+        # Compiler transfer only; actual v2 contract and media proof have their
+        # own counterexample suite and must not be inferred from this fixture.
+        self.data.update(content_policy_version=1, growth_policy_version=2,
+                         growth_goals={'fixture': 'transfer only'})
+        self.save()
+        with patch('mechanical_video_next.growth.validate_contract'), \
+                patch('mechanical_video_next.growth.shot_requirements', return_value={}):
+            b.compile_config(self.blueprint, self.base, self.output)
+        compiled = json.loads(self.output.read_text())
+        self.assertEqual(compiled['growth_policy_version'], 2)
+        self.assertEqual(compiled['growth_goals'], self.data['growth_goals'])
+        self.data.pop('growth_policy_version')
+        self.config['growth_policy_version'] = 2
+        self.save()
+        with patch('mechanical_video_next.growth.validate_contract'), \
+                patch('mechanical_video_next.growth.shot_requirements', return_value={}):
+            b.compile_config(self.blueprint, self.base, self.output)
+        self.assertNotIn('growth_policy_version', json.loads(self.output.read_text()))
+
     def test_unknown_mappings_rejected(self):
         for field, value in [('existing_shot', 'missing'), ('template', 'new-engine'), ('asset', 'other-model')]:
             with self.subTest(field=field):

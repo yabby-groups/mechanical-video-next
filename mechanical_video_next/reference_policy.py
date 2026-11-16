@@ -14,6 +14,48 @@ CONTENT_CHECKS = ('reliable_sources', 'specific_mechanism', 'no_model_mixing',
                   'content_duration', 'no_invented_parts', 'executable_shots')
 
 
+def validate_reference_model(report, mechanism_id):
+    """Validate a part-level audit, not just solid validity or script success.
+
+    A scoped teaching approximation may pass with explicit exclusions. Unknown
+    connections necessary for a claimed action cannot be hidden by that scope.
+    File bindings make an old audit unusable after CAD/animation changes.
+    """
+    _required(report, ('mechanism_id', 'depicted_type', 'scope', 'bindings', 'parts',
+                       'motion_basis', 'dimensions_basis'), 'Reference-to-model report')
+    if report['mechanism_id'] != mechanism_id or report.get('no_model_mixing') is not True:
+        raise ValueError('Reference-to-model mechanism mismatch or unresolved model mixing')
+    if report.get('independent') is not True or not report.get('reviewer_thread_id'):
+        raise ValueError('Reference-to-model audit requires an independent reviewer')
+    for binding in report['bindings']:
+        path = Path(binding.get('path', ''))
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != binding.get('sha256'):
+            raise ValueError('Reference-to-model source/model/animation binding missing or stale')
+    seen = set()
+    for part in report['parts']:
+        _required(part, ('part_id', 'source_locations', 'cad_parts', 'function',
+                         'connections', 'motion_constraints', 'verification'), 'Model part')
+        if part['part_id'] in seen:
+            raise ValueError('Duplicate reference-to-model part')
+        seen.add(part['part_id'])
+        for source in part['source_locations']:
+            _required(source, ('source_id', 'position'), 'Model part source')
+        verification = part['verification']
+        _required(verification, ('status', 'evidence'), 'Model part verification')
+        if verification['status'] not in {'PASS', 'SCOPED_PASS'}:
+            raise ValueError('Reference-to-model part FAIL/UNKNOWN: ' + part['part_id'])
+        if verification['status'] == 'SCOPED_PASS' and not part.get('teaching_approximations'):
+            raise ValueError('Scoped model part must disclose teaching approximations')
+    for check in ('appearance', 'key_parts', 'connections', 'input_action', 'transmission',
+                  'output_action', 'work_and_reset', 'exploded_relationships'):
+        row = report.get('consistency_checks', {}).get(check, {})
+        if row.get('status') != 'PASS' or not row.get('evidence'):
+            raise ValueError('Reference/model/animation/picture consistency FAIL/UNKNOWN: ' + check)
+    if report.get('unresolved_core_issues') != []:
+        raise ValueError('Unresolved core reference-to-model issues')
+    return report
+
+
 def _required(row, fields, label):
     if not isinstance(row, dict) or any(not row.get(k) for k in fields):
         raise ValueError(label + ' missing required evidence fields')

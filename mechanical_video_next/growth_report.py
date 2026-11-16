@@ -15,6 +15,11 @@ from .multiroute import ROUTES, probe, sha, write
 from .growth import finite
 
 DIMENSIONS = {
+    'product_opening': '首五秒产品识别与真实操作', 'counterintuitive_observation': '真实反直觉现象',
+    'mechanical_answer': '动作证明答案', 'memorable_discovery': '清晰可记忆发现',
+    'knowledge_summary': '可复看知识总结', 'product_mechanism_mapping': '实物与内部机构对应',
+    'replay_value': '可复看价值', 'grounded_discussion': '自然且有依据的主题讨论',
+    'complete_answer': '完整回答本集问题',
     'opening_action': '开场机械动作', 'first_answer': '第一段答案',
     'information_progression': '章节知识推进', 'repeated_teasers': '无重复预告',
     'information_free_shots': '无信息空转', 'long_holds': '无不合理停留',
@@ -28,6 +33,10 @@ DIMENSIONS = {
 GROUPS = {
     'retention': ('opening_action', 'first_answer', 'information_progression', 'repeated_teasers',
                   'information_free_shots', 'long_holds', 'audiovisual_sync', 'final_payoff'),
+    'like': ('counterintuitive_observation', 'mechanical_answer', 'memorable_discovery'),
+    'save': ('knowledge_summary', 'product_mechanism_mapping', 'replay_value'),
+    'comment': ('grounded_discussion',),
+    'follow': ('complete_answer', 'series_value'),
     'engagement': ('aha_moment', 'mechanism_proof_shot', 'narration_only'),
     'following': ('final_payoff', 'series_consistency', 'series_value', 'next_episode_bridge', 'forced_follow_request'),
 }
@@ -133,7 +142,7 @@ def evaluate(views, dimension, duration):
     for doc, view in views:
         parent = doc['data']
         independent = parent.get('independent_reviewer') is True and bool(parent.get('reviewer_thread_id'))
-        for group in ('retention_checks', 'engagement_checks', 'following_checks', 'dimension_checks'):
+        for group in ('retention_checks', 'like_checks', 'save_checks', 'comment_checks', 'follow_checks', 'engagement_checks', 'following_checks', 'dimension_checks'):
             for row in view.get(group, []):
                 if row.get('goal', row.get('dimension')) != dimension:
                     continue
@@ -242,6 +251,7 @@ def render_markdown(report):
         lines += ['', '时间点（设计时点与媒体观察分开）：', '```json',json.dumps(data['timing'],ensure_ascii=False,indent=2),'```',
                   '', '知识推进（脚本依据）：','```json',json.dumps(report['timeline'],ensure_ascii=False,indent=2),'```',
                   '', '实际媒体QA观察与问题：','```json',json.dumps(data['qa_observations'],ensure_ascii=False,indent=2),'```',
+                  '', '五类目标落实与缺口：','```json',json.dumps(data['optimization_goals'],ensure_ascii=False,indent=2),'```',
                   '', '修复前后：','```json',json.dumps(data['repairs'],ensure_ascii=False,indent=2),'```']
     lines += ['', '封面交付：cover/cover-report.md（两种比例；独立视觉检查见cover-qa.json）。']
     lines += ['', '## 结论', ''] + [f'{i}. {s}' for i,s in enumerate(report['conclusions'],1)]
@@ -302,6 +312,9 @@ def generate(task, paths=None, comparison=None):
                         'scope':'设计目标，不代表媒体已实现；历史蓝图缺失字段保持null'},
               'timeline':rows,'sources':before,'generator_sha256':sha(__file__),
               'post_publish':{'status':'NOT_PROVIDED','observations':[], 'hypotheses':[],
+                              'import_location': str(task/'post-publish'),
+                              'import_command': 'uv run python -m mechanical_video_next.feedback --help',
+                              'observed_rates': {'like':None, 'save':None, 'comment':None, 'follow':None},
                               'scope':'没有发布后数据，不计算虚假增长；不把异平台或异流量当严格A/B'}}
     evidence_dir = task/'growth-evidence'; evidence_dir.mkdir(exist_ok=True)
     evidence = []
@@ -328,8 +341,41 @@ def generate(task, paths=None, comparison=None):
                 'capabilities':doc['data'].get('capabilities',{}),
                 'visual_differences':doc['data'].get('comparison_checks',{}).get('observable_visual_differences')})
             issues.extend({'source':doc['source'],'issue':i} for i in doc['data'].get('issues',[]))
+        optimization_goals = {}
+        for category, keys in GROUPS.items():
+            if category in {'engagement','following'}:
+                continue
+            mapped_keys = keys
+            if blueprint.get('growth_policy_version') == 2:
+                from .growth import GOALS_V2
+                mapped_keys = GOALS_V2[category]
+            checks = {key: dimensions[key] for key in mapped_keys if key in dimensions}
+            status = ('FAIL' if any(c['status']=='FAIL' for c in checks.values()) else
+                      'PASS' if checks and all(c['status']=='PASS' for c in checks.values()) else 'UNKNOWN')
+            optimization_goals[category] = {'status':status, 'checks':checks,
+                'implemented':[k for k,c in checks.items() if c['status']=='PASS'],
+                'unimplemented':[k for k,c in checks.items() if c['status']!='PASS'],
+                'planned':goals.get(category), 'actual_platform_rate':None}
+        # A version-two PASS requires the complete shot-linked independent
+        # observations, not merely a generic dimension labelled PASS.
+        if blueprint.get('growth_policy_version') == 2:
+            from .growth import validate_media_checks
+            verified = False
+            for doc, view in views:
+                candidate = dict(view, independent_reviewer=doc['data'].get('independent_reviewer'),
+                                 reviewer_thread_id=doc['data'].get('reviewer_thread_id'))
+                if isinstance(candidate.get('media'),dict): candidate['media']=[candidate['media']]
+                try:
+                    validate_media_checks(blueprint,candidate)
+                    verified = True
+                except (ValueError, KeyError, TypeError):
+                    continue
+            if not verified:
+                for group in optimization_goals.values():
+                    if group['status']=='PASS': group['status']='UNKNOWN'
+                    group['acceptance_gap']='Complete independent shot-bound visual/audio observations not verified'
         entry = {'media':media,'duration_seconds':duration,'timing':timing,'dimensions':dimensions,
-                 'qa_observations':observation_rows,'issues':issues,'metrics':route_metrics(docs,route,digest),
+                 'optimization_goals':optimization_goals, 'qa_observations':observation_rows,'issues':issues,'metrics':route_metrics(docs,route,digest),
                  'repairs':repair_history(docs,route,media)}
         report['routes'][route]=entry
         # Small, content-addressed samples. Extraction is not perceptual review.
@@ -352,7 +398,14 @@ def generate(task, paths=None, comparison=None):
                        'routes':{r:d['media'] for r,d in report['routes'].items()},'qa_sources':[d['source'] for d in docs if 'qa' in d['source']['path']]}
     write(evidence_dir/'manifest.json',evidence_manifest)
     report['recommendation']={'route':None,'reason':'科学正确性、内容清晰度或完整视听质量尚未可靠验证，不能作出确定的发布推荐。'}
-    all_pass=all(d['status']=='PASS' for r in report['routes'].values() for d in r['dimensions'].values())
+    acceptance_dimensions = set(DIMENSIONS)
+    if blueprint.get('growth_policy_version') == 2:
+        from .growth import GOALS_V2
+        acceptance_dimensions = {key for keys in GOALS_V2.values() for key in keys}
+        acceptance_dimensions.update({'mechanical_correctness','audiovisual_sync','subtitle_sync','series_consistency'})
+    report['acceptance_dimensions'] = sorted(acceptance_dimensions)
+    all_pass=(all(r['dimensions'][key]['status']=='PASS' for r in report['routes'].values() for key in acceptance_dimensions)
+              and all(g['status']=='PASS' for r in report['routes'].values() for g in r['optimization_goals'].values()))
     if all_pass:
         report['status']='QA_VERIFIED_DELIVERY'
         report['recommendation']['reason']='三版现有独立媒体检查均通过；缺少可比优劣证据，不强行指定单一版本。'
@@ -364,8 +417,10 @@ def generate(task, paths=None, comparison=None):
         report['status'] = 'CANDIDATE_UNACCEPTED'
     report['conclusions']=[
         '完播：依据原始蓝图与章节时轴记录开场、早期答案、信息推进；实际落实以每路线媒体QA为准，未知项不宣称改善。',
-        '点赞：核心顿悟及一句话收获见growth_goals.engagement；缺失时不从旁白推断画面已证明。',
-        '吸粉：本集兑现及具体下一集计划见following；无真实计划证据则UNKNOWN。',
+        '点赞：反直觉现象、真实动作证明和清晰发现分别核查；设计不代表已实现。',
+        '收藏：实物与内部结构对应、知识总结及可复看价值需实际媒体证据。',
+        '评论：讨论必须与真实主题有关，不编造争议或遗漏答案；无合适讨论点如实记录缺口。',
+        '关注：本集须完整回答问题并呈现系列价值；下一集承接仅在有真实计划时使用。',
         '三版用途、实际观察、缺陷与成本分别列出；路线名称不代表质量排序。',
         report['recommendation']['reason'],
         '关键未验证项：'+('无（仅限已提供QA覆盖范围）' if all_pass else '至少一个内容、机械或感官维度仍为UNKNOWN/FAIL；见逐版检查。'),
