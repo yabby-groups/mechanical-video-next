@@ -29,6 +29,20 @@ class CoverTests(unittest.TestCase):
     def save(self):
         c.write(self.task/'cover-plan.json',self.plan)
 
+    def test_current_3d_only_covers_and_growth_need_no_other_routes(self):
+        self.data.update(three_d_policy_version=1,requested_routes=['3d'])
+        self.data['route_runs']={'3d':self.data['route_runs']['3d']}
+        c.write(self.task/'task.json',self.data)
+        self.plan['route_analysis']={'3d':self.plan['route_analysis']['3d']}
+        self.save()
+        paths={'3d':self.paths['3d']}
+        report=c.generate(self.task,paths)
+        self.assertEqual(set(report['source_media']),{'3d'})
+        from mechanical_video_next.growth_report import generate
+        growth=generate(self.task,paths)
+        self.assertIsNone(growth['comparison'])
+        self.assertEqual(set(growth['routes']),{'3d'})
+
     def test_exports_names_dimensions_and_no_video_mutation(self):
         before = c.sha(self.paths['3d'])
         with patch.object(c.subprocess,'run',wraps=subprocess.run) as run:

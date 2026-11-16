@@ -115,7 +115,8 @@ class ReferencePolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'prefer qualified legal reuse'):
             p.validate_asset(r,a)
         a.update(strategy='existing-media',selected_candidate_id='existing-media')
-        self.assertEqual(p.validate_asset(r,a)[0],'existing-media')
+        with self.assertRaisesRegex(ValueError,'executable 3D provenance'):
+            p.validate_asset(r,a)
         a['candidates'][0]['legal_use']=False
         with self.assertRaisesRegex(ValueError,'permitted use'): p.validate_asset(r,a)
 

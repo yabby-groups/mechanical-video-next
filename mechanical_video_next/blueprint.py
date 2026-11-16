@@ -23,6 +23,8 @@ def number(v):
 
 def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
+    from .three_d import validate_config
+    validate_config(data)
     from .comprehension import enabled, validate_product_plan
     if enabled(data):
         validate_product_plan(data)
@@ -75,6 +77,8 @@ def compile_config(blueprint, base, output, draft=False):
     if {output.resolve(), output.with_suffix('.binding.json').resolve()} & {blueprint.resolve(), base.resolve()}:
         raise ValueError('Output must not overwrite blueprint or base')
     data, cfg = json.loads(blueprint.read_text()), json.loads(base.read_text())
+    from .three_d import validate_config
+    validate_config(cfg)
     validate(data)
     if data.get('status') != 'FROZEN' and not draft:
         raise ValueError('FROZEN blueprint required; --draft marks unapproved diagnostic output')

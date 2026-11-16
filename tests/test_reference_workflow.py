@@ -96,28 +96,13 @@ class ReferenceWorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'reviewed commands'): multiroute.run_plan(self.root,plan)
             command.assert_not_called()
 
-    def test_reference_layered_config_binds_approved_source(self):
-        from PIL import Image
+    def test_reference_layered_config_is_permanently_rejected(self):
         for route in ('2d','2.5d'):
-            b,r,a,q=fixture('existing-media')
-            b['content_policy_version']=b['reference_policy_version']=1
-            image=self.root/'layer.webp'; Image.new('RGB',(2,2)).save(image)
-            source={'path':str(image),'sha256':w.filehash(image)}
-            a['candidates'][0]['source_files']=[source]; a['render_route']=route
-            compiled={'render_route':route,'evidence_map':b['evidence_map'],
-                      'content_timing':b['content_timing'],
-                      'blueprint_program_sha256':w.digest(b),
-                      'shots':{'s1':{'template':'layered','render_route':route,'layers':[source]}}}
-            config=self.root/'compiled.json'; config.write_text(json.dumps(compiled))
-            b['production_config']={'path':str(config),'sha256':w.filehash(config)}
-            data=w.load(self.task); data.update(config=str(config),asset_strategy='existing-media',render_route=route)
-            with patch.object(w,'load',return_value=data), \
-                    patch.object(w,'artifact',side_effect=lambda task,name: {'creative-blueprint':b,'asset-plan':a,'research':r}[name]), \
-                    patch.object(w,'require_reference_content'):
-                w.check_production_config(self.task)
-                compiled['shots']['s1']['layers'][0]=dict(source,path=str(self.root/'unapproved.webp'))
-                config.write_text(json.dumps(compiled)); b['production_config']['sha256']=w.filehash(config)
-                with self.assertRaisesRegex(ValueError,'not in approved'):
+            config=self.root/'compiled.json'
+            config.write_text(json.dumps({'render_route':route,'shots':{'s1':{'template':'layered'}}}))
+            data=w.load(self.task);data['config']=str(config)
+            with patch.object(w,'load',return_value=data):
+                with self.assertRaisesRegex(ValueError,'3D-only'):
                     w.check_production_config(self.task)
 
     def test_asset_handoff_enforces_priority_and_registers_strategy(self):

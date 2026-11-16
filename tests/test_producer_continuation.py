@@ -17,6 +17,7 @@ class ProducerContinuationTests(unittest.TestCase):
 
     def test_agent_completed_and_two_diagnostics_keep_next_producer_action(self):
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['agent_runs'] = [{'role': 'Research', 'thread_id': 'done', 'seconds': 1}]
         data['stages'] = [dict(phase='local', diagnostic=True, command_success=True)] * 2
         w.write(self.task / 'task.json', data)
@@ -38,8 +39,10 @@ class ProducerContinuationTests(unittest.TestCase):
     def test_resume_outputs_exact_action_and_preserves_existing_work(self):
         sentinel = self.task / 'narration.wav'
         sentinel.write_bytes(b'existing paid narration')
-        with patch.object(sys, 'argv', ['workflow', 'produce', '--resume', str(self.task)]), patch('builtins.print') as output:
+        with patch.object(sys, 'argv', ['workflow', 'produce', '--resume', str(self.task)]), patch('builtins.print') as output, \
+                patch.object(w, 'create_task') as create:
             w.main()
+        create.assert_not_called()
         report = json.loads(output.call_args.args[0])
         self.assertEqual(report['next_action']['owner'], 'Research')
         self.assertEqual(sentinel.read_bytes(), b'existing paid narration')
@@ -59,6 +62,7 @@ class ProducerContinuationTests(unittest.TestCase):
         video = self.task / 'final.mp4'
         video.write_bytes(b'fixture mp4 binding')
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['requested_routes'] = ['3d']
         data['route_runs'] = {'3d': {'outputs': {'path': str(video), 'sha256': w.filehash(video)}}}
         w.write(self.task / 'task.json', data)
@@ -71,6 +75,7 @@ class ProducerContinuationTests(unittest.TestCase):
         plan = self.task / 'plan.json'
         plan.write_text(json.dumps({'topic': 'fixture mechanism', 'routes': {'3d': 'final.mp4'}}))
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['requested_routes'] = ['3d']
         data['production_plan'] = {'path': str(plan), 'sha256': w.filehash(plan)}
         data['handoffs'] = {key: {} for key in ['feasibility', 'animatic-manifest', 'animatic-qa']}
@@ -97,6 +102,7 @@ class ProducerContinuationTests(unittest.TestCase):
         video = self.task / 'final.mp4'
         video.write_bytes(b'exact accepted fixture')
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['state'] = 'COMPLETED'
         data['requested_routes'] = ['3d']
         data['route_runs'] = {'3d': {'outputs': {'path': str(video), 'sha256': w.filehash(video)}}}
@@ -112,6 +118,7 @@ class ProducerContinuationTests(unittest.TestCase):
         video = self.task / 'diagnostic.mp4'
         video.write_bytes(b'diagnostic fixture')
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['requested_routes'] = ['3d']
         data['route_runs'] = {'3d': {'outputs': {'path': str(video), 'sha256': w.filehash(video)}}}
         w.write(self.task / 'task.json', data)
@@ -123,12 +130,14 @@ class ProducerContinuationTests(unittest.TestCase):
 
     def test_empty_route_scope_cannot_claim_final_render(self):
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['requested_routes'] = []
         w.write(self.task / 'task.json', data)
         self.assertNotEqual(w.continuation(self.task)['milestone'], 'FINAL_RENDERED')
 
     def test_failed_stage_exposes_diagnosed_recovery_without_blind_execution(self):
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['state'] = 'FAILED'
         w.write(self.task / 'task.json', data)
         report = w.continuation(self.task)
@@ -137,15 +146,17 @@ class ProducerContinuationTests(unittest.TestCase):
 
     def test_existing_task_scope_expansion_preserves_assets_and_history(self):
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data['requested_routes'] = ['3d']
         data['route_runs'] = {'3d': {'status': 'PENDING', 'outputs': {}}}
         w.write(self.task / 'task.json', data)
         w.event(self.task, 'existing_failure', evidence='retained')
         with patch.object(sys, 'argv', ['workflow', 'extend-routes', str(self.task), '--routes', 'all', '--reason', 'User explicitly requested all three existing-task routes']), patch('builtins.print'):
-            w.main()
-        self.assertEqual(w.load(self.task)['requested_routes'], ['2d', '2.5d', '3d'])
+            with self.assertRaisesRegex(ValueError,'3D-only'):
+                w.main()
+        self.assertEqual(w.load(self.task)['requested_routes'], ['3d'])
         self.assertIn('existing_failure', (self.task / 'events.jsonl').read_text())
-        self.assertIn('route_scope_extended', (self.task / 'events.jsonl').read_text())
+        self.assertNotIn('route_scope_extended', (self.task / 'events.jsonl').read_text())
 
     def test_three_route_receipt_requires_comparison_covers_and_both_reports(self):
         def binding(name):
@@ -158,6 +169,7 @@ class ProducerContinuationTests(unittest.TestCase):
         growth = binding('growth-report.json')
         reference = binding('reference-model-report.json')
         data = w.load(self.task)
+        data.pop('three_d_policy_version', None)
         data.update(state='COMPLETED', requested_routes=list(routes),
                     route_runs={route: {'outputs': media} for route, media in routes.items()},
                     growth_report=growth, reference_model_report=reference)

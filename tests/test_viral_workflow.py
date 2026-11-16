@@ -19,12 +19,13 @@ class ViralWorkflowTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.config = self.root / 'config.json'
-        self.config.write_text(json.dumps({'shots': ['fixture']}))
+        self.config.write_text(json.dumps({'shots': {'fixture': {'template': 'motion'}}}))
         self.task = w.create_task('拉链原理', config=self.config, root=self.root,
                                   asset_strategy='verified-existing', routes='3d')
         # These fixtures isolate downstream DAG/media gates from reference-first admission.
         data = w.load(self.task)
         # Explicit historical v2 fixture: preserve pre-longform DAG coverage.
+        data.pop('three_d_policy_version', None)
         data.pop('content_policy_version')
         data.pop('reference_policy_version')
         data.pop('product_policy_version')
@@ -56,7 +57,7 @@ class ViralWorkflowTests(unittest.TestCase):
                     'primary_reference_id': 'observed-1',
                     'shot_mapping': [{'shot_id': 's1', 'reference_time_range': [0, 5],
                                       'adaptation': 'Recreate the opening with our CAD'}]}}
-            self.config.write_text(json.dumps({'shots': ['fixture'],
+            self.config.write_text(json.dumps({'shots': {'fixture': {'template': 'motion'}},
                                               'blueprint_program_sha256': w.digest(blueprint)}))
             blueprint['production_config'] = {'path': str(self.config), 'sha256': w.filehash(self.config)}
             return self.handoff('creative-blueprint', blueprint)
@@ -183,6 +184,9 @@ class ViralWorkflowTests(unittest.TestCase):
             for value in ('UNKNOWN', 'FAIL', None):
                 with self.subTest(check=name, value=value):
                     failed = dict(checks, **{name: value})
+                    if name == 'observation_basis' and value == 'UNKNOWN':
+                        self.handoff('feasibility', {'checks': failed})
+                        continue
                     with self.assertRaisesRegex(ValueError, 'every check PASS'):
                         self.handoff('feasibility', {'checks': failed})
         self.handoff('feasibility', {'checks': checks})
@@ -265,7 +269,7 @@ class ViralWorkflowTests(unittest.TestCase):
                         w.run_stage(self.task, phase, self.root / 'config.json', workprint=workprint)
             run.assert_not_called()
 
-    def test_approved_animatic_unlocks_manifest_but_unknown_reblocks_it(self):
+    def test_sensory_unknown_allows_production_but_cannot_accept_animatic(self):
         self.animatic()
         self.handoff('animation-manifest', {'media': self.media('preview.mp4'),
                                              'keyframes_verified': True})
@@ -273,10 +277,10 @@ class ViralWorkflowTests(unittest.TestCase):
         w.advance(self.task, 'PREVIEW_READY')
         self.qa['checks']['listening'] = 'UNKNOWN'
         self.handoff('animatic-qa', self.qa)
+        w.advance(self.task, 'PREVIEW_CHECKING')
+        self.handoff('animation-manifest', {'media': self.evidence})
         with self.assertRaisesRegex(ValueError, 'FAIL/UNKNOWN'):
-            w.advance(self.task, 'PREVIEW_CHECKING')
-        with self.assertRaisesRegex(ValueError, 'FAIL/UNKNOWN'):
-            self.handoff('animation-manifest', {'media': self.evidence})
+            w.check_qa(self.task, 'animatic-qa')
 
     def test_cli_handoff_fails_without_dependency_and_writes_nothing(self):
         self.prepare()
@@ -292,7 +296,7 @@ class ViralWorkflowTests(unittest.TestCase):
     def test_changed_executable_config_invalidates_prior_animatic_qa(self):
         self.animatic()
         w.require_animatic(self.task)
-        self.config.write_text(json.dumps({'shots': ['changed after QA']}))
+        self.config.write_text(json.dumps({'shots': {'changed-after-QA': {'template': 'motion'}}}))
         with self.assertRaisesRegex(ValueError, 'config missing or changed'):
             w.require_animatic(self.task)
         self.state('ANIMATING')

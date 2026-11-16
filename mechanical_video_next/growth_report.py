@@ -129,7 +129,7 @@ def qa_views(docs, route, digest):
         view = data.get('route_checks', {}).get(route)
         if isinstance(view, dict) and view.get('media', {}).get('sha256') == digest:
             rows.append((doc, view))
-        media = data.get('media', [])
+        media = data.get('media') or []
         if isinstance(media, dict):
             media = [media]
         if data.get('route') in (None, route) and any(m.get('sha256') == digest for m in media if isinstance(m, dict)):
@@ -278,7 +278,7 @@ def comparison_markdown(report):
 def paths_for(task):
     data = read(Path(task)/'task.json')
     paths = {}
-    for route in ROUTES:
+    for route in (('3d',) if data.get('three_d_policy_version') == 1 else ROUTES):
         ref = data.get('route_runs', {}).get(route, {}).get('outputs', {})
         paths[route] = Path(ref.get('path', Path(task)/('2_5d' if route=='2.5d' else route)/'final.mp4')).resolve()
     return paths
@@ -288,9 +288,10 @@ def generate(task, paths=None, comparison=None):
     task = Path(task).resolve()
     task_data = read(task/'task.json')
     paths = paths or paths_for(task)
-    comparison = Path(comparison or task/'multiroute/compare.mp4').resolve()
-    missing = [str(paths.get(r)) for r in ROUTES if not paths.get(r) or not Path(paths[r]).is_file()]
-    if missing or not comparison.is_file():
+    routes = ('3d',) if task_data.get('three_d_policy_version') == 1 else ROUTES
+    comparison = None if len(routes) == 1 else Path(comparison or task/'multiroute/compare.mp4').resolve()
+    missing = [str(paths.get(r)) for r in routes if not paths.get(r) or not Path(paths[r]).is_file()]
+    if missing or (comparison is not None and not comparison.is_file()):
         raise ValueError('Growth report BLOCKED: missing actual media: '+', '.join(missing+[str(comparison)]))
     from .covers import generate as generate_covers, validate as validate_covers
     if (task / "cover-plan.json").is_file():
@@ -307,7 +308,7 @@ def generate(task, paths=None, comparison=None):
     goals = blueprint.get('growth_goals', {})
     report = {'schema_version':1,'task_id':task_data.get('id',task.name),'topic':task_data['topic'],
               'generated_epoch':time.time(),'status':'CANDIDATE_UNACCEPTED','routes':{},
-              'comparison':{'path':str(comparison),'sha256':sha(comparison)},
+              'comparison':{'path':str(comparison),'sha256':sha(comparison)} if comparison else None,
               'design':{'core_question':blueprint.get('core_question'),'growth_goals':goals,
                         'scope':'设计目标，不代表媒体已实现；历史蓝图缺失字段保持null'},
               'timeline':rows,'sources':before,'generator_sha256':sha(__file__),
@@ -318,7 +319,7 @@ def generate(task, paths=None, comparison=None):
                               'scope':'没有发布后数据，不计算虚假增长；不把异平台或异流量当严格A/B'}}
     evidence_dir = task/'growth-evidence'; evidence_dir.mkdir(exist_ok=True)
     evidence = []
-    for route in ROUTES:
+    for route in routes:
         path = Path(paths[route]).resolve(); digest = sha(path)
         duration = float(probe(path)['format']['duration'])
         media = {'path':str(path),'sha256':digest,'task_id':report['task_id']}
@@ -444,7 +445,7 @@ def validate(task):
     validate_covers(task)
     if report['generator_sha256']!=sha(__file__) or report['sources']!=snapshot(task):
         raise ValueError('Growth report STALE: inputs/QA/subtitles/config or generator changed')
-    for ref in [report['comparison'],*[d['media'] for d in report['routes'].values()],*report['artifacts']]:
+    for ref in [*([report['comparison']] if report.get('comparison') else []),*[d['media'] for d in report['routes'].values()],*report['artifacts']]:
         if not bound(ref): raise ValueError('Growth report STALE: media/evidence/report changed: '+ref['path'])
     for ref in report['dependencies']:
         current=sha(ref['path']) if Path(ref['path']).is_file() else None

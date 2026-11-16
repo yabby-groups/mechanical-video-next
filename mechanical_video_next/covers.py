@@ -41,11 +41,12 @@ def prepare(task, paths=None):
     task = Path(task).resolve()
     plan = read(task/'cover-plan.json')
     data = read(task/'task.json')
+    routes = ('3d',) if data.get('three_d_policy_version') == 1 else ROUTES
     if paths is None:
         paths = paths_for(task)
         for r, run in data.get('route_runs', {}).items():
             candidate = run.get('outputs', {}).get('candidate', {})
-            if r in ROUTES and not paths[r].is_file() and candidate.get('path'):
+            if r in routes and not paths[r].is_file() and candidate.get('path'):
                 paths[r] = Path(candidate['path'])
     for r, ref in plan.get('source_overrides', {}).items():
         if r not in ROUTES or not Path(ref['path']).is_file() or sha(ref['path']) != ref.get('sha256'):
@@ -54,10 +55,10 @@ def prepare(task, paths=None):
     if plan.get('topic') != data['topic']:
         raise ValueError('Cover topic does not match task')
     route = plan.get('recommended_route')
-    if route not in ROUTES or not str(plan.get('recommendation_reason', '')).strip():
+    if route not in routes or not str(plan.get('recommendation_reason', '')).strip():
         raise ValueError('Cover requires recommended_route and recommendation_reason')
-    if set(plan.get('route_analysis', {})) != set(ROUTES):
-        raise ValueError('Cover requires suitability analysis for all three routes')
+    if set(plan.get('route_analysis', {})) != set(routes):
+        raise ValueError('Cover suitability analysis must match the current task routes')
     for analysis in plan['route_analysis'].values():
         if analysis.get('suitability') not in ('PASS', 'FAIL', 'UNKNOWN') or not analysis.get('reason'):
             raise ValueError('Cover requires route suitability and reason')
@@ -72,9 +73,9 @@ def prepare(task, paths=None):
     if selected is None:
         raise ValueError('Cover candidate missing for recommended version')
     sources = {}
-    for r in ROUTES:
+    for r in routes:
         if r not in paths or not Path(paths[r]).is_file():
-            raise ValueError('Cover requires all three completed route videos: '+r)
+            raise ValueError('Cover requires the completed task route video: '+r)
         sources[r] = binding(paths[r])
     identifiers = set()
     for c in candidates:
@@ -82,7 +83,7 @@ def prepare(task, paths=None):
         if not ident or any(x not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for x in ident) or ident in identifiers:
             raise ValueError('Cover candidate IDs must be unique safe names')
         identifiers.add(ident)
-        if c.get('route') not in ROUTES:
+        if c.get('route') not in routes:
             raise ValueError('Invalid candidate route')
         seconds = c.get('seconds')
         duration = float(probe(sources[c['route']]['path'])['format']['duration'])

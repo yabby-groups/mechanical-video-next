@@ -56,6 +56,7 @@ def frame(shot, size, t):
 
 
 def render(shot, folder, width, height, fps, quality):
+    raise ValueError('3D-only production: layered mechanical video generation is permanently retired')
     sources(shot)
     budget()
     count = round(shot['seconds'] * fps)

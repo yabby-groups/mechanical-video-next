@@ -36,30 +36,20 @@ class LayeredTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'changed'):
             layered.sources(self.shot)
 
-    def test_encode_and_cache_without_blender(self):
-        with patch.object(produce,'CACHE',self.root/'cache'), patch.object(produce,'asset_key',side_effect=AssertionError('No Blender asset')):
+    def test_layered_generation_rejected_even_if_cached(self):
+        with patch.object(produce,'CACHE',self.root/'cache'), patch.object(produce,'asset_key') as asset:
             for route in ('2d','2.5d'):
                 self.shot['render_route']=route
-                path,kind,key=produce.make_shot(self.shot,'final',None,Metrics('layer-test'),{'width':160,'height':90,'framing':'fullframe'})
-                self.assertEqual(kind,'video')
-                stream=probe(path)['streams'][0]
-                self.assertEqual(int(stream['nb_frames']),30)
-                self.assertEqual(stream['width'],160)
-                with patch.object(layered,'render',side_effect=AssertionError('Cache miss')):
-                    self.assertEqual(produce.make_shot(self.shot,'final',None,Metrics('cached'),{'width':160,'height':90,'framing':'fullframe'})[2],key)
+                with self.assertRaisesRegex(ValueError,'3D-only'):
+                    produce.make_shot(self.shot,'final',None,Metrics('layer-test'),{'width':160,'height':90,'framing':'fullframe'})
+            asset.assert_not_called()
+        with self.assertRaisesRegex(ValueError,'retired'):
+            layered.render(self.shot,self.root,160,90,30,'final')
 
-    def test_producer_route_and_illustrated_asset(self):
+    def test_producer_cannot_choose_illustrated_route(self):
         task=w.create_task('test',root=self.root)
-        # Exercise the historical illustrated contract; new reference-first
-        # layered sources are covered in test_reference_workflow.
-        data=w.load(task); data.pop('reference_policy_version')
-        w.write(task/'task.json',data)
-        w.select_route(task,'2.5d','structure illustration')
-        payload={'qualified':True,'render_route':'2.5d','source_files':[{'path':str(self.source),'sha256':filehash(self.source)}]}
-        with patch.object(w,'artifact',return_value=payload):
-            self.assertEqual(w.check_asset(task),payload)
-            self.source.write_bytes(b'changed')
-            with self.assertRaisesRegex(ValueError,'changed'):
-                w.check_asset(task)
+        with self.assertRaisesRegex(ValueError,'3D-only'):
+            w.select_route(task,'2.5d','structure illustration')
+        self.assertEqual(w.load(task)['requested_routes'],['3d'])
 
 if __name__=='__main__': unittest.main()

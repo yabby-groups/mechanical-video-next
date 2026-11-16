@@ -1,9 +1,13 @@
 """Low-cost full diagnostics are allowed before freeze, never final renders."""
 import copy
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import subprocess
+import types
 
 from mechanical_video_next import workflow as w
 
@@ -46,6 +50,35 @@ class AnimaticDiagnosticTests(unittest.TestCase):
         self.assertEqual(result['next_action']['owner'], 'Producer')
         self.assertFalse(result['delivered'])
         self.assertTrue(result['remaining_work'])
+
+    def test_real_failed_stage_preserves_other_route_diagnostic_permission(self):
+        self.cfg['render_route'] = '3d'
+        self.save()
+        other_config, other_qa = self.task / 'other-route.json', self.task / 'other-qa.json'
+        other = copy.deepcopy(self.cfg)
+        other['render_route'] = '3d'
+        w.write(other_config, other)
+        qa = copy.deepcopy(self.qa)
+        qa['input_bindings'] = [self.binding(other_config), self.binding(self.assembly)]
+        w.write(other_qa, qa)
+        failure = subprocess.CalledProcessError(1, ['uv', 'run', 'python', 'produce.py'])
+        with patch.dict('sys.modules', {'clean': types.SimpleNamespace(cleanup=lambda **kwargs: None)}), \
+                patch.object(w, 'lock', side_effect=lambda path: nullcontext()), \
+                patch.object(w.subprocess, 'run', side_effect=[failure, None]) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
+                w.run_stage(self.task, 'local', self.config, animatic_diagnostic=True, preproduction_qa=self.qa_path)
+            after = w.load(self.task)
+            self.assertEqual(after['state'], 'RESEARCHING')
+            self.assertEqual(after['candidate_failures'][0]['status'], 'REPAIRING')
+            self.assertEqual(w.continuation(self.task)['lifecycle'], 'REPAIRING')
+            self.assertIsNone(w.continuation(self.task)['next_action']['command'])
+            # This executes the real independent task/config/QA binding gate,
+            # then enters the second actual run_stage subprocess boundary.
+            w.run_stage(self.task, 'local', other_config, animatic_diagnostic=True, preproduction_qa=other_qa)
+            self.assertEqual(run.call_count, 2)
+        events = [json.loads(row) for row in (self.task / 'events.jsonl').read_text().splitlines()]
+        self.assertTrue(any(row['event'] == 'stage_failed' and row['isolated_candidate'] for row in events))
+        self.assertEqual(w.load(self.task)['state'], 'RESEARCHING')
 
     def test_independent_permission_not_final_or_expensive_authorization(self):
         self.qa['decision']['expensive_render_allowed'] = True

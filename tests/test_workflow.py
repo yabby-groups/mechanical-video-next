@@ -133,7 +133,7 @@ class WorkflowTests(unittest.TestCase):
             with patch.object(w.subprocess, 'run') as run:
                 with self.assertRaisesRegex(ValueError, 'UNKNOWN'):
                     w.run_stage(self.task, 'final', Path('config/planetary-01.json'), workprint=True)
-                qa.assert_called_once_with(self.task, 'preview-qa')
+                qa.assert_called_once_with(self.task, 'preview-qa', acceptance=False)
                 run.assert_not_called()
 
     def test_completion_rechecks_preview_qa(self):

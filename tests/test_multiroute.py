@@ -47,17 +47,16 @@ class MultiRouteTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '30fps'):
             validate_timeline(media)
 
-    def test_new_workflow_defaults_all_routes_and_shared_contract(self):
+    def test_new_workflow_defaults_only_3d_and_shared_contract(self):
         from mechanical_video_next import workflow
         with tempfile.TemporaryDirectory() as tmp:
-            task = workflow.create_task('指甲刀', root=tmp)
-            data = workflow.load(task)
-            self.assertEqual(data['requested_routes'], ['2d', '2.5d', '3d'])
+            task=workflow.create_task('指甲刀',root=tmp);data=workflow.load(task)
+            self.assertEqual(data['requested_routes'],['3d'])
             self.assertIsNone(data['shared_production']['timeline']['sha256'])
-            self.assertEqual(data['state'], 'CREATED')
-            self.assertIn('Produce ALL requested routes', (task / 'producer-prompt.md').read_text())
-            single = workflow.create_task('指甲刀', root=tmp, routes='2.5d')
-            self.assertEqual(workflow.load(single)['requested_routes'], ['2.5d'])
+            self.assertEqual(data['state'],'CREATED')
+            for route in ('2d','2.5d','all'):
+                with self.assertRaisesRegex(ValueError,'3D-only'):
+                    workflow.create_task('指甲刀',root=tmp,routes=route)
 
     def test_metrics_sources_are_hash_bound(self):
         from mechanical_video_next.multiroute import supplemental_evidence, sha
@@ -149,20 +148,15 @@ class MultiRouteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, '30–45'):
                 workflow.create_task('历史模板', duration=60, root=tmp, protocol_version=1)
 
-    def test_original_three_routes_keeps_legacy_single_recreation(self):
+    def test_original_3d_script_uses_reference_grounded_production(self):
         from mechanical_video_next import workflow
         with tempfile.TemporaryDirectory() as tmp:
-            task = workflow.create_task('指甲刀', root=tmp)
-            self.assertEqual(workflow.load(task)['production_method'], 'original-shared-script-three-routes')
-            prompt = (task / 'producer-prompt.md').read_text()
-            self.assertIn('Write an original shared script and original shot order', prompt)
-            self.assertNotIn("The selected video's shots, timing, actions and explanation are the production specification", prompt)
+            task=workflow.create_task('指甲刀',root=tmp)
+            self.assertEqual(workflow.load(task)['production_method'],'reference-grounded-3d')
+            self.assertIn('3D-only',(task/'producer-prompt.md').read_text())
             with patch('mechanical_video_next.viral.validate_reference_recreation') as recreation:
-                workflow.check_recreation(task, {})
+                workflow.check_recreation(task,{})
                 recreation.assert_not_called()
-            legacy = workflow.create_task('单路历史约束', root=tmp, routes='3d')
-            self.assertEqual(workflow.load(legacy)['production_method'], 'reference-recreation')
-            self.assertIn("The selected video's shots, timing", (legacy / 'producer-prompt.md').read_text())
 
     def test_route_run_uses_registered_comparison_directory_without_advancing_state(self):
         import sys
@@ -174,6 +168,7 @@ class MultiRouteTests(unittest.TestCase):
             data['shared_production']['comparison_directory'] = str(folder)
             # Historical ledger fixture for bookkeeping, without production QA.
             data.pop('reference_policy_version')
+            data.pop('three_d_policy_version')
             workflow.write(task / 'task.json', data)
             plan = Path(tmp) / 'plan.json'
             plan.write_text(json.dumps({'topic': '指甲刀', 'routes': dict.fromkeys(data['requested_routes'], 'fixture.mp4')}))

@@ -74,6 +74,10 @@ def validate_research(research):
             raise ValueError('Reference must disclose unknowns and conflicts')
         scope = ref['viewed_scope']
         _required(scope, ('status', 'evidence'), 'Actual viewing scope')
+        if ref['type'] == 'video' and scope['status'] == 'UNKNOWN':
+            # Keep inaccessible research leads honest. They cannot support a
+            # modeled fact, asset selection, or narrated mechanical conclusion.
+            continue
         expected = {'video': 'VIDEO_INSPECTED', 'drawing': 'DRAWING_INSPECTED',
                     'patent': 'DOCUMENT_READ', 'manual': 'DOCUMENT_READ',
                     'document': 'DOCUMENT_READ', 'cad': 'MODEL_INSPECTED'}
@@ -95,6 +99,8 @@ def validate_research(research):
         if ref.get('unresolved_core_conflict') is not False:
             raise ValueError('Resolve core structural conflicts before modeling')
         refs[ref['id']] = ref
+    if not refs:
+        raise ValueError('Core mechanical facts UNKNOWN: continue research before modeling')
     return refs
 
 
@@ -126,10 +132,19 @@ def select_asset_strategy(research, candidates):
 
 
 def validate_asset(research, asset):
+    from .three_d import require_route
+    require_route(asset.get('render_route', '3d'))
+    if asset.get('strategy') == 'illustrated':
+        raise ValueError('3D-only asset required')
     selected = select_asset_strategy(research, asset.get('candidates'))
     if (asset.get('strategy'), asset.get('selected_candidate_id')) != selected:
         raise ValueError('Asset must prefer qualified legal reuse before new CAD')
     candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
+    if selected[0] == 'existing-media':
+        from .provenance import validate
+        if not candidate.get('three_d_provenance'):
+            raise ValueError('Existing media needs executable 3D provenance, not a 3D label')
+        validate(candidate['three_d_provenance'])
     if selected[0] != 'autonomous-cad':
         for source in candidate['source_files']:
             path = Path(source.get('path', ''))

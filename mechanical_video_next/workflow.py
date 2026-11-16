@@ -22,7 +22,7 @@ ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
          'Producer': {'feasibility', 'diagnostic-animatic'},
          'Animation': {'animation-manifest', 'animatic-manifest', 'mechanical-diagnostics'},
          'Editor': {'timeline', 'audio-preparation'},
-         'QA': {'preview-qa', 'final-qa', 'content-qa', 'reference-model-qa', 'animatic-qa', 'diagnostic-qa', 'mechanical-qa'}}
+         'QA': {'preview-qa', 'final-qa', 'content-qa', 'reference-model-qa', 'animatic-qa', 'diagnostic-qa', 'mechanical-qa', 'hd-workprint-qa'}}
 NEXT = {'CREATED': 'RESEARCHING', 'RESEARCHING': 'ASSET_READY',
         'ASSET_READY': 'ANIMATING', 'ANIMATING': 'PREVIEW_READY',
         'PREVIEW_READY': 'PREVIEW_CHECKING', 'PREVIEW_CHECKING': 'EDITING',
@@ -32,6 +32,18 @@ QA_CHECKS = {'mechanics', 'explosion_clarity', 'subtitle_audio_sync',
 FEASIBILITY_CHECKS = {'observation_basis', 'mechanics', 'model_motion',
                       'tool_support', 'unsupported_effects'}
 ANIMATIC_CHECKS = QA_CHECKS | {'blueprint_fidelity'}
+PERCEPTUAL_CHECKS = {'explosion_clarity', 'subtitle_audio_sync', 'occlusion',
+                     'continuity', 'listening', 'observation_basis',
+                     'mechanism_visibility'}
+
+
+def production_checks(checks, required):
+    """Unknown perception is pending review; unknown mechanical facts are not."""
+    return (required <= set(checks) and all(
+        value == 'PASS' or (key in PERCEPTUAL_CHECKS and value == 'UNKNOWN')
+        for key, value in checks.items()))
+
+
 AUTONOMY_POLICY = {
     'mode': 'producer-managed', 'routine_user_confirmation': False,
     'repair_mode': 'until_pass', 'max_repair_rounds': None, 'token_budget': None,
@@ -121,6 +133,50 @@ def event(task, kind, **fields):
                            ensure_ascii=False) + '\n')
 
 
+def require_current_scheme(data, candidate_preview=False):
+    """Reject old pointers; same-task replacement must bind new existing artifacts."""
+    if data.get('reference_remake', {}).get('old_scheme_status') == 'REJECTED_BY_USER':
+        remake = data['reference_remake']
+        binding = remake.get('production_binding', {})
+        expected = {'research', 'asset-plan', 'creative-blueprint'}
+        if not candidate_preview:
+            expected.add('mechanical-qa')
+        handoffs = binding.get('handoffs', {})
+        plan = binding.get('production_plan', {})
+        try:
+            basis = remake.get('mechanism_basis', {})
+            technical_basis = (basis.get('status') == 'PASS'
+                and basis.get('mechanism_id') and basis.get('scope') and basis.get('evidence')
+                and basis.get('source_bindings')
+                and all(Path(row['path']).is_file() and filehash(row['path']) == row['sha256']
+                        for row in basis['source_bindings']))
+            # Compare against the preserved ledger, not a mutable readiness label.
+            before = json.loads(Path(remake['previous_task_snapshot']).read_text())
+            if ((remake.get('primary_reference') or technical_basis)
+                    and (candidate_preview or remake.get('preview_accepted') is True or technical_basis)
+                    and expected <= set(handoffs)
+                    and all(handoffs[name] == data.get('handoffs', {}).get(name)
+                            and handoffs[name] != before.get('handoffs', {}).get(name)
+                            for name in expected)
+                    and plan == data.get('production_plan')
+                    and plan != before.get('production_plan')
+                    and filehash(plan['path']) == plan['sha256']):
+                return
+        except (KeyError, OSError, ValueError, TypeError):
+            pass
+        raise ValueError('User-rejected scheme cannot resume old handoffs or render plans. '
+                         'Continuous video perception and a newly watched qualified primary reference '
+                         'for the same real product, operation and mechanism are required; '
+                         'pass independent 10-15 second preview QA, then bind replacement research, asset-plan, '
+                         'creative-blueprint and mechanical-qa handoff entries plus production_plan in '
+                         'reference_remake.production_binding on this task. Set previous_task_snapshot to '
+                         'the preserved pre-rejection ledger. To create the candidate preview first, bind the '
+                         'new research, asset-plan, creative-blueprint and plan, then run stage local with '
+                         'the replacement full production config selecting only 10-15 seconds of local preview shots; '
+                         'preview_accepted is not required for that candidate. '
+                         'Existing production/QA gates still apply.')
+
+
 def complete_media(data, media, final=True):
     """Check actual full-length streams plus explicit chapter coverage bindings.
 
@@ -170,6 +226,25 @@ def continuation(task, persist=True):
     """
     task = Path(task)
     data = load(task)
+    try:
+        require_current_scheme(data)
+    except ValueError as error:
+        action = dict(owner='Producer', action=str(error), command=None)
+        result = dict(schema_version=1, milestone='SCHEME_REJECTED', lifecycle='BLOCKED',
+                      blockers=[data['reference_remake']], delivered=False,
+                      workflow_state=data['state'], next_action=action,
+                      remaining_work=[action], invalid_evidence={'rejected-scheme': str(error)},
+                      rendered_routes={}, preview_routes={}, diagnostic_clips_only=False,
+                      resume_command=['uv', 'run', 'python', '-m', 'mechanical_video_next',
+                                      'produce', '--resume', str(task)],
+                      execution_mode='current_native_codex_session', background_execution=False)
+        if persist:
+            with lock(task / '.ledger.lock'):
+                current = load(task)
+                current['continuation'] = result
+                current['next_step'] = action['action']
+                write(task / 'task.json', current)
+        return result
     valid, invalid = {}, {}
     for name in data.get('handoffs', {}):
         try:
@@ -178,9 +253,16 @@ def continuation(task, persist=True):
             invalid[name] = str(error)
     stages = data.get('stages', [])
     routes = data.get('requested_routes', [data.get('render_route', '3d')])
-    rendered = {}
+    rendered, route_previews = {}, {}
     for route in routes:
         media = data.get('route_runs', {}).get(route, {}).get('outputs', {})
+        candidate = media.get('candidate')
+        if candidate:
+            try:
+                complete_media(data, candidate, final=False)
+                route_previews[route] = candidate
+            except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, StopIteration, ZeroDivisionError) as error:
+                invalid['preview:' + route] = str(error)
         try:
             complete_media(data, media)
             rendered[route] = media
@@ -191,6 +273,8 @@ def continuation(task, persist=True):
         milestone = 'RESEARCH_READY'
     if 'asset-plan' in valid and valid['asset-plan'].get('qualified') is True:
         milestone = 'MODEL_READY'
+    if route_previews and set(route_previews) == set(routes):
+        milestone = 'PREVIEW_READY'
     if 'animation-manifest' in valid:
         try:
             previews = valid['animation-manifest'].get('media', [])
@@ -204,7 +288,13 @@ def continuation(task, persist=True):
     if routes and len(rendered) == len(routes):
         milestone = 'FINAL_RENDERED'
     accepted = False
-    if milestone == 'FINAL_RENDERED' and data['state'] == 'COMPLETED':
+    unresolved_content = [row for row in data.get('content_repairs', []) if row.get('status') != 'RESOLVED']
+    failed_qa = {name: report for name, report in valid.items()
+                 if name.endswith('-qa') and
+                 ('FAIL' in report.get('checks', {}).values() or any(
+                     str(issue.get('severity', '')).lower() in {'critical', 'major', 'error'}
+                     and issue.get('status') != 'RESOLVED' for issue in report.get('issues', [])))}
+    if milestone == 'FINAL_RENDERED' and data['state'] == 'COMPLETED' and not unresolved_content:
         try:
             check_qa(task, 'preview-qa')
             check_qa(task, 'final-qa')
@@ -256,6 +346,10 @@ def continuation(task, persist=True):
     plan_path = Path(plan.get('path', ''))
     executable_plan = (plan_path.is_file() and plan.get('sha256') == filehash(plan_path)
                        and {'feasibility', 'animatic-manifest', 'animatic-qa'} <= set(valid))
+    execution_failure = data.get('production_execution_failure', {})
+    execution_needs_repair = (execution_failure.get('status') == 'OPEN'
+        and execution_failure.get('plan_sha256') == plan.get('sha256')
+        and execution_failure.get('handoffs_sha256') == digest(data.get('handoffs', {})))
     low_cost = data.get('low_cost_animatic_approval', {})
     low_cost_valid = False
     try:
@@ -286,6 +380,28 @@ def continuation(task, persist=True):
     elif data['state'] == 'FAILED':
         action = dict(owner='Producer', action='Diagnose the preserved failed command and change its execution strategy before resuming', command=None,
                       recovery_command=['uv', 'run', 'python', '-m', 'mechanical_video_next', 'resume-stage', str(task), '--reason', '<actual diagnosis and changed strategy>'])
+    elif execution_needs_repair:
+        action = dict(owner='Producer', action='Diagnose the preserved command failure; repair inputs, bind a changed plan or record an evidenced resolution before execution',
+                      evidence=execution_failure, command=None)
+    elif failed_qa:
+        name, report = next(iter(failed_qa.items()))
+        issues = [issue for issue in report.get('issues', []) if issue.get('status') != 'RESOLVED']
+        issue = next((issue for issue in issues if str(issue.get('severity', '')).lower()
+                      in {'critical', 'major', 'error'}), issues[0] if issues else {})
+        action = dict(owner=issue.get('responsible_agent', 'Producer'),
+                      action=issue.get('suggested_fix', 'Diagnose the failed exact-media checks, repair affected shots and obtain independent re-verification'),
+                      qa_handoff=name, defect_key=issue.get('defect_key'),
+                      evidence=issue.get('evidence', report.get('media')), command=None)
+    elif routes and len(rendered) == len(routes) and not accepted:
+        action = dict(owner='QA/Producer',
+                      action='Bind missing provenance handoffs to the existing complete route media and resolve final exact-media acceptance gaps; preserve verified renders',
+                      missing_handoffs=[row['handoff'] for row in missing],
+                      media=rendered, command=None)
+    elif low_cost_valid and any(row.get('status') == 'REPAIRING'
+                               and row.get('config_sha256') == low_cost['config']['sha256']
+                               for row in data.get('candidate_failures', [])):
+        action = dict(owner='Producer', action='Diagnose the failed candidate and change its execution strategy; independently approved other route work remains executable',
+                      command=None, failed_config=low_cost['config'])
     elif low_cost_valid and not low_cost_rendered and data['state'] == 'RESEARCHING':
         action = dict(owner='Producer', action='Render the independently permitted full low-cost raw dynamic animatic',
                       command=['uv', 'run', 'python', '-m', 'mechanical_video_next', 'stage', str(task), 'local',
@@ -311,10 +427,20 @@ def continuation(task, persist=True):
         action = dict(owner='QA', action='Resolve exact-media acceptance gaps; rendered media is not accepted delivery', command=None)
     else:
         action = dict(owner='Producer', action='Provide the accepted actual files and report to the user, then record delivery', command=None)
-    result = dict(schema_version=1, milestone=milestone, delivered=milestone == 'DELIVERED',
+    # A QA gap is work, not proof that every possible production step is blocked.
+    blockers = [row for row in data.get('production_blockers', []) if row.get('status') == 'OPEN'
+                and row.get('kind') in {'permission', 'login', 'technical-evidence', 'resource', 'user-decision'}
+                and row.get('alternatives_checked') is True
+                and row.get('remaining_executable_work') is False]
+    lifecycle = ('DELIVERED' if milestone == 'DELIVERED' else
+                 'BLOCKED' if blockers and not action.get('command') else
+                 'REPAIRING' if unresolved_content or failed_qa or execution_needs_repair or data['state'] in {'FAILED', 'REPAIRING'}
+                 or any(row.get('status') == 'REPAIRING' for row in data.get('candidate_failures', [])) else 'WORKING')
+    result = dict(schema_version=1, milestone=milestone, lifecycle=lifecycle,
+                  blockers=blockers, delivered=milestone == 'DELIVERED',
                   workflow_state=data['state'], next_action=action, remaining_work=missing,
-                  invalid_evidence=invalid, rendered_routes=rendered,
-                  diagnostic_clips_only=bool(stages) and all(row.get('diagnostic') or row.get('phase') in {'asset', 'keys', 'checks'} for row in stages),
+                  invalid_evidence=invalid, rendered_routes=rendered, preview_routes=route_previews,
+                  diagnostic_clips_only=not route_previews and milestone not in {'PREVIEW_READY', 'FINAL_RENDERED', 'QA_ACCEPTED', 'DELIVERED'} and bool(stages) and all(row.get('diagnostic') or row.get('phase') in {'asset', 'keys', 'checks'} for row in stages),
                   resume_command=resume, execution_mode='current_native_codex_session',
                   background_execution=False)
     if persist:
@@ -326,19 +452,80 @@ def continuation(task, persist=True):
     return result
 
 
+def continue_production(task):
+    """Drain executable ledger actions in this process; return reasoning to Codex.
+
+    The commands remain the existing evidence-gated stage/route entry points.
+    This does not fabricate an AI repair loop or schedule background work.
+    """
+    task = Path(task)
+    with lock(task / '.producer-execution.lock'):
+        attempted = set()
+        executed = 0
+        while True:
+            result = continuation(task)
+            command = result['next_action'].get('command')
+            if result['delivered'] or not command:
+                result['execution'] = dict(commands_executed=executed,
+                    returned_to_native_producer=not result['delivered'], background_execution=False)
+                return result
+            # A successful command that does not change its own prerequisites
+            # must not be repeated forever. A native Producer diagnoses it.
+            fingerprint = digest(dict(command=command, milestone=result['milestone'],
+                action=result['next_action'], rendered_routes=result['rendered_routes'],
+                handoffs=load(task).get('handoffs', {}), plan=load(task).get('production_plan', {})))
+            if fingerprint in attempted:
+                with lock(task / '.ledger.lock'):
+                    data = load(task)
+                    data['production_execution_failure'] = dict(status='OPEN', command=command,
+                        error='Successful command made no ledger progress; native diagnosis required',
+                        plan_sha256=data.get('production_plan', {}).get('sha256'),
+                        handoffs_sha256=digest(data.get('handoffs', {})), epoch=time.time())
+                    write(task / 'task.json', data)
+                event(task, 'producer_no_progress', command=command,
+                      reason='Identical executable action remained after execution; native diagnosis required')
+                result = continuation(task)
+                result['execution'] = dict(commands_executed=executed,
+                    returned_to_native_producer=True, no_progress=True, background_execution=False)
+                return result
+            attempted.add(fingerprint)
+            event(task, 'producer_action_started', command=command)
+            try:
+                subprocess.run(command, cwd=ROOT, check=True)
+            except (subprocess.SubprocessError, OSError) as error:
+                with lock(task / '.ledger.lock'):
+                    data = load(task)
+                    data['production_execution_failure'] = dict(status='OPEN', command=command,
+                        error=str(error), plan_sha256=data.get('production_plan', {}).get('sha256'),
+                        handoffs_sha256=digest(data.get('handoffs', {})), epoch=time.time())
+                    write(task / 'task.json', data)
+                event(task, 'producer_action_failed', command=command, error=str(error),
+                      next_owner='Producer', background_execution=False)
+                continuation(task)
+                raise
+            executed += 1
+            event(task, 'producer_action_completed', command=command)
+
+
 def delivery_files(task, data, routes):
     """Resolve mandatory files from accepted reports, never a topic-specific path."""
     required = list(routes.values())
-    if len(data.get('requested_routes', [])) != 3:
+    if len(data.get('requested_routes', [])) != 3 and data.get('three_d_policy_version') != 1:
         return required
     from .growth_report import validate as validate_growth
     from .covers import validate as validate_covers, SIZES
     growth = validate_growth(task)
     covers = validate_covers(task, require_pass=True)
     comparison = growth.get('comparison', {})
-    if not comparison.get('path') or Path(comparison['path']).suffix.lower() != '.mp4':
+    if data.get('three_d_policy_version') != 1 and (not comparison.get('path') or Path(comparison['path']).suffix.lower() != '.mp4'):
         raise ValueError('Accepted synchronized comparison binding required for delivery')
-    required.append(comparison)
+    if data.get('three_d_policy_version') != 1:
+        required.append(comparison)
+    else:
+        from .provenance import validate
+        provenance = Path(task) / '3d-provenance.json'
+        validate(provenance, routes['3d'])
+        required.append(dict(path=str(provenance), sha256=filehash(provenance)))
     for name in SIZES:
         matches = [item for item in covers.get('artifacts', []) if Path(item['path']).name == name]
         if len(matches) != 1:
@@ -390,11 +577,82 @@ def record_delivery(task, files, reason):
     return continuation(task)
 
 
+def producer_prompt(data, task):
+    identity, topic = data['id'], data['topic']
+    return f"""You are the sole native Codex Producer for {identity}: {topic}.
+Task: {task}. New production is permanently 3D-only. requested_routes=["3d"],
+render_route="3d". No 2d, 2.5d, all, illustrated/layered mechanical subjects,
+photo planes, parallax substitutes or fallback after a 3D failure. No comparison
+or other-route film is a delivery dependency. Never start a second Producer.
+Read AGENTS.md, README.md, docs/3d-only-contract.md, docs/reference-first-contract.md,
+docs/product-comprehension-contract.md, existing task ledger and applicable skills.
+First inspect local verified references, actual product appearance and operation,
+reliable internal mechanics and lawful assets. Prefer verified matching existing
+3D assemblies; otherwise build evidence-grounded parametric teaching CAD. A patent
+alone cannot establish a named retail product. Label teaching scope precisely.
+Actually watch one qualified primary reference continuously and bind the same real
+product, operation and mechanism; record observed intervals, method and unknowns.
+Reject a fundamentally wrong product/mechanism plan, retaining its failure history;
+until_pass never authorizes endless local patches to a rejected plan.
+Bind evidence_map from claims to sources, parts, motion, shots and verification.
+Use original narration and arrangement, locked studio style, Neil, measured audio,
+1920x1080/30fps, readable single-line subtitles and knowledge-driven 120-300 seconds.
+Keep shared narration and validated CAD/cache; subtitle edits only recompose.
+Open with a supported action; every shot advances a new fact or causal step.
+Never pad with repetition, slow playback, idle holds or rushed narration.
+Show product, use, disassembly, internal power path, principle and product function.
+Prepare real low-cost 3D previews and source/model/motion QA before costly rendering.
+First produce a continuous 10-15 second real-3D preview showing recognizable product,
+user operation, rotation/output, external-to-internal correspondence and core motion
+with return. Independent exact-media QA must pass before full-film production.
+Use existing roles only; immutable hashed handoffs and advance/stage gates remain.
+Retain actual native thread IDs; never invent an independent review or capabilities.
+Export inspectable scene, model and spatial motion files per core shot. Save
+3d-provenance.json with camera, engine, assets/references, render outputs and complete
+MP4 build. Run executable provenance validation, full decode, mechanism/comprehension,
+phone subtitles, style and five-goal growth QA on the exact MP4 hash. A filename,
+ffprobe result or perspective screenshot never proves 3D. Text overlays are allowed
+only over actual 3D mechanics. No UNKNOWN may be marked accepted.
+Continue research -> assets -> scene -> animation -> preview -> render -> composition
+-> QA -> scoped repair -> delivery. A failed subtask is a repair action, not global
+completion. Diagnose and change ineffective strategies, never repeat unchanged
+failure blindly; preserve repair history. Keep Blender serial and disk/work budgets.
+Research, code upgrades, passing tests, CAD and local diagnostics are subtask work,
+never completed delivery. Reuse existing QA and handoffs; do not build a new QA system.
+Deliver one complete 3D MP4, 3:4 and 4:3 covers, product/reference report, provenance,
+mechanical and viewer-comprehension QA and retention/like/save/comment/follow report.
+Use continue TASK to reconcile exact evidence; never borrow another topic's plan.
+Actual files must precede record-delivery. Completed historical media remain intact;
+do not recreate the pull-back car. No upload, publication or platform draft.
+When an actual external evidence, permission, resource or capability boundary prevents
+further execution, retain exact status and recovery command, background_execution=false.
+Token/cost/intervention measurements without telemetry are null, not invented zero.
+"""
+
+
+def sync_producer_prompt(task, data):
+    task = Path(task)
+    path = task / 'producer-prompt.md'
+    content = producer_prompt(data, task)
+    if path.exists() and path.read_text() != content:
+        audit = task / 'recovery' / ('producer-prompt.before-3d-' + filehash(path)[:16] + '.md')
+        audit.parent.mkdir(parents=True, exist_ok=True)
+        if not audit.exists():
+            audit.write_bytes(path.read_bytes())
+        data.setdefault('producer_prompt_history', []).append(dict(path=str(audit), sha256=filehash(audit)))
+        write(task / 'task.json', data)
+    path.write_text(content)
+
+
 def create_task(topic, duration=None, voice=None, config=None, task_id=None, root=ROOT,
-                protocol_version=2, asset_strategy='reference-first', routes='all'):
-    requested_routes = ['2d', '2.5d', '3d'] if routes == 'all' else [routes]
-    if not set(requested_routes) <= {'2d', '2.5d', '3d'}:
-        raise ValueError('Unsupported requested routes')
+                protocol_version=2, asset_strategy='reference-first', routes='3d'):
+    from .three_d import require_route, validate_config
+    require_route(routes)
+    if asset_strategy == 'illustrated':
+        raise ValueError('3D-only production rejects illustrated assets')
+    if config:
+        validate_config(json.loads(Path(config).read_text()))
+    requested_routes = ['3d']
     if type(protocol_version) is not int or protocol_version not in {1, 2}:
         raise ValueError('Unsupported production protocol_version')
     minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else (120, 300)
@@ -419,6 +677,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                  stages=[], repairs={}, human_interventions=None,
                  tokens=None, tokens_source='Not exposed to deterministic runner',
                  agent_runs=[], engineering_changes=None)
+    value.update(three_d_policy_version=1, requested_routes=['3d'], render_route='3d')
     if protocol_version == 2:
         value['reference_policy_version'] = 1
         value['reference_model_policy_version'] = 1
@@ -426,8 +685,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value['growth_policy_version'] = 2
         value['content_policy_version'] = 1
         value['duration_policy'] = {'minimum': 120, 'maximum': 300, 'mode': 'knowledge-driven' if duration is None else 'requested', 'requested_seconds': duration}
-        value['production_method'] = ('original-shared-script-three-routes'
-                                      if len(requested_routes) == 3 else 'reference-recreation')
+        value['production_method'] = 'reference-grounded-3d'
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
         value['requested_routes'] = requested_routes
         value['route_runs'] = {route: {'status': 'PENDING', 'outputs': {}} for route in requested_routes}
@@ -436,208 +694,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
             'timeline': {'path': str(task / 'shared/timeline.json'), 'sha256': None},
             'narration': {'path': str(task / 'shared/narration.wav'), 'sha256': None},
             'cache_policy': 'content-and-config-sha256; narration shared across routes; geometry scoped by route',
-            'comparison_directory': str(task / 'multiroute')}
+            'render_directory': str(task / '3d')}
     write(task / 'task.json', value)
-    prompt = f'''Act as the sole Producer in this Codex session. Produce: {topic}
-Target duration: {duration}s. Requested voice: {voice or 'existing approved default'}.
-New content policy accepts 120–300s; unspecified duration is knowledge-driven, not fixed.
-Before freezing, choose duration from reliable knowledge and measured Neil narration.
-Bind content_policy_version=1 and growth_goals in the blueprint. See docs/longform-contract.md.
-Bind product_policy_version=1 and growth_policy_version=2. Start with observed real
-product identity, operation and appearance; a patent alone never establishes a
-commercial model's internals. Prefer licensed matching existing media/assemblies.
-The first 3–5 seconds must identify the product, show a supported action, ask why,
-and promise an answer. Map each new fact to input/transmission/output and narration.
-Independently review actual low-cost video and audio for product recognition,
-mechanism and viewer comprehension before costly rendering. Like, save, comment,
-follow and retention each need exact-media proof; do not withhold the answer.
-Use original narration and shot order informed by observed references, not copied expression.
-Complete the current question before bridging to a documented next episode.
-Historical tasks retain their existing duration and assets.
-Keep a fast, information-dense pace: open immediately with a striking action, surprising
-fact or concrete question; every shot advances a new fact or causal step. Synchronize
-explanation with visible motion; use close-ups, sections and comparisons where useful.
-Build length through supported explanation and distinct demonstrations, never slower
-playback, repeated footage, filler holds or artificially accelerated narration.
-End by resolving the opening question. QA must inspect the exact media for hook,
-information progression, action/narration alignment, repetition and actual duration;
-retain UNKNOWN for unavailable perceptual checks, never infer audience retention.
-Match narration and shared shot timings naturally. Do not stretch the fixed nail-clipper
-adapter or accelerate audio merely to claim a requested duration was achieved.
-Task folder: {task}. Config hint: {config or 'select verified existing template'}.
-Requested output routes: {', '.join(requested_routes)}. Produce ALL requested routes;
-render_route remains the legacy primary-route field, not permission to omit other requested routes.
-Use one shared reference, script, shot order, timeline and approved narration under {task}/shared.
-Animation owns route-scoped keys, shots and manifests; Editor composes every requested route.
-Keep route-specific asset/config/media hashes and caches separate; identical narration is shared.
-Independent QA records each route and exact hash plus the synchronized comparison.
-For multi-route completion final-qa must include route_checks keyed by every requested route,
-each with media={{path,sha256}} and all standard QA checks PASS; UNKNOWN never completes a route.
-Use the existing workflow route-run command with an authored deterministic plan to resume renders.
-If a requested route is unavailable, record its concrete issue and next step; do not silently drop it.
-Task preparation does not prove arbitrary mechanical names already have a CAD/render adapter.
-Every new video requires its own reference research before script/blueprint freeze.
-Breakout videos are inspiration, not a prerequisite. Followers, likes and publication
-age do not gate production. Ordinary physical demonstrations, teardowns and manufacturer
-videos are valid references: recreate their mechanisms and demonstrations in CAD.
-Do not stop production or search indefinitely solely because no breakout was found.
-Select an observed same-topic PRIMARY reference and record its true qualification.
-Check its actual content and reproduction feasibility before commissioning production CAD.
-The selected video's shots, timing, actions and explanation are the production specification.
-Do not invent hidden structures, a new story or an industrial-design verification project.
-One verified reproducible primary is sufficient; B/C references are optional supplements.
-If a candidate lacks useful content, reselect autonomously; candidate lists alone
-never authorize production. MechanicalResearch may assess feasibility without full modeling.
-Production method: reference-recreation. Select one observed primary reference,
-study its opening, narrative structure, pacing and key demonstrations; write original shot order
-using our own CAD, animation and narration. Preserve the approved EP03 look and Neil voice.
-Cached observations can be reused with dates and freshness checks, but each video
-needs a task-specific research conclusion. Include task_id={identity} and the exact
-task topic in candidates.json; viral analyze preserves that task binding.
-The FROZEN blueprint must include reference_recreation={{primary_reference_id,
-shot_mapping:[{{shot_id, reference_time_range:[start,end], adaptation}}]}}.
-For image/diagram/structure sources replace reference_time_range with reference_region.
-Map every production shot exactly once to an observed interval or depicted structure feature; adaptation explains what is recreated and any necessary changes.
-Independent QA compares the exact rendered video with that mapping and reference.
-Read AGENTS.md and the three mechanical Skills. Use actual native Codex subagent
-tools, at most three children. Do not spawn another Producer.
-Run every external Python command through uv run, including temporary scripts,
-tests and child processes. For CAD use uv run --with-requirements requirements-cad.txt python.
-Use fresh child context (fork_turns="none" when supported), pass role file and
-task/input paths rather than this full development transcript or large media.
-Dispatch Research and Asset concurrently, each owning only its JSON handoff. Check immutable
-handoff hashes via this ledger. Reject an unsupported model or topic; never
-invent a complex assembly. Animation waits for qualified asset and mechanical
-facts. Editor may prepare speech early, but final composition waits for shots.
-Production protocol: {protocol_version}. For protocol 2 dispatch ViralResearch
-using .codex/agents/viral_research.toml before final scripting. It owns
-viral-analysis and creative-blueprint, binding observed reference media and
-shot-level adaptation. Read the viral-video-research Skill. Search the local
-reference_library first and reuse dated observations before network research;
-do not claim old counts are current or reanalyze an already covered video.
-Start with up to 30 candidates and 10 deep analyses; expand when useful. Popularity is optional.
-Images, diagrams and structure documents are valid observed references. Select 2d/2.5d
-with illustrated assets and layered shots when that communicates the demonstrated mechanism;
-use CAD for 3d. Never stop because a breakout video or complete CAD is unavailable. Separate A
-(same topic, 50%), B (same mechanism, 30%), C (transferable expression, 20%)
-references; unsupported ratios remain an explicit gap, never invented samples.
-Research/Asset preparation may run before the blueprint,
-but script must depend on research and creative-blueprint. Producer registers
-feasibility depending exactly on creative-blueprint, research and asset-plan;
-observation_basis, mechanics, model_motion, tool_support and unsupported_effects
-checks must all PASS. This freezes that exact immutable blueprint version;
-any change invalidates downstream approvals. Compile the executable blueprint
-using uv run python -m mechanical_video_next.blueprint compile, inspect its supported template
-mapping and binding receipt, then hand off a new immutable FROZEN blueprint
-with production_config={{path, sha256}} matching the exact task config file.
-This binding must survive every render gate; changing the config invalidates QA.
-Animation then registers an actual
-animatic-manifest depending on research, asset-plan, creative-blueprint and
-feasibility. Use uv run python -m mechanical_video_next.blueprint animatic for the
-supported screenshot-based animatic and separately validate the actual 3–5s
-critical motion clip. A static animatic cannot prove motion or complete listening;
-unsupported capabilities remain UNKNOWN. Register actual MP4/hash separately.
-Dispatch independent QA for animatic-qa, depending on animatic-manifest and
-creative-blueprint, with all ANIMATIC_CHECKS PASS and exact media/reviewer ID.
-Only then may full preview or final render begin, including workprints.
-animation-manifest must depend on all six approved inputs. Recheck stale hashes.
-Before feasibility, Producer may register diagnostic-animatic with status
-DRAFT_UNAPPROVED, exact MP4/hash and blueprint_evidence JSON path/hash, depending
-on research and asset-plan. Independent diagnostic-qa may document actual defects
-and repair evidence; these diagnostic artifacts never grant full render approval.
-Use uv run python -m mechanical_video_next handoff/advance/stage/status commands.
-Run keys then inspect images, preview then independent QA, then final and
-independent QA. QA must open actual media and bind evidence hashes; unavailable
-vision or listening remains UNKNOWN and prevents COMPLETED. Repairs require
-issue IDs and stable defect_key (failure type plus component/requirement,
-never a media hash), measured results and independent rechecks.
-Renaming an issue or changing media never erases that defect's repair history.
-On failed commands, preserve evidence, diagnose, repair and resume through the ledger.
-For an explicit subtitle_text defect use uv run python -m mechanical_video_next.repairs
-with exact config hash/cue binding, then dispatch independent QA on repaired media.
-For other defects choose an evidence-supported asset/template/voice segment and measured
-repair ledger; unsupported alternatives must block rather than invent mechanics.
-Log each real child thread ID, timing and available token usage with agent-run.
-Deliver final.mp4, captions.srt, timeline.json and structured QA reports in this
-task, with exact hashes. Never upload or publish. Single-agent fallback may use
-the deterministic stages, but must label dispatch_mode=single and cannot claim
-independent QA without another eligible reviewer.
-'''
-    if asset_strategy == 'autonomous-cad':
-        prompt = prompt.replace(
-            'Dispatch Research and Asset concurrently, each owning only its JSON handoff.',
-            'Dispatch ViralResearch and MechanicalResearch for independent creative and mechanical facts. '
-            'CAD then owns parameterized solids and measured assembly evidence.')
-        prompt = prompt.replace('Research/Asset preparation may run before the blueprint,',
-                                'MechanicalResearch and CAD preparation may run before the blueprint,')
-        prompt += '''\nAsset policy: choose 3d CAD or illustrated 2d/2.5d based on observed sources.
-Before asset/blueprint handoffs, use select-route with route and reason to update this task.
-The following CAD requirements apply only to the 3d route; illustrated assets use
-source_files path/hash and render_route, layered shots, and actual media inspection.
-Never use downloaded finished models as the default or stop on a model-site login.
-MechanicalResearch owns structure, connections, constraints, dimensional evidence
-and unknowns. CAD owns repeatable source, parameters, independent solids, STEP,
-GLB, inventory, local frames and geometric/motion validation. ViralResearch owns
-creative references only; never infer hidden dimensions from reference videos.
-Use .agents/skills/cad/SKILL.md and mechanical-research/SKILL.md.
-First produce assembly/exploded/section images and 3-5s closing/opening diagnostics.
-Independent QA registers mechanical-qa against research, cad-model and asset-plan.
-Mechanical acceptance precedes HD animation; dynamic storyboard acceptance
-precedes full preview/final. Neither gate can hide incorrect mechanics by camera.
-Preserve inherited defects and measured repair history while applying the current autonomy policy.
-Producer is this session; never create another controller agent.\n'''
-    prompt += '''\nCurrent user autonomy policy:
-The user supplies a mechanism name. Producer owns research, reference selection,
-modeling, implementation decisions, diagnosis, repairs and independent rechecks
-without routine user confirmation. No user-imposed token or total repair-round limit.
-On no improvement, diagnose and change the implementation/strategy, preserve the
-same defect history and continue. A failed command ends that invocation; Producer
-diagnoses, repairs and resumes automatically. Do not blindly repeat unchanged failures.
-For an assigned older task, use adopt-autonomy with the user's recorded instruction
-as reason; preserve all prior evidence. Quality gates and actual resource limits remain.
-This is a Producer policy, not a Python agent loop or proof of unattended capability.
-Unavailable required evidence stays UNKNOWN. Never waive listening/continuous-video
-acceptance merely because the user asks to discuss the non-audiovisual case.
-'''
-    if value.get('production_method') == 'original-shared-script-three-routes':
-        start = prompt.index('Every new video requires its own reference research')
-        end = prompt.index('Read AGENTS.md and the three mechanical Skills.', start)
-        prompt = prompt[:start] + f'''Production method: original-shared-script-three-routes.
-Research observed references to learn verified structure, motion, and explanatory techniques;
-reference learning is not recreation of a video's opening, narrative or shot sequence.
-Write an original shared script and original shot order. Do not copy a reference shot sequence.
-Keep one original script, narration and timeline across all three routes so they are comparable.
-Preserve the approved EP03 look and Neil voice. Do not invent unsupported mechanical facts,
-hidden structures, or an industrial-design claim. Bind research to task_id={identity} and topic.
-Record factual sources and uncertainty. No fabricated viewing, metrics or qualification.
-The FROZEN blueprint binds this original script, factual sources, mechanical claims,
-observable shot goals and executable config/hash; it does not require reference_recreation
-or a one-to-one mapping to an existing video's shot sequence.
-Independent QA checks the original teaching goals, actual mechanical evidence, frozen blueprint,
-exact media, all three route hashes and shared timeline. Scientific and sensory gates remain.
-''' + prompt[end:]
-    if value.get('reference_policy_version') == 1:
-        prompt += '\nReference policy v1 overrides historical asset instructions: read docs/reference-first-contract.md. Search verified local references first; prefer legal existing-media, then verified-existing assemblies, then evidence-based CAD. No appearance-only internal inventions. Bind research/asset-plan/evidence_map/content_timing and independent content-qa before production. Preserve approved style, original expression and all historical assets.\n'
-    prompt += '''
-Global completion contract: SUBTASK_COMPLETED, RESEARCH_READY, MODEL_READY,
-PREVIEW_READY, FINAL_RENDERED, QA_ACCEPTED and DELIVERED are distinct milestones.
-A child Completed event, research, CAD, narration or local diagnostic clip NEVER
-completes the global production. Keep executing independent available work after
-every handoff. Use `uv run python -m mechanical_video_next continue TASK` to
-reconcile exact evidence and persist the next owner/action; bind an authored
-topic-specific route plan with `continue TASK --plan PATH`, then use
-`continue TASK --execute` for its gated deterministic render steps. Do not use
-the nail-clipper default plan for another topic. Ordinary production choices do
-not require the user to say continue. Preserve all existing narration receipts.
-Before ending, deliver actual complete requested-route MP4s, synchronized comparison,
-3:4 and 4:3 covers and the growth/reference-model reports with exact hashes.
-Only independent accepted media may be marked complete. After providing actual
-files to the user, record-delivery TASK --file PATH (repeat for each deliverable)
---reason DESCRIPTION binds the delivery receipt. A session exit is not delivery.
-If this session cannot continue, persist the exact remaining work and recovery
-command and state background_execution=false; never promise unattended continuation.
-'''
-    (task / 'producer-prompt.md').write_text(prompt)
+    sync_producer_prompt(task, value)
     event(task, 'created', topic=topic)
     continuation(task)
     return task
@@ -751,12 +810,12 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 reviewer = payload.get("reviewer_thread_id")
                 if not reviewer or reviewer in {r["thread_id"] for r in data["agent_runs"] if r["role"] != "QA"}:
                     raise ValueError("Independent content QA reviewer required")
-            elif name == "final-qa":
+            elif name == "final-qa" and payload.get('checks') and all(
+                    value == 'PASS' for value in payload['checks'].values()):
                 rp.validate_final_report(payload.get("reference_report", {}), payload.get("media", []))
         if v2 and name == 'feasibility':
             checks = payload.get('checks', {})
-            if not FEASIBILITY_CHECKS <= set(checks) or any(
-                    value != 'PASS' for value in checks.values()):
+            if not production_checks(checks, FEASIBILITY_CHECKS):
                 raise ValueError('Feasibility requires every check PASS; FAIL/UNKNOWN blocks')
             check_asset(task)
         if v2 and name == 'animatic-manifest':
@@ -848,12 +907,12 @@ def check_media(evidence):
             raise ValueError('Media evidence missing or changed')
 
 
-def check_qa(task, name):
+def check_qa(task, name, *, acceptance=True):
     if name not in {'preview-qa', 'animatic-qa', 'final-qa'}:
         raise ValueError('Diagnostic reports cannot grant production acceptance')
     qa = artifact(task, name)
     from .comprehension import enabled, validate_media_qa
-    if enabled(load(task)):
+    if acceptance and enabled(load(task)):
         review = dict(qa)
         review['production_thread_ids'] = [r['thread_id'] for r in load(task).get('agent_runs', [])
                                           if r['role'] != 'QA']
@@ -874,11 +933,14 @@ def check_qa(task, name):
     if load(task).get('content_policy_version') == 1:
         from .growth import validate_media_checks, check_media_duration
         blueprint = artifact(task, 'creative-blueprint')
-        validate_media_checks(blueprint, qa)
+        if acceptance:
+            validate_media_checks(blueprint, qa)
         check_media_duration(blueprint, production['media'])
     checks = qa.get('checks', {})
     required_checks = ANIMATIC_CHECKS if name == 'animatic-qa' else QA_CHECKS
-    if not required_checks <= set(checks) or any(value != 'PASS' for value in checks.values()):
+    if (not required_checks <= set(checks) or
+            (any(value != 'PASS' for value in checks.values()) if acceptance
+             else not production_checks(checks, required_checks))):
         raise ValueError('QA FAIL/UNKNOWN or missing checks prevents advancement')
     if not qa.get('independent_reviewer') or not qa.get('reviewer_thread_id'):
         raise ValueError('Independent reviewer identity is required')
@@ -886,7 +948,8 @@ def check_qa(task, name):
             if r['role'] in {'Research', 'MechanicalResearch', 'CAD', 'ViralResearch', 'Producer',
                                                     'Asset', 'Animation', 'Editor'}}:
         raise ValueError('QA reviewer also produced this task')
-    if any(i.get('severity') in {'critical', 'major', 'error'} for i in qa.get('issues', [])):
+    if any(str(i.get('severity', '')).lower() in {'critical', 'major', 'error'}
+           and i.get('status') != 'RESOLVED' for i in qa.get('issues', [])):
         raise ValueError('Unresolved blocking QA defects')
     return qa
 
@@ -967,7 +1030,7 @@ def require_mechanical(task):
     if not expected or not expected <= reviewed:
         raise ValueError('Mechanical QA must review the exact closing/opening diagnostic MP4')
     checks = qa.get('checks', {})
-    if not MECHANICAL_CHECKS <= set(checks) or any(v != 'PASS' for v in checks.values()):
+    if not production_checks(checks, MECHANICAL_CHECKS):
         raise ValueError('Mechanical FAIL/UNKNOWN or missing checks blocks production')
     reviewer = qa.get('reviewer_thread_id')
     if (qa.get('independent_reviewer') is not True or not reviewer or
@@ -1004,21 +1067,26 @@ def require_reference_content(task):
 
 def require_animatic(task):
     """Fail closed for full renders; a v1 ledger is an explicit legacy path."""
+    require_current_scheme(load(task))
     if protocol_version(load(task)) == 1:
         return
     require_mechanical(task)
     check_production_config(task)
     feasibility = artifact(task, 'feasibility')
     checks = feasibility.get('checks', {})
-    if not FEASIBILITY_CHECKS <= set(checks) or any(v != 'PASS' for v in checks.values()):
+    if not production_checks(checks, FEASIBILITY_CHECKS):
         raise ValueError('Feasibility requires every check PASS')
     check_asset(task)
-    return check_qa(task, 'animatic-qa')
+    return check_qa(task, 'animatic-qa', acceptance=False)
 
 
 def check_production_config(task, config=None):
     """Bind approved story decisions to the actual executable config bytes."""
     data = load(task)
+    require_current_scheme(data)
+    from .three_d import validate_config
+    if config or data.get('config'):
+        validate_config(json.loads(Path(config or data['config']).read_text()))
     if protocol_version(data) == 1:
         return
     blueprint = artifact(task, 'creative-blueprint')
@@ -1080,6 +1148,7 @@ def check_production_config(task, config=None):
 def advance(task, target):
     with lock(Path(task) / '.ledger.lock'):
         data = load(task)
+        require_current_scheme(data)
         current = data['state']
         if target in {'FAILED', 'BLOCKED'}:
             pass
@@ -1100,7 +1169,7 @@ def advance(task, target):
             if not animation.get('keyframes_verified'):
                 raise ValueError('Keyframe verification missing')
         if target == 'EDITING':
-            check_qa(task, 'preview-qa')
+            check_qa(task, 'preview-qa', acceptance=False)
         if target == 'FINAL_CHECKING':
             timeline = artifact(task, 'timeline')
             check_media(timeline.get('media'))
@@ -1118,7 +1187,13 @@ def advance(task, target):
 
 def check_requested_routes(task, data):
     routes = data.get('requested_routes', [])
-    if len(routes) <= 1:
+    if data.get('three_d_policy_version') == 1:
+        if routes != ['3d']:
+            raise ValueError('3D-only task route scope changed')
+        from .provenance import validate as validate_provenance
+        output = data.get('route_runs', {}).get('3d', {}).get('outputs', {})
+        validate_provenance(Path(task) / '3d-provenance.json', output)
+    if len(routes) <= 1 and data.get('three_d_policy_version') != 1:
         return  # Existing single-route and historical ledgers keep their gates.
     from .covers import validate as validate_covers
     from .growth_report import validate as validate_growth
@@ -1344,8 +1419,26 @@ def require_hd_workprint_request(task, config):
     if (candidate_config != expected_config
             or tuple(candidate_config['render'].get(k) for k in ('width', 'height', 'fps')) != (1920, 1080, 30)):
         raise ValueError('HD workprint may only enable native resolution on the reviewed source')
-    qa = artifact(task, 'animatic-qa')
-    current = data['handoffs']['animatic-qa']
+    qa_name = request.get('baseline_qa_handoff', 'animatic-qa')
+    if qa_name not in {'animatic-qa', 'hd-workprint-qa'}:
+        raise ValueError('HD workprint requires a recognized independent QA handoff')
+    qa = artifact(task, qa_name)
+    current = data['handoffs'][qa_name]
+    if qa_name == 'hd-workprint-qa' and (
+            qa.get('independent') is not True or not qa.get('reviewer_thread_id')
+            or qa['reviewer_thread_id'] in {row['thread_id'] for row in data.get('agent_runs', []) if row['role'] != 'QA'}
+            or qa.get('decision', {}).get('native_hd_unaccepted_workprint_allowed') is not True
+            or qa.get('decision', {}).get('formal_final_render_permission') is not False
+            or qa.get('decision', {}).get('final_acceptance') is not False):
+        raise ValueError('Native workprint requires explicit independent limited QA permission')
+    if qa_name == 'hd-workprint-qa':
+        inputs = qa.get('input_bindings', [])
+        if not inputs or any(not Path(row.get('path', '')).is_file()
+                             or filehash(row['path']) != row.get('sha256') for row in inputs):
+            raise ValueError('Native workprint QA input binding missing or stale')
+        if (str(Path(config).resolve()), filehash(config)) not in {
+                (str(Path(row['path']).resolve()), row['sha256']) for row in inputs}:
+            raise ValueError('Native workprint QA must bind the exact candidate config')
     if request.get('baseline_animatic_qa_sha256') != current['sha256']:
         raise ValueError('HD workprint baseline QA changed')
     checks = qa.get('checks', {})
@@ -1427,6 +1520,28 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     if phase not in {'asset', 'checks', 'keys', 'local', 'preview', 'final'}:
         raise ValueError('Unsupported stage')
     data = load(task)
+    remake_candidate = (data.get('reference_remake', {}).get('old_scheme_status') == 'REJECTED_BY_USER'
+                        and phase in {'keys', 'checks', 'local'})
+    require_current_scheme(data, candidate_preview=remake_candidate)
+    if diagnostic and phase not in {'keys', 'checks', 'local'}:
+        raise ValueError('Diagnostic stage only permits candidate keys/checks/local in RESEARCHING')
+    from .three_d import validate_config
+    if not Path(config).is_file():
+        raise ValueError('Actual 3D production config file required')
+    validate_config(json.loads(Path(config).read_text()))
+    if remake_candidate:
+        cfg = json.loads(Path(config).read_text())
+        binding = data['reference_remake']['production_binding'].get('config', {})
+        if str(Path(binding.get('path', '')).resolve()) != str(Path(config).resolve()) or binding.get('sha256') != filehash(config):
+            raise ValueError('Replacement candidate requires its exact new config binding')
+        selected = cfg.get('local_preview_shots', [])
+        seconds = sum(cfg.get('shots', {}).get(name, {}).get('seconds', 0) for name in selected)
+        if not selected or not 10 <= seconds <= 15:
+            raise ValueError('Replacement candidate must be a continuous 10-15 second local preview')
+        if workprint or animatic_diagnostic or diagnostic:
+            raise ValueError('Replacement candidate uses the bounded local preview, not legacy bypass flags')
+    native_hd_workprint = False
+    native_hd_short_insert = False
     if animatic_diagnostic:
         if phase != 'local' or diagnostic or workprint:
             raise ValueError('Full animatic diagnostic only permits raw low-cost local previews')
@@ -1451,6 +1566,14 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         if candidate_config.get('render', {}).get('preview_native'):
             if phase == 'local' and workprint and not diagnostic:
                 require_hd_workprint_request(task, config)
+                native_hd_workprint = True
+                selected = candidate_config.get('local_preview_shots', [])
+                storyboard = candidate_config.get('storyboard', [])
+                if (len(selected) == 1 and len(storyboard) == 1
+                        and storyboard[0].get('shot') == selected[0]
+                        and selected[0] in candidate_config.get('shots', {})):
+                    seconds = candidate_config['shots'][selected[0]].get('seconds', 0)
+                    native_hd_short_insert = (0 < seconds <= 5 and storyboard[0].get('seconds') == seconds)
             else:
                 require_mechanical(task)
     if diagnostic:
@@ -1482,13 +1605,14 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         check_media(qa.get('media'))
         if any(value == 'FAIL' for value in qa.get('checks', {}).values()):
             raise ValueError('Known failed QA cannot be bypassed for workprint')
-    elif not (diagnostic or animatic_diagnostic) and data['state'] not in allowed[phase]:
+    elif not (diagnostic or animatic_diagnostic or remake_candidate or
+              (native_hd_workprint and data['state'] == 'RESEARCHING')) and data['state'] not in allowed[phase]:
         raise ValueError('Stage lacks verified prerequisites: ' + data['state'])
     if phase in {'preview', 'final'}:
         require_animatic(task)
         check_production_config(task, config)
     if phase == 'final' and not (workprint and data['state'] == 'PREVIEW_CHECKING'):
-        check_qa(task, 'preview-qa')
+        check_qa(task, 'preview-qa', acceptance=False)
     # Existing cleanup only removes old completed content-addressed entries,
     # skips protected/task-referenced entries and shares our global lock.
     sys.path.insert(0, str(ROOT / 'scripts'))
@@ -1499,7 +1623,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         args = ['uv', 'run', '--project', str(ROOT), 'python',
                 str(ROOT / 'scripts/produce.py'), str(config), '--phase', phase]
         args += ['--task', str(Path(task).resolve())]
-        if diagnostic:
+        if diagnostic or native_hd_short_insert:
             args += ['--diagnostic']
         if protocol_version(data) == 1 and phase in {'preview', 'final'}:
             args += ['--legacy-workprint']
@@ -1509,11 +1633,25 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         try:
             with logfile.open('w') as out:
                 subprocess.run(args, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, check=True)
-        except subprocess.CalledProcessError:
-            advance(task, 'FAILED')
+        except (subprocess.CalledProcessError, OSError):
+            isolated_candidate = diagnostic or animatic_diagnostic or workprint
+            if isolated_candidate:
+                # Preserve independent routes' valid prerequisites after a
+                # failed inspectable candidate; retain every failed attempt.
+                with lock(Path(task) / '.ledger.lock'):
+                    current = load(task)
+                    current.setdefault('candidate_failures', []).append(dict(
+                        phase=phase, config=str(Path(config).resolve()), config_sha256=filehash(config),
+                        route=json.loads(Path(config).read_text()).get('render_route'),
+                        status='REPAIRING', log=str(logfile), epoch=time.time()))
+                    write(Path(task) / 'task.json', current)
+            else:
+                advance(task, 'FAILED')
             event(task, 'stage_failed', phase=phase, seconds=time.time()-start, log=str(logfile),
-                  diagnostic=diagnostic or animatic_diagnostic, animatic_diagnostic=animatic_diagnostic,
-                  previous_state=data['state'])
+                  diagnostic=diagnostic or animatic_diagnostic or native_hd_short_insert, animatic_diagnostic=animatic_diagnostic,
+                  previous_state=data['state'], isolated_candidate=isolated_candidate,
+                  lifecycle='REPAIRING' if isolated_candidate else 'FAILED', config_sha256=filehash(config))
+            continuation(task)
             raise
         with lock(Path(task) / '.ledger.lock'):
             data = load(task)
@@ -1528,13 +1666,16 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             row = dict(phase=phase, seconds=round(time.time()-start, 3), log=str(logfile),
                        config_sha256=filehash(config),
                        command_success=True, quality_accepted=False, unaccepted_workprint=workprint,
-                       diagnostic=diagnostic or animatic_diagnostic, animatic_diagnostic=animatic_diagnostic,
+                       diagnostic=diagnostic or animatic_diagnostic or native_hd_short_insert, animatic_diagnostic=animatic_diagnostic,
                        cache_observations=observations,
                        cache_hit_rate=(sum(r['cache_hit'] for r in observations)/len(observations)
                                        if observations else None),
                        full_shot_renders=sum(r['stage'].startswith('final:') and not r['cache_hit']
                                              for r in observations))
             data['stages'].append(row)
+            for failure in data.get('candidate_failures', []):
+                if failure.get('config_sha256') == row['config_sha256'] and failure.get('phase') == phase:
+                    failure.update(status='RESOLVED', resolved_epoch=time.time())
             write(Path(task) / 'task.json', data)
             event(task, 'stage', **row)
     continuation(task)
@@ -1543,7 +1684,9 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
 
 def select_route(task, route, reason):
     """Producer chooses representation before freezing production dependencies."""
-    if route not in {'3d', '2d', '2.5d'} or not reason.strip():
+    from .three_d import require_route
+    require_route(route)
+    if not reason.strip():
         raise ValueError('Supported route and reason required')
     with lock(Path(task) / '.ledger.lock'):
         data = load(task)
@@ -1571,11 +1714,14 @@ def main():
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
+    p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
+    p.add_argument('task',type=Path)
+    p.add_argument('--reason',required=True)
     p = sub.add_parser('route-run', help='Resume authored route render plan; no agent impersonation')
     p.add_argument('task', type=Path)
-    p.add_argument('--plan', type=Path, default=ROOT / 'config/nail-clipper-three-routes-plan.json')
+    p.add_argument('--plan', type=Path, required=True, help='Current topic-specific 3D plan; no deprecated default plan')
     p.add_argument('--env-file', type=Path, help='Credentials file forwarded only to opted-in audio step; no secrets in plan')
-    p = sub.add_parser('continue', help='Reconcile remaining work; optionally execute an authored gated route plan')
+    p = sub.add_parser('continue', help='Reconcile work; --execute drains approved commands until delivery or native Producer reasoning is needed')
     p.add_argument('task', type=Path)
     p.add_argument('--plan', type=Path)
     p.add_argument('--execute', action='store_true')
@@ -1624,6 +1770,11 @@ def main():
             p.add_argument('--seconds', type=float, required=True)
             p.add_argument('--tokens', type=int)
     args = parser.parse_args()
+    if args.command == 'migrate-3d':
+        from .three_d import migrate
+        migrate(args.task,args.reason)
+        print(json.dumps(continuation(args.task),ensure_ascii=False,indent=2))
+        return
     if args.command == 'produce':
         if args.resume:
             if args.codex:
@@ -1639,7 +1790,7 @@ def main():
         if not args.topic:
             parser.error('--topic is required unless --resume is supplied')
         task = create_task(args.topic, args.duration, args.voice, args.config, args.task_id,
-                           asset_strategy=args.asset_strategy, routes=args.routes or 'all')
+                           asset_strategy=args.asset_strategy, routes=args.routes or '3d')
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')
@@ -1662,6 +1813,8 @@ def main():
                 raise SystemExit('Producer session ended without delivery; exact recovery action retained')
         return
     if args.command == 'extend-routes':
+        from .three_d import require_route
+        require_route(args.routes)
         with lock(args.task / '.ledger.lock'):
             data = load(args.task)
             routes = ['2d', '2.5d', '3d'] if args.routes == 'all' else [args.routes]
@@ -1699,15 +1852,8 @@ def main():
                 write(args.task / 'task.json', data)
                 event(args.task, 'production_plan_bound', **data['production_plan'])
         result = continuation(args.task)
-        command = result['next_action'].get('command')
         if args.execute:
-            if not command:
-                print(json.dumps(result, ensure_ascii=False, indent=2))
-                raise SystemExit('Native Producer work remains; no approved deterministic command is available')
-            try:
-                subprocess.run(command, cwd=ROOT, check=True)
-            finally:
-                result = continuation(args.task)
+            result = continue_production(args.task)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
     if args.command == 'route-run':
@@ -1720,7 +1866,9 @@ def main():
             raise ValueError('Adapter topic does not match task; arbitrary topics require their own production plan')
         if data.get('requested_routes') and set(data['requested_routes']) != set(plan_data['routes']):
             raise ValueError('Plan route scope must match task requested_routes; single-route tasks use their assigned production stages')
-        folder = Path(data.get('shared_production', {}).get('comparison_directory') or args.task / 'multiroute')
+        folder = (Path(data.get('shared_production', {}).get('render_directory') or args.task / '3d')
+                  if data.get('three_d_policy_version') == 1 else
+                  Path(data.get('shared_production', {}).get('comparison_directory') or args.task / 'multiroute'))
         prepare(folder, data['topic'])
         try:
             report = run_plan(folder, args.plan, args.env_file, [args.task / 'task.json'])
@@ -1734,9 +1882,9 @@ def main():
             raise
         with lock(args.task / '.ledger.lock'):
             data = load(args.task)
-            data['route_comparison'] = {'report': str(folder / 'report.json'),
-                                        'sha256': filehash(folder / 'report.json'),
-                                        'status': report['status']}
+            report_binding = {'report': str(folder / 'report.json'),
+                              'sha256': filehash(folder / 'report.json'), 'status': report['status']}
+            data['three_d_build' if data.get('three_d_policy_version') == 1 else 'route_comparison'] = report_binding
             data['multiroute_status'] = report['status']
             data['next_step'] = 'Current Producer dispatches independent exact-media route QA; UNKNOWN prevents completion.'
             for route, media in report['routes'].items():
@@ -1751,14 +1899,18 @@ def main():
                 # plans. The report generator itself fails closed on missing
                 # media; real delivery invokes it once all exact files exist.
                 route_paths = {route: Path(media['path']) for route, media in report['routes'].items()}
-                if len(route_paths) == 3 and all(path.is_file() for path in route_paths.values()) and (folder / 'compare.mp4').is_file():
+                only_3d = data.get('three_d_policy_version') == 1
+                if (set(route_paths) == ({'3d'} if only_3d else {'2d','2.5d','3d'})
+                        and all(path.is_file() for path in route_paths.values())
+                        and (only_3d or (folder / 'compare.mp4').is_file())):
                     from .growth_report import generate as generate_growth_report
-                    growth = generate_growth_report(args.task, route_paths, folder / 'compare.mp4')
+                    growth = generate_growth_report(args.task, route_paths, None if only_3d else folder / 'compare.mp4')
                     data['growth_report'] = {'path': str(args.task / 'growth-report.json'),
                                              'sha256': filehash(args.task / 'growth-report.json'),
                                              'status': growth['status']}
             write(args.task / 'task.json', data)
-            event(args.task, 'route_comparison_generated', report=data['route_comparison'])
+            event(args.task, 'three_d_build_generated' if data.get('three_d_policy_version') == 1 else
+                  'route_comparison_generated', report=report_binding)
         continuation(args.task)
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return
@@ -1804,7 +1956,7 @@ def main():
                         or filehash(model['model']['path'])!=model['model']['sha256']):
                     raise ValueError('Qualified asset evidence required to resume')
             if phase=='final':
-                check_qa(args.task,'preview-qa')
+                check_qa(args.task,'preview-qa', acceptance=False)
             if phase in {'preview', 'final'}:
                 require_animatic(args.task)
             data['state']=('RESEARCHING' if diagnostic_failure else
@@ -1823,7 +1975,7 @@ def main():
                           'FINAL_CHECKING', 'COMPLETED'}:
                 require_animatic(args.task)
             if target in {'EDITING', 'FINAL_CHECKING', 'COMPLETED'}:
-                check_qa(args.task, 'preview-qa')
+                check_qa(args.task, 'preview-qa', acceptance=target == 'COMPLETED')
             if target == 'COMPLETED':
                 check_qa(args.task, 'final-qa')
                 check_requested_routes(args.task, data)

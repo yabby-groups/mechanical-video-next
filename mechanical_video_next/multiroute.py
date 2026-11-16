@@ -33,7 +33,7 @@ def prepare(folder, topic):
         return value
     value = {'schema_version': 1, 'topic': topic, 'status': 'PREPARED',
              'routes': {}, 'steps': {}, 'history': [], 'issues': [],
-             'next_step': 'Producer researches reference and delegates native Codex agents; supply three actual MP4s.',
+             'next_step': 'Producer researches reference and delegates native Codex agents; supply one actual 3D MP4 with provenance.',
              'capability_boundary': 'Preparation does not automatically model arbitrary mechanical names.',
              'token_usage': None, 'human_interventions': None}
     write(state, value)
@@ -235,6 +235,10 @@ def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workpri
     """Run already-authored deterministic commands serially, never spawn agents."""
     folder = Path(folder)
     plan = json.loads(Path(plan_path).read_text())
+    if plan.get('routes') and set(plan['routes']) != {'3d'}:
+        raise ValueError('3D-only production rejects deprecated multiroute execution; historical data remain readable')
+    if plan.get('execution_ready') is False:
+        raise ValueError('Draft recovery plan requires exact-media QA authorization and completed bindings before execution')
     contexts = [*extra_evidence, *plan.get('evidence', [])]
     if plan.get('task'):
         contexts.append(str(Path(plan['task']) / 'task.json'))
@@ -242,7 +246,12 @@ def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workpri
         raise ValueError('Task context required; standalone historical plans require explicit legacy_workprint')
     for evidence in contexts:
         evidence = Path(evidence)
-        if evidence.name == 'task.json' and json.loads(evidence.read_text()).get('reference_policy_version') == 1:
+        if evidence.name != 'task.json':
+            continue
+        from .workflow import require_current_scheme
+        task_data = json.loads(evidence.read_text())
+        require_current_scheme(task_data)
+        if task_data.get('reference_policy_version') == 1:
             from .workflow import require_animatic, artifact
             from .reference_policy import validate_route_plan
             require_animatic(evidence.parent)
@@ -258,6 +267,7 @@ def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workpri
         state['history'].append({'event': 'prerequisite_missing', 'paths': missing, 'time': time.time()})
         write(folder / 'state.json', state)
         raise ValueError(state['next_step'])
+    failed_steps, blocked_outputs = [], set()
     for step in plan['steps']:
         if not re.fullmatch(r'[A-Za-z0-9_-]+', step['id']):
             raise ValueError('Step id must be a safe filename identifier')
@@ -268,6 +278,14 @@ def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workpri
             raise ValueError('Commands must be argv arrays')
         if any(Path(a).name.startswith('python') for a in args[:2]) and args[:2] != ['uv', 'run']:
             raise ValueError('Python commands must use uv run')
+        outputs = step['outputs']
+        dependencies = {str(Path(p).resolve()) for p in step.get('inputs', [])}
+        if dependencies & blocked_outputs:
+            failed_steps.append(step['id'])
+            blocked_outputs.update(str(Path(p).resolve()) for p in outputs)
+            state['history'].append({'event': 'dependency_blocked', 'step': step['id'], 'time': time.time()})
+            write(folder / 'state.json', state)
+            continue
         try:
             inputs = {str(Path(p).resolve()): sha(p) for p in step.get('inputs', [])}
         except (OSError, ValueError) as error:
@@ -275,14 +293,27 @@ def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workpri
             state['history'].append({'event': 'input_failure', 'step': step['id'], 'error': str(error), 'time': time.time()})
             state['next_step'] = f"Restore the evidenced inputs for {step['id']} before resuming."
             write(folder / 'state.json', state)
-            raise
-        outputs = step['outputs']
-        key = hashlib.sha256(json.dumps({'command': args, 'inputs': inputs}, sort_keys=True).encode()).hexdigest()
+            failed_steps.append(step['id'])
+            blocked_outputs.update(str(Path(p).resolve()) for p in outputs)
+            continue
+        key_inputs = {'command': args, 'inputs': inputs}
+        if step.get('retry_reason'):
+            key_inputs['retry_reason'] = step['retry_reason']
+        key = hashlib.sha256(json.dumps(key_inputs, sort_keys=True).encode()).hexdigest()
         old = state['steps'].get(step['id'], {})
-        if old.get('key') == key and old.get('outputs') and all(Path(p).is_file() and sha(p) == h for p, h in old['outputs'].items()):
+        expected_outputs = {str(Path(p).resolve()) for p in outputs}
+        if (old.get('key') == key and old.get('outputs')
+                and set(old['outputs']) == expected_outputs
+                and all(Path(p).is_file() and sha(p) == h for p, h in old['outputs'].items())):
             old['inputs'] = inputs
             state['last_run']['cache_hits'] += 1
             state['history'].append({'event': 'cache_reused', 'step': step['id'], 'time': time.time(), 'key': key})
+            write(folder / 'state.json', state)
+            continue
+        if old.get('failed_key') == key:
+            failed_steps.append(step['id'])
+            blocked_outputs.update(str(Path(p).resolve()) for p in outputs)
+            state['history'].append({'event': 'unchanged_failure_blocked', 'step': step['id'], 'time': time.time()})
             write(folder / 'state.json', state)
             continue
         start = time.monotonic()
@@ -297,16 +328,30 @@ def run_plan(folder, plan_path, env_file=None, extra_evidence=(), legacy_workpri
             state['history'].append({'event': 'step_complete', 'step': step['id'], 'time': time.time()})
         except Exception as error:
             state['status'] = 'FAILED'
+            # A failed rerun must not retain an earlier successful cache entry.
+            state['steps'][step['id']] = dict(failed_key=key, error=str(error))
             state['history'].append({'event': 'failure', 'step': step['id'], 'error': str(error), 'time': time.time()})
             state['next_step'] = f"Inspect {step['id']}.log and repair before resuming."
             write(folder / 'state.json', state)
-            raise
+            failed_steps.append(step['id'])
+            blocked_outputs.update(str(Path(p).resolve()) for p in outputs)
         write(folder / 'state.json', state)
     state.pop('current_step', None)
+    if failed_steps:
+        state['status'] = 'FAILED'
+        state['next_step'] = 'Diagnose and change failed inputs/commands or document retry_reason; independent work retained: ' + ', '.join(failed_steps)
+        write(folder / 'state.json', state)
+        raise ValueError(state['next_step'])
     evidence = [*plan.get('evidence', []), *extra_evidence]
     for pattern in plan.get('evidence_globs', []):
         evidence.extend(sorted(glob.glob(pattern)))
-    return finalize(folder, plan['routes'], evidence)
+    if not plan.get('routes'):
+        return state
+    state['status'] = 'FINAL_RENDERED_UNACCEPTED'
+    state['routes'] = {'3d': {'path': plan['routes']['3d'], 'sha256': sha(plan['routes']['3d'])}}
+    write(folder / 'state.json', state)
+    write(folder / 'report.json', state)
+    return state
 
 
 def main():
