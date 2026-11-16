@@ -62,6 +62,10 @@ def validate_product_sources(data, research=None):
         if ref.get('relationship_status') != 'CONFIRMED' or not ref.get('relationship_evidence'):
             raise ValueError('Product reference relationship to actual product unconfirmed')
         observation = ref['observations']
+        if ref['type'] == 'video' and observation.get('status') == 'UNKNOWN':
+            # Unwatched sources stay disclosed research leads, never evidence
+            # for the identity or mechanism being depicted.
+            continue
         _required(observation, ('observed_product', 'identified_parts', 'assembly_positions'), 'Actual source observation')
         if not isinstance(observation.get('unknowns'), list):
             raise ValueError('Source unknowns must be explicitly recorded')
@@ -77,11 +81,17 @@ def validate_product_sources(data, research=None):
                         or not any(t[0] <= point <= t[1] for t in observation['viewed_ranges'])):
                     raise ValueError('Key source timecodes must fall inside actually observed intervals')
             real_product = real_product or ref.get('depicts_real_product') is True
-        elif ref['type'] in {'photo', 'drawing', 'manual', 'patent', 'cad'}:
+        elif ref['type'] in {'photo', 'drawing', 'manual', 'patent', 'document', 'cad'}:
             _required(observation, ('figure_or_region',), 'Located source observation')
             if ref['type'] == 'patent':
                 _required(observation, ('embodiment',), 'Specific patent implementation')
             real_product = real_product or (ref['type'] in {'photo', 'manual'} and ref.get('depicts_real_product') is True)
+            # A documented implementation is a legitimate teaching subject.
+            # This identifies that embodiment, never a claimed retail product.
+            if product.get('identity_basis') == 'documented_mechanism' and ref['type'] in {'drawing', 'manual', 'patent', 'document'}:
+                _required(product, ('teaching_scope',), 'Documented mechanism scope')
+                _required(observation, ('embodiment', 'confirmed_actions'), 'Documented mechanism implementation')
+                real_product = True
         else:
             raise ValueError('Unknown product source type')
         sources[ref['reference_id']] = ref
