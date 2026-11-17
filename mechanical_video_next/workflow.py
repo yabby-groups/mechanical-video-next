@@ -920,6 +920,13 @@ user operation, rotation/output, external-to-internal correspondence and core mo
 with return. Partial exterior clips are not this preview. Preserve strict mechanical
 evidence for every depicted action; sensory UNKNOWN remains pending at final acceptance.
 Use existing roles only; immutable hashed handoffs and advance/stage gates remain.
+Follow docs/agent-dispatch-efficiency.md before every native Agent call. Reuse
+hash/version-bound work across sessions; deterministic checks run tools, not Agents.
+Default to two concurrent children; a justified independent research/verification
+exception permits three with an explicit session override. Use role TOML models,
+never silently substitute a model. Pass only task, scoped paths/hashes, defects,
+output and verification, using fork_turns=none. Mechanical conflicts go to Sol.
+Record actual model/effort and usage in existing agent_runs; unknown cost is null.
 Retain actual native thread IDs; never invent an independent review or capabilities.
 Export inspectable scene, model and spatial motion files per core shot. Save
 3d-provenance.json with camera, engine, assets/references, render outputs and complete
