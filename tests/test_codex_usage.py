@@ -16,6 +16,7 @@ class NativeUsageTests(unittest.TestCase):
             records = [
                 {'type':'session_meta','payload':{'id':'child','source':{'subagent':{'thread_spawn':{'parent_thread_id':'root','agent_path':'/root/qa'}}}}},
                 {'type':'session_meta','payload':{'id':'root','source':'cli'}},
+                {'type':'turn_context','payload':{'model':'gpt-6.1-terra','effort':'medium'}},
                 {'type':'event_msg','timestamp':'start','payload':{'type':'task_started','turn_id':'turn'}},
                 {'type':'event_msg','payload':{'type':'token_count','info':{'total_token_usage':{'input_tokens':20,'output_tokens':2,'total_tokens':22}}}},
                 {'type':'event_msg','timestamp':'end','payload':{'type':'task_complete','turn_id':'turn','duration_ms':1250}},
@@ -28,6 +29,8 @@ class NativeUsageTests(unittest.TestCase):
             self.assertEqual(result['total_usage_snapshot']['total_tokens'], 22)
             self.assertEqual(result['completed_turns'][0]['seconds'], 1.25)
             self.assertEqual(result['collaboration_calls'], [])
+            self.assertEqual(result['runtime_models'], [{'model': 'gpt-6.1-terra', 'reasoning_effort': 'medium'}])
+            self.assertIsNone(result['monetary_cost'])
 
     def test_missing_usage_stays_null_and_root_dispatch_is_preserved(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -38,6 +41,7 @@ class NativeUsageTests(unittest.TestCase):
             path.write_text('\n'.join(json.dumps(r) for r in records))
             result = usage.summarize(path)
             self.assertIsNone(result['total_usage_snapshot'])
+            self.assertEqual(result['runtime_models'], [])
             self.assertIsNone(result['completed_turns'][0]['seconds'])
             self.assertEqual(result['collaboration_calls'][0]['task_name'], 'qa')
             self.assertNotIn('private prompt', json.dumps(result))

@@ -30,10 +30,16 @@ def summarize(path):
     starts = {}
     completed = []
     calls = []
+    runtime = []
     for row in rows(path):
         payload = row.get('payload', {})
         if row.get('type') == 'session_meta' and not meta:
             meta = payload
+        elif row.get('type') == 'turn_context':
+            setting = dict(model=payload.get('model'),
+                           reasoning_effort=payload.get('effort', payload.get('model_reasoning_effort')))
+            if setting not in runtime:
+                runtime.append(setting)
         elif row.get('type') == 'event_msg':
             kind = payload.get('type')
             if kind == 'token_count' and payload.get('info'):
@@ -62,6 +68,8 @@ def summarize(path):
     source = meta.get('source', {})
     spawned = source.get('subagent', {}).get('thread_spawn', {}) if isinstance(source, dict) else {}
     return dict(thread_id=meta.get('id'), agent_path=spawned.get('agent_path'),
+                agent_role=spawned.get('agent_role'), model_provider=meta.get('model_provider'),
+                runtime_models=runtime, monetary_cost=None,
                 parent_thread_id=spawned.get('parent_thread_id'),
                 source_file=path.name, source_sha256=filehash(path),
                 total_usage_snapshot=latest, completed_turns=completed,
