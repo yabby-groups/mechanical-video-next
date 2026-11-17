@@ -40,13 +40,17 @@ class LifecycleTests(unittest.TestCase):
             self.assertTrue((folder/('a'*64+'.webp')).exists())
             for name in protected: self.assertEqual((root/name).read_bytes(), b'protected')
 
-    def test_scene_geometry_camera_and_motion_functions_unchanged(self):
+    def test_unrelated_scene_geometry_camera_and_motion_functions_unchanged(self):
         old = subprocess.check_output(['git', 'show', 'HEAD:blender/scene.py']).decode()
         current = Path('blender/scene.py').read_text()
         def visual_tree(source):
             tree = ast.parse(source)
             return {n.name: ast.dump(n) for n in tree.body if isinstance(n, ast.FunctionDef)
-                    and n.name not in {'render_chunked', 'savejson'}}
+                    # The user explicitly requested the opt-in rigid rotation
+                    # repair; its old/default behavior and real subframes are
+                    # exercised by blender_rotation_regression.py. Everything
+                    # else remains protected against incidental scene changes.
+                    and n.name not in {'render_chunked', 'savejson', 'prepare_data_tracks'}}
         self.assertEqual(visual_tree(old), visual_tree(current))
 
     def chunk_function(self):

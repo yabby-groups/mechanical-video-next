@@ -471,14 +471,30 @@ def verify_mesh_tracks(shot, count):
 
 def prepare_data_tracks(shot, count):
     """Apply explicit, source-reviewed rigid transforms, never solve contacts."""
+    from mathutils import Euler
+    quaternion_tracks = shot.get('rotation_interpolation') == 'quaternion-shortest-path'
     seen=set()
     for track in shot.get('tracks', []):
         obj=bpy.data.objects[track['object']]
+        previous_quaternion = None
+        if quaternion_tracks:
+            obj.rotation_mode = 'QUATERNION'
         for pose in track['poses']:
             frame=1+pose['progress']*(count-1)
             assert 1<=frame<=count
             for channel in ['location','rotation_euler','scale']:
                 if channel in pose:
+                    if channel == 'rotation_euler' and quaternion_tracks:
+                        rotation = Euler(pose[channel], 'XYZ').to_quaternion()
+                        # q and -q are identical orientations. Choose a consistent
+                        # hemisphere so linear F-curves never interpolate through
+                        # the zero quaternion at an Euler branch boundary.
+                        if previous_quaternion is not None and previous_quaternion.dot(rotation) < 0:
+                            rotation.negate()
+                        obj.rotation_quaternion = rotation
+                        obj.keyframe_insert('rotation_quaternion', frame=frame)
+                        previous_quaternion = rotation.copy()
+                        continue
                     setattr(obj,channel,pose[channel])
                     obj.keyframe_insert(channel,frame=frame)
         linear_action(obj.animation_data)
@@ -502,6 +518,7 @@ def prepare_data_tracks(shot, count):
         linear_action(obj.data.shape_keys.animation_data)
         seen.add(obj.name)
     return {'template':'data-keyframes-v1','tracked_objects':sorted(seen),
+            'rotation_interpolation': shot.get('rotation_interpolation', 'legacy-euler'),
             'evaluated_mesh_alignment': verify_mesh_tracks(shot, count),
             'scope':'Explicit source-reviewed transforms; no contact/force simulation'}
 
