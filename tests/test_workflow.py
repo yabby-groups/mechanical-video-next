@@ -18,6 +18,23 @@ class WorkflowTests(unittest.TestCase):
         w.put_handoff(self.task, 'Research', 'research', {'facts': []})
         w.put_handoff(self.task, 'Research', 'script', {'shots': []}, ['research'])
 
+    def test_agent_run_retains_runtime_metadata_without_inventing_cost(self):
+        args = ['mechanical_video_next', 'agent-run', str(self.task),
+                '--role', 'QA', '--thread-id', 'native-thread', '--seconds', '1.5',
+                '--model', 'gpt-6.1-terra', '--reasoning-effort', 'high',
+                '--task-type', 'scoped-qa', '--input-version', 'sha256:fixture',
+                '--output', 'qa/report.json', '--success', 'true', '--retries', '0']
+        with patch.object(sys, 'argv', args):
+            w.main()
+        row = w.load(self.task)['agent_runs'][-1]
+        self.assertEqual(row['model'], 'gpt-6.1-terra')
+        self.assertEqual(row['reasoning_effort'], 'high')
+        self.assertEqual(row['input_version'], 'sha256:fixture')
+        self.assertEqual(row['outputs'], ['qa/report.json'])
+        self.assertTrue(row['success'])
+        for key in ('tokens', 'cost', 'cache_hit', 'duplicate'):
+            self.assertIsNone(row[key])
+
     def test_ownership_and_dependencies(self):
         with self.assertRaises(ValueError):
             w.put_handoff(self.task, 'QA', 'research', {})

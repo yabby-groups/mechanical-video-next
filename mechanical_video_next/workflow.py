@@ -2162,6 +2162,16 @@ def main():
             p.add_argument('--thread-id', required=True)
             p.add_argument('--seconds', type=float, required=True)
             p.add_argument('--tokens', type=int)
+            p.add_argument('--model')
+            p.add_argument('--reasoning-effort')
+            p.add_argument('--task-type')
+            p.add_argument('--input-version')
+            p.add_argument('--output', action='append', default=[])
+            p.add_argument('--cache-hit', action='store_true', default=None)
+            p.add_argument('--duplicate', action='store_true', default=None)
+            p.add_argument('--cost', type=float)
+            p.add_argument('--success', choices=['true', 'false'])
+            p.add_argument('--retries', type=int)
     args = parser.parse_args()
     if args.command == 'migrate-3d':
         from .three_d import migrate
@@ -2381,6 +2391,12 @@ def main():
         with lock(args.task / '.ledger.lock'):
             data = load(args.task)
             row = dict(role=args.role, thread_id=args.thread_id, seconds=args.seconds, tokens=args.tokens)
+            row.update(model=args.model, reasoning_effort=args.reasoning_effort,
+                       task_type=args.task_type, input_version=args.input_version,
+                       outputs=args.output, cache_hit=args.cache_hit,
+                       duplicate=args.duplicate, cost=args.cost,
+                       success=None if args.success is None else args.success == 'true',
+                       retries=args.retries)
             data['agent_runs'].append(row)
             write(args.task / 'task.json', data)
             event(args.task, 'agent_run', **row)
