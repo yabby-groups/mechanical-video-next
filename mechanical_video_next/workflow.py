@@ -376,41 +376,48 @@ def continuation(task, persist=True):
             if cfg.get('production_scope') == 'source-supported-film' and cfg.get('shot_evidence_version') == 1:
                 # Reuse the existing render stages; this authorizes media production,
                 # never independent mechanical/sensory acceptance or delivery.
-                require_source_supported_render(task, full_config)
-                done = {s['phase'] for s in data.get('stages', [])
-                        if s.get('command_success') and s.get('config_sha256') == filehash(full_config)}
-                final = ROOT/'output'/(cfg['id']+'-final.mp4')
-                recorded = next((s.get('media') for s in reversed(data.get('stages', []))
-                    if s.get('command_success') and s.get('phase') == 'final'
-                    and s.get('config_sha256') == filehash(full_config)), None)
-                media = dict(recorded, chapter_ids=[s['id'] for s in cfg['storyboard']]) if recorded else None
-                if media:
-                    complete_media(data, media)
-                    status = 'FINAL_QA_PENDING'
-                    action = dict(owner='Producer/QA', kind='REASONING_REQUIRED', command=None,
-                        action='Full 3D MP4 exists. Complete remaining delivery artifacts and independent exact-media mechanical/comprehension/viewing/listening QA; preserve completed media, provenance, covers and reports.')
+                try:
+                    require_source_supported_render(task, full_config)
+                except (ValueError, OSError, KeyError):
+                    # A new partial model/preview can legitimately supersede the
+                    # full plan. Reconcile independent shots below; preserve the
+                    # successful stage instead of raising after it completed.
+                    pass
                 else:
-                    phase = 'final' if 'preview' in done else 'preview'
-                    status = 'PRODUCTION_IN_PROGRESS'
-                    action = dict(owner='Producer', kind='EXECUTABLE_COMMAND',
-                        action='Render the evidenced full 3D workprint; acceptance remains pending',
-                        command=['uv','run','python','-m','mechanical_video_next','stage',str(task),
-                                 phase,'--config',str(full_config)])
-                    failure = data.get('production_execution_failure', {})
-                    if (failure.get('status') == 'OPEN'
-                            and failure.get('config_sha256') == filehash(full_config)):
-                        action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
-                            action='Diagnose the preserved failed full-film command and change its inputs or strategy before retrying', evidence=failure)
-                result = dict(schema_version=1, milestone=status, production_status=status,
-                    lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
-                    next_action=action, rendered_routes={'3d':media} if media else {},
-                    background_execution=False, execution_mode='current_native_codex_session')
-                if persist:
-                    with lock(task / '.ledger.lock'):
-                        current = load(task)
-                        current.update(continuation=result, production_status=status, next_step=action['action'])
-                        write(task / 'task.json', current)
-                return result
+                    done = {s['phase'] for s in data.get('stages', [])
+                            if s.get('command_success') and s.get('config_sha256') == filehash(full_config)}
+                    final = ROOT/'output'/(cfg['id']+'-final.mp4')
+                    recorded = next((s.get('media') for s in reversed(data.get('stages', []))
+                        if s.get('command_success') and s.get('phase') == 'final'
+                        and s.get('config_sha256') == filehash(full_config)), None)
+                    media = dict(recorded, chapter_ids=[s['id'] for s in cfg['storyboard']]) if recorded else None
+                    if media:
+                        complete_media(data, media)
+                        status = 'FINAL_QA_PENDING'
+                        action = dict(owner='Producer/QA', kind='REASONING_REQUIRED', command=None,
+                            action='Full 3D MP4 exists. Complete remaining delivery artifacts and independent exact-media mechanical/comprehension/viewing/listening QA; preserve completed media, provenance, covers and reports.')
+                    else:
+                        phase = 'final' if 'preview' in done else 'preview'
+                        status = 'PRODUCTION_IN_PROGRESS'
+                        action = dict(owner='Producer', kind='EXECUTABLE_COMMAND',
+                            action='Render the evidenced full 3D workprint; acceptance remains pending',
+                            command=['uv','run','python','-m','mechanical_video_next','stage',str(task),
+                                     phase,'--config',str(full_config)])
+                        failure = data.get('production_execution_failure', {})
+                        if (failure.get('status') == 'OPEN'
+                                and failure.get('config_sha256') == filehash(full_config)):
+                            action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
+                                action='Diagnose the preserved failed full-film command and change its inputs or strategy before retrying', evidence=failure)
+                    result = dict(schema_version=1, milestone=status, production_status=status,
+                        lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
+                        next_action=action, rendered_routes={'3d':media} if media else {},
+                        background_execution=False, execution_mode='current_native_codex_session')
+                    if persist:
+                        with lock(task / '.ledger.lock'):
+                            current = load(task)
+                            current.update(continuation=result, production_status=status, next_step=action['action'])
+                            write(task / 'task.json', current)
+                    return result
         rows = data['shot_production']
         ready, pending, rendered_shots, invalid_shots = [], [], {}, {}
         for name, row in rows.items():

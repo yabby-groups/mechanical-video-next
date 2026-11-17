@@ -91,3 +91,19 @@ class VerifiedShotsTests(unittest.TestCase):
         self.assertFalse(report['execution']['background_execution'])
         self.assertEqual(report['production_status'],'RESEARCH_PARTIAL')
         self.assertIn('alternative',report['next_action']['action'])
+
+    def test_pending_full_revision_preserves_independent_preview_progress(self):
+        # A newly edited full plan has not yet received its matching model
+        # preview. It cannot render, but reconciliation must keep the valid
+        # independently bound shot executable instead of raising after a stage.
+        full = dict(self.config, production_scope='source-supported-film',
+                    shot_evidence_version=1)
+        full_binding = self.save('pending-full.json', full)
+        self.data['config'] = full_binding['path']
+        w.write(self.task/'task.json', self.data)
+        with self.assertRaises(ValueError):
+            w.require_source_supported_render(self.task, full_binding['path'])
+        report = w.continuation(self.task)
+        self.assertEqual(report['next_action']['shot_id'], 'exterior')
+        self.assertEqual(report['next_action']['kind'], 'EXECUTABLE_COMMAND')
+        self.assertFalse(report['delivered'])
