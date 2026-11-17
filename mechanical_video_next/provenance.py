@@ -69,7 +69,7 @@ def compose(build, output):
             raise ValueError('Unsupported subtitle/font path')
     fontdir=Path(build['fonts'][0]['path']).parent if build.get('fonts') else ass.parent
     filters.append(''.join(f'[v{i}]' for i in range(len(segments)))+
-                   f'concat=n={len(segments)}:v=1:a=0,ass={ass}:fontsdir={fontdir},fps=30,format=yuv420p[v]')
+                   f'concat=n={len(segments)}:v=1:a=0,setpts=N/(30*TB),ass={ass}:fontsdir={fontdir},fps=30:eof_action=pass,format=yuv420p[v]')
     cmd=['ffmpeg','-v','error','-y',*inputs,'-i',str(audio),'-filter_complex_threads','1','-filter_complex',';'.join(filters),
          '-map','[v]','-map',f'{len(segments)}:a:0','-frames:v',str(cursor),'-c:v','libx264',
          '-preset','fast','-crf','18','-threads','2','-c:a','aac','-b:a','192k','-movflags','+faststart',str(output)]
