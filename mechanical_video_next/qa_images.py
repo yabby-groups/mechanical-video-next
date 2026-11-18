@@ -160,6 +160,48 @@ def visual_packet(frames=(), sheets=()):
                 actual_agent_reads=None, actual_visual_tokens=None, acceptance='UNKNOWN')
 
 
+def compare_media_frames(baseline, current, pairs, *, region=(.06,.16,.94,.84), cache_dir=CACHE):
+    """Timecoded visual revision evidence; changed pixels do not prove better explanation.
+
+    Each round has at most two pairs (four inspected frames). The content crop
+    excludes the usual title/subtitle bands so text edits alone cannot count.
+    """
+    if not pairs or len(pairs) > 2 or len(region) != 4 or not all(math.isfinite(v) for v in region):
+        raise ValueError('Compare one or two frame pairs and a finite content region')
+    x,y,right,bottom = region
+    if not 0 <= x < right <= 1 or not 0 <= y < bottom <= 1:
+        raise ValueError('Comparison region must lie within the picture')
+    baseline, current = Path(baseline).resolve(), Path(current).resolve()
+    rows, frames = [], []
+    for pair in pairs:
+        times = [pair['baseline_time'],pair['current_time']]
+        if any(type(t) not in (int,float) or not math.isfinite(t) or t < 0 for t in times):
+            raise ValueError('Comparison needs actual finite timecodes')
+        refs, arrays = [], []
+        for source, t in zip((baseline,current),times,strict=True):
+            ref, = prepare_video_frames(source,[t],cache_dir=cache_dir)
+            refs.append(ref); frames.append(ref)
+            data = subprocess.check_output(['ffmpeg','-v','error','-ss',str(t),'-i',str(source),
+                '-vf',f'crop=iw*{right-x}:ih*{bottom-y}:iw*{x}:ih*{y},scale=320:180',
+                '-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','-'])
+            if len(data) != 320*180*3:
+                raise ValueError('Comparison timecode did not decode a complete frame')
+            arrays.append(data)
+        differences = [abs(a-b) for a,b in zip(*arrays,strict=True)]
+        mse = sum(v*v for v in differences)/len(differences)
+        rows.append({'shot_id':pair.get('shot_id'),'expected_change':pair.get('expected_change'),
+            'baseline_time':times[0],'current_time':times[1],
+            'baseline_frame':refs[0],'current_frame':refs[1],
+            'content_region':list(region),'content_mae':sum(differences)/len(differences),
+            'content_psnr_db':10*math.log10(255**2/mse) if mse else None,
+            'content_exact_match':not any(differences),
+            'interpretation':'Pixel differences require actual visual and knowledge QA; not a quality score'})
+    sheet = prepare_contact_sheet([ref['qa_path'] for ref in frames],cache_dir=cache_dir)
+    return {'baseline':{'path':str(baseline),'sha256':sha(baseline)},
+        'current':{'path':str(current),'sha256':sha(current)},'pairs':rows,
+        'visual_evidence':visual_packet(frames,[sheet]),'formal_acceptance':False}
+
+
 def record_reads(packet, paths, log_path):
     """Call only after actual tool reads; never infer reads from prepared files."""
     allowed = {r['qa_path']:r for r in packet['images']}
@@ -193,11 +235,12 @@ def handoff_visuals(payload):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('source', nargs='+'); ap.add_argument('--times', nargs='+', type=float)
+    ap.add_argument('--max-size', type=int, default=1024, help='Video frame long edge in pixels')
     ap.add_argument('--crop', nargs=4, type=int); ap.add_argument('--cover', action='store_true')
     ap.add_argument('--sheet', action='store_true'); ap.add_argument('--format', default='webp')
     args = ap.parse_args()
     if args.times:
-        refs = prepare_video_frames(args.source[0], args.times, format=args.format)
+        refs = prepare_video_frames(args.source[0], args.times, format=args.format, max_size=args.max_size)
     else:
         fn = prepare_cover_preview if args.cover else prepare_image
         refs = [(prepare_crop(p,args.crop,format=args.format) if args.crop else fn(p,format=args.format)) for p in args.source]
