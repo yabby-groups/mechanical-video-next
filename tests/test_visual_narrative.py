@@ -4,9 +4,10 @@ import tempfile
 import unittest
 
 from mechanical_video_next.blueprint import compile_config
+from mechanical_video_next.knowledge_progression import validate_media_evidence, validate_timeline
 from mechanical_video_next.three_d import validate_config
 from mechanical_video_next.visual_narrative import (
-    QA_CHECKS, match_blueprint, match_policy, validate_design, validate_footage, validate_review,
+    QA_CHECKS, match_blueprint, match_policy, validate_design, validate_footage, validate_graphic, validate_review,
 )
 from scripts.common import filehash
 
@@ -32,6 +33,47 @@ def shot(shot_id, start, *, engine, role, kind, camera, knowledge):
 
 
 class VisualNarrativeTests(unittest.TestCase):
+    def test_progression_requires_distinct_visual_states_and_links_prior_claim(self):
+        def example(sid, prior, goal, states):
+            return dict(shot_id=sid, knowledge_ids=[goal], knowledge_goal=goal, render_engine='blender',
+                        duration=4, camera={'scale': 'wide', 'angle': 'front'}, visual_focus='Reel',
+                        progression=dict(previous_ids=prior, kind='new', observable=[
+                            dict(knowledge_id=goal, kind='change', proof='physical_action',
+                                 frames=[10, 120], states=states)]))
+        first = example('one', [], 'reel', ['empty', 'winding'])
+        second = example('two', ['reel'], 'shaft', ['stationary', 'turned'])
+        self.assertIn('reused_composition', {row['issue'] for row in validate_timeline([first, second])})
+        second['progression']['previous_ids'] = []
+        with self.assertRaisesRegex(ValueError, 'immediately preceding'):
+            validate_timeline([first, second])
+        second['progression']['previous_ids'] = ['reel']
+        second['progression']['observable'][0]['states'] = ['Empty!', 'Winding.']
+        with self.assertRaisesRegex(ValueError, 'already shown'):
+            validate_timeline([first, second])
+
+    def test_phone_graphic_rejects_unreadable_copy_and_validates_equal_arc_model(self):
+        angular = dict(type='angular_comparison', title='Equal length', travel=3,
+                       items=[{'label':'Small', 'radius':1}, {'label':'Large', 'radius':2}])
+        validate_graphic(angular, progression=True)
+        angular['items'][0]['label'] = 'Overlong label ' * 12
+        with self.assertRaisesRegex(ValueError, 'minimum phone text size'):
+            validate_graphic(angular, progression=True)
+
+    def test_dynamic_qa_requires_continuity_and_exact_frame_range(self):
+        blueprint = {'shots': [
+            {'shot_id': 'shaft', 'time_range': [4, 8], 'progression': {'observable': [
+                {'knowledge_id': 'slip', 'frames': [5, 100], 'kind': 'change'}]}}]}
+        receipt = {'knowledge_id': 'slip', 'frames': [125, 220], 'status': 'PASS',
+                   'observation': 'Marks separate', 'method': 'sampled_frames'}
+        review = {'visual_evidence': {'shaft': {'media_sha256': 'film', 'observations': [receipt]}}}
+        with self.assertRaisesRegex(ValueError, 'continuous viewing'):
+            validate_media_evidence(blueprint, review, {'film': 'unused'}, acceptance=True)
+        receipt['status'] = 'UNKNOWN'
+        validate_media_evidence(blueprint, review, {'film': 'unused'}, acceptance=False)
+        receipt['frames'] = [126, 220]
+        with self.assertRaisesRegex(ValueError, 'visual evidence'):
+            validate_media_evidence(blueprint, review, {'film': 'unused'}, acceptance=False)
+
     def test_compiles_one_timeline_and_keeps_native_motion(self):
         first = shot('motion', 0, engine='blender', role='core', kind='mechanical_cutaway',
                      camera={'preset': 'establish', 'scale': 'wide', 'angle': 'front'}, knowledge='rotation')

@@ -27,6 +27,8 @@ def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
     from .three_d import validate_config
     validate_config(data)
+    from .production_contract import validate_direction
+    validate_direction(data)
     visual = version(data) == VERSION
     if visual:
         validate_plan(data)
@@ -108,7 +110,7 @@ def compile_config(blueprint, base, output, draft=False):
             raise ValueError('Unknown existing_shot mapping: ' + str(key))
         if not editorial and s['asset'] != cfg['asset']:
             raise ValueError('Blueprint asset does not match base assembly')
-        original = {'template': 'editorial', **{k: s[k] for k in ('graphic', 'footage') if k in s}} if editorial else cfg['shots'][key]
+        original = {'template': 'editorial', **{k: s[k] for k in ('graphic', 'footage', 'split_screen') if k in s}} if editorial else cfg['shots'][key]
         if original['template'] != s['template']:
             raise ValueError('Template must match existing shot; geometry tracks cannot be repurposed')
         shot = copy.deepcopy(original)
@@ -133,6 +135,10 @@ def compile_config(blueprint, base, output, draft=False):
     result.update(id=cfg.get('id', 'video') + '-blueprint-' + filehash(blueprint)[:16], shots=shots, storyboard=storyboard,
                   blueprint_program_sha256=digest({k: val for k, val in data.items() if k != 'production_config'}),
                   production_status='DRAFT_UNAPPROVED' if draft else 'BLUEPRINT_BOUND_UNVALIDATED')
+    from .production_contract import FIELD as CONTRACT_FIELD, enabled as science_contract
+    if science_contract(data):
+        for key in (CONTRACT_FIELD, 'production_contract', 'narrative'):
+            result[key] = copy.deepcopy(data[key])
     if data.get('content_policy_version') == 1:
         from .growth import shot_requirements
         result.update(content_policy_version=1, growth_goals=copy.deepcopy(data['growth_goals']))
@@ -163,8 +169,16 @@ def compile_config(blueprint, base, output, draft=False):
                 row['comprehension'] = copy.deepcopy(shot['comprehension'])
     if visual:
         result[FIELD] = VERSION
+        from .media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
+        if asset_first(data):
+            result[MEDIA_FIELD] = data[MEDIA_FIELD]
         result['visual_findings'] = validate_plan(data)
-        result['render'].setdefault('encode_profile', 'witness-v1')
+        from .knowledge_progression import FIELD as PROGRESSION_FIELD, enabled
+        if enabled(data):
+            result[PROGRESSION_FIELD] = data[PROGRESSION_FIELD]
+            result['render'].setdefault('encode_profile', 'progression-witness-v1')
+        else:
+            result['render'].setdefault('encode_profile', 'witness-v1')
         validate_config(result)
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),
@@ -302,6 +316,45 @@ def animatic(blueprint, output):
                            temp_samples=metrics.temp_samples)
 
 
+def match_assets(blueprint, output, library=Path('references')):
+    """Match the visual plan using the existing library; never freeze decisions or grant QA."""
+    from .media_policy import binding, enabled as asset_first
+    from .reference_library import match_media
+    blueprint, output = Path(blueprint), Path(output)
+    if blueprint.resolve() == output.resolve():
+        raise ValueError('Asset matching must not overwrite the visual Blueprint')
+    data = json.loads(blueprint.read_text())
+    if not asset_first(data) or not isinstance(data.get('shots'), list) or not data['shots']:
+        raise ValueError('Match the new asset-first visual Blueprint before compilation')
+    results, used = [], []
+    for shot in data['shots']:
+        query = copy.deepcopy(shot.get('media_query', {}))
+        query.setdefault('tags', [shot['visual_type']])
+        query.setdefault('mechanism_knowledge', shot['knowledge_ids'])
+        query.setdefault('required_visual_capabilities', shot.get('required_visual_capabilities', []))
+        query.setdefault('required_model_capabilities', shot.get('required_model_capabilities', []))
+        if 'graphic' in shot:
+            query.setdefault('graphic_type', shot['graphic']['type'])
+        query.setdefault('usage_scope', 'commercial-video')
+        query.setdefault('duration_sec', shot['duration'])
+        query.setdefault('project_id', data.get('task_id'))
+        query.update(shot_id=shot['shot_id'], used_intervals=copy.deepcopy(used))
+        # Selecting a model still requires the existing Asset/CAD inspection.
+        query.setdefault('accepted_types', {'blender':['video','model'], 'remotion':['video','graphic','template'],
+                                            'footage':['video']}[shot['render_engine']])
+        result = match_media(query, library)
+        if result['selected_asset'] is not None and result['reuse_decision'] not in {'REUSE_MODEL','REUSE_TEMPLATE'}:
+            used.append({'sha256':result['selected_asset']['sha256'], 'time_range':result['source_time_range']})
+        results.append({'shot_id': shot['shot_id'], 'knowledge_goal': shot['knowledge_goal'],
+                        'query': query, 'match': result})
+    report = {'schema_version':1, 'media_policy_version':1, 'visual_policy_version':2,
+              'status':'MATCHED_REQUIRES_PRODUCER_REVIEW', 'blueprint':binding(blueprint),
+              'library':str(Path(library).resolve()), 'shots':results,
+              'network_accessed':False, 'formal_acceptance':False}
+    writejson(output, report)
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -310,8 +363,15 @@ def main(argv=None):
         p.add_argument('--blueprint', required=True, type=Path); p.add_argument('--output', required=True, type=Path)
         if command == 'compile':
             p.add_argument('--base', required=True, type=Path); p.add_argument('--draft', action='store_true')
+    p = sub.add_parser('match-media')
+    p.add_argument('--blueprint', required=True, type=Path)
+    p.add_argument('--output', required=True, type=Path)
+    p.add_argument('--library', type=Path, default=Path('references'))
     a = parser.parse_args(argv)
-    result = compile_config(a.blueprint, a.base, a.output, a.draft) if a.command == 'compile' else animatic(a.blueprint, a.output)
+    if a.command == 'match-media':
+        result = match_assets(a.blueprint, a.output, a.library)
+    else:
+        result = compile_config(a.blueprint, a.base, a.output, a.draft) if a.command == 'compile' else animatic(a.blueprint, a.output)
     print(json.dumps({'status': result['status'], 'output': str(a.output)}))
 
 

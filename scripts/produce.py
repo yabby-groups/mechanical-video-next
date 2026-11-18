@@ -275,11 +275,12 @@ def validate_video(path, config, cues):
     p=probe(path)
     v=next(s for s in p['streams'] if s['codec_type']=='video')
     a=next(s for s in p['streams'] if s['codec_type']=='audio')
-    duration=sum(s['seconds'] for s in config['storyboard'])
+    expected_frames=sum(round(s['seconds']*30) for s in config['storyboard'])
+    duration=expected_frames/30
     assert (v['width'],v['height'],v['codec_name'],v['avg_frame_rate'])==(config['render']['width'],config['render']['height'],'h264','30/1')
     assert a['codec_name']=='aac' and int(a['sample_rate'])>=44100
     assert abs(float(p['format']['duration'])-duration)<0.1
-    assert int(v['nb_frames'])==duration*30
+    assert int(v['nb_frames'])==expected_frames
     for i,c in enumerate(cues):
         assert 0<=c['start']<c['end']<=duration
         if i: assert cues[i-1]['end']<=c['start']
@@ -304,10 +305,10 @@ def validate_video(path, config, cues):
     return result
 
 def composition_key(props, quality):
-    from mechanical_video_next.remotion_build import SOURCES, VISUAL_SOURCES
+    from mechanical_video_next.remotion_build import sources_for
     if quality not in ['preview', 'final']:
         raise ValueError('Unsupported composition quality')
-    sources = VISUAL_SOURCES if isinstance(props, dict) and props.get('visual_policy_version') == 2 else SOURCES
+    sources = sources_for(props if isinstance(props, dict) else {})
     return digest({'props':props,'quality':quality,
                    'remotion':codehash(*sources),
                    'composition_code':codehash('scripts/produce.py', 'mechanical_video_next/text_layout.py', 'mechanical_video_next/science_information.py', 'mechanical_video_next/remotion_build.py', 'config/text-style.json')})
@@ -316,6 +317,7 @@ def compose(cfg, quality, media, metrics):
     from narration import effective_profile
     from mechanical_video_next.science_information import information_props
     from mechanical_video_next.remotion_build import render
+    from mechanical_video_next.knowledge_progression import FIELD, enabled
     from mechanical_video_next.visual_narrative import VERSION, version
     visual = version(cfg) == VERSION
     voice=effective_profile(cfg) or cfg['voice']
@@ -336,8 +338,20 @@ def compose(cfg, quality, media, metrics):
         if spec.get('science') or s.get('information'):
             row.update(information_props(spec, s, path, kind))
         if visual:
-            from mechanical_video_next.visual_narrative import editorial_props
+            from mechanical_video_next.visual_narrative import editorial_props, validate_footage
             row.update(editorial_props(spec))
+            if 'split_screen' in spec:
+                from mechanical_video_next.remotion_build import validate_phone_text
+                sources = spec['split_screen']['sources']
+                if len(sources) != 2 or spec.get('footage') != sources[0]:
+                    raise ValueError('Split screen requires the primary footage and one supplemental source')
+                entries = []
+                for source in sources:
+                    source_path = validate_footage(source, seconds=spec['seconds'])
+                    validate_phone_text(source['credit'], 896)
+                    entries.append({'media': expose(source_path, filehash(source_path)),
+                                    'startFrame': source['start_frame'], 'credit': source['credit']})
+                row['splitScreen'] = {'sources': entries}
         render_shots.append(row)
         subtitles=s.get('subtitles',[c['text'] for c in sc])
         assert len(subtitles)==len(sc), 'One subtitle entry per synthesized utterance'
@@ -347,6 +361,11 @@ def compose(cfg, quality, media, metrics):
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
     if visual:
         props['visual_policy_version'] = VERSION
+    from mechanical_video_next.media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
+    if asset_first(cfg):
+        props[MEDIA_FIELD] = cfg[MEDIA_FIELD]
+    if enabled(cfg):
+        props[FIELD] = cfg[FIELD]
     if cfg.get('presentation'):
         if cfg['presentation'] != 'mechanism-fullframe':
             raise ValueError('Unsupported presentation')
@@ -389,7 +408,7 @@ def compose(cfg, quality, media, metrics):
     if not hit:
         writejson(cachedir/'props.json',props)
         render(cachedir/'props.json', cachedir/'video.mp4', cachedir/'render.log',
-               preview=quality=='preview', encode_profile=encode_profile, visual=visual)
+               preview=quality=='preview', encode_profile=encode_profile, visual=visual, progression=enabled(cfg))
         if quality=='final': validate_video(cachedir/'video.mp4',cfg,cues)
         else: run(['ffmpeg','-v','error','-i',cachedir/'video.mp4','-f','null','-'],cachedir/'decode.log')
         complete(cachedir,['video.mp4'])
@@ -400,11 +419,21 @@ def compose(cfg, quality, media, metrics):
         validation=validate_video(target,cfg,cues)
         validation['source_style_lock']=lock
         writejson(target.with_suffix('.validation.json'),validation)
-        if any(shot.get('science') for shot in cfg['shots'].values()):
+        if any(shot.get('science') for shot in cfg['shots'].values()) or asset_first(cfg):
             from mechanical_video_next.provenance import write_remotion_proof
-            assembly = cfg['assembly_config']
-            write_remotion_proof(target.with_suffix('.3d-provenance.json'), target, target.with_suffix('.props.json'),
-                                 cfg, media, ROOT/assembly, CACHE/'assets'/asset_key(assembly)/'assembly.blend')
+            assembly = cfg.get('assembly_config')
+            proof = target.with_suffix('.hybrid-build.json' if asset_first(cfg) else '.3d-provenance.json')
+            matched_models = [s['visual']['selected_asset'] for s in cfg['shots'].values()
+                              if asset_first(cfg) and s['visual']['reuse_decision'] == 'REUSE_MODEL']
+            from mechanical_video_next.media_policy import bound as media_bound
+            proof_model = (media_bound(matched_models[0]) if matched_models and Path(matched_models[0]['path']).suffix == '.blend'
+                           else CACHE/'assets'/asset_key(assembly)/'assembly.blend' if assembly else None)
+            write_remotion_proof(proof, target, target.with_suffix('.props.json'),
+                                 cfg, media, ROOT/assembly if assembly else None,
+                                 proof_model)
+            if asset_first(cfg):
+                from mechanical_video_next.media_policy import write_manifest
+                write_manifest(target.with_suffix('.media-provenance.json'), target, cfg, proof)
     metrics.record('composition:'+quality,start,hit,key=key,output=str(target.relative_to(ROOT)))
 
 def validate_stage_duration(cfg, phase):
@@ -477,6 +506,8 @@ def main():
     from mechanical_video_next.three_d import validate_config
     from mechanical_video_next.visual_narrative import validate_footage
     validate_config(cfg)
+    from mechanical_video_next.media_policy import enabled as asset_first
+    needs_geometry = not asset_first(cfg) or any(s['visual']['render_engine'] == 'blender' for s in cfg['shots'].values())
     effective_profile(cfg)
     assembly_path=cfg.get('assembly_config')
     illustrated = cfg.get('render_route', '3d') in {'2d', '2.5d'}
@@ -485,7 +516,7 @@ def main():
         for shot in cfg['shots'].values():
             assert shot['template']=='layered' and shot['render_route']==cfg['render_route']
             sources(shot)
-    else:
+    elif needs_geometry:
         assembly=assembly_spec(assembly_path)
         assert cfg['asset']==assembly['id'], 'Video and assembly identity differ'
         assert set(cfg['components'])<=set(assembly['required_parts']), 'Unknown requested component'
@@ -521,7 +552,15 @@ def main():
     status='passed'
     error=None
     try:
-        model=None if illustrated else asset(metrics,assembly_path)
+        models = [s['visual']['selected_asset'] for s in cfg['shots'].values()
+                  if asset_first(cfg) and s['visual']['reuse_decision'] == 'REUSE_MODEL']
+        if models and all(Path(m['path']).suffix == '.blend' for m in models):
+            from mechanical_video_next.media_policy import bound as media_bound
+            if len({m['sha256'] for m in models}) != 1:
+                raise ValueError('This assembly execution requires one matched native model')
+            model = media_bound(models[0])
+        else:
+            model=None if illustrated or not needs_geometry else asset(metrics,assembly_path)
         if args.phase=='asset': return
         names=list(dict.fromkeys(s['shot'] for s in cfg['storyboard']))
         if args.diagnostic:
@@ -533,6 +572,17 @@ def main():
         editorial = [name for name in names if cfg['shots'][name]['template'] == 'editorial']
         names = [name for name in names if name not in editorial]
         supplements = {}
+        from mechanical_video_next.media_policy import enabled as asset_first, bound as media_bound
+        if asset_first(cfg):
+            reused = [n for n in names if cfg['shots'][n]['visual']['reuse_decision'] == 'REUSE']
+            for name in reused:
+                spec = cfg['shots'][name]
+                visual = spec['visual']
+                path = media_bound(visual['selected_asset'])
+                if visual['source_time_range'] != [0, spec['seconds']] or not (path.parent/'checks.json').is_file():
+                    raise ValueError('Native 3D reuse needs a complete original clip with scene/checks provenance')
+                supplements[name] = (path, 'video', visual['selected_asset']['sha256'])
+            names = [n for n in names if n not in reused]
         for name in editorial:
             shot = cfg['shots'][name]
             if 'footage' in shot:

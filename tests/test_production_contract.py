@@ -8,6 +8,17 @@ from mechanical_video_next.workflow import create_task, load, producer_prompt
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_new_hybrid_pins_contract_and_legacy_keeps_original(self):
+        with tempfile.TemporaryDirectory() as folder:
+            task = create_task('Why?', root=folder, task_id='mixed', visual_policy_version=2, media_policy_version=1)
+            data = load(task)
+            self.assertTrue(c.enabled(data))
+            self.assertIn('mixed-original-v1', producer_prompt(data,task))
+            legacy = load(create_task('Old',root=folder,task_id='old'))
+            self.assertFalse(c.enabled(legacy))
+            data['media_policy_version']=0
+            with self.assertRaises(ValueError): c.enabled(data)
+
     def test_unknown_fact_is_local_and_cannot_enter_dependent_shot(self):
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder)/'source.txt'; source.write_text('Located evidence')

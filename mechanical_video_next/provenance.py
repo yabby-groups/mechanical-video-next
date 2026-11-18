@@ -47,14 +47,14 @@ def bound(value):
 
 
 def verify_remotion_inputs(build):
-    from .remotion_build import SOURCES, VISUAL_SOURCES
+    from .remotion_build import sources_for
     from .visual_narrative import VERSION, editorial_props, match_policy, validate_footage, version
     props_file = bound(build['props'])
     props = json.loads(props_file.read_text())
     sources = {bound(row).resolve() for row in build['render_sources']}
     visual = version(build) == VERSION
     match_policy(build, props)
-    if sources != {(ROOT/name).resolve() for name in (VISUAL_SOURCES if visual else SOURCES)}:
+    if sources != {(ROOT/name).resolve() for name in sources_for(build)}:
         raise ValueError('Unexpected or incomplete Remotion renderer sources')
     if (props.get('presentation') != 'mechanism-fullframe'
             or [props.get(key) for key in ('width', 'height', 'fps')] != [1920, 1080, 30]):
@@ -69,6 +69,8 @@ def verify_remotion_inputs(build):
     cursor = 0
     for index, (row, segment) in enumerate(zip(props['shots'], build['segments'])):
         role = segment.get('media_kind', 'mechanical-3d')
+        if role != 'licensed-footage' and ('splitScreen' in row or segment.get('supplemental_sources')):
+            raise ValueError('Split screen requires licensed footage')
         if (row['id'] != segment['chapter_id'] or row['kind'] != ('graphic' if role == 'information' else 'video')
                 or round(row['seconds'] * 30) != segment['frame_count']):
             raise ValueError('Remotion chapter is not the verified 3D segment')
@@ -84,6 +86,27 @@ def verify_remotion_inputs(build):
                 validate_footage(spec['footage'], seconds=spec['seconds'])
                 if bound(segment['render_output']).resolve() != (ROOT / spec['footage']['path']).resolve():
                     raise ValueError('Footage asset differs from the licensed source')
+                if 'split_screen' in spec:
+                    sources = spec['split_screen']['sources']
+                    exposed_sources = row.get('splitScreen', {}).get('sources', [])
+                    bindings = segment.get('supplemental_sources', [])
+                    if len(sources) != 2 or sources[0] != spec['footage'] or len(exposed_sources) != 2 or len(bindings) != 2:
+                        raise ValueError('Split screen requires two bound sources')
+                    for source, exposed_source, source_binding in zip(sources, exposed_sources, bindings, strict=True):
+                        source_path = validate_footage(source, seconds=spec['seconds'])
+                        relative = Path(exposed_source.get('media', ''))
+                        if (relative.parts[:1] != ('cache',) or len(relative.parts) != 2
+                                or '\\' in exposed_source['media']
+                                or exposed_source.get('credit') != source['credit']
+                                or exposed_source.get('startFrame') != source['start_frame']
+                                or bound(source_binding).resolve() != source_path.resolve()):
+                            raise ValueError('Split screen source differs from approved footage')
+                        exposed = ROOT/'remotion/public'/relative
+                        if (not exposed.resolve().is_relative_to((ROOT/'remotion/public/cache').resolve())
+                                or filehash(exposed) != filehash(source_path)):
+                            raise ValueError('Split screen public media differs from source')
+                elif 'splitScreen' in row or segment.get('supplemental_sources'):
+                    raise ValueError('Unapproved split screen media')
             elif role == 'information' and ('media' in row or 'render_output' in segment):
                 raise ValueError('Information graphic cannot substitute unbound media')
         elif role != 'mechanical-3d' or {'graphic', 'footage', 'chapter'} & row.keys():
@@ -108,14 +131,19 @@ def verify_remotion_inputs(build):
 
 
 def write_remotion_proof(path, final, props_path, config, media, assembly, model):
-    from .remotion_build import SOURCES, VISUAL_SOURCES
+    from .remotion_build import sources_for
+    from .knowledge_progression import FIELD, enabled
     from .visual_narrative import VERSION, version
     visual = version(config) == VERSION
     props = json.loads(props_path.read_text())
     shots, segments = {}, []
     cursor = 0
-    model_assets = [dict(binding(assembly), source='assembly configuration'),
-                    dict(binding(model), source='actual Blender assembly input', cache_key=model.parent.name)]
+    from .media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
+    hybrid = asset_first(config)
+    has_blender = not visual or any(s['visual']['render_engine'] == 'blender' for s in config['shots'].values())
+    model_assets = ([dict(binding(assembly), source='assembly configuration'),
+                     dict(binding(model), source='actual Blender assembly input', cache_key=model.parent.name)]
+                    if has_blender else [])
     for row, chapter in zip(props['shots'], config['storyboard'], strict=True):
         shot_id = chapter['shot']
         spec = config['shots'][shot_id]
@@ -131,6 +159,8 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
                 continue
             if engine == 'footage':
                 segment.update(media_kind='licensed-footage', render_output=binding(media[shot_id][0]))
+                if 'split_screen' in spec:
+                    segment['supplemental_sources'] = [binding(ROOT/source['path']) for source in spec['split_screen']['sources']]
                 continue
         raw, kind, cache_key = media[shot_id]
         basis = spec.get('science', {}).get('basis')
@@ -148,22 +178,32 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
                 verification_frames=sorted({1, round((1+count)/2), count}))
         segment['render_output'] = raw_ref
     build = dict(renderer='remotion-v1', frame_count=cursor, segments=segments,
-                 props=binding(props_path), render_sources=[binding(ROOT/name) for name in (VISUAL_SOURCES if visual else SOURCES)])
+                 props=binding(props_path), render_sources=[binding(ROOT/name) for name in sources_for(config)])
     if visual:
         build.update(visual_policy_version=VERSION, visual_config=config)
+    if enabled(config):
+        build[FIELD] = config[FIELD]
+    if hybrid:
+        build[MEDIA_FIELD] = config[MEDIA_FIELD]
     if config['render'].get('encode_profile') is not None:
         build['encode_profile'] = config['render']['encode_profile']
     verify_remotion_inputs(build)
-    writejson(path, dict(schema_version=1, media=binding(final), render_route='3d',
-        shots=list(shots.values()), build=build, formal_acceptance=False))
+    document = dict(schema_version=1, media=binding(final), render_route='3d',
+        shots=list(shots.values()), build=build, formal_acceptance=False)
+    if hybrid:
+        document.update(media_policy_version=1, visual_policy_version=2,
+                        media_contract='asset-first-hybrid-v1', original_3d_only_acceptance=False)
+    writejson(path, document)
 
 
 def compose(build, output):
     """Compose only real 3D renders with subtitles and narration."""
     if build.get('renderer') == 'remotion-v1':
         from .remotion_build import render
+        from .knowledge_progression import enabled
         render(verify_remotion_inputs(build), output, output.with_suffix('.remotion.log'),
-               encode_profile=build.get('encode_profile'), visual=build.get('visual_policy_version') == 2)
+               encode_profile=build.get('encode_profile'), visual=build.get('visual_policy_version') == 2,
+               progression=enabled(build))
         return
     audio=bound(build['narration']);ass=bound(build['subtitles'])
     for font in build.get('fonts',[]): bound(font)
@@ -243,7 +283,8 @@ def validate(path, media=None, *, replay=True, stage='final'):
         raise ValueError('Unknown provenance verification stage')
     if stage != 'final': replay = False
     bound(document['media'])
-    if not document.get('shots'):
+    from .media_policy import enabled as asset_first
+    if not document.get('shots') and not asset_first(document):
         raise ValueError('Unique core mechanical shots required')
     for shot in document['shots']:
         if not shot.get('model_assets') or not shot.get('product_references'):
@@ -272,7 +313,9 @@ def _validate(path, media=None, *, replay=True, stage='final'):
     if media is not None and (Path(media['path']).resolve()!=final.resolve() or media['sha256']!=filehash(final)):
         raise ValueError('3D proof belongs to a different final MP4')
     shots=doc['shots'];build=doc['build'];ids={s['shot_id'] for s in shots}
-    if len(ids)!=len(shots) or not shots:raise ValueError('Unique core mechanical shots required')
+    from .media_policy import enabled as asset_first
+    hybrid = asset_first(doc)
+    if len(ids)!=len(shots) or (not shots and not hybrid):raise ValueError('Unique core mechanical shots required')
     stream=next(s for s in probe(final)['streams'] if s['codec_type']=='video')
     rate=stream['avg_frame_rate'].split('/')
     expected = ([1920,1080,30] if stage == 'final' else
@@ -356,7 +399,10 @@ def _validate(path, media=None, *, replay=True, stage='final'):
             checks.append(dict(shot_id=shot['shot_id'],audit=audit,witness_mae=errors))
             print('Verified 3D scene/render: '+shot['shot_id'],flush=True)
         if not any(row['audit']['spatial_motion'] and
-                   shot.get('shot_role')!='structural_detail' for row,shot in zip(checks,shots)):
+                   shot.get('shot_role')!='structural_detail' for row,shot in zip(checks,shots)) and not (
+                       hybrid and any(s.get('visual', {}).get('mechanical_role') == 'core'
+                           and s['visual']['render_engine'] == 'footage'
+                           for s in build.get('visual_config', {}).get('shots', {}).values())):
             raise ValueError('A mechanical film cannot consist only of static structure details')
         if replay:
             recomposed=temp/'replayed.mp4';compose(build,recomposed)
@@ -364,7 +410,7 @@ def _validate(path, media=None, *, replay=True, stage='final'):
                 composition_comparison = verify_remotion_replay(final, recomposed, build['frame_count'])
             elif decoded_hash(final)!=decoded_hash(recomposed) or decoded_hash(final,'a')!=decoded_hash(recomposed,'a'):
                 raise ValueError('Final MP4 differs from full verified 3D build replay')
-    return {'status':'PASS' if replay else 'SCENE_INSPECTED_NOT_RENDER_VERIFIED',
+    return {'status':('HYBRID_PROVENANCE_PASS' if hybrid else 'PASS') if replay else 'SCENE_INSPECTED_NOT_RENDER_VERIFIED',
             'media':binding(final),'shots':checks,'full_build_replayed':replay,
             'composition_comparison':composition_comparison,
             'provenance':binding(path),

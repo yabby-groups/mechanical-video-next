@@ -844,8 +844,14 @@ def delivery_files(task, data, routes):
         required.append(comparison)
     else:
         from .provenance import validate
-        provenance = Path(task) / '3d-provenance.json'
-        validate(provenance, routes['3d'])
+        from .media_policy import enabled as asset_first, validate_manifest, bound
+        if asset_first(data):
+            provenance = Path(routes['3d']['path']).with_suffix('.media-provenance.json')
+            manifest = validate_manifest(provenance, routes['3d'])
+            validate(bound(manifest['build_proof']), routes['3d'])
+        else:
+            provenance = Path(task) / '3d-provenance.json'
+            validate(provenance, routes['3d'])
         required.append(dict(path=str(provenance), sha256=filehash(provenance)))
     for name in SIZES:
         matches = [item for item in covers.get('artifacts', []) if Path(item['path']).name == name]
@@ -900,7 +906,48 @@ def record_delivery(task, files, reason):
 
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
+    from .production_contract import enabled as science_contract
+    if science_contract(data):
+        return f'''You are the sole native Codex Producer for {identity}: {topic}.
+Task: {task}. Read docs/production-contract.md as the effective contract, then only
+the applicable role/tool details. This task explicitly uses mixed-original-v1;
+the compatible route remains 3d, but do not claim mixed media is 3D-only.
+Execute research -> original script -> visual direction -> lawful assets -> measured
+Neil audio/full dynamic animatic -> supported shots -> full composition -> independent
+six-dimension exact-media QA -> scoped repair -> complete delivery. Use the current
+native agents and role TOML routing with compact hash-bound assignments. No second
+Producer, scheduler, extra agents or platform writes. Native reasoning remains your
+work; a command=None or a completed child is never delivery.
+Research records a concise science.facts ledger: located sources, derived assumptions,
+units, exact implementation and unknowns. Reuse verified facts/assets without duplicate
+research. Unknown facts block only dependent depictions. Never invent internal parts,
+mix implementations or present a teaching path as a physical simulation.
+Before CAD/rendering, each Blueprint shot needs actual incremental knowledge, observable
+action, why_visual/composition/lighting/continuity/sound_intent in direction, reusable
+assets and evidence. Design an original question-to-answer narrative, not repeated CAD
+angles. Prefer owned assets and generate meaningful gaps; check lawful external rights.
+Other creators default to REFERENCE_ONLY and cannot be composited without verified rights.
+Use real 3D or independently verified licensed actual mechanism footage for core actions,
+and original scientific/information animation for explanation. Keep native 3D provenance
+and separate complete mixed-media provenance. Bind the compiled config and all handoffs.
+Use measured Neil audio to determine knowledge-supported 120–300 s; no padding, repeated
+shots, forced speed changes or static cards standing in for motion. Gray/metal brand,
+phone-readable single-line subtitles, 1920x1080/30 and both covers remain required.
+Keep Blender serial under existing stage lock, work <=2 GiB/free disk >=3 GiB, per-shot
+content caches and chunk encoding. Caption/chart edits only recompose. A wrong mechanism
+requires evidence-based replacement; unchanged failures require a changed diagnosis.
+Perceptual UNKNOWN permits technically supported production, never acceptance. Review
+the complete real film/audio and continuous key-action intervals independently; disclose
+unavailable senses. No sampled image, test, hash, loudness or ASR grants visual/listening
+PASS. Revisions bind previous/current MP4s, shots, claimed ranges, defects and decoded
+visual differences; pixel changes alone never prove improvement.
+Actually deliver the full MP4, 3:4/4:3 covers, references/material manifests/provenance,
+QA and production/growth reports before record-delivery. Report Level 1, 2 and 3 separately.
+No missing or UNKNOWN required check may become DELIVERED. Preserve historical files,
+cache and failure evidence; no upload/publication. Token/cost without telemetry are null.
+'''
     from .visual_narrative import VERSION, version
+    from .knowledge_progression import enabled as evidence_progression
     mixed = version(data) == VERSION
     visual_guidance = (
         'Use visual_policy_version=2 and docs/visual-narrative.md. Core movements stay native 3D. '
@@ -910,6 +957,40 @@ def producer_prompt(data, task):
         'Use visual_checks in content, animatic, preview and final QA.'
         if mixed else 'Apply the original 3D-only policy to the full timeline.'
     )
+    if evidence_progression(data):
+        visual_guidance += (
+            ' Apply knowledge_progression_version=1. Explicitly connect the knowledge of the previous shot '
+            'to a new claim or distinct observable demonstration. Show the start and end states of important '
+            'changes and causal comparisons in continuous motion. Reject recaps with no visual increment. '
+            'Check repeated compositions and idle frames, test graphics at 360/390/430 pixels, and bind '
+            'visual observations to exact frames of the reviewed MP4.'
+        )
+    from .media_policy import enabled as asset_first
+    if asset_first(data):
+        visual_guidance += (
+            ' Apply media_policy_version=1 and docs/asset-first-media.md. After visual planning, '
+            'Original science content comes first: every video needs independent research, original narration, '
+            'knowledge structure, storyboard and visual arrangement. Prefer project-owned/generated 3D, models, '
+            'graphics and real footage; external material is supporting only. Other creators default to research '
+            'references. Learn general techniques, never copy their distinctive script, full shot organization '
+            'or signature visual expression. Cropping, flipping, speed changes, watermark removal or redubbing '
+            'do not create original expression. Fair-use/quotation is never presumed. Never sacrifice originality '
+            'to save rendering or force monotonous CAD views to claim full generation. '
+            'match each shot using reference_library media-match: approved project clips, local history/assets, '
+            'authorized footage, lawful Pexels/Pixabay/Wikimedia footage, then licensed 3D/animations. '
+            'Use actual browser/provider tools for NOT_SEARCHED gaps; never call them searched. '
+            'Default third-party content to REFERENCE_ONLY; cached bytes do not grant rights. '
+            'Record every shot source_type/source_url/source_time_range/license_status/usage_restrictions/'
+            'selected_asset/reuse_decision/generation_required, matching attempts, credit and rights proof. '
+            'Generate only unavailable knowledge-bearing visuals, never padding. Core footage is allowed only '
+            'with independent exact-interval observation proving the real mechanism and knowledge claims; '
+            'otherwise use verified native 3D. Preserve generated scene provenance and write a separate '
+            'media-provenance.json for the full hybrid timeline, never original 3D-only acceptance. '
+            'Mute all source audio; Neil remains the narration. Independent hybrid_media_review binds '
+            'the complete manifest, each shot, exact media and actual continuous viewing/listening.'
+            ' Independent copyright_review and original_expression_review are separate QA findings; bind '
+            'the latter to this task research/script/Blueprint, never determine originality from asset ratios.'
+        )
     return f"""You are the sole native Codex Producer for {identity}: {topic}.
 Task: {task}. {visual_guidance}
 requested_routes=["3d"],
@@ -996,16 +1077,28 @@ def sync_producer_prompt(task, data):
 
 
 def create_task(topic, duration=None, voice=None, config=None, task_id=None, root=ROOT,
-                protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1):
+                protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1,
+                media_policy_version=0):
     from .three_d import require_route, validate_config
     from .visual_narrative import FIELD, VERSION, match_policy, version
+    from .knowledge_progression import FIELD as PROGRESSION_FIELD, VERSION as PROGRESSION_VERSION
     require_route(routes)
+    from .media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
+    hybrid = asset_first({FIELD: visual_policy_version, MEDIA_FIELD: media_policy_version})
+    if hybrid and protocol_version != 2:
+        raise ValueError('Asset-first media is only available for new protocol 2 tasks')
     if asset_strategy == 'illustrated':
         raise ValueError('3D-only production rejects illustrated assets')
+    progression = visual_policy_version == VERSION
     if config:
         cfg = json.loads(Path(config).read_text())
         validate_config(cfg)
-        match_policy({FIELD: visual_policy_version}, cfg)
+        policy = {FIELD: visual_policy_version}
+        if hybrid:
+            policy[MEDIA_FIELD] = media_policy_version
+        if progression:
+            policy[PROGRESSION_FIELD] = PROGRESSION_VERSION
+        match_policy(policy, cfg)
     requested_routes = ['3d']
     if type(protocol_version) is not int or protocol_version not in {1, 2}:
         raise ValueError('Unsupported production protocol_version')
@@ -1036,6 +1129,14 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     value.update(three_d_policy_version=1, requested_routes=['3d'], render_route='3d')
     if visual_policy_version == VERSION:
         value[FIELD] = VERSION
+    if hybrid:
+        value[MEDIA_FIELD] = media_policy_version
+        value['media_contract'] = 'asset-first-hybrid-v1'
+        if config is None:
+            from .production_contract import FIELD as CONTRACT_FIELD, NAME
+            value.update({CONTRACT_FIELD: 1, 'production_contract': NAME})
+    if progression:
+        value[PROGRESSION_FIELD] = PROGRESSION_VERSION
     if protocol_version == 2:
         value['reference_policy_version'] = 1
         value['reference_model_policy_version'] = 1
@@ -1044,6 +1145,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value['content_policy_version'] = 1
         value['duration_policy'] = {'minimum': 120, 'maximum': 300, 'mode': 'knowledge-driven' if duration is None else 'requested', 'requested_seconds': duration}
         value['production_method'] = 'reference-grounded-3d'
+        if hybrid:
+            value['production_method'] = 'asset-first-hybrid'
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
         value['requested_routes'] = requested_routes
         value['route_runs'] = {route: {'status': 'PENDING', 'outputs': {}} for route in requested_routes}
@@ -1088,6 +1191,13 @@ def put_handoff(task, role, name, payload, dependencies=None):
             artifact(task, dep)
             deps[dep] = data['handoffs'][dep]['sha256']
         v2 = protocol_version(data) == 2
+        from .production_contract import enabled as science_contract, validate_research as validate_science
+        if science_contract(data):
+            if name == 'research':
+                validate_science(payload)
+            if name == 'creative-blueprint':
+                from .production_contract import validate_direction
+                validate_direction(payload, artifact(task, 'research'))
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
         technical_handoff = v2 and name in {'animation-manifest', 'timeline'} and require_source_supported_render(task)
         if technical_handoff:
@@ -1142,10 +1252,21 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if data.get("reference_policy_version") == 1:
             from . import reference_policy as rp
             from . import visual_narrative as visual
+            if name == 'asset-plan':
+                from .media_policy import enabled as asset_first
+                if asset_first(data) != asset_first(payload):
+                    raise ValueError('Asset plan media policy differs from task creation policy')
             if visual.version(data) == visual.VERSION:
                 if name == 'research':
                     visual.validate_research(payload)
-                    visual.validate_plan({'shots': payload.get('visual_plan', [])})
+                    from .knowledge_progression import FIELD, enabled
+                    plan = {'shots': payload.get('visual_plan', [])}
+                    from .media_policy import enabled as asset_first
+                    if asset_first(data):
+                        plan.update(visual_policy_version=2, media_policy_version=1)
+                    if enabled(data):
+                        plan[FIELD] = data[FIELD]
+                    visual.validate_plan(plan)
                 if name == 'creative-blueprint':
                     visual.match_policy(data, payload)
                     visual.validate_plan(payload)
@@ -1306,11 +1427,29 @@ def check_qa(task, name, *, acceptance=True):
                 if Path(m['path']).suffix.lower() == '.mp4'}
     if not expected or not expected <= reviewed:
         raise ValueError('QA must review the exact production MP4')
+    from .production_contract import enabled as science_contract, validate_qa as science_qa
+    if science_contract(load(task)) and name == 'final-qa':
+        science_qa(qa, production['media'], acceptance=acceptance)
+    from .media_policy import enabled as asset_first, validate_qa as validate_hybrid_qa, binding as media_binding
+    if asset_first(load(task)) and name == 'final-qa':
+        task_data = load(task)
+        original_inputs = {key: media_binding(Path(task)/task_data['handoffs'][handoff]['path'])
+                           for key,handoff in (('research','research'),('script','script'),('blueprint','creative-blueprint'))}
+        for path, _ in expected:
+            validate_hybrid_qa(qa, Path(path).with_suffix('.media-provenance.json'), acceptance=acceptance,
+                               original_inputs=original_inputs)
+        production_threads = {r['thread_id'] for r in task_data['agent_runs'] if r['role'] != 'QA'}
+        if any(qa[section]['reviewer_thread_id'] in production_threads for section in
+               ('copyright_review','original_expression_review')):
+            raise ValueError('Copyright and original expression reviewers must be independent of production')
     from . import visual_narrative as visual
     if visual.version(load(task)) == visual.VERSION:
         blueprint = artifact(task, 'creative-blueprint')
         visual.validate_review(qa.get('visual_checks'), [s['shot_id'] for s in blueprint['shots']],
                                acceptance=acceptance)
+        from .knowledge_progression import enabled, validate_media_evidence
+        if enabled(blueprint):
+            validate_media_evidence(blueprint, qa, {sha: path for path, sha in expected}, acceptance=acceptance)
     if load(task).get('content_policy_version') == 1:
         from .growth import validate_media_checks, check_media_duration
         blueprint = artifact(task, 'creative-blueprint')
@@ -1595,7 +1734,13 @@ def check_requested_routes(task, data):
             raise ValueError('3D-only task route scope changed')
         from .provenance import validate as validate_provenance
         output = data.get('route_runs', {}).get('3d', {}).get('outputs', {})
-        proof = Path(task) / '3d-provenance.json'
+        from .media_policy import enabled as asset_first, validate_manifest, bound
+        if asset_first(data):
+            manifest_path = Path(output['path']).with_suffix('.media-provenance.json')
+            manifest = validate_manifest(manifest_path, output)
+            proof = bound(manifest['build_proof'])
+        else:
+            proof = Path(task) / '3d-provenance.json'
         from .visual_narrative import VERSION, match_policy, version
         build = json.loads(proof.read_text())['build'] if proof.is_file() else {}
         match_policy(data, build)
@@ -2187,6 +2332,8 @@ def main():
     p.add_argument('--task-id')
     p.add_argument('--visual-policy', type=int, choices=(1, 2),
                    help='New tasks default to 2. Policy 1 retains the all-3D timeline.')
+    p.add_argument('--media-policy', type=int, choices=(0, 1),
+                   help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
@@ -2261,7 +2408,7 @@ def main():
         return
     if args.command == 'produce':
         if args.resume:
-            if args.visual_policy is not None:
+            if args.visual_policy is not None or args.media_policy is not None:
                 raise ValueError('Resume preserves the existing visual policy')
             if args.codex:
                 raise ValueError('Resume uses current Producer; do not start another Producer')
@@ -2278,7 +2425,9 @@ def main():
         task = create_task(args.topic, args.duration, args.voice, args.config, args.task_id,
                            asset_strategy=args.asset_strategy, routes=args.routes or '3d',
                            visual_policy_version=args.visual_policy if args.visual_policy is not None
-                           else (1 if args.config else 2))
+                           else (1 if args.config else 2),
+                           media_policy_version=args.media_policy if args.media_policy is not None
+                           else (0 if args.config or args.visual_policy == 1 else 1))
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')

@@ -133,6 +133,21 @@ class MediaLibraryTest(unittest.TestCase):
         self.assertEqual(result['selected_asset']['sha256'], native['sha256'])
         self.assertIsNone(result['source_time_range'])
 
+    def test_blueprint_matching_is_source_bound_and_does_not_repeat_padding(self):
+        from mechanical_video_next.blueprint import match_assets
+        ingest_media(self.metadata, self.media, self.root)
+        query = {**self.shot, 'accepted_types':['video']}
+        plan = {'visual_policy_version':2,'media_policy_version':1,'shots':[
+            {'shot_id':sid,'visual_type':'real_use','render_engine':'footage','knowledge_ids':['rotation'],
+             'knowledge_goal':'Show rotation','duration':1,'media_query':query} for sid in ('a','b')]}
+        path = self.root/'plan.json'
+        path.write_text(json.dumps(plan))
+        report = match_assets(path, self.root/'matches.json', self.root)
+        self.assertEqual(report['shots'][0]['match']['reuse_decision'],'REUSE')
+        self.assertEqual(report['shots'][1]['match']['reuse_decision'],'RESEARCH_REQUIRED')
+        self.assertEqual(json.loads(path.read_text()),plan)
+        self.assertFalse(report['network_accessed'])
+
     def test_actual_usage_history_is_idempotent_and_not_acceptance(self):
         entry = ingest_media(self.metadata, self.media, self.root)
         final = {'path':str(self.media),'sha256':entry['sha256']}

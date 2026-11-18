@@ -37,12 +37,23 @@ def version(document):
 
 
 def match_policy(task, document):
+    from .production_contract import enabled as science_contract
+    if science_contract(task) != science_contract(document):
+        raise ValueError('Production contract differs from task creation policy')
     if version(task) != version(document):
         raise ValueError('Visual production policy differs from task creation policy')
+    from .knowledge_progression import enabled
+    if enabled(task) != enabled(document):
+        raise ValueError('Knowledge progression differs from task creation policy')
+    from .media_policy import enabled as asset_first
+    if asset_first(task) != asset_first(document):
+        raise ValueError('Asset-first media differs from task creation policy')
 
 
 def design_fields(shot):
-    return {key: shot[key] for key in SHOT_FIELDS | {'material_limit'} if key in shot}
+    from .media_policy import SHOT_FIELDS as MEDIA_FIELDS
+    return {key: shot[key] for key in SHOT_FIELDS | MEDIA_FIELDS |
+            {'material_limit', 'direction', 'expression_class', 'required_visual_capabilities', 'required_model_capabilities'} if key in shot}
 
 
 def match_blueprint(blueprint, config):
@@ -54,7 +65,7 @@ def match_blueprint(blueprint, config):
         if (row['id'] != planned['shot_id'] or row['seconds'] != planned['duration']
                 or row['narration'] != planned['narration'] or row['subtitles'] != planned['subtitles']
                 or spec['visual'] != design_fields(planned)
-                or any(spec.get(k) != planned.get(k) for k in ('graphic', 'footage'))):
+                or any(spec.get(k) != planned.get(k) for k in ('graphic', 'footage', 'split_screen'))):
             raise ValueError(f'Executable visual shot differs from Blueprint: {planned["shot_id"]}')
 
 
@@ -95,17 +106,18 @@ def validate_research(research):
             raise ValueError(f'Visual research needs a supported finding or a recorded limitation: {key}')
 
 
-def validate_design(plan):
+def validate_design(plan, *, hybrid=False):
     if not isinstance(plan, dict) or not SHOT_FIELDS <= plan.keys():
         raise ValueError('Incomplete visual narrative shot')
     if any(not nonempty(plan[k]) for k in ('knowledge_goal', 'visual_focus', 'visual_action')):
         raise ValueError('Visual goal, focus and observable action are required')
     kind, engine, role = (plan[k] for k in ('visual_type', 'render_engine', 'mechanical_role'))
-    if engine not in ENGINES.get(kind, set()) or role not in {'core', 'support'}:
+    allowed = ENGINES.get(kind, set()) | ({'footage'} if hybrid and kind in {'mechanical_cutaway', 'annotated_detail'} else set())
+    if engine not in allowed or role not in {'core', 'support'}:
         raise ValueError('Unsupported visual type, renderer or mechanical role')
-    if role == 'core' and engine != 'blender':
+    if role == 'core' and engine != 'blender' and not (hybrid and engine == 'footage'):
         raise ValueError('Core mechanical action requires real Blender 3D')
-    if kind in {'exploded_view', 'mechanical_cutaway', 'annotated_detail'} and engine != 'blender':
+    if kind in {'exploded_view', 'mechanical_cutaway', 'annotated_detail'} and engine != 'blender' and not (hybrid and engine == 'footage'):
         raise ValueError('Mechanical structure needs its verified 3D assembly')
     for field in ('assets', 'knowledge_ids'):
         values = plan[field]
@@ -138,12 +150,14 @@ def validate_design(plan):
 
 def validate_plan(document):
     """Check the plan before committing to CAD or native rendering."""
+    from .media_policy import enabled as asset_first, validate_document
+    hybrid = asset_first(document)
     shots = document['shots']
     if not isinstance(shots, list) or not shots:
         raise ValueError('Visual Blueprint needs ordered shots')
     seen, shot_ids, findings, previous = set(), set(), [], None
     for shot in shots:
-        validate_design(shot)
+        validate_design(shot, hybrid=hybrid)
         ids = set(shot['knowledge_ids'])
         sid = shot.get('shot_id')
         narration = shot.get('narration')
@@ -166,6 +180,10 @@ def validate_plan(document):
         previous = shot
     if not any(s['mechanical_role'] == 'core' for s in shots):
         raise ValueError('Mechanical production requires at least one core Blender shot')
+    from .knowledge_progression import enabled, validate_timeline
+    if enabled(document):
+        findings.extend(validate_timeline(shots))
+    validate_document(document)
     return findings
 
 
@@ -192,9 +210,17 @@ def validate_footage(source, *, seconds=None):
     return path
 
 
-def validate_graphic(graphic):
+def validate_graphic(graphic, *, progression=False):
     kind = graphic.get('type')
-    if kind not in {'diagram', 'comparison', 'chart', 'timeline'} or not nonempty(graphic.get('title')):
+    if kind == 'angular_comparison' and progression:
+        from .knowledge_progression import validate_angular_graphic
+        validate_angular_graphic(graphic)
+        return
+    if kind == 'dual_reel_speed' and progression:
+        from .knowledge_progression import validate_dual_reel_graphic
+        validate_dual_reel_graphic(graphic)
+        return
+    if kind not in {'diagram', 'comparison', 'chart', 'timeline', 'data_animation'} or not nonempty(graphic.get('title')):
         raise ValueError('Unknown information graphic or missing title')
     items = graphic.get('items')
     minimum, maximum = (2, 2) if kind == 'comparison' else (2, 4)
@@ -205,15 +231,30 @@ def validate_graphic(graphic):
             raise ValueError('Information graphic items need labels and details')
         if kind == 'chart' and (not number(item.get('value')) or item['value'] < 0):
             raise ValueError('Bar chart expects finite nonnegative values')
+        if kind == 'data_animation':
+            keys = item.get('keyframes')
+            if (not isinstance(keys, list) or len(keys) < 2
+                    or any(not isinstance(k, list) or len(k) != 2 or not all(number(v) for v in k)
+                           or min(k) < 0 for k in keys)
+                    or keys[0][0] != 0 or any(a[0] >= b[0] for a,b in zip(keys,keys[1:]))):
+                raise ValueError('Animated data needs ordered finite nonnegative [seconds,value] keys from zero')
+    if kind == 'data_animation':
+        peak = max(k[1] for item in items for k in item['keyframes'])
+        domain = graphic.get('domainMax', peak)
+        if not nonempty(graphic.get('unit')) or not number(domain) or domain <= 0 or domain < peak:
+            raise ValueError('Animated data requires units and a positive domain covering all values')
     if kind == 'chart' and (not nonempty(graphic.get('unit')) or not any(s['value'] for s in items)):
         raise ValueError('Bar chart requires units and a positive scale')
     if 'formula' in graphic and not nonempty(graphic['formula']):
         raise ValueError('Graphic formula must be a visible string')
+    if progression:
+        from .knowledge_progression import validate_graphic_text
+        validate_graphic_text(graphic)
 
 
-def validate_execution(shot):
+def validate_execution(shot, *, progression=False, hybrid=False):
     visual = shot['visual']
-    validate_design(visual)
+    validate_design(visual, hybrid=hybrid)
     engine = visual['render_engine']
     if shot.get('seconds') != visual['duration']:
         raise ValueError('Executable and planned visual durations differ')
@@ -246,11 +287,25 @@ def validate_execution(shot):
     elif engine == 'footage':
         if 'graphic' in shot:
             raise ValueError('Choose one editorial background per shot')
-        validate_footage(shot.get('footage', {}))
+        validate_footage(shot.get('footage', {}), seconds=shot['seconds'])
+        if 'split_screen' in shot:
+            sources = shot['split_screen'].get('sources')
+            if (not isinstance(sources, list) or len(sources) != 2
+                    or sources[0] != shot['footage'] or visual['mechanical_role'] != 'support'):
+                raise ValueError('Split screen needs two licensed sources, matching primary footage and supporting role')
+            for source in sources:
+                validate_footage(source, seconds=shot['seconds'])
     else:
         if 'footage' in shot:
             raise ValueError('Information graphics cannot load arbitrary footage')
-        validate_graphic(shot.get('graphic', {}))
+        graphic = shot.get('graphic', {})
+        validate_graphic(graphic, progression=progression)
+        if graphic.get('type') == 'data_animation' and any(item['keyframes'][-1][0] > shot['seconds'] for item in graphic['items']):
+            raise ValueError('Data keyframes extend beyond the shot')
+        if progression:
+            from .knowledge_progression import DYNAMIC
+            if any(b['kind'] in DYNAMIC for b in visual['progression'].get('observable', [])) and graphic['type'] not in {'chart', 'angular_comparison', 'dual_reel_speed', 'data_animation'}:
+                raise ValueError('Dynamic knowledge requires animated data or geometry, not label reveals')
 
 
 def configure_blender(shot):

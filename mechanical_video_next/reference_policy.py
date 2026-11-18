@@ -27,13 +27,23 @@ def validate_reference_model(report, mechanism_id):
         raise ValueError('Reference-to-model mechanism mismatch or unresolved model mixing')
     if report.get('independent') is not True or not report.get('reviewer_thread_id'):
         raise ValueError('Reference-to-model audit requires an independent reviewer')
+    from .media_policy import enabled as asset_first, validate_shot
+    observed_footage = asset_first(report) and report.get('depicted_type') == 'licensed-real-mechanism'
+    if observed_footage:
+        rows = report.get('mechanism_shots', [])
+        if not rows:
+            raise ValueError('Real-mechanism audit requires exact licensed observed footage intervals')
+        for row in rows:
+            if row.get('mechanical_role') != 'core' or row.get('render_engine') != 'footage':
+                raise ValueError('Real-mechanism evidence must show the core operation')
+            validate_shot(row, row['duration'])
     for binding in report['bindings']:
         path = Path(binding.get('path', ''))
         if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != binding.get('sha256'):
             raise ValueError('Reference-to-model source/model/animation binding missing or stale')
     seen = set()
     for part in report['parts']:
-        _required(part, ('part_id', 'source_locations', 'cad_parts', 'function',
+        _required(part, ('part_id', 'source_locations', 'visible_parts' if observed_footage else 'cad_parts', 'function',
                          'connections', 'motion_constraints', 'verification'), 'Model part')
         if part['part_id'] in seen:
             raise ValueError('Duplicate reference-to-model part')
@@ -180,10 +190,19 @@ def validate_asset(research, asset):
         raise ValueError('Asset must prefer qualified legal reuse before new CAD')
     candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
     if selected[0] == 'existing-media':
-        from .provenance import validate
-        if not candidate.get('three_d_provenance'):
-            raise ValueError('Existing media needs executable 3D provenance, not a 3D label')
-        validate(candidate['three_d_provenance'])
+        from .media_policy import enabled as asset_first, validate_shot
+        if asset_first(asset) and candidate.get('mechanism_shots'):
+            for row in candidate['mechanism_shots']:
+                if row.get('mechanical_role') != 'core' or row.get('render_engine') != 'footage':
+                    raise ValueError('Licensed real-mechanism reuse requires observed core footage')
+                validate_shot(row, row['duration'])
+                if row['selected_asset'] not in candidate['source_files']:
+                    raise ValueError('Observed mechanism video differs from selected source files')
+        else:
+            from .provenance import validate
+            if not candidate.get('three_d_provenance'):
+                raise ValueError('Existing media needs executable 3D provenance, not a 3D label')
+            validate(candidate['three_d_provenance'])
     if selected[0] != 'autonomous-cad':
         for source in candidate['source_files']:
             path = Path(source.get('path', ''))
