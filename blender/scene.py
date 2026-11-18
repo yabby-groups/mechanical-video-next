@@ -712,6 +712,40 @@ def prepare_motion(cfg, count, fps):
             'willis_residual':abs(cfg['sun_teeth']*(ws-wc)-cfg['ring_teeth']*wc)}
 
 
+def writing_desk_context(visible, spec):
+    """Place an editorial pencil beside an existing paper prop, in its local frame."""
+    if spec.get('preset') != 'writing_desk':
+        raise ValueError('Unknown context preset')
+    paper = next((obj for obj in visible if obj.name == spec.get('paper', 'Paper_sheet')), None)
+    if paper is None:
+        raise ValueError('writing_desk requires a visible paper object')
+    if spec.get('large_paper'):
+        size = spec.get('paper_size', [.15, .10])
+        if len(size) != 2 or any(float(x) <= 0 for x in size):
+            raise ValueError('paper_size must contain two positive dimensions')
+        bpy.ops.mesh.primitive_cube_add(size=1)
+        sheet = bpy.context.object
+        sheet.name = 'Context paper extension'
+        sheet.parent = paper
+        sheet.location = (0, -.00023, 0)
+        sheet.scale = (float(size[0]), .0008, float(size[1]))
+        sheet.data.materials.append(paper.data.materials[0])
+    def pencil_part(name, radius1, radius2, length, location, color):
+        mat = material(name + ' material', color)
+        bpy.ops.mesh.primitive_cone_add(vertices=32, radius1=radius1, radius2=radius2, depth=length)
+        obj = bpy.context.object
+        obj.name = name
+        obj.parent = paper
+        obj.location = location
+        obj.rotation_euler = (0, math.pi / 2, 0)
+        obj.data.materials.append(mat)
+    origin = spec.get('pencil_origin', [0.015, 0.002, -0.027])
+    pencil_part('Context pencil body', .0022, .0022, .085, origin, (.48, .55, .57))
+    pencil_part('Context pencil wood', .0022, .00065, .008, [origin[0]-.0465, origin[1], origin[2]], (.63, .48, .32))
+    pencil_part('Context pencil graphite', .00065, 0, .003, [origin[0]-.052, origin[1], origin[2]], (.055, .06, .065))
+    return {'preset': 'writing_desk', 'scope': 'Original static editorial pencil and optional paper extension; existing paper and studio floor'}
+
+
 def render_shot(args):
     eas.register()
     bpy.ops.wm.open_mainfile(filepath=str(args.asset))
@@ -842,6 +876,8 @@ def render_shot(args):
         import studio_style
         report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam,
                                                    shot.get('studio_lighting'))
+    if shot.get('context'):
+        report['context'] = writing_desk_context(visible, shot['context'])
     if science:
         if science.get('opacity_tracks'):
             report['checks']['editorial_opacity'] = science_scene.opacity_tracks(
