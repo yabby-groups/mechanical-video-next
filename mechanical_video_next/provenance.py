@@ -8,6 +8,8 @@ No arbitrary shell command from a provenance document is ever executed.
 import argparse
 import json
 from pathlib import Path
+import math
+import re
 import subprocess
 import tempfile
 import shutil
@@ -27,6 +29,7 @@ def verification_key(doc, stage, replay):
     visit(doc)
     return digest(dict(document=doc, stage=stage, replay=replay,
         verifier=filehash(__file__), audit=filehash(ROOT/'blender/provenance_audit.py'),
+        remotion_build=filehash(ROOT/'mechanical_video_next/remotion_build.py') if doc.get('build', {}).get('renderer') == 'remotion-v1' else None,
         blender=subprocess.check_output([BLENDER, '--version'], text=True),
         ffmpeg=subprocess.check_output(['ffmpeg', '-version'], text=True)))
 
@@ -43,8 +46,125 @@ def bound(value):
     return p
 
 
+def verify_remotion_inputs(build):
+    from .remotion_build import SOURCES, VISUAL_SOURCES
+    from .visual_narrative import VERSION, editorial_props, match_policy, validate_footage, version
+    props_file = bound(build['props'])
+    props = json.loads(props_file.read_text())
+    sources = {bound(row).resolve() for row in build['render_sources']}
+    visual = version(build) == VERSION
+    match_policy(build, props)
+    if sources != {(ROOT/name).resolve() for name in (VISUAL_SOURCES if visual else SOURCES)}:
+        raise ValueError('Unexpected or incomplete Remotion renderer sources')
+    if (props.get('presentation') != 'mechanism-fullframe'
+            or [props.get(key) for key in ('width', 'height', 'fps')] != [1920, 1080, 30]):
+        raise ValueError('Remotion proof requires native fullframe 3D composition')
+    if len(props['shots']) != len(build['segments']):
+        raise ValueError('Remotion timeline must match verified 3D segments')
+    if visual:
+        from .three_d import validate_config
+        config = build['visual_config']
+        match_policy(build, config)
+        validate_config(config)
+    cursor = 0
+    for index, (row, segment) in enumerate(zip(props['shots'], build['segments'])):
+        role = segment.get('media_kind', 'mechanical-3d')
+        if (row['id'] != segment['chapter_id'] or row['kind'] != ('graphic' if role == 'information' else 'video')
+                or round(row['seconds'] * 30) != segment['frame_count']):
+            raise ValueError('Remotion chapter is not the verified 3D segment')
+        if visual:
+            chapter = config['storyboard'][index]
+            spec = config['shots'][chapter['shot']]
+            expected_role = {'blender': 'mechanical-3d', 'remotion': 'information', 'footage': 'licensed-footage'}[spec['visual']['render_engine']]
+            if (role != expected_role or segment['shot_id'] != chapter['shot'] or row['id'] != chapter['id']
+                    or row['seconds'] != spec['seconds'] or segment['start_frame'] != cursor
+                    or {k: row[k] for k in ('graphic', 'footage', 'chapter') if k in row} != editorial_props(spec)):
+                raise ValueError('Timeline diverges from the approved visual shot')
+            if role == 'licensed-footage':
+                validate_footage(spec['footage'], seconds=spec['seconds'])
+                if bound(segment['render_output']).resolve() != (ROOT / spec['footage']['path']).resolve():
+                    raise ValueError('Footage asset differs from the licensed source')
+            elif role == 'information' and ('media' in row or 'render_output' in segment):
+                raise ValueError('Information graphic cannot substitute unbound media')
+        elif role != 'mechanical-3d' or {'graphic', 'footage', 'chapter'} & row.keys():
+            raise ValueError('Legacy 3D-only composition cannot include editorial media')
+        cursor += segment['frame_count']
+        inputs = [('audio', 'audio')]
+        if role != 'information':
+            inputs.append(('media', 'render_output'))
+        for key, binding_key in inputs:
+            relative = Path(row[key])
+            if (relative.parts[:1] != ('cache',) or len(relative.parts) != 2
+                    or relative.name in {'..', '.'} or '\\' in row[key]):
+                raise ValueError('Remotion media must use the local content cache')
+            exposed = ROOT/'remotion/public'/relative
+            if (not exposed.resolve().is_relative_to((ROOT/'remotion/public/cache').resolve())
+                    or filehash(exposed) != filehash(bound(segment[binding_key]))):
+                raise ValueError('Remotion media or audio differs from the verified inputs')
+    if visual and (cursor != build['frame_count'] or len(config['storyboard']) != len(props['shots'])
+                   or round(props['duration'] * 30) != cursor):
+        raise ValueError('Incomplete visual timeline')
+    return props_file
+
+
+def write_remotion_proof(path, final, props_path, config, media, assembly, model):
+    from .remotion_build import SOURCES, VISUAL_SOURCES
+    from .visual_narrative import VERSION, version
+    visual = version(config) == VERSION
+    props = json.loads(props_path.read_text())
+    shots, segments = {}, []
+    cursor = 0
+    model_assets = [dict(binding(assembly), source='assembly configuration'),
+                    dict(binding(model), source='actual Blender assembly input', cache_key=model.parent.name)]
+    for row, chapter in zip(props['shots'], config['storyboard'], strict=True):
+        shot_id = chapter['shot']
+        spec = config['shots'][shot_id]
+        count = round(row['seconds'] * 30)
+        segment = dict(shot_id=shot_id, chapter_id=row['id'],
+                       audio=binding(ROOT/'remotion/public'/row['audio']), start_frame=cursor, frame_count=count)
+        segments.append(segment)
+        cursor += count
+        if visual:
+            engine = spec['visual']['render_engine']
+            if engine == 'remotion':
+                segment['media_kind'] = 'information'
+                continue
+            if engine == 'footage':
+                segment.update(media_kind='licensed-footage', render_output=binding(media[shot_id][0]))
+                continue
+        raw, kind, cache_key = media[shot_id]
+        basis = spec.get('science', {}).get('basis')
+        if kind != 'video' or not basis:
+            raise ValueError('Each chapter of a science proof needs a native 3D clip and located evidence')
+        checks_file = raw.parent/'checks.json'
+        checks = json.loads(checks_file.read_text())
+        raw_ref = binding(raw)
+        if shot_id not in shots:
+            shots[shot_id] = dict(shot_id=shot_id, render_output=raw_ref, scene=checks['scene_artifact'],
+                motion_data=binding(checks_file), executable_shot=checks['source_shot'], cache_key=cache_key,
+                model_assets=model_assets,
+                product_references=[dict(binding(ROOT/ref['path']), position=ref['position']) for ref in basis],
+                shot_role=spec.get('science', {}).get('role', 'core'),
+                verification_frames=sorted({1, round((1+count)/2), count}))
+        segment['render_output'] = raw_ref
+    build = dict(renderer='remotion-v1', frame_count=cursor, segments=segments,
+                 props=binding(props_path), render_sources=[binding(ROOT/name) for name in (VISUAL_SOURCES if visual else SOURCES)])
+    if visual:
+        build.update(visual_policy_version=VERSION, visual_config=config)
+    if config['render'].get('encode_profile') is not None:
+        build['encode_profile'] = config['render']['encode_profile']
+    verify_remotion_inputs(build)
+    writejson(path, dict(schema_version=1, media=binding(final), render_route='3d',
+        shots=list(shots.values()), build=build, formal_acceptance=False))
+
+
 def compose(build, output):
     """Compose only real 3D renders with subtitles and narration."""
+    if build.get('renderer') == 'remotion-v1':
+        from .remotion_build import render
+        render(verify_remotion_inputs(build), output, output.with_suffix('.remotion.log'),
+               encode_profile=build.get('encode_profile'), visual=build.get('visual_policy_version') == 2)
+        return
     audio=bound(build['narration']);ass=bound(build['subtitles'])
     for font in build.get('fonts',[]): bound(font)
     segments=build['segments']
@@ -83,6 +203,27 @@ def decoded_hash(path, kind='v'):
         '-f','hash','-hash','sha256','-'],text=True).strip()
 
 
+def verify_remotion_replay(original, replayed, frames):
+    original_video, replay_video = (next(stream for stream in probe(path)['streams'] if stream['codec_type'] == 'video')
+                                    for path in (original, replayed))
+    fields = ('width', 'height', 'avg_frame_rate', 'start_time', 'nb_frames', 'pix_fmt')
+    if (any(original_video.get(key) != replay_video.get(key) for key in fields)
+            or int(replay_video['nb_frames']) != frames or decoded_hash(original, 'a') != decoded_hash(replayed, 'a')):
+        raise ValueError('Remotion replay video format or decoded narration differs')
+    if decoded_hash(original) == decoded_hash(replayed):
+        return {'method': 'exact_decoded_hash', 'frames': frames, 'audio_exact': True}
+    comparison = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(original), '-i', str(replayed),
+                                 '-filter_complex', '[0:v][1:v]psnr=stats_file=-:shortest=1',
+                                 '-an', '-f', 'null', '-'], capture_output=True, text=True, check=True)
+    values = [float(value) for value in re.findall(r'\bpsnr_avg:([^\s]+)', comparison.stdout)]
+    threshold = 45.0
+    if len(values) != frames or any(not value >= threshold for value in values):
+        raise ValueError('Remotion replay exceeds per-frame codec tolerance')
+    lowest = min(values)
+    return {'method': 'psnr_per_decoded_frame', 'frames': frames, 'audio_exact': True,
+            'threshold_db': threshold, 'minimum_db': lowest if math.isfinite(lowest) else None}
+
+
 def frame_rgb(path, frame, crop=None):
     region=''
     if crop:
@@ -107,6 +248,8 @@ def validate(path, media=None, *, replay=True, stage='final'):
     for shot in document['shots']:
         if not shot.get('model_assets') or not shot.get('product_references'):
             raise ValueError('Traceable model and product reference evidence required')
+    if document.get('build', {}).get('renderer') == 'remotion-v1':
+        verify_remotion_inputs(document['build'])
     from .workflow import lock
     key = digest(dict(inputs=verification_key(document, stage, replay), provenance=str(Path(path).resolve())))
     receipt = ROOT/'work/cache/provenance'/(key+'.json')
@@ -143,19 +286,26 @@ def _validate(path, media=None, *, replay=True, stage='final'):
     segments=build['segments']
     if {s['shot_id'] for s in segments if s.get('media_kind','mechanical-3d')=='mechanical-3d'}!=ids:
         raise ValueError('All core shots must match the actual MP4 build')
+    visual = build.get('visual_policy_version') == 2
+    if visual and build.get('renderer') != 'remotion-v1':
+        raise ValueError('Visual replay requires the bound Remotion build')
     cursor=0
     for segment in segments:
-        bound(segment['render_output'])
+        role=segment.get('media_kind','mechanical-3d')
+        if role != 'information' or not visual:
+            bound(segment['render_output'])
         if segment.get('start_frame')!=cursor or type(segment.get('frame_count'))!=int or segment['frame_count']<=0:
             raise ValueError('Build timeline has gap/overlap or invalid frame count')
         cursor+=segment['frame_count']
-        role=segment.get('media_kind','mechanical-3d')
-        if role!='mechanical-3d':
+        if role!='mechanical-3d' and not (visual and role in {'licensed-footage', 'information'}):
             raise ValueError('3D-only production requires mechanical 3D segments')
     if cursor!=build['frame_count']:raise ValueError('Incomplete build timeline')
+    if build.get('renderer') == 'remotion-v1':
+        verify_remotion_inputs(build)
     if stage!='preview':
         subprocess.run(['ffmpeg','-v','error','-i',str(final),'-f','null','-'],check=True)
     checks=[]
+    composition_comparison = None
     with tempfile.TemporaryDirectory(prefix='mvn-3d-') as temporary:
         temp=Path(temporary)
         if replay and shutil.disk_usage(temp).free < 3*1024**3 + final.stat().st_size*2 + 64*1024**2:
@@ -186,6 +336,8 @@ def _validate(path, media=None, *, replay=True, stage='final'):
                 raise ValueError('Render witness outside actual scene timeline')
             if not audit['spatial_motion'] and shot.get('shot_role') != 'structural_detail':
                 raise ValueError('Core mechanical shot has no evidenced spatial motion: '+shot['shot_id'])
+            if visual and build['visual_config']['shots'][shot['shot_id']]['visual']['mechanical_role'] == 'core' and not audit['spatial_motion']:
+                raise ValueError('Planned core shot lacks real spatial motion: '+shot['shot_id'])
             if audit['resolution']!=expected[:2] or audit['fps']!=expected[2]:
                 raise ValueError('Actual 3D scene must render native 1920x1080/30')
             errors=[]
@@ -208,10 +360,13 @@ def _validate(path, media=None, *, replay=True, stage='final'):
             raise ValueError('A mechanical film cannot consist only of static structure details')
         if replay:
             recomposed=temp/'replayed.mp4';compose(build,recomposed)
-            if decoded_hash(final)!=decoded_hash(recomposed) or decoded_hash(final,'a')!=decoded_hash(recomposed,'a'):
+            if build.get('renderer') == 'remotion-v1':
+                composition_comparison = verify_remotion_replay(final, recomposed, build['frame_count'])
+            elif decoded_hash(final)!=decoded_hash(recomposed) or decoded_hash(final,'a')!=decoded_hash(recomposed,'a'):
                 raise ValueError('Final MP4 differs from full verified 3D build replay')
     return {'status':'PASS' if replay else 'SCENE_INSPECTED_NOT_RENDER_VERIFIED',
             'media':binding(final),'shots':checks,'full_build_replayed':replay,
+            'composition_comparison':composition_comparison,
             'provenance':binding(path),
             'verifier':[binding(__file__),binding(ROOT/'blender/provenance_audit.py')],
             'scope':'Sampled scene-to-raw render witnesses; full raw-to-final decoded replay. Mechanical truth, product identity and viewing/listening remain separate QA.'}

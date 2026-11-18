@@ -54,11 +54,15 @@ def assembly_spec(path=None):
 
 def asset_key(assembly_path=None):
     cfg = assembly_spec(assembly_path)
+    from mechanical_video_next.science_shots import validate_asset
+    validate_asset(cfg)
     sources = {s['path']:filehash(ROOT/s['path']) for s in cfg.get('source_files', [])}
     for s in cfg.get('source_files', []):
         if sources[s['path']] != s['sha256']:
             raise ValueError('Assembly source hash mismatch: '+s['path'])
-    return digest({'config':cfg,'source':codehash('blender/scene.py','blender/vendor'),
+    renderer = (codehash('blender/scene.py','blender/vendor',equivalents=False) if cfg.get('reuse')
+                else codehash('blender/scene.py','blender/vendor'))
+    return digest({'config':cfg,'source':renderer,
                    'asset_sources':sources})
 
 def asset(metrics, assembly_path=None):
@@ -108,10 +112,15 @@ def shot_key(shot, quality, render=None, assembly_path=None):
         from layered import sources
         return digest({'sources':sources(shot), 'shot':shot, 'panel':panel_spec(render,quality),
                        'quality':quality, 'renderer':codehash('scripts/layered.py')})
-    inputs={'asset':asset_key(assembly_path),'shot':shot,'quality':quality,'panel':panel_spec(render,quality)}
+    inputs={'asset':asset_key(assembly_path),'shot':{k:v for k,v in shot.items() if k != 'visual'},'quality':quality,'panel':panel_spec(render,quality)}
     inputs['provenance_renderer'] = codehash('blender/render_with_provenance.py')
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
+    if shot.get('science'):
+        science_files = ['blender/scene.py', 'blender/science_scene.py', 'mechanical_video_next/science_shots.py']
+        if {'camera_path', 'stage_rotation', 'guides', 'print_marks'} & shot['science'].keys():
+            science_files.append('blender/science_guides.py')
+        inputs['science_renderer'] = codehash(*science_files, equivalents=False)
     return digest(inputs)
 
 def prepare_shot_evidence(folder):
@@ -123,8 +132,12 @@ def prepare_shot_evidence(folder):
 
 
 def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
+    shot = {k: v for k, v in shot.items() if k != 'visual'}
     from mechanical_video_next.three_d import validate_config
+    from mechanical_video_next.science_shots import validate_assembly_shot
     validate_config({'shots': {'shot': shot}})
+    if shot.get('science'):
+        validate_assembly_shot(shot, assembly_spec(assembly_path))
     start=time.time()
     render = render or {'width':1080,'height':1920}
     width,height,fps = panel_spec(render,quality)
@@ -142,7 +155,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         metrics.record(quality+':layered', start, hit, key=key)
         prepare_shot_evidence(folder)
         return folder/'media.mp4', 'video', key
-    kind='image' if shot['template'] in ['overall','detail','exploded'] else 'video'
+    kind='image' if shot['template'] in ['overall','detail','exploded'] and not shot.get('science') else 'video'
     filename='media.png' if kind=='image' else 'media.mp4'
     files=['checks.json'] + ([] if shot.get('scene_artifact_dir') else ['frames/scene.blend'])
     if quality not in {'keys','checks'}:
@@ -291,14 +304,20 @@ def validate_video(path, config, cues):
     return result
 
 def composition_key(props, quality):
+    from mechanical_video_next.remotion_build import SOURCES, VISUAL_SOURCES
     if quality not in ['preview', 'final']:
         raise ValueError('Unsupported composition quality')
+    sources = VISUAL_SOURCES if isinstance(props, dict) and props.get('visual_policy_version') == 2 else SOURCES
     return digest({'props':props,'quality':quality,
-                   'remotion':codehash('remotion/src/index.tsx','remotion/src/TextOverlay.tsx','remotion/package-lock.json'),
-                   'composition_code':codehash('scripts/produce.py', 'mechanical_video_next/text_layout.py', 'config/text-style.json')})
+                   'remotion':codehash(*sources),
+                   'composition_code':codehash('scripts/produce.py', 'mechanical_video_next/text_layout.py', 'mechanical_video_next/science_information.py', 'mechanical_video_next/remotion_build.py', 'config/text-style.json')})
 
 def compose(cfg, quality, media, metrics):
     from narration import effective_profile
+    from mechanical_video_next.science_information import information_props
+    from mechanical_video_next.remotion_build import render
+    from mechanical_video_next.visual_narrative import VERSION, version
+    visual = version(cfg) == VERSION
     voice=effective_profile(cfg) or cfg['voice']
     start=time.time()
     render_shots=[]
@@ -308,14 +327,26 @@ def compose(cfg, quality, media, metrics):
     for s in cfg['storyboard']:
         audio,sc,_=tts(s,voice,metrics)
         audio_sources.append(filehash(audio))
-        path,kind,key=media[s['shot']]
-        render_shots.append({k:s[k] for k in ['id','label','note','seconds','accent']}|{'formula':s.get('formula'),'media':expose(path,key),'kind':kind,'audio':expose(audio,filehash(audio))})
+        spec = cfg['shots'][s['shot']]
+        path,kind,key=media.get(s['shot'], (None,'graphic',None))
+        row = {k:s[k] for k in ['id','label','note','seconds','accent']} | {
+            'formula':s.get('formula'), 'kind':kind, 'audio':expose(audio,filehash(audio))}
+        if path is not None:
+            row['media'] = expose(path,key)
+        if spec.get('science') or s.get('information'):
+            row.update(information_props(spec, s, path, kind))
+        if visual:
+            from mechanical_video_next.visual_narrative import editorial_props
+            row.update(editorial_props(spec))
+        render_shots.append(row)
         subtitles=s.get('subtitles',[c['text'] for c in sc])
         assert len(subtitles)==len(sc), 'One subtitle entry per synthesized utterance'
         sc=[dict(c,text=text) for c,text in zip(sc,subtitles)]
         cues.extend(dict(c,start=round(c['start']+offset,3),end=round(c['end']+offset,3)) for c in sc)
         offset+=s['seconds']
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
+    if visual:
+        props['visual_policy_version'] = VERSION
     if cfg.get('presentation'):
         if cfg['presentation'] != 'mechanism-fullframe':
             raise ValueError('Unsupported presentation')
@@ -330,17 +361,24 @@ def compose(cfg, quality, media, metrics):
     lock = verify_lock(ROOT / 'assets/style-reference/style-lock.json', shared_only=True)
     if lock['status'] != 'PASS':
         workprint = cfg.get('production_scope') in {'pipeline-test', 'source-supported-film', 'mechanism-preview', 'verified-shots'}
+        visual_studio = visual and all(
+            shot.get('visual_profile') == 'printer-ep03-studio-v1'
+            for shot in cfg['shots'].values() if shot['template'] != 'editorial'
+        )
         # A historical source-code lock is not a ban on inspecting a new scene.
         # Never replace its hashes or call this a style/visual acceptance pass.
         immutable_refs_ok = all(row['status']=='PASS' for row in lock['files']
                                 if row['path'] not in {'blender/scene.py','blender/studio_style.py'})
-        if not workprint or not immutable_refs_ok:
+        if not (workprint or visual_studio) or not immutable_refs_ok:
             raise ValueError('Protected visual reference changed or unavailable; inspect style lock')
     props['annotations'] = cfg.get('text_annotations', [])
     props['critical_boxes'] = cfg.get('text_critical_boxes', [])
     props['platform_insets'] = cfg.get('platform_insets')
     props['subtitle_alignment'] = cfg.get('subtitle_alignment')
     props = prepare_text_props(props, audio_sha256=digest(audio_sources))
+    encode_profile = cfg['render'].get('encode_profile') if quality == 'final' else None
+    if encode_profile is not None:
+        props['encode_profile'] = encode_profile
     cues = props['cues']
     key=composition_key(props, quality)
     suffix='preview' if quality=='preview' else 'final'
@@ -350,10 +388,8 @@ def compose(cfg, quality, media, metrics):
     hit=cached(cachedir,['video.mp4'])
     if not hit:
         writejson(cachedir/'props.json',props)
-        chrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-        args=[ROOT/'remotion/node_modules/.bin/remotion','render','src/index.tsx','Mechanical',cachedir/'video.mp4','--props',cachedir/'props.json','--codec','h264','--audio-codec','aac','--pixel-format','yuv420p','--concurrency','2','--browser-executable',chrome,'--gl','angle','--log','error']
-        if quality=='preview': args+=['--scale','0.5','--crf','25']
-        run(args,cachedir/'render.log',cwd=ROOT/'remotion')
+        render(cachedir/'props.json', cachedir/'video.mp4', cachedir/'render.log',
+               preview=quality=='preview', encode_profile=encode_profile, visual=visual)
         if quality=='final': validate_video(cachedir/'video.mp4',cfg,cues)
         else: run(['ffmpeg','-v','error','-i',cachedir/'video.mp4','-f','null','-'],cachedir/'decode.log')
         complete(cachedir,['video.mp4'])
@@ -364,6 +400,11 @@ def compose(cfg, quality, media, metrics):
         validation=validate_video(target,cfg,cues)
         validation['source_style_lock']=lock
         writejson(target.with_suffix('.validation.json'),validation)
+        if any(shot.get('science') for shot in cfg['shots'].values()):
+            from mechanical_video_next.provenance import write_remotion_proof
+            assembly = cfg['assembly_config']
+            write_remotion_proof(target.with_suffix('.3d-provenance.json'), target, target.with_suffix('.props.json'),
+                                 cfg, media, ROOT/assembly, CACHE/'assets'/asset_key(assembly)/'assembly.blend')
     metrics.record('composition:'+quality,start,hit,key=key,output=str(target.relative_to(ROOT)))
 
 def validate_stage_duration(cfg, phase):
@@ -434,6 +475,7 @@ def main():
             ap.error('Verified shots require a task and a scoped local stage')
         require_source_supported_render(args.task, args.config)
     from mechanical_video_next.three_d import validate_config
+    from mechanical_video_next.visual_narrative import validate_footage
     validate_config(cfg)
     effective_profile(cfg)
     assembly_path=cfg.get('assembly_config')
@@ -451,7 +493,7 @@ def main():
         if assembly.get('kind') == 'source-mesh-assembly-v1':
             assert cfg['motion_template']=='data-keyframes-v1'
             assert cfg['explosion_sequence']==[], 'Imported source disassembly is not automatically validated'
-            assert all(s['template'] in {'overall','detail','motion'} for s in cfg['shots'].values())
+            assert all(s.get('science') or s['template'] in {'overall','detail','motion','editorial'} for s in cfg['shots'].values())
         else:
             assert cfg['asset']=='planetary-teaching-v1'
             assert cfg['explosion_sequence']==['Housing_upper','Housing_lower','Ring','Carrier'], 'Only the validated axial sequence is supported in phase one'
@@ -488,6 +530,14 @@ def main():
             selected = cfg.get('local_preview_shots', [])
             assert selected and set(selected) <= set(names), 'Explicit local preview shots required'
             names = selected
+        editorial = [name for name in names if cfg['shots'][name]['template'] == 'editorial']
+        names = [name for name in names if name not in editorial]
+        supplements = {}
+        for name in editorial:
+            shot = cfg['shots'][name]
+            if 'footage' in shot:
+                path = validate_footage(shot['footage'], seconds=shot['seconds'])
+                supplements[name] = (path, 'video', shot['footage']['sha256'])
         if args.phase=='checks':
             selected=cfg.get('local_preview_shots',[])
             assert selected and set(selected)<=set(names)
@@ -497,6 +547,10 @@ def main():
         for name in names: make_shot(cfg['shots'][name],'keys',model,metrics,cfg['render'],assembly_path)
         if args.phase=='keys': return
         if args.phase=='local':
+            if editorial and cfg.get('production_scope') not in {'verified-shots', 'mechanism-preview'}:
+                clips = {n: make_shot(cfg['shots'][n], 'preview', model, metrics, cfg['render'], assembly_path) for n in names}
+                compose(cfg, 'preview', clips | supplements, metrics)
+                return
             selected=cfg.get('local_preview_shots',[])
             assert selected and set(selected)<=set(names), 'Explicit local preview shots required'
             clips=[]
@@ -531,11 +585,12 @@ def main():
                     segments=[{'path':str(p),'sha256':filehash(p)} for p in clips],
                     formal_acceptance=False,visual_review='UNKNOWN',audio_review='UNKNOWN'))
             return
-        preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render'],assembly_path) for n in names}
-        compose(cfg,'preview',preview,metrics)
-        if args.phase=='preview': return
+        if args.phase != 'final':
+            preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render'],assembly_path) for n in names}
+            compose(cfg,'preview',preview | supplements,metrics)
+            if args.phase=='preview': return
         final={n:make_shot(cfg['shots'][n],'final',model,metrics,cfg['render'],assembly_path) for n in names}
-        compose(cfg,'final',final,metrics)
+        compose(cfg,'final',final | supplements,metrics)
         if hasattr(metrics,'budget_error'): raise RuntimeError(metrics.budget_error)
     except Exception as e:
         status='failed'
