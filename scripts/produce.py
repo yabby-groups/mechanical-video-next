@@ -366,6 +366,9 @@ def compose(cfg, quality, media, metrics):
         props[MEDIA_FIELD] = cfg[MEDIA_FIELD]
     if enabled(cfg):
         props[FIELD] = cfg[FIELD]
+    for field in ('production_contract_version','production_contract','subject_kind'):
+        if field in cfg:
+            props[field]=cfg[field]
     if cfg.get('presentation'):
         if cfg['presentation'] != 'mechanism-fullframe':
             raise ValueError('Unsupported presentation')

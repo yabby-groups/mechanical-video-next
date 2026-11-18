@@ -175,11 +175,32 @@ def validate_document(document):
     used = set()
     for row, execution in rows:
         validate_shot(row, row['duration'], footage=execution.get('footage'), graphic=execution.get('graphic'))
+        supplemental_sources(execution, row['duration'])
         if not row['generation_required']:
             key = (row['selected_asset']['sha256'], tuple(row['source_time_range'] or []))
             if key in used:
                 raise ValueError('Repeated source interval cannot fill the timeline')
             used.add(key)
+
+
+def supplemental_sources(shot, seconds):
+    """Every visible split source has its own rights and exact muted interval."""
+    if 'split_screen' not in shot:
+        return []
+    from .visual_narrative import validate_footage
+    sources = shot['split_screen'].get('sources')
+    if not isinstance(sources, list) or len(sources) != 2 or sources[0] != shot.get('footage'):
+        raise ValueError('Split-screen sources must include the exact primary footage')
+    result=[]
+    for source in sources:
+        validate_footage(source, seconds=seconds)
+        rights=dict(source, source_type=source.get('source_type','LICENSED_REUSE'),
+                    license_status=source.get('license_status', source.get('license',{}).get('status')),
+                    usage_restrictions=source.get('usage_restrictions',[]))
+        validate_rights(rights)
+        result.append({**rights, 'source_time_range':[source['start_frame']/30,source['start_frame']/30+seconds],
+                       'source_audio':'muted'})
+    return result
 
 
 def write_manifest(path, final, config, build_proof):
@@ -199,6 +220,8 @@ def write_manifest(path, final, config, build_proof):
                    production_method=visual['render_engine'])
         if 'render_output' in segment:
             row['render_output'] = segment['render_output']
+        if 'split_screen' in spec:
+            row['supplemental_sources'] = supplemental_sources(spec, chapter['seconds'])
         rows.append(row)
         cursor += frames
     manifest = {FIELD: VERSION, 'visual_policy_version': 2, 'schema_version': 1,
@@ -206,6 +229,9 @@ def write_manifest(path, final, config, build_proof):
                 'build_proof': binding(build_proof), 'shots': rows, 'frame_count': cursor,
                 'source_audio_policy': 'muted', 'formal_acceptance': False,
                 'original_3d_only_acceptance': False}
+    for key in ('production_contract_version','production_contract','knowledge_progression_version','subject_kind'):
+        if key in config:
+            manifest[key]=config[key]
     writejson(path, manifest)
     validate_manifest(path)
     record_uses(config, binding(final))
@@ -253,11 +279,16 @@ def validate_manifest(path, media=None):
     from .provenance import verify_remotion_inputs
     verify_remotion_inputs(proof['build'])
     config = proof['build']['visual_config']
+    from .visual_narrative import match_policy
+    match_policy(config, doc)
     validate_document(config)
     if len(doc['shots']) != len(config['storyboard']):
         raise ValueError('Hybrid sources must cover every output shot')
     cursor = 0
     for row, chapter, segment in zip(doc['shots'], config['storyboard'], proof['build']['segments'], strict=True):
+        supplement = supplemental_sources(config['shots'][chapter['shot']], chapter['seconds'])
+        if row.get('supplemental_sources',[]) != supplement:
+            raise ValueError('Complete media manifest must bind every split-screen source and rights interval')
         expected = config['shots'][chapter['shot']]['visual']
         if expected['reuse_decision'] == 'REUSE_MODEL':
             native = next((s for s in proof['shots'] if s['shot_id'] == chapter['shot']), {})

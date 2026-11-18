@@ -179,6 +179,9 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
         segment['render_output'] = raw_ref
     build = dict(renderer='remotion-v1', frame_count=cursor, segments=segments,
                  props=binding(props_path), render_sources=[binding(ROOT/name) for name in sources_for(config)])
+    for field in ('production_contract_version','production_contract','subject_kind'):
+        if field in config:
+            build[field]=config[field]
     if visual:
         build.update(visual_policy_version=VERSION, visual_config=config)
     if enabled(config):
