@@ -52,7 +52,7 @@ def complete(folder, files):
 def assembly_spec(path=None):
     return json.loads((ROOT / (path or 'config/assembly.json')).read_text())
 
-def asset_key(assembly_path=None):
+def asset_key(assembly_path=None, *, source_exact=False):
     cfg = assembly_spec(assembly_path)
     from mechanical_video_next.science_shots import validate_asset
     validate_asset(cfg)
@@ -60,7 +60,7 @@ def asset_key(assembly_path=None):
     for s in cfg.get('source_files', []):
         if sources[s['path']] != s['sha256']:
             raise ValueError('Assembly source hash mismatch: '+s['path'])
-    renderer = (codehash('blender/scene.py','blender/vendor',equivalents=False) if cfg.get('reuse')
+    renderer = (codehash('blender/scene.py','blender/vendor',equivalents=False) if source_exact or cfg.get('reuse')
                 else codehash('blender/scene.py','blender/vendor'))
     return digest({'config':cfg,'source':renderer,
                    'asset_sources':sources})
@@ -112,7 +112,8 @@ def shot_key(shot, quality, render=None, assembly_path=None):
         from layered import sources
         return digest({'sources':sources(shot), 'shot':shot, 'panel':panel_spec(render,quality),
                        'quality':quality, 'renderer':codehash('scripts/layered.py')})
-    inputs={'asset':asset_key(assembly_path),'shot':{k:v for k,v in shot.items() if k != 'visual'},'quality':quality,'panel':panel_spec(render,quality)}
+    assembly_key=asset_key(assembly_path,source_exact=True) if shot.get('science') else asset_key(assembly_path)
+    inputs={'asset':assembly_key,'shot':{k:v for k,v in shot.items() if k != 'visual'},'quality':quality,'panel':panel_spec(render,quality)}
     inputs['provenance_renderer'] = codehash('blender/render_with_provenance.py')
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')

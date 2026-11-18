@@ -1,7 +1,7 @@
 {
   "blender/scene.py": {
-    "current_sha256": "436e5f55f211bcad574e32b36fa8c7b793c39b7d5a299426543784f397c81af6",
+    "current_sha256": "fbc34a7e4c1b5d9a360b77b4daadfe786709bef7240e802ffca61cb26078dcff",
     "media_equivalent_sha256": "5cedf85ee1a03567b94ee2a18f8ac1836b16b9aeb6d40e39cc66421478603faa",
-    "reason": "Opt-in science shots use the actual source hash. Legacy asset/shot geometry, camera and rendering take the unchanged HEAD path."
+    "reason": "Reviewed legacy no-science/no-context paths against pinned 86bd9b6: only guarded opt-in branches, conditional report fields and new-template camera handling differ. Science shots still use actual source hashes. Evidence: docs/productions/cache-equivalence-audit-20261118.md"
   }
 }
