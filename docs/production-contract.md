@@ -90,6 +90,28 @@ loudness, unit tests and full decode do not grant sensory acceptance. Existing
 separate copyright/original-expression reports and comprehension/growth gates
 remain required. All unknown capabilities remain UNKNOWN.
 
+For formal new-contract acceptance, the same immutable QA handoff contains
+`review_observations`: unique `id`, exact `media_sha256`, `reviewer_thread_id`,
+one `dimension`, the current Blueprint `shot_id` and matching `knowledge_ids`,
+`time_range` in seconds, `method`, `status`, concrete `observation` and
+`capability_boundary`. Each dimension covers every current shot through its own
+records, rather than citing one generic all-film observation for six conclusions.
+Continuous methods are `continuous_video`,
+`continuous_audio` or `continuous_audiovisual`; sampled frames, technical decode
+and document review do not fill sensory coverage. Listening rows also bind
+`audio_pcm_sha256` and `audio_pcm_format`, obtained from
+`production_contract.review_media_identity` for that exact film. The format is
+decoded s16le at the actual stream sample rate/channel count, not a copied AAC
+container. Coverage must include the entire actual video and audio timeline,
+without gaps beyond 1 ms timestamp rounding. Each quality dimension references
+its records via `observation_ids`; scientific, narrative and AV conclusions
+require full audiovisual coverage, mechanical/visual conclusions full video.
+Copyright/originality may reference located document review in addition to the
+existing separate rights checks. These records improve traceability, never prove
+that someone actually watched/listened. Unsupported workprints retain UNKNOWN
+and need not fabricate these acceptance records. Historical 3D-only policies are
+unchanged.
+
 An improvement claim binds previous/current actual media, technical specs,
 old/new shot intervals and assets, defect/knowledge target and decoded frame
 differences over the claimed interval. Different filenames, containers, hashes,
@@ -97,6 +119,16 @@ metadata or encoding alone prove no visual improvement. Deterministic comparison
 can prove observable pixel change, never semantic quality; independent QA decides
 whether the intended defect improved. Changes outside a declared interval do not
 satisfy that interval. Reports are immutable and hash-bound to current media.
+For a subject/action claim, `comparison_region: [x,y,width,height]` optionally
+selects the same normalized image region in both versions, excluding caption or
+credit bands. The region is recorded and revalidated; a caption-only edit outside
+it fails that claim. QA must verify that the selected region contains the intended
+action; the region must also match the original revision request. Full-frame
+comparison remains compatible and does not distinguish text,
+camera, color or geometry changes by itself. Both decoders must supply every
+expected frame in the half-open interval on the normalized 30 fps clock;
+fractional timestamps preserve that grid, and matching early EOF cannot establish
+complete-action change.
 
 Repair categories map to existing owners/dependencies: source/product selection
 → research; geometry → CAD; assembly/motion → CAD/Animation; camera → Animation;

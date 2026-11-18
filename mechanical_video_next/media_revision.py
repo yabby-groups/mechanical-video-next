@@ -13,6 +13,13 @@ import subprocess
 
 from scripts.common import filehash, probe, writejson
 
+CLAIM_FIELDS = ('shot_id', 'defect_key', 'knowledge_target', 'previous_range', 'current_range', 'comparison_region')
+
+
+def revision_claims(changes):
+    """The declared claim includes its region, independently of pixel statistics."""
+    return [{key: row[key] for key in CLAIM_FIELDS if key in row} for row in changes]
+
 
 def bind(path):
     return {'path': str(Path(path).resolve()), 'sha256': filehash(path)}
@@ -27,9 +34,41 @@ def spec(path):
             'codec': video['codec_name']}
 
 
-def frames(path, start, seconds):
-    return subprocess.Popen(['ffmpeg', '-v', 'error', '-ss', str(start), '-i', str(path),
-        '-t', str(seconds), '-an', '-vf', 'scale=160:90:flags=area,fps=30,format=rgb24',
+def comparison_region(change):
+    """An explicitly chosen content region excludes captions/credits when needed.
+
+    This selection is part of the recorded claim, not automatic object detection.
+    Independent QA must still check that the region contains the intended action.
+    """
+    region = change.get('comparison_region')
+    if region is None:
+        return None
+    if (not isinstance(region, list) or len(region) != 4
+            or any(type(v) not in {int, float} or not math.isfinite(v) for v in region)):
+        raise ValueError('Comparison region requires normalized finite x, y, width, height')
+    x, y, width, height = region
+    if not (0 <= x < 1 and 0 <= y < 1 and 0 < width <= 1-x and 0 < height <= 1-y):
+        raise ValueError('Comparison region must lie inside both complete pictures')
+    return region
+
+
+def frame_span(start, seconds):
+    """Half-open interval on the normalized 30 fps media clock."""
+    return math.ceil(start*30-1e-6), math.ceil((start+seconds)*30-1e-6)
+
+
+def frames(path, start, seconds, region=None):
+    crop = ''
+    if region is not None:
+        x, y, width, height = region
+        crop = f'crop=iw*{width}:ih*{height}:iw*{x}:ih*{y},'
+    # Seek only to a whole second (also a 30 fps boundary), then trim the
+    # normalized frame grid. Fractional input seeking changes fps filter phase.
+    seek = math.floor(start)
+    first, last = frame_span(start, seconds)
+    trim = f'fps=30,trim=start_frame={first-seek*30}:end_frame={last-seek*30},setpts=PTS-STARTPTS,'
+    return subprocess.Popen(['ffmpeg', '-v', 'error', '-ss', str(seek), '-i', str(path),
+        '-frames:v', str(last-first), '-an', '-vf', trim+crop+'scale=160:90:flags=area,format=rgb24',
         '-f', 'rawvideo', '-'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
 
@@ -56,7 +95,11 @@ def compare(previous, current, changes, *, mean_threshold=2.0, changed_fraction=
         lengths = [r[1]-r[0] for r in ranges]
         if abs(lengths[0]-lengths[1]) > 1/30+1e-5:
             raise ValueError('Compare corresponding equal-duration intervals; split timing edits into matching actions')
-        workers = [frames(p,r[0],lengths[0]) for p,r in zip((previous,current),ranges)]
+        counts = [last-first for first, last in (frame_span(r[0], lengths[0]) for r in ranges)]
+        if not counts[0] or counts[0] != counts[1]:
+            raise ValueError('Corresponding intervals must contain the same nonzero number of 30 fps frames')
+        region = comparison_region(change)
+        workers = [frames(p,r[0],lengths[0],region) for p,r in zip((previous,current),ranges)]
         count, meaningful, total, maximum = 0, 0, 0., 0.
         hashes = [hashlib.sha256(),hashlib.sha256()]
         try:
@@ -73,7 +116,9 @@ def compare(previous, current, changes, *, mean_threshold=2.0, changed_fraction=
                 meaningful += mae >= mean_threshold
                 total += mae
                 maximum = max(maximum,mae)
-            if any(w.wait() for w in workers) or not count:
+            # Equal early EOF in both decoders is not complete-interval evidence.
+            expected_frames = counts[0]
+            if any(w.wait() for w in workers) or count != expected_frames:
                 raise ValueError('Complete interval decoding failed')
         finally:
             for worker in workers:
@@ -102,8 +147,7 @@ def validate_report(report, current):
         raise ValueError('Previous revision media is missing or changed')
     settings = report.get('method', {})
     rerun = compare(previous['path'], current,
-                    [{k:r[k] for k in ('shot_id','defect_key','knowledge_target','previous_range','current_range')}
-                     for r in report.get('changes',[])],
+                    revision_claims(report.get('changes', [])),
                     mean_threshold=settings.get('mean_threshold',2.),
                     changed_fraction=settings.get('required_changed_fraction',.01))
     if rerun != report or report['status'] != 'OBSERVABLE_CHANGE_VERIFIED':

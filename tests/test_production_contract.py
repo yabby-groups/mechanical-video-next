@@ -58,7 +58,8 @@ class ProductionContractTests(unittest.TestCase):
         c.validate_qa(report,media,acceptance=False)
         with self.assertRaisesRegex(ValueError,'viewing and listening'): c.validate_qa(report,media,acceptance=True)
         report.update(full_video_reviewed=True,full_audio_listened=True)
-        c.validate_qa(report,media,acceptance=True)
+        with self.assertRaisesRegex(ValueError,'review observations'):
+            c.validate_qa(report,media,acceptance=True)
         report['quality_dimensions']['mechanical_motion']['status']='UNKNOWN'
         with self.assertRaisesRegex(ValueError,'prevents acceptance'): c.validate_qa(report,media,acceptance=True)
 

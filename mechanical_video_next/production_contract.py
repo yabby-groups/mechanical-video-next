@@ -1,4 +1,9 @@
 """Versioned science/director requirements inside existing records and gates."""
+import hashlib
+import math
+from pathlib import Path
+import subprocess
+
 from .visual_narrative import located, nonempty
 
 FIELD = 'production_contract_version'
@@ -6,6 +11,11 @@ NAME = 'mixed-original-v1'
 DIMENSIONS = {'scientific_accuracy', 'mechanical_motion', 'visual_expression',
               'narrative_comprehension', 'originality_copyright', 'av_delivery'}
 DIRECTION = {'why_visual', 'composition', 'lighting', 'continuity', 'sound_intent'}
+REVIEW_METHODS = {
+    'continuous_video': {'video'}, 'continuous_audio': {'audio'},
+    'continuous_audiovisual': {'video', 'audio'},
+    'sampled_frames': set(), 'technical_decode': set(), 'document_review': set(),
+}
 
 
 def enabled(document):
@@ -71,7 +81,7 @@ def validate_direction(blueprint, research=None):
                     raise ValueError('Unsupported fact restricts its dependent shot: ' + identity)
 
 
-def validate_qa(report, media, *, acceptance):
+def validate_qa(report, media, *, acceptance, blueprint=None):
     """Six conclusions are independent; deterministic success cannot fill senses."""
     review = report.get('quality_dimensions', {})
     if set(review) != DIMENSIONS:
@@ -86,3 +96,134 @@ def validate_qa(report, media, *, acceptance):
     if acceptance and (report.get('full_video_reviewed') is not True
             or report.get('full_audio_listened') is not True):
         raise ValueError('Complete actual viewing and listening required for acceptance')
+    if acceptance:
+        validate_review_observations(report, media, blueprint)
+
+
+def review_media_identity(binding):
+    """Identify the encoded film and decoded audio, without claiming perception."""
+    from scripts.common import filehash, probe
+    path = Path(binding['path'])
+    if not path.is_file() or filehash(path) != binding.get('sha256'):
+        raise ValueError('Review media is missing or changed')
+    streams = probe(path)['streams']
+    video = next((s for s in streams if s['codec_type'] == 'video'), None)
+    audio = next((s for s in streams if s['codec_type'] == 'audio'), None)
+    if video is None or audio is None:
+        raise ValueError('Full review requires actual video and narration audio')
+    durations = {kind: float(stream['duration']) for kind, stream in (('video', video), ('audio', audio))}
+    if any(not math.isfinite(value) or value <= 0 for value in durations.values()):
+        raise ValueError('Review requires finite actual stream durations')
+    digest = hashlib.sha256()
+    process = subprocess.Popen(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path), '-map', '0:a:0',
+                                '-f', 's16le', '-acodec', 'pcm_s16le', '-'],
+                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    count = 0
+    try:
+        while chunk := process.stdout.read(65536):
+            digest.update(chunk)
+            count += len(chunk)
+        if process.wait() or not count:
+            raise ValueError('Complete review audio decoding failed')
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        process.stdout.close()
+    if filehash(path) != binding['sha256']:
+        raise ValueError('Review media changed during audio identity verification')
+    return {'media_sha256': binding['sha256'], 'durations': durations,
+            'audio_pcm_sha256': digest.hexdigest(),
+            'audio_pcm_format': {'format': 's16le', 'sample_rate': int(audio['sample_rate']),
+                                 'channels': int(audio['channels'])}}
+
+
+def validate_review_observations(report, media, blueprint):
+    """Validate traceable attestations in the existing QA handoff, not senses.
+
+    These records are hash-bound by the same immutable QA envelope as the six
+    conclusions. No second report store or automatically generated PASS exists.
+    A truthful independent reviewer remains responsible for actual perception.
+    """
+    rows = report.get('review_observations')
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('Full acceptance requires time-covered review observations')
+    if not isinstance(blueprint, dict) or not isinstance(blueprint.get('shots'), list) or not blueprint['shots']:
+        raise ValueError('Review observations require the current bound Blueprint shots')
+    shots = {shot['shot_id']: shot for shot in blueprint['shots']}
+    if len(shots) != len(blueprint['shots']):
+        raise ValueError('Review Blueprint shot identities must be unique')
+    last_shot = blueprint['shots'][-1]['shot_id']
+    reviewer = report.get('reviewer_thread_id')
+    if report.get('independent_reviewer') is not True or not nonempty(reviewer):
+        raise ValueError('Review observations require an independent reviewer identity')
+    if reviewer in report.get('production_thread_ids', []):
+        raise ValueError('Production agents cannot supply independent review observations')
+    identities = {m['sha256']: review_media_identity(m) for m in media}
+    coverage = {sha: {'video': [], 'audio': []} for sha in identities}
+    observations = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError('Review observations must be structured records')
+        identity, sha = row.get('id'), row.get('media_sha256')
+        method, window = row.get('method'), row.get('time_range')
+        sid, dimension = row.get('shot_id'), row.get('dimension')
+        if (not nonempty(identity) or identity in observations or not nonempty(sha) or sha not in identities
+                or not nonempty(method) or method not in REVIEW_METHODS or row.get('reviewer_thread_id') != reviewer
+                or not nonempty(sid) or sid not in shots or not nonempty(dimension) or dimension not in DIMENSIONS
+                or row.get('knowledge_ids') != shots[sid].get('knowledge_ids', [])
+                or row.get('status') not in {'PASS', 'FAIL', 'UNKNOWN'}
+                or not nonempty(row.get('observation')) or not nonempty(row.get('capability_boundary'))):
+            raise ValueError('Review observations require unique IDs, exact media, method, result and capability boundary')
+        start, stop = shots[sid]['time_range']
+        if sid == last_shot:
+            stop = max(stop, *identities[sha]['durations'].values())
+        if (not isinstance(window, list) or len(window) != 2
+                or any(type(v) not in {int, float} or not math.isfinite(v) for v in window)
+                or not max(0, start-.001) <= window[0] < window[1] <= min(stop, max(identities[sha]['durations'].values()))+.001):
+            raise ValueError('Review observation interval lies outside its actual media shot')
+        modalities = REVIEW_METHODS[method]
+        if 'audio' in modalities and any(row.get(key) != identities[sha][key]
+                                        for key in ('audio_pcm_sha256', 'audio_pcm_format')):
+            raise ValueError('Listening observations must bind the actual decoded audio and format')
+        if row['status'] != 'PASS':
+            raise ValueError('Applicable review observation FAIL/UNKNOWN prevents final acceptance')
+        if row['status'] == 'PASS':
+            for modality in modalities:
+                coverage[sha][modality].append(window)
+        observations[identity] = row
+    def require_coverage(intervals, duration, label, start=0.):
+        end = start
+        for start, stop in sorted(intervals):
+            if start > end+.001:
+                raise ValueError('Continuous review has an unobserved interval: ' + label)
+            end = max(end, stop)
+        if end < duration-.001:
+            raise ValueError('Continuous review does not cover the complete actual ' + label)
+
+    for sha, modalities in coverage.items():
+        for modality, intervals in modalities.items():
+            require_coverage(intervals, identities[sha]['durations'][modality], modality)
+    for name, conclusion in report['quality_dimensions'].items():
+        refs = conclusion.get('observation_ids')
+        if (not isinstance(refs, list) or not refs or any(not nonempty(ref) for ref in refs)
+                or len(refs) != len(set(refs))
+                or any(ref not in observations or observations[ref]['status'] != 'PASS'
+                       or observations[ref]['media_sha256'] != conclusion['media_sha256']
+                       or observations[ref]['dimension'] != name for ref in refs)):
+            raise ValueError('Quality dimension requires matching independent observation records: ' + name)
+        # A full-film conclusion cannot cite only a conveniently selected scene.
+        # Rights/original-expression conclusions may instead cite document review;
+        # the separate existing copyright and originality checks remain mandatory.
+        modalities = ({'video'} if name in {'mechanical_motion', 'visual_expression'} else
+                      set() if name == 'originality_copyright' else {'video', 'audio'})
+        for sid, shot in shots.items():
+            start, stop = shot['time_range']
+            for modality in modalities or {None}:
+                intervals = [observations[ref]['time_range'] for ref in refs
+                             if observations[ref]['shot_id'] == sid and (modality is None or
+                             modality in REVIEW_METHODS[observations[ref]['method']])]
+                duration = (identities[conclusion['media_sha256']]['durations'][modality]
+                            if modality is not None else stop)
+                end = duration if sid == last_shot else min(stop, duration)
+                require_coverage(intervals, end, name + '/' + sid + '/' + str(modality), start=start)

@@ -1444,10 +1444,11 @@ def check_qa(task, name, *, acceptance=True):
         raise ValueError('QA must review the exact production MP4')
     from .production_contract import enabled as science_contract, validate_qa as science_qa
     if science_contract(load(task)) and name == 'final-qa':
-        science_qa(qa, production['media'], acceptance=acceptance)
+        science_qa(qa, production['media'], acceptance=acceptance,
+                   blueprint=artifact(task, 'creative-blueprint') if acceptance else None)
         request=load(task).get('revision_request')
         if request and acceptance:
-            from .media_revision import validate_report
+            from .media_revision import revision_claims, validate_report
             for path,sha in expected:
                 latest=next((r for r in reversed(load(task)['stages'])
                              if r.get('media',{}).get('sha256')==sha and r.get('revision')),None)
@@ -1457,8 +1458,7 @@ def check_qa(task, name, *, acceptance=True):
                 if filehash(ref['path']) != ref['sha256']:
                     raise ValueError('Revision evidence changed')
                 revision_report=json.loads(Path(ref['path']).read_text())
-                claimed=[{k:r[k] for k in ('shot_id','defect_key','knowledge_target','previous_range','current_range')}
-                         for r in revision_report.get('changes',[])]
+                claimed=revision_claims(revision_report.get('changes', []))
                 if claimed != request.get('changes'):
                     raise ValueError('Revision evidence must address the declared defect intervals')
                 validate_report(revision_report,path)
