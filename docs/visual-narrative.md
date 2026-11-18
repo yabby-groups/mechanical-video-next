@@ -1,5 +1,15 @@
 # 视觉叙事制作策略
 
+## 知识递进与可观察证据
+
+新立项的策略 2 任务默认执行 `knowledge_progression_version=1`，标记随任务、Blueprint、执行配置和来源回放清单绑定。已定版任务沿用立项时的策略。不要根据镜头数或字幕改动评估视觉增量。
+
+- 在 `progression.previous_ids` 列出上一镜解释的知识，在 `knowledge_ids` 声明本镜回答的问题。本镜应引入新事实，或用新的可观察证据加深原结论。把只复述已解释内容的画面合并或移除。
+- 每项 `progression.observable` 给出 `knowledge_id`、`kind`、`proof`、局部 30 fps 半开 `frames` 和可观察的 `states`。结构可以用可见几何。变化、因果和对比至少要展示两个不同状态及中间运动，核心机构仍须使用实际 3D。流程标题依次出现只适合作索引。动态对照可用 `angular_comparison` 的半径和等弧长参数，或有来源的数据图。
+- 编译检查全片的重复知识、重复状态、重复构图和没有绑定观察目标的帧。若必须复用构图来保持比较基准，在现有内容 QA 说明理由和对应增量。剪辑以动作所需观察时间为准。
+- 信息图用固定高对比配色、86 px 主体字和 96 px 标题，在 1920 px 视频宽度等比缩放至 360 px 后约为 16.1 和 18 px。预检包含实际字体测宽。媒体 QA 抽查 360、390、430 px 的原成片帧，绑定各尺寸的压缩图及对应哈希。
+- 在现有 animatic、preview 和 final QA 的 `visual_evidence[shot_id]` 中记录实际 `media_sha256` 和逐项 `observations`。每项须有相同 `knowledge_id`、成片绝对 `frames`、`method`、`status` 和 `observation`。动态图的观察只有完整连续观看可以记 PASS。信息图另填 `phone_readability`，提供三种宽度及可复查图像的路径和 SHA256。
+
 ## 策略版本
 
 新建选题使用 `visual_policy_version=2`。任务账本、冻结 Blueprint、执行配置和成片来源清单必须一致。旧任务及显式 `--visual-policy 1` 保留整条时间线的 3D-only 约束。使用 `--resume` 继续原策略。两版均沿用原有 `3d` 制作入口、角色、锁、磁盘预算、Neil 与验收流程。
