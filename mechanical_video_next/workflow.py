@@ -1195,6 +1195,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if science_contract(data):
             if name == 'research':
                 validate_science(payload)
+                data['subject_kind']=payload['science']['subject_kind']
             if name == 'creative-blueprint':
                 from .production_contract import validate_direction
                 validate_direction(payload, artifact(task, 'research'))
@@ -1266,7 +1267,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
                         plan.update(visual_policy_version=2, media_policy_version=1)
                     if enabled(data):
                         plan[FIELD] = data[FIELD]
-                    visual.validate_plan(plan)
+                    # New science research precedes asset matching and measured
+                    # timing. Its provisional visual ideas are not an executable
+                    # frozen plan. Validate the complete plan at Blueprint handoff.
+                    if not science_contract(data):
+                        visual.validate_plan(plan)
                 if name == 'creative-blueprint':
                     visual.match_policy(data, payload)
                     visual.validate_plan(payload)

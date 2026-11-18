@@ -161,7 +161,9 @@ def compile_config(blueprint, base, output, draft=False):
             row['knowledge_ids'] = copy.deepcopy(shot['knowledge_ids'])
     from .comprehension import enabled
     if enabled(data):
-        for key in ('product_identity', 'product_references', 'product_opening'):
+        from .comprehension import phenomenon
+        identity_fields=('subject_kind','subject_identity','subject_references','subject_opening') if phenomenon(data) else ('product_identity', 'product_references', 'product_opening')
+        for key in identity_fields:
             result[key] = copy.deepcopy(data[key])
         result['product_policy_version'] = 1
         for collection in (storyboard, mappings):

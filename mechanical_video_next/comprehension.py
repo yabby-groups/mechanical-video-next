@@ -12,12 +12,20 @@ import subprocess
 PRODUCT_FIELDS = ('product_id', 'name', 'type', 'model_scope', 'appearance', 'purpose',
                   'operation', 'observable_action', 'mechanism_id')
 RELATIONS = {'whole_product', 'operation', 'internal_parts', 'mechanism', 'return_to_function'}
+PHENOMENON_RELATIONS = {'phenomenon','conditions','model','causal_test','return_to_question'}
 QUESTIONS = ('product', 'operation', 'core_parts', 'power_source', 'transmission',
              'output', 'new_knowledge', 'narration_match')
 
 
 def enabled(data):
     return data.get('product_policy_version') == 1
+
+
+def phenomenon(data, research=None):
+    """Only explicit new-contract science subjects replace retail identity gates."""
+    from .production_contract import enabled as science_contract
+    return science_contract(data) and (data.get('subject_kind') or data.get('science',{}).get('subject_kind')
+                                      or (research or {}).get('science',{}).get('subject_kind'))=='physical_phenomenon'
 
 
 def _required(row, fields, label):
@@ -40,7 +48,26 @@ def _binding(row, label):
 
 
 def validate_product_sources(data, research=None):
-    """Validate observed real-product evidence before asset choice or CAD."""
+    """Validate the observed product or an explicit bounded scientific subject."""
+    if phenomenon(data,research):
+        subject=data.get('subject_identity') or data.get('science',{}).get('subject',{})
+        _required(subject,('id','name','scope','model_kind'),'Bounded science subject')
+        if subject['model_kind'] not in {'conceptual','mathematical'}:
+            raise ValueError('Unverified simulation cannot identify a scientific subject')
+        refs=data.get('subject_references',[])
+        if not refs:
+            raise ValueError('Located inspected scientific subject sources required')
+        sources={}
+        from .visual_narrative import located
+        for ref in refs:
+            _required(ref,('reference_id','supported_claims','evidence'),'Scientific subject reference')
+            if ref['reference_id'] in sources:
+                raise ValueError('Duplicate subject source')
+            located(ref['evidence'])
+            sources[ref['reference_id']]=ref
+        if research is not None and research.get('science',{}).get('subject') != subject:
+            raise ValueError('Scientific model scope differs from verified research')
+        return sources
     product = data.get('product_identity', {})
     _required(product, PRODUCT_FIELDS, 'Real product identity')
     if research is not None and product['mechanism_id'] != research.get('mechanism_id'):
@@ -110,7 +137,9 @@ def validate_product_research(research):
 def validate_product_plan(data, research=None):
     """Check specific product evidence and executable cause/effect, never perception."""
     sources = validate_product_sources(data, research)
-    product = data['product_identity']
+    physical=phenomenon(data,research)
+    product = data['subject_identity'] if physical else data['product_identity']
+    required_relations=PHENOMENON_RELATIONS if physical else RELATIONS
     shots = data.get('shots', [])
     if not shots:
         raise ValueError('Product plan requires shots')
@@ -138,22 +167,22 @@ def validate_product_plan(data, research=None):
         if row['new_knowledge'] in seen_information:
             raise ValueError('Repeated shot knowledge cannot fill duration')
         seen_information.add(row['new_knowledge'])
-        if not set(row['recognition_relations']) <= RELATIONS:
+        if not set(row['recognition_relations']) <= required_relations:
             raise ValueError('Unknown product recognition relation')
         relations.update(row['recognition_relations'])
         for rid in row['reference_ids']:
             if row.get('requires_continuous_source_motion') and sources[rid]['observations'].get('continuous_motion_verified') is not True:
                 raise ValueError('Claim needs actually observed continuous source motion')
-    if relations != RELATIONS:
+    if relations != required_relations:
         raise ValueError('Missing whole product / operation / internal / mechanism / functional return relationship')
-    opening = data.get('product_opening', {})
-    _required(opening, ('shot_id', 'time_range', 'product_reveal', 'real_action', 'why_question', 'answer_promise'), 'Product opening')
+    opening = data.get('subject_opening' if physical else 'product_opening', {})
+    _required(opening, ('shot_id', 'time_range', 'subject_reveal' if physical else 'product_reveal', 'real_action', 'why_question', 'answer_promise'), 'Subject opening')
     first = shots[0]
     if opening['shot_id'] != first['shot_id'] or not _interval(opening['time_range'], first['time_range']) or opening['time_range'][1] > 5:
         raise ValueError('Product identity, real action and why must appear within first five seconds')
-    if not {'whole_product', 'operation'} <= set(first['comprehension']['recognition_relations']):
+    if not ({'phenomenon','conditions'} if physical else {'whole_product', 'operation'}) <= set(first['comprehension']['recognition_relations']):
         raise ValueError('Opening cannot consist only of abstract moving parts')
-    return {'product_id': product['product_id'], 'shots': len(shots), 'status': 'PLAN_VALIDATED_NOT_MEDIA_ACCEPTED'}
+    return {'product_id': product['id'] if physical else product['product_id'], 'shots': len(shots), 'status': 'PLAN_VALIDATED_NOT_MEDIA_ACCEPTED'}
 
 
 def validate_media_qa(blueprint, report, media=None):

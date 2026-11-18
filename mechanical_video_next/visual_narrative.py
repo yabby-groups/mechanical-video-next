@@ -40,6 +40,8 @@ def match_policy(task, document):
     from .production_contract import enabled as science_contract
     if science_contract(task) != science_contract(document):
         raise ValueError('Production contract differs from task creation policy')
+    if science_contract(task) and task.get('subject_kind') is not None and task['subject_kind'] != document.get('subject_kind','mechanical_implementation'):
+        raise ValueError('Scientific subject kind differs from task creation policy')
     if version(task) != version(document):
         raise ValueError('Visual production policy differs from task creation policy')
     from .knowledge_progression import enabled

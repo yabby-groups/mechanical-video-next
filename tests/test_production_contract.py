@@ -26,7 +26,7 @@ class ProductionContractTests(unittest.TestCase):
             fact = dict(id='known',claim='A visible relationship',status='VERIFIED',kind='observed',
                         scope='This example',assumptions=[],sources=[dict(path=str(source),sha256=filehash(source),position='paragraph 1')])
             unknown = dict(fact,id='unknown',status='UNKNOWN',limitation='Hidden contact unobserved')
-            research = {'science':dict(subject_kind='physical_phenomenon',question='Why?',answer='Because',scope='Example',facts=[fact,unknown])}
+            research = {'science':dict(subject_kind='mechanical_implementation',question='Why?',answer='Because',scope='Example',facts=[fact,unknown])}
             c.validate_research(research)
             plan = dict(production_contract_version=1,production_contract=c.NAME,media_policy_version=1,visual_policy_version=2,
                         narrative=dict(question='Why?',tension='A contradiction',answer='Because',arc_reason='Comparison'),
@@ -46,3 +46,26 @@ class ProductionContractTests(unittest.TestCase):
         c.validate_qa(report,media,acceptance=True)
         report['quality_dimensions']['mechanical_motion']['status']='UNKNOWN'
         with self.assertRaisesRegex(ValueError,'prevents acceptance'): c.validate_qa(report,media,acceptance=True)
+
+    def test_physical_phenomenon_uses_bounded_subject_without_fake_product(self):
+        from mechanical_video_next.comprehension import validate_product_plan
+        from scripts.common import filehash
+        with tempfile.TemporaryDirectory() as folder:
+            source=Path(folder)/'source.txt';source.write_text('Contract fixture for an ideal constant-speed mathematical model; not production evidence.')
+            subject=dict(id='constant-speed',name='等速位移',scope='Ideal constant speed only',model_kind='mathematical')
+            claims=['Distance equals speed times elapsed time','Equal time intervals give equal distances']
+            refs=[dict(reference_id='physics',supported_claims=claims,evidence=[dict(path=str(source),sha256=filehash(source),position='Complete fixture')])]
+            plan=dict(production_contract_version=1,production_contract=c.NAME,media_policy_version=1,visual_policy_version=2,
+                subject_kind='physical_phenomenon',subject_identity=subject,subject_references=refs,
+                subject_opening=dict(shot_id='a',time_range=[0,3],subject_reveal='等速位移',real_action='Equal distances',why_question='Why?',answer_promise='Constant speed'),shots=[])
+            for i,sid in enumerate(('a','b')):
+                row=dict(reference_ids=['physics'],product_parts=['model marker'],input_action=claims[i],transmission=claims[i],output_action=claims[i],
+                    visual_evidence='Position changes',narration=claims[i],new_knowledge=claims[i],necessity='Isolate time',causal_link='s=vt',
+                    recognition_relations=['phenomenon','conditions'] if i==0 else ['model','causal_test','return_to_question'],verification_method='Observe model and check assumptions',
+                    causal_evidence={k:dict(reference_id='physics',claim=claims[i],position='Complete fixture') for k in ('input_action','transmission','output_action')})
+                plan['shots'].append(dict(shot_id=sid,time_range=[i*3,(i+1)*3],narration=[claims[i]],comprehension=row))
+            research=dict(science=dict(subject=subject))
+            self.assertEqual(validate_product_plan(plan,research)['product_id'],'constant-speed')
+            self.assertNotIn('product_identity',plan)
+            plan['subject_identity']=dict(subject,scope='Unbounded real-world prediction')
+            with self.assertRaisesRegex(ValueError,'scope differs'):validate_product_plan(plan,research)

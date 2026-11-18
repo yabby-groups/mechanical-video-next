@@ -37,7 +37,12 @@ def validate_config(config):
             validate_execution(shot, progression=progression, hybrid=hybrid)
         elif visual_version != VERSION and (shot.get('template') == 'editorial' or {'visual', 'graphic', 'footage'} & shot.keys()):
             raise ValueError('Editorial shots require the versioned visual production policy')
-        validate_science_shot(shot)
+        # Blueprint rows are declarative mappings. Their complete executable
+        # science program is copied from the bound base and checked after
+        # compilation; requiring tracks here makes science templates impossible
+        # to compile without duplicating their source of truth.
+        if isinstance(shots, dict) or shot.get('science'):
+            validate_science_shot(shot)
         if (config.get('production_scope') != 'verified-shots'
                 and shot.get('evidence_status') == 'RESEARCH_REQUIRED'):
             raise ValueError('Unverified mechanism shot cannot enter the full film')

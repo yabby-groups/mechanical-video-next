@@ -25,6 +25,11 @@ def validate_research(research):
         raise ValueError('Identify the mechanical implementation or bounded physical phenomenon')
     if not all(nonempty(science.get(k)) for k in ('question', 'answer', 'scope')):
         raise ValueError('Scientific question, supported answer and scope required')
+    if science['subject_kind']=='physical_phenomenon':
+        subject=science.get('subject',{})
+        if (not all(nonempty(subject.get(k)) for k in ('id','name','scope'))
+                or subject.get('model_kind') not in {'conceptual','mathematical'}):
+            raise ValueError('Physical phenomena need a named bounded conceptual/mathematical subject, not a fabricated retail product')
     facts = science.get('facts')
     if not isinstance(facts, list) or not facts:
         raise ValueError('Concise science.facts ledger required')

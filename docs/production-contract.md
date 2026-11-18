@@ -128,3 +128,18 @@ Implementation details: [science shots](science-production.md), [visual plan](vi
 [comprehension](product-comprehension-contract.md), [audio/length](longform-contract.md),
 [covers](cover-delivery.md). This entry point resolves conflicting historical prose;
 it does not weaken the executable checks for historical tasks.
+
+## Non-mechanical scientific subjects
+
+For `science.subject_kind=physical_phenomenon`, research identifies a bounded
+`science.subject` (`id`, `name`, `scope`, `model_kind=conceptual|mathematical`).
+It does not invent a retail product. Located `subject_references` bind inspected
+sources and supported claims. The existing compatibility `mechanism_id` names
+that specific teaching implementation, never a claim of a retail mechanism.
+Blueprint derives `subject_kind`, `subject_identity`, `subject_references` and
+`subject_opening` from that research. Its existing comprehension rows connect
+phenomenon, conditions, model, causal test and return to the opening question.
+The compiled config/build/manifest preserve the subject identity and policy.
+Source/model/motion and full sensory acceptance stay strict; a named conceptual
+subject is not evidence of a physical simulation. Legacy product tasks retain
+their original product checks. This adds no second scheduler or fact database.
