@@ -2,6 +2,7 @@ import copy
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from produce import validate_stage_duration, shot_key
@@ -11,9 +12,11 @@ class MechanismPreviewDurationTests(unittest.TestCase):
     def test_only_identical_native_render_settings_share_preview_final_cache(self):
         shot = {'template':'motion','seconds':8}
         render = {'width':1920,'height':1080,'framing':'fullframe','preview_native':True}
-        self.assertEqual(shot_key(shot,'preview',render),shot_key(shot,'final',render))
-        render['preview_native'] = False
-        self.assertNotEqual(shot_key(shot,'preview',render),shot_key(shot,'final',render))
+        # Test shot-cache quality identity without ignored per-video local inputs.
+        with patch('produce.asset_key',return_value='same-verified-assembly'):
+            self.assertEqual(shot_key(shot,'preview',render),shot_key(shot,'final',render))
+            render['preview_native'] = False
+            self.assertNotEqual(shot_key(shot,'preview',render),shot_key(shot,'final',render))
 
     def test_preview_precedes_full_duration_without_authorizing_short_final(self):
         cfg = {'production_scope': 'mechanism-preview', 'content_policy_version': 1,

@@ -11,7 +11,7 @@ class QAImagesTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.cache = Path(self.tmp.name)/'cache'
-        self.real = next(Path('output/nail-clipper/2d').glob('*key-*.png'))
+        self.real = Path('assets/style-reference/approved-original.png')
 
     def prep(self, **kwargs):
         return prepare_image(self.real, cache_dir=self.cache, **kwargs)
@@ -84,9 +84,16 @@ class QAImagesTests(unittest.TestCase):
 if __name__=='__main__': unittest.main()
 
 class VideoEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        import subprocess
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.source=Path(self.tmp.name)/'utility-fixture.mp4'
+        subprocess.run(['ffmpeg','-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=2',
+                        '-c:v','libx264','-pix_fmt','yuv420p',str(self.source)],check=True)
+
     def test_real_video_event_cache_and_limits(self):
         from mechanical_video_next.qa_images import prepare_video_frames
-        source=Path('output/nail-clipper/3d/final.mp4')
+        source=self.source
         before=sha(source)
         with tempfile.TemporaryDirectory() as folder:
             a=prepare_video_frames(source,[0,1],cache_dir=folder)
@@ -105,7 +112,7 @@ class VideoEvidenceTests(unittest.TestCase):
         self.assertEqual(sha(source),before)
 
     def test_real_handoff_compressed(self):
-        source=next(Path('output/nail-clipper/2d').glob('*.png'))
+        source=Path('assets/style-reference/approved-original.png')
         packet=handoff_visuals({'path':str(source)})
         self.assertEqual(packet['image_count'],1)
         self.assertTrue(packet['images'][0]['qa_path'].endswith('.webp'))

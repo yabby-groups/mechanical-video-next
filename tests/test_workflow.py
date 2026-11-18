@@ -13,6 +13,8 @@ class WorkflowTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.task = w.create_task('行星减速器', root=Path(self.temp.name), protocol_version=1)
+        self.config=Path(self.temp.name)/'config.json'
+        self.config.write_text(json.dumps({'shots':{'test':{'template':'motion','seconds':4}}}))
 
     def research(self):
         w.put_handoff(self.task, 'Research', 'research', {'facts': []})
@@ -77,9 +79,9 @@ class WorkflowTests(unittest.TestCase):
     def test_final_cannot_render_before_preview_gate(self):
         with patch.object(w.subprocess, 'run') as run:
             with self.assertRaisesRegex(ValueError, 'prerequisites'):
-                w.run_stage(self.task, 'final', Path('config/planetary-01.json'))
+                w.run_stage(self.task, 'final', self.config)
             with self.assertRaisesRegex(ValueError, 'prerequisites'):
-                w.run_stage(self.task, 'final', Path('config/planetary-01.json'), workprint=True)
+                w.run_stage(self.task, 'final', self.config, workprint=True)
             run.assert_not_called()
 
     def test_resume_requires_actual_failure_and_revalidates_asset(self):
@@ -108,7 +110,7 @@ class WorkflowTests(unittest.TestCase):
         with patch.object(w.subprocess, 'run') as run:
             for phase in ('local', 'checks', 'keys'):
                 with self.assertRaisesRegex(ValueError, 'prerequisites'):
-                    w.run_stage(self.task, phase, Path('config/zipper-new.json'))
+                    w.run_stage(self.task, phase, self.config)
             run.assert_not_called()
 
     def test_candidate_diagnostic_cannot_authorize_full_render(self):
@@ -149,7 +151,7 @@ class WorkflowTests(unittest.TestCase):
         with patch.object(w, 'check_qa', side_effect=ValueError('UNKNOWN')) as qa:
             with patch.object(w.subprocess, 'run') as run:
                 with self.assertRaisesRegex(ValueError, 'UNKNOWN'):
-                    w.run_stage(self.task, 'final', Path('config/planetary-01.json'), workprint=True)
+                    w.run_stage(self.task, 'final', self.config, workprint=True)
                 qa.assert_called_once_with(self.task, 'preview-qa', acceptance=False)
                 run.assert_not_called()
 
