@@ -72,7 +72,7 @@ def validate_shot_evidence(shot, mechanism_id):
         raise ValueError('Scoped shot mixes product implementations')
     if shot.get('status') == 'RESEARCH_REQUIRED':
         raise ValueError('MECHANISM_UNKNOWN: research this shot before rendering')
-    if shot.get('status') not in {'VERIFIED', 'RENDER_READY', 'RENDERED', 'QA_PENDING'}:
+    if shot.get('status') not in {'VERIFIED', 'RENDER_READY', 'RENDERED', 'QA_PENDING', 'ACCEPTED'}:
         raise ValueError('Explicit scoped shot readiness required')
     for claim in shot['claims']:
         if claim.get('status') != 'VERIFIED' or not claim.get('statement'):

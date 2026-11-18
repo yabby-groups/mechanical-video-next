@@ -1516,8 +1516,19 @@ def advance(task, target):
                 raise ValueError('Technical validation missing')
         if target == 'COMPLETED':
             check_qa(task, 'preview-qa')
-            check_qa(task, 'final-qa')
+            review = check_qa(task, 'final-qa')
             check_requested_routes(task, data)
+            reviewed_shots = review.get('shot_acceptance', {})
+            for shot_id, record in data.get('shot_production', {}).items():
+                if record.get('status') not in {'RENDERED', 'QA_PENDING'}:
+                    continue
+                scoped = reviewed_shots.get(shot_id, {})
+                media = record.get('media')
+                if (media and scoped.get('media') == media
+                        and all(scoped.get(check) == 'PASS'
+                                for check in ('scientific', 'visual', 'comprehension', 'continuous_viewing'))):
+                    check_media([media])
+                    record.update(status='ACCEPTED', acceptance_handoff=data['handoffs']['final-qa'])
         data['state'] = target
         write(Path(task) / 'task.json', data)
         event(task, 'state', previous=current, state=target)
