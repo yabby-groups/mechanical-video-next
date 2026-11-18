@@ -131,18 +131,46 @@ def validate_motion_program(shot):
     if not isinstance(constraints, list) or len(constraints) > 32:
         raise ValueError('At most 32 numerical constraints')
     for constraint in constraints:
-        if (not isinstance(constraint, dict) or constraint.get('kind') != 'distance'
-                or not vector(constraint.get('range'), 2)
-                or not 0 <= constraint['range'][0] <= constraint['range'][1]
-                or not number(constraint.get('tolerance', 0)) or constraint.get('tolerance', 0) < 0):
-            raise ValueError('Distance constraint requires a nonnegative range and tolerance in scene units')
+        if not isinstance(constraint, dict):
+            raise ValueError('Numerical constraint requires an object')
+        kind = constraint.get('kind')
+        if kind not in {'distance', 'path_length', 'motion', 'rotation_ratio'}:
+            raise ValueError('Unknown numerical constraint kind')
+        if not number(constraint.get('tolerance', 0)) or constraint.get('tolerance', 0) < 0:
+            raise ValueError('Numerical constraint requires a nonnegative finite tolerance')
+        bounds = constraint.get('range')
+        if kind != 'rotation_ratio' and (not vector(bounds, 2) or not 0 <= bounds[0] <= bounds[1]):
+            raise ValueError('Distance constraint or motion/path length requires a nonnegative range')
         refs = constraint.get('points')
-        if (not isinstance(refs, list) or len(refs) != 2
+        expected = {'distance': 2, 'motion': 1, 'rotation_ratio': 2}.get(kind)
+        if (not isinstance(refs, list)
+                or (not 2 <= len(refs) <= 256 if kind == 'path_length' else len(refs) != expected)
                 or any(not isinstance(ref, dict) or not name(ref.get('object'))
                        or not vector(ref.get('local', [0, 0, 0]), 3)
                        or ('vertex' in ref and (type(ref['vertex']) is not int or ref['vertex'] < 0))
                        for ref in refs)):
-            raise ValueError('Distance constraint requires two evaluated object points')
+            raise ValueError('Distance constraint or motion/path length requires evaluated object points')
+        if kind == 'rotation_ratio':
+            if (any(type(ref.get('axis')) is not int or not 0 <= ref['axis'] <= 2
+                    or 'vertex' in ref or 'local' in ref for ref in refs)
+                    or not number(constraint.get('ratio')) or constraint['ratio'] == 0
+                    or not number(constraint.get('minimum_driver_travel'))
+                    or constraint['minimum_driver_travel'] <= 0):
+                raise ValueError('Rotation ratio requires two local Euler axes, a signed nonzero ratio and positive driver travel')
+        if kind == 'motion' and (bounds[0] <= 0
+                or not number(constraint.get('max_step')) or constraint['max_step'] <= 0):
+            raise ValueError('Motion requires positive minimum travel and maximum frame step')
+        if kind == 'motion' and constraint.get('tolerance', 0) >= bounds[0]:
+            raise ValueError('Motion tolerance must be smaller than the positive minimum travel')
+        events = constraint.get('events', [])
+        if not isinstance(events, list) or len(events) > 32 or (events and kind in {'motion', 'rotation_ratio'}):
+            raise ValueError('Event windows require distance/path length constraints; at most 32 events')
+        for event in events:
+            if (not isinstance(event, dict) or not vector(event.get('progress'), 2)
+                    or not 0 <= event['progress'][0] <= event['progress'][1] <= 1
+                    or not vector(event.get('range'), 2)
+                    or not 0 <= event['range'][0] <= event['range'][1]):
+                raise ValueError('Event requires a normalized output progress window and nonnegative range')
 
 
 def source_progress(mapping, progress):

@@ -180,29 +180,104 @@ def opacity_tracks(parts, tracks, count, linear_action):
 
 
 def check_constraints(scene, parts, constraints, count):
-    """Check supplied distances in every evaluated output frame; never solve them."""
+    """Check declared output-frame kinematics; never solve dynamics or contact."""
+    import math
     from science_guides import point
+    if type(count) is not int or count < 1:
+        raise ValueError('Constraint evaluation requires a positive output frame count')
     receipts = []
     for item in constraints:
+        kind = item['kind']
+        if kind in {'motion', 'rotation_ratio'} and count < 2:
+            raise ValueError('Motion constraints require at least two evaluated frames')
         objects = {ref['object']: target(parts, ref['object']) for ref in item['points']}
         for ref in item['points']:
             if 'vertex' in ref and ref['vertex'] >= len(objects[ref['object']].data.vertices):
                 raise ValueError('Constraint vertex outside source mesh')
             if 'vertex' in ref and objects[ref['object']].modifiers:
                 raise ValueError('Vertex constraints require stable topology without modifiers')
-        distances = []
-        lo, hi = item['range']
+        values = []
         tolerance = item.get('tolerance', 0)
+        previous = None
+        initial_angles = None
+        driver_travel = 0
+        driver_excursion = follower_excursion = 0
+        hits = [None] * len(item.get('events', []))
         for frame in range(1, count + 1):
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             depsgraph = bpy.context.evaluated_depsgraph_get()
-            a, b = [point(ref, objects, depsgraph) for ref in item['points']]
-            distance = (a - b).length
-            if not lo - tolerance <= distance <= hi + tolerance:
-                raise ValueError(f'Distance constraint failed at frame {frame}: {distance} outside {item["range"]}')
-            distances.append(distance)
-        receipts.append({'kind': 'distance', 'points': item['points'], 'range': item['range'],
-                         'tolerance': tolerance, 'minimum': min(distances), 'maximum': max(distances)})
-    return {'status': 'PASS', 'frame_count': count, 'samples': receipts,
-            'scope': 'Evaluated frame distances only; not a constraint solver, subframe, contact or force proof'}
+            if kind == 'rotation_ratio':
+                angles = []
+                for ref in item['points']:
+                    source = objects[ref['object']]
+                    if source.parent is not None:
+                        raise ValueError('Rotation ratio requires unparented objects; parent transforms are outside the local Euler check')
+                    if source.constraints:
+                        raise ValueError('Rotation ratio cannot infer constrained transforms from local Euler channels')
+                    obj = source.evaluated_get(depsgraph)
+                    if obj.rotation_mode not in {'XYZ', 'XZY', 'YXZ', 'YZX', 'ZXY', 'ZYX'}:
+                        raise ValueError('Rotation ratio requires local Euler rotation channels')
+                    angle = obj.rotation_euler[ref['axis']]
+                    if not math.isfinite(angle):
+                        raise ValueError(f'Nonfinite rotation constraint at frame {frame}')
+                    angles.append(angle)
+                if initial_angles is None:
+                    initial_angles = angles
+                driver_excursion = max(driver_excursion, abs(angles[0] - initial_angles[0]))
+                follower_excursion = max(follower_excursion, abs(angles[1] - initial_angles[1]))
+                if previous is not None:
+                    driver_travel += abs(angles[0] - previous[0])
+                value = (angles[1] - initial_angles[1]) - item['ratio'] * (angles[0] - initial_angles[0])
+                if not math.isfinite(value) or abs(value) > tolerance:
+                    raise ValueError(f'Rotation ratio constraint failed at frame {frame}: residual {value}')
+                previous = angles
+            else:
+                points = [point(ref, objects, depsgraph) for ref in item['points']]
+                if kind == 'motion':
+                    value = 0 if previous is None else (points[0] - previous).length
+                    if not math.isfinite(value) or value > item['max_step'] + tolerance:
+                        raise ValueError(f'Motion frame step failed at frame {frame}: {value}')
+                    previous = points[0].copy()
+                else:
+                    value = sum((a - b).length for a, b in zip(points, points[1:]))
+                    lo, hi = item['range']
+                    if not math.isfinite(value) or not lo - tolerance <= value <= hi + tolerance:
+                        raise ValueError(f'Distance constraint ({kind}) failed at frame {frame}: {value} outside {item["range"]}')
+                    progress = (frame - 1) / (count - 1) if count > 1 else 0
+                    for index, event in enumerate(item.get('events', [])):
+                        start, end = event['progress']
+                        lower, upper = event['range']
+                        if start <= progress <= end and lower - tolerance <= value <= upper + tolerance:
+                            hits[index] = frame if hits[index] is None else hits[index]
+            values.append(value)
+        receipt = {'kind': kind, 'points': item['points'], 'tolerance': tolerance,
+                   'minimum': min(values), 'maximum': max(values)}
+        if kind == 'rotation_ratio':
+            if driver_travel < item['minimum_driver_travel']:
+                raise ValueError('Rotation ratio driver is static or has insufficient travel')
+            if (abs(item['ratio'])*driver_excursion <= tolerance or follower_excursion <= tolerance):
+                raise ValueError('Rotation ratio tolerance masks expected or observed follower motion')
+            receipt.update(ratio=item['ratio'], driver_travel=driver_travel,
+                           driver_excursion=driver_excursion, follower_excursion=follower_excursion,
+                           maximum_residual=max(map(abs, values)))
+        elif kind == 'motion':
+            total = sum(values)
+            lo, hi = item['range']
+            if total <= tolerance:
+                raise ValueError('Motion travel is indistinguishable from zero at the declared tolerance')
+            if not lo - tolerance <= total <= hi + tolerance:
+                raise ValueError(f'Motion travel constraint failed: {total} outside {item["range"]}')
+            receipt.update(range=item['range'], total_travel=total, max_step=item['max_step'])
+        else:
+            if any(hit is None for hit in hits):
+                raise ValueError(f'Missing constraint event windows: {[i for i, hit in enumerate(hits) if hit is None]}')
+            receipt.update(range=item['range'])
+            if hits:
+                receipt['events'] = [dict(event, observed_frame=hit)
+                                     for event, hit in zip(item['events'], hits)]
+        receipts.append(receipt)
+    return {'status': 'PASS', 'physics_status': 'KINEMATIC_ONLY',
+            'frame_count': count, 'samples': receipts,
+            'scope': 'Declared evaluated output-frame points and local Euler channels only; '
+                     'not a constraint solver, subframe, collision/contact, force or physical simulation proof'}

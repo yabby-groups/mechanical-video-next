@@ -147,6 +147,52 @@ constant data tracks for a planned core mechanical shot before full rendering;
 camera movement and opacity changes alone do not establish mechanism motion.
 This preflight is necessary validation, not independent motion acceptance.
 
+## Declared kinematic checks
+
+`science.constraints` runs inside the existing scene adapter for every evaluated
+output frame. Constraints are opt-in assertions on source-supported animation,
+not a new solver or automatic verification of arbitrary mechanisms. The compact
+receipt records extrema, travel, residuals and event-hit frames and explicitly
+labels its physics scope `KINEMATIC_ONLY`.
+
+- `distance`: two evaluated object/vertex anchors, a nonnegative `range` and
+  optional nonnegative `tolerance`, in world scene units. Use located joint or
+  center anchors; matching endpoints alone cannot establish surface contact.
+- `path_length`: 2–256 ordered evaluated anchors/vertices, with the same range
+  and tolerance. This checks that particular polyline, including internal points;
+  it does not integrate a curved strip's true length or validate tension/volume.
+- `motion`: one evaluated anchor, a positive total-travel `range` and positive
+  `max_step` per output frame. Accumulated travel admits a closed cycle and
+  rejects stationary motion; the step bound rejects sampled jumps. Changing FPS
+  requires reconsidering the step limit. It is not a velocity/acceleration solver.
+  The tolerance must remain below the positive minimum travel; zero movement
+  cannot be accepted by enlarging an error allowance.
+- `rotation_ratio`: two `{object, axis}` entries (`axis` 0–2), signed nonzero
+  `ratio`, positive `minimum_driver_travel` and optional residual `tolerance` in
+  radians. It asserts `delta_follower = ratio * delta_driver` in local Euler
+  channels and refuses parents, constraints and quaternion rotation. It does not
+  prove tooth geometry, center distance, torque or no-slip contact; those need
+  their own applicable source/geometry checks.
+  Expected and observed follower excursions must both exceed the tolerance;
+  an unresolved or static follower cannot pass a loose residual threshold.
+
+Distance/path constraints may add `events: [{progress: [start,end], range:
+[minimum,maximum]}]`. Each normalized output-clock window must actually contain
+a sampled state in that scalar range; receipts retain the first observed frame.
+An unsampled narrow window fails rather than inventing a state. These checks
+reject detached joints, inconsistent sampled paths, wrong ratios/directions,
+static channels, nonfinite values, jumps and missing/mistimed declared events.
+They do not establish subframe continuity or penetration/contact/force physics.
+Historical receipts and scenes do not acquire these checks retroactively.
+
+The durable real-Blender regression uses actual F-curves, evaluated meshes and
+shape keys plus deliberately wrong cases. It takes the existing production lock,
+does not render a film and records exact source hashes and runtime versions:
+
+```sh
+/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup --python-exit-code 1 --python tests/blender_motion_constraints.py -- --repo . --receipt /private/tmp/blender-motion-constraints.json
+```
+
 ## Reproduce the regression
 
 `tests/fixtures/production/science-demo.json` combines an editorial cutaway-like
