@@ -1,4 +1,5 @@
 work/
+.codegraph/
 .venv/
 node_modules/
 remotion/node_modules/
