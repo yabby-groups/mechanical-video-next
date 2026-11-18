@@ -27,4 +27,6 @@ Record assignments, starts, completions, errors and measured counters through ex
 
 ## Production invariants
 
+For new tasks explicitly using `media_policy_version=1`, apply [asset-first hybrid v1](asset-first-media.md) within the same roles and routing above. Legacy 3D-only statements below apply to tasks without this media version. Research/Asset search the ordered lawful material tiers per shot; Producer reuses matching hash-bound evidence and generates only gaps. Hybrid media has its own full provenance and independent QA; verified native 3D or independently observed licensed real-mechanism footage supplies core evidence. No role/model/concurrency change is authorized by this exception.
+
 Keep the current 3D-only scene, spatial motion and render provenance requirements, source and product correspondence, independent QA, locked studio style, Neil narration, subtitles, both cover ratios, safe cleanup and five-goal growth evidence. Preserve historical assets and failures. No fallback to another visual route, no fabricated observation or acceptance, and no publication. Follow existing `AGENTS.md` and production gates when applying this contract.
