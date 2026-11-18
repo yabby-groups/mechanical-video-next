@@ -44,6 +44,15 @@ def production_checks(checks, required, *, perceptual_extra=()):
         for key, value in checks.items()))
 
 
+def active_media_repair(data, *, final=False):
+    """A recorded defect can re-render through the normal gates before resuming."""
+    from .production_contract import enabled
+    return (enabled(data) and data.get('state') == 'REPAIRING'
+            and data.get('repair_return_state') in ({'EDITING', 'FINAL_CHECKING'} if final else NEXT)
+            and any(row.get('issue_ids') and not row.get('stopped', False)
+                    for row in data.get('repairs', {}).values()))
+
+
 AUTONOMY_POLICY = {
     'mode': 'producer-managed', 'routine_user_confirmation': False,
     'repair_mode': 'until_pass', 'max_repair_rounds': None, 'token_budget': None,
@@ -2065,6 +2074,8 @@ def require_animatic_diagnostic(task, config, qa_path):
     data = load(task)
     from .production_contract import enabled as science_contract
     states={'RESEARCHING','ASSET_READY','ANIMATING'} if science_contract(data) else {'RESEARCHING'}
+    if active_media_repair(data):
+        states.add('REPAIRING')
     if data['state'] not in states or qa_path is None:
         raise ValueError('Low-cost full animatic requires RESEARCHING and independent preproduction QA')
     qa = json.loads(Path(qa_path).read_text())
@@ -2239,6 +2250,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         if any(value == 'FAIL' for value in qa.get('checks', {}).values()):
             raise ValueError('Known failed QA cannot be bypassed for workprint')
     elif not (technical_render or diagnostic or animatic_diagnostic or remake_candidate or
+              (phase == 'final' and active_media_repair(data, final=True)) or
               (native_hd_workprint and data['state'] == 'RESEARCHING')) and data['state'] not in allowed[phase]:
         raise ValueError('Stage lacks verified prerequisites: ' + data['state'])
     if phase in {'preview', 'final'}:
@@ -2293,7 +2305,8 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             with logfile.open('w') as out:
                 subprocess.run(args, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, check=True)
         except (subprocess.CalledProcessError, OSError):
-            isolated_candidate = diagnostic or animatic_diagnostic or workprint or remake_candidate or technical_render
+            isolated_candidate = (diagnostic or animatic_diagnostic or workprint or remake_candidate
+                                  or technical_render or active_media_repair(data))
             if isolated_candidate:
                 # Preserve independent routes' valid prerequisites after a
                 # failed inspectable candidate; retain every failed attempt.

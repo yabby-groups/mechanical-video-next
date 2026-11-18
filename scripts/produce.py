@@ -504,7 +504,7 @@ def main():
     if args.phase in {'preview', 'final', 'all'}:
         import sys
         sys.path.insert(0, str(ROOT))
-        from mechanical_video_next.workflow import load, require_animatic, check_qa, require_source_supported_render
+        from mechanical_video_next.workflow import load, require_animatic, check_qa, require_source_supported_render, active_media_repair
         if args.task is None:
             ap.error('Full rendering requires --task with frozen blueprint and independent animatic QA')
         task_data = load(args.task)
@@ -519,7 +519,8 @@ def main():
                 ap.error('Protocol v2 requires separate preview, independent QA, and final stages')
             allowed_states = {'preview': {'ANIMATING', 'PREVIEW_READY', 'PREVIEW_CHECKING'},
                               'final': {'EDITING', 'FINAL_CHECKING'}}
-            if not technical_render and task_data['state'] not in allowed_states[args.phase]:
+            repair_final = args.phase == 'final' and active_media_repair(task_data, final=True)
+            if not (technical_render or repair_final) and task_data['state'] not in allowed_states[args.phase]:
                 ap.error('Task state does not authorize this full render')
             require_animatic(args.task)
             if args.phase == 'final' and not technical_render:

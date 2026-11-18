@@ -88,6 +88,59 @@ class AnimaticDiagnosticTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'only permits'):
             w.run_stage(self.task, 'final', self.config, animatic_diagnostic=True, preproduction_qa=self.qa_path)
 
+    def test_recorded_new_contract_repair_can_review_full_low_cost_replacement(self):
+        data = w.load(self.task)
+        data.update(production_contract_version=1, production_contract='mixed-original-v1',
+                    media_policy_version=1, visual_policy_version=2,
+                    state='REPAIRING', repair_return_state='FINAL_CHECKING')
+        w.write(self.task/'task.json', data)
+        with self.assertRaisesRegex(ValueError, 'Low-cost full animatic'):
+            w.require_animatic_diagnostic(self.task, self.config, self.qa_path)
+        data['repairs'] = {'belt-profile': dict(issue_ids=['reported-issue'], baseline=.158,
+                                               best=.158, stopped=False, strategies={})}
+        w.write(self.task/'task.json', data)
+        w.require_animatic_diagnostic(self.task, self.config, self.qa_path)
+        self.assertEqual(w.load(self.task)['state'], 'REPAIRING')
+        self.config.write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'Stale'):
+            w.require_animatic_diagnostic(self.task, self.config, self.qa_path)
+
+    def test_legacy_repair_does_not_acquire_new_contract_diagnostic_permission(self):
+        data = w.load(self.task)
+        data.update(state='REPAIRING', repair_return_state='FINAL_CHECKING',
+                    repairs={'belt-profile': dict(issue_ids=['reported-issue'], stopped=False)})
+        w.write(self.task/'task.json', data)
+        with self.assertRaisesRegex(ValueError, 'Low-cost full animatic'):
+            w.require_animatic_diagnostic(self.task, self.config, self.qa_path)
+
+    def test_repair_final_keeps_real_animatic_gate(self):
+        data = w.load(self.task)
+        data.update(production_contract_version=1, production_contract='mixed-original-v1',
+                    media_policy_version=1, visual_policy_version=2,
+                    state='REPAIRING', repair_return_state='FINAL_CHECKING',
+                    repairs={'belt-profile': dict(issue_ids=['reported-issue'], stopped=False)})
+        w.write(self.task/'task.json', data)
+        with patch('mechanical_video_next.three_d.validate_config'), \
+                patch.object(w, 'require_source_supported_render', return_value=False), \
+                patch.object(w, 'require_reference_content') as source_gate, \
+                patch.object(w, 'require_animatic', side_effect=ValueError('Real animatic QA failed')) as animatic_gate, \
+                patch.object(w.subprocess, 'run') as render:
+            with self.assertRaisesRegex(ValueError, 'Real animatic QA failed'):
+                w.run_stage(self.task, 'final', self.config)
+            source_gate.assert_called_once()
+            animatic_gate.assert_called_once()
+            render.assert_not_called()
+
+    def repair_state(self):
+        data = w.load(self.task)
+        data.update(production_contract_version=1, production_contract='mixed-original-v1',
+                    media_policy_version=1, visual_policy_version=2,
+                    state='REPAIRING', repair_return_state='FINAL_CHECKING',
+                    config=str(self.config),
+                    repairs={'belt-profile': dict(issue_ids=['reported-issue'], stopped=False)})
+        w.write(self.task/'task.json', data)
+        return data
+
     def test_constant_core_tracks_fail_before_expensive_render(self):
         shot = dict(science={'driver': 'data_tracks'}, visual={'mechanical_role': 'core'},
                     tracks=[dict(object='Core', poses=[dict(progress=0, location=[0, 0, 0]),
@@ -118,6 +171,66 @@ class AnimaticDiagnosticTests(unittest.TestCase):
         shot['visual']['mechanical_role'] = 'support'
         w.check_core_motion_inputs(dict(production_contract_version=1, production_contract='mixed-original-v1',
                                        media_policy_version=1, visual_policy_version=2, shots={'structure': shot}))
+
+    def test_actual_render_entry_repair_keeps_animatic_and_preview_gates(self):
+        import sys
+        with patch.object(sys, 'path', [str(w.ROOT/'scripts'), *sys.path]):
+            from scripts import produce
+        self.repair_state()
+        argv = ['produce.py', str(self.config), '--phase', 'final', '--task', str(self.task)]
+        with patch.object(sys, 'argv', argv), \
+                patch.object(w, 'require_source_supported_render', return_value=False), \
+                patch.object(w, 'require_animatic', side_effect=ValueError('Actual animatic gate')) as animatic, \
+                patch.object(w, 'check_qa') as preview:
+            with self.assertRaisesRegex(ValueError, 'Actual animatic gate'):
+                produce.main()
+            animatic.assert_called_once_with(self.task)
+            preview.assert_not_called()
+        with patch.object(sys, 'argv', argv), \
+                patch.object(w, 'require_source_supported_render', return_value=False), \
+                patch.object(w, 'require_animatic') as animatic, \
+                patch.object(w, 'check_qa', side_effect=ValueError('Actual preview gate')) as preview:
+            with self.assertRaisesRegex(ValueError, 'Actual preview gate'):
+                produce.main()
+            animatic.assert_called_once_with(self.task)
+            preview.assert_called_once_with(self.task, 'preview-qa', acceptance=False)
+
+    def test_actual_render_entry_rejects_historical_stopped_and_early_repairs(self):
+        import sys
+        with patch.object(sys, 'path', [str(w.ROOT/'scripts'), *sys.path]):
+            from scripts import produce
+        for change in ({'production_contract_version': 0},
+                       {'repairs': {'belt-profile': dict(issue_ids=['reported-issue'], stopped=True)}},
+                       {'repair_return_state': 'RESEARCHING'}):
+            data = self.repair_state()
+            data.update(change)
+            w.write(self.task/'task.json', data)
+            with self.subTest(change=change), \
+                    patch.object(sys, 'argv', ['produce.py', str(self.config), '--phase', 'final', '--task', str(self.task)]), \
+                    patch.object(w, 'require_source_supported_render', return_value=False), \
+                    patch.object(w, 'require_animatic') as gate:
+                with self.assertRaises(SystemExit):
+                    produce.main()
+                gate.assert_not_called()
+
+    def test_failed_repair_render_preserves_return_state_and_failure_evidence(self):
+        self.repair_state()
+        self.cfg['id'] = 'fixture-repair-failure'
+        self.save()
+        failure = subprocess.CalledProcessError(2, ['produce.py', '--phase', 'final'])
+        with patch.dict('sys.modules', {'clean': types.SimpleNamespace(cleanup=lambda **kwargs: None)}), \
+                patch.object(w, 'lock', side_effect=lambda path, **kwargs: nullcontext()), \
+                patch('mechanical_video_next.three_d.validate_config'), \
+                patch.object(w, 'require_source_supported_render', return_value=False), \
+                patch.object(w, 'require_reference_content'), patch.object(w, 'require_animatic'), \
+                patch.object(w, 'check_production_config'), patch.object(w, 'check_qa'), \
+                patch.object(w.subprocess, 'run', side_effect=failure):
+            with self.assertRaises(subprocess.CalledProcessError):
+                w.run_stage(self.task, 'final', self.config)
+        after = w.load(self.task)
+        self.assertEqual(after['state'], 'REPAIRING')
+        self.assertEqual(after['repair_return_state'], 'FINAL_CHECKING')
+        self.assertEqual(after['candidate_failures'][-1]['config_sha256'], w.filehash(self.config))
 
     def test_stale_config_or_transitive_model_dependency_blocks(self):
         self.config.write_text('{}')
