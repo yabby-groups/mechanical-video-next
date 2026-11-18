@@ -98,3 +98,111 @@ def project(scene, camera, parts, anchors, count):
             samples[key].append([round(point.x, 6), round(1 - point.y, 6)] if valid else None)
     return {'version': 1, 'fps': scene.render.fps, 'frame_count': count, 'samples': samples,
             'scope': 'Evaluated camera projection, not occlusion or readability QA'}
+
+
+def retime_data(shot, parts, count):
+    """Compose the same monotone clock with each rigid and deforming F-curve."""
+    from mechanical_video_next.science_shots import retimed_progress_keys, source_progress
+    mapping = shot['science'].get('time_map')
+    if not mapping:
+        return
+    objects = {obj.name: obj for obj in parts}
+    owners = [objects[track['object']] for track in shot.get('tracks', [])]
+    owners += [objects[track['object']].data.shape_keys for track in shot.get('mesh_tracks', [])]
+    seen = set()
+    for owner in owners:
+        animation = owner.animation_data
+        if animation is None or animation.action is None:
+            continue
+        action = animation.action
+        curves = list(getattr(action, 'fcurves', []))
+        for layer in getattr(action, 'layers', []):
+            for strip in layer.strips:
+                for bag in getattr(strip, 'channelbags', []):
+                    curves.extend(bag.fcurves)
+        for fcurve in curves:
+            # A shared action can be reached by more than one owner.
+            pointer = fcurve.as_pointer()
+            if pointer in seen:
+                continue
+            seen.add(pointer)
+            times = retimed_progress_keys(mapping, [(key.co.x - 1)/(count - 1)
+                                                    for key in fcurve.keyframe_points])
+            samples = [(1 + progress*(count - 1),
+                        fcurve.evaluate(1 + source_progress(mapping, progress)*(count - 1)))
+                       for progress in times]
+            fcurve.keyframe_points.clear()
+            fcurve.keyframe_points.add(len(samples))
+            for key, sample in zip(fcurve.keyframe_points, samples):
+                key.co = sample
+                key.interpolation = 'LINEAR'
+            fcurve.extrapolation = 'CONSTANT'
+            fcurve.update()
+
+
+def opacity_tracks(parts, tracks, count, linear_action):
+    """Copy per-object shaders; preserve approved material shading underneath."""
+    receipts = []
+    for track in tracks:
+        obj = target(parts, track['object'])
+        if not obj.material_slots:
+            raise ValueError('Opacity target requires an existing material')
+        for slot in obj.material_slots:
+            if slot.material is None or not slot.material.use_nodes:
+                raise ValueError('Opacity target requires node-based material slots')
+            material = slot.material.copy()
+            material.name = obj.name + ' | editorial opacity'
+            # OBJECT assignment avoids changing a mesh shared with another part.
+            slot.link = 'OBJECT'
+            slot.material = material
+            if hasattr(material, 'surface_render_method'):
+                material.surface_render_method = 'DITHERED'
+            else:
+                material.blend_method = 'HASHED'
+            nodes, links = material.node_tree.nodes, material.node_tree.links
+            output = next((node for node in nodes if node.type == 'OUTPUT_MATERIAL'
+                           and node.is_active_output), None)
+            if output is None or not output.inputs['Surface'].is_linked:
+                raise ValueError('Opacity target needs an active connected surface shader')
+            previous = output.inputs['Surface'].links[0].from_socket
+            transparent = nodes.new('ShaderNodeBsdfTransparent')
+            mix = nodes.new('ShaderNodeMixShader')
+            links.new(transparent.outputs[0], mix.inputs[1])
+            links.new(previous, mix.inputs[2])
+            links.new(mix.outputs[0], output.inputs['Surface'])
+            for progress, value in track['keys']:
+                mix.inputs[0].default_value = value
+                mix.inputs[0].keyframe_insert('default_value', frame=1 + progress*(count - 1))
+            linear_action(material.node_tree.animation_data)
+        receipts.append({'object': obj.name, 'keys': track['keys']})
+    return {'objects': receipts, 'clock': 'screen progress; independent of mechanism retiming',
+            'scope': 'Editorial transparency; not material transmission, optical simulation or occlusion QA'}
+
+
+def check_constraints(scene, parts, constraints, count):
+    """Check supplied distances in every evaluated output frame; never solve them."""
+    from science_guides import point
+    receipts = []
+    for item in constraints:
+        objects = {ref['object']: target(parts, ref['object']) for ref in item['points']}
+        for ref in item['points']:
+            if 'vertex' in ref and ref['vertex'] >= len(objects[ref['object']].data.vertices):
+                raise ValueError('Constraint vertex outside source mesh')
+            if 'vertex' in ref and objects[ref['object']].modifiers:
+                raise ValueError('Vertex constraints require stable topology without modifiers')
+        distances = []
+        lo, hi = item['range']
+        tolerance = item.get('tolerance', 0)
+        for frame in range(1, count + 1):
+            scene.frame_set(frame)
+            bpy.context.view_layer.update()
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            a, b = [point(ref, objects, depsgraph) for ref in item['points']]
+            distance = (a - b).length
+            if not lo - tolerance <= distance <= hi + tolerance:
+                raise ValueError(f'Distance constraint failed at frame {frame}: {distance} outside {item["range"]}')
+            distances.append(distance)
+        receipts.append({'kind': 'distance', 'points': item['points'], 'range': item['range'],
+                         'tolerance': tolerance, 'minimum': min(distances), 'maximum': max(distances)})
+    return {'status': 'PASS', 'frame_count': count, 'samples': receipts,
+            'scope': 'Evaluated frame distances only; not a constraint solver, subframe, contact or force proof'}

@@ -448,6 +448,9 @@ def verify_mesh_tracks(shot, count):
             scene.frame_set(frame)
             bpy.context.view_layer.update()
             t = (frame-1)/(count-1)
+            if shot.get('science', {}).get('time_map'):
+                from mechanical_video_next.science_shots import source_progress
+                t = source_progress(shot['science']['time_map'], t)
             hi = min(len(poses)-1, max(1, bisect.bisect_left(progress, t)))
             lo = hi-1
             w = (t-progress[lo])/(progress[hi]-progress[lo])
@@ -517,8 +520,12 @@ def prepare_data_tracks(shot, count):
             if i+1<len(poses): key.keyframe_insert('value',frame=1+poses[i+1]['progress']*(count-1))
         linear_action(obj.data.shape_keys.animation_data)
         seen.add(obj.name)
+    if shot.get('science', {}).get('time_map'):
+        import science_scene
+        science_scene.retime_data(shot, list(bpy.data.collections['Assembly'].objects), count)
     return {'template':'data-keyframes-v1','tracked_objects':sorted(seen),
             'rotation_interpolation': shot.get('rotation_interpolation', 'legacy-euler'),
+            **({'time_map': shot['science']['time_map']} if shot.get('science', {}).get('time_map') else {}),
             'evaluated_mesh_alignment': verify_mesh_tracks(shot, count),
             'scope':'Explicit source-reviewed transforms; no contact/force simulation'}
 
@@ -836,6 +843,12 @@ def render_shot(args):
         report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam,
                                                    shot.get('studio_lighting'))
     if science:
+        if science.get('opacity_tracks'):
+            report['checks']['editorial_opacity'] = science_scene.opacity_tracks(
+                visible, science['opacity_tracks'], count, linear_action)
+        if science.get('constraints'):
+            report['checks']['numerical_constraints'] = science_scene.check_constraints(
+                scene, visible, science['constraints'], count)
         camera_path = science.get('camera_path')
         if camera_path:
             camera_motion(scene, cam, camera_path, count, linear_action)

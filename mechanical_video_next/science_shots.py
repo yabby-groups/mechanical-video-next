@@ -98,6 +98,108 @@ def validate(shot, *, files=False):
         ):
             raise ValueError('Field and flow require bounded, nondegenerate XYZ polylines')
     validate_editorial_geometry(spec)
+    validate_motion_program(shot)
+
+
+def validate_motion_program(shot):
+    """Bound editorial visibility, synchronized time and numerical invariants."""
+    spec = shot['science']
+    if 'time_map' in spec:
+        mapping = spec['time_map']
+        if (spec.get('driver') != 'data_tracks' or not isinstance(mapping, list)
+                or not 2 <= len(mapping) <= 64
+                or any(not vector(key, 2) for key in mapping)
+                or mapping[0] != [0, 0] or mapping[-1] != [1, 1]
+                or any(not (0 <= a[0] < b[0] <= 1 and 0 <= a[1] <= b[1] <= 1)
+                       for a, b in zip(mapping, mapping[1:]))):
+            raise ValueError('Time map requires data tracks and monotone [screen, source] endpoints [0,0] to [1,1]')
+    opacity = spec.get('opacity_tracks', [])
+    if not isinstance(opacity, list) or len(opacity) > 32:
+        raise ValueError('At most 32 object opacity tracks')
+    seen = set()
+    for track in opacity:
+        if not isinstance(track, dict) or not name(track.get('object')) or track['object'] in seen:
+            raise ValueError('Opacity tracks require unique assembly objects')
+        seen.add(track['object'])
+        keys = track.get('keys')
+        if (not isinstance(keys, list) or not 2 <= len(keys) <= 64
+                or any(not vector(key, 2) or not 0 <= key[1] <= 1 for key in keys)
+                or keys[0][0] != 0 or keys[-1][0] != 1
+                or any(a[0] >= b[0] for a, b in zip(keys, keys[1:]))):
+            raise ValueError('Opacity keys require ordered [screen progress, opacity] in [0,1] with endpoints')
+    constraints = spec.get('constraints', [])
+    if not isinstance(constraints, list) or len(constraints) > 32:
+        raise ValueError('At most 32 numerical constraints')
+    for constraint in constraints:
+        if (not isinstance(constraint, dict) or constraint.get('kind') != 'distance'
+                or not vector(constraint.get('range'), 2)
+                or not 0 <= constraint['range'][0] <= constraint['range'][1]
+                or not number(constraint.get('tolerance', 0)) or constraint.get('tolerance', 0) < 0):
+            raise ValueError('Distance constraint requires a nonnegative range and tolerance in scene units')
+        refs = constraint.get('points')
+        if (not isinstance(refs, list) or len(refs) != 2
+                or any(not isinstance(ref, dict) or not name(ref.get('object'))
+                       or not vector(ref.get('local', [0, 0, 0]), 3)
+                       or ('vertex' in ref and (type(ref['vertex']) is not int or ref['vertex'] < 0))
+                       for ref in refs)):
+            raise ValueError('Distance constraint requires two evaluated object points')
+
+
+def source_progress(mapping, progress):
+    """One bounded piecewise linear clock for every interacting data channel."""
+    if not number(progress) or not 0 <= progress <= 1:
+        raise ValueError('Output progress must stay inside the validated [0,1] interval')
+    if not mapping:
+        return progress
+    for a, b in zip(mapping, mapping[1:]):
+        if progress <= b[0]:
+            mix = (progress - a[0]) / (b[0] - a[0])
+            return a[1] + mix * (b[1] - a[1])
+    return mapping[-1][1]
+
+
+def retimed_progress_keys(mapping, source_keys):
+    """Composition breakpoints, preserving source corners and authored holds.
+
+    Evaluating the original linear F-curve at these source times gives the exact
+    composition, including raw quaternion components and shape-key weights.
+    """
+    progress = {key[0] for key in mapping}
+    for a, b in zip(mapping, mapping[1:]):
+        if b[1] == a[1]:
+            continue
+        for key in source_keys:
+            if a[1] <= key <= b[1]:
+                progress.add(a[0] + (key - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
+    return sorted(progress)
+
+
+def centerline_strip(points, width, normal):
+    """Author a zero-thickness ribbon from an evidenced winding/deformation path.
+
+    Returns mesh vertices and quad topology for the existing asset/mesh_tracks
+    interface. No tension, contact, thickness, arc-length or force is solved.
+    All poses must use the same number/order of source centerline samples.
+    """
+    if (not isinstance(points, list) or not 2 <= len(points) <= 4096
+            or not all(vector(point, 3) for point in points)
+            or not number(width) or width <= 0 or not vector(normal, 3)
+            or not any(normal)):
+        raise ValueError('Ribbon requires finite centerline samples, positive width and nonzero normal')
+    vertices = []
+    for i, point in enumerate(points):
+        before, after = points[max(0, i - 1)], points[min(len(points) - 1, i + 1)]
+        tangent = [b - a for a, b in zip(before, after)]
+        side = [tangent[1]*normal[2] - tangent[2]*normal[1],
+                tangent[2]*normal[0] - tangent[0]*normal[2],
+                tangent[0]*normal[1] - tangent[1]*normal[0]]
+        length = math.hypot(*side)
+        if length <= 1e-12 or (i and point == points[i-1]):
+            raise ValueError('Ribbon samples must be distinct with a tangent transverse to the normal')
+        for sign in (-1, 1):
+            vertices.append([p + sign*width*s/(2*length) for p, s in zip(point, side)])
+    faces = [[2*i, 2*i+1, 2*i+3, 2*i+2] for i in range(len(points)-1)]
+    return {'vertices': vertices, 'faces': faces}
 
 
 def validate_editorial_geometry(spec):
@@ -148,6 +250,8 @@ def referenced_parts(shot):
     parts = {anchor['object'] for anchor in spec.get('anchors', {}).values()}
     parts.update(point['object'] for guide in spec.get('guides', []) for point in guide['points'])
     parts.update(mark['object'] for mark in spec.get('print_marks', []))
+    parts.update(track['object'] for track in spec.get('opacity_tracks', []))
+    parts.update(ref['object'] for row in spec.get('constraints', []) for ref in row['points'])
     if spec.get('follow'):
         parts.add(spec['follow'])
     if shot.get('section_plane'):
