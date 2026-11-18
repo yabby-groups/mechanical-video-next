@@ -12,8 +12,10 @@ import time
 from scripts.common import ROOT, Metrics, budget, filehash, probe, writejson
 from .viral import validate_creative_blueprint
 from .workflow import lock, digest
+from .science_shots import TEMPLATES as SCIENCE_TEMPLATES
+from .visual_narrative import FIELD, VERSION, design_fields, match_policy, validate_plan, version
 
-TEMPLATES = {'overall', 'detail', 'motion', 'explode', 'assemble', 'exploded', 'layered'}
+TEMPLATES = {'overall', 'detail', 'motion', 'explode', 'assemble', 'exploded', 'layered'} | SCIENCE_TEMPLATES
 CAMERA = {'camera_view', 'camera_direction', 'camera_roll'}
 
 
@@ -25,6 +27,9 @@ def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
     from .three_d import validate_config
     validate_config(data)
+    visual = version(data) == VERSION
+    if visual:
+        validate_plan(data)
     from .comprehension import enabled, validate_product_plan
     if enabled(data):
         validate_product_plan(data)
@@ -45,7 +50,7 @@ def validate(data):
         if any(not isinstance(s[k], str) or not s[k].strip() for k in
                ('shot_id', 'knowledge_goal', 'mechanical_action', 'asset', 'template')):
             raise ValueError('Shot identifiers and decisions must be nonempty strings')
-        if s['shot_id'] in ids or s['template'] not in TEMPLATES:
+        if s['shot_id'] in ids or s['template'] not in (TEMPLATES | ({'editorial'} if visual else set())):
             raise ValueError('Duplicate shot ID or unknown template mapping')
         ids.add(s['shot_id'])
         if s.get('evidence_status') == 'RESEARCH_REQUIRED':
@@ -56,7 +61,13 @@ def validate(data):
             raise ValueError('Timeline must be contiguous from zero, positive, within the versioned duration limit')
         end = t[1]
         camera = s['camera']
-        if not isinstance(camera, dict) or not camera or not set(camera) <= CAMERA:
+        if visual:
+            if abs(s['duration'] - (t[1] - t[0])) > 1e-8:
+                raise ValueError('Visual duration differs from Blueprint timeline')
+            camera = camera.get('settings', {})
+            if s['render_engine'] != 'blender' and s['template'] != 'editorial':
+                raise ValueError('Supporting media needs an editorial template')
+        if not isinstance(camera, dict) or (not visual and not camera) or not set(camera) <= CAMERA:
             raise ValueError('Unsupported or empty camera mapping')
         if camera.get('camera_view', 'oblique') not in {'oblique', 'top'}:
             raise ValueError('Unsupported camera_view')
@@ -82,6 +93,9 @@ def compile_config(blueprint, base, output, draft=False):
     from .three_d import validate_config
     validate_config(cfg)
     validate(data)
+    visual = version(data) == VERSION
+    if FIELD in cfg:
+        match_policy(data, cfg)
     if data.get('status') != 'FROZEN' and not draft:
         raise ValueError('FROZEN blueprint required; --draft marks unapproved diagnostic output')
     if not draft:
@@ -89,19 +103,26 @@ def compile_config(blueprint, base, output, draft=False):
     result, shots, storyboard, mappings = copy.deepcopy(cfg), {}, [], []
     for s in data['shots']:
         key = s.get('existing_shot')
-        if not isinstance(key, str) or key not in cfg['shots']:
+        editorial = visual and s['render_engine'] != 'blender'
+        if not editorial and (not isinstance(key, str) or key not in cfg['shots']):
             raise ValueError('Unknown existing_shot mapping: ' + str(key))
-        if s['asset'] != cfg['asset']:
+        if not editorial and s['asset'] != cfg['asset']:
             raise ValueError('Blueprint asset does not match base assembly')
-        original = cfg['shots'][key]
+        original = {'template': 'editorial', **{k: s[k] for k in ('graphic', 'footage') if k in s}} if editorial else cfg['shots'][key]
         if original['template'] != s['template']:
             raise ValueError('Template must match existing shot; geometry tracks cannot be repurposed')
         shot = copy.deepcopy(original)
-        shot.update(s['camera'])
-        shot['seconds'] = s['time_range'][1] - s['time_range'][0]
+        shot.update(s['camera'].get('settings', {}) if visual else s['camera'])
+        shot['seconds'] = s['duration'] if visual else s['time_range'][1] - s['time_range'][0]
+        if visual:
+            shot['visual'] = copy.deepcopy(design_fields(s))
+            if not editorial:
+                from .visual_narrative import configure_blender
+                configure_blender(shot)
         sid = s['shot_id']; shots[sid] = shot
         inherited = next((x for x in cfg.get('storyboard', []) if x['shot'] == key), {})
-        row = {k: copy.deepcopy(inherited[k]) for k in ('accent', 'formula') if k in inherited}
+        editor_fields = inherited | {k: s[k] for k in ('accent', 'formula', 'information') if visual and k in s}
+        row = {k: copy.deepcopy(editor_fields[k]) for k in ('accent', 'formula', 'information') if k in editor_fields}
         row.update(id=sid, shot=sid, seconds=shot['seconds'], label=s['knowledge_goal'],
                    note=' / '.join(s['overlays']), narration=s['narration'], subtitles=s['subtitles'])
         row.setdefault('accent', '#8dc4dc'); storyboard.append(row)
@@ -140,6 +161,11 @@ def compile_config(blueprint, base, output, draft=False):
         for collection in (storyboard, mappings):
             for row, shot in zip(collection, data['shots']):
                 row['comprehension'] = copy.deepcopy(shot['comprehension'])
+    if visual:
+        result[FIELD] = VERSION
+        result['visual_findings'] = validate_plan(data)
+        result['render'].setdefault('encode_profile', 'witness-v1')
+        validate_config(result)
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),
                    blueprint_program_sha256=result['blueprint_program_sha256'],

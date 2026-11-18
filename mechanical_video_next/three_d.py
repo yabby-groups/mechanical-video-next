@@ -12,6 +12,9 @@ def require_route(route):
 
 
 def validate_config(config):
+    from .science_shots import validate as validate_science_shot
+    from .visual_narrative import VERSION, validate_execution, validate_plan, version
+    visual_version = version(config)
     require_route(config.get('render_route', '3d'))
     if config.get('requested_routes', ['3d']) != ['3d']:
         raise ValueError('3D-only production requires requested_routes=["3d"]')
@@ -24,9 +27,30 @@ def validate_config(config):
         require_route(shot.get('render_route', '3d'))
         if shot.get('template') == 'layered' or shot.get('layers'):
             raise ValueError('Layered mechanical imagery cannot replace a real 3D scene')
+        if isinstance(shots, dict) and visual_version == VERSION and shots:
+            validate_execution(shot)
+        elif visual_version != VERSION and (shot.get('template') == 'editorial' or {'visual', 'graphic', 'footage'} & shot.keys()):
+            raise ValueError('Editorial shots require the versioned visual production policy')
+        validate_science_shot(shot)
         if (config.get('production_scope') != 'verified-shots'
                 and shot.get('evidence_status') == 'RESEARCH_REQUIRED'):
             raise ValueError('Unverified mechanism shot cannot enter the full film')
+    if any(shot.get('science') for shot in (shots.values() if isinstance(shots, dict) else shots)):
+        if config.get('storyboard') and (config.get('presentation') != 'mechanism-fullframe'
+                or config.get('render', {}).get('framing') != 'fullframe'):
+            raise ValueError('Science compositions require fullframe Blender and Remotion framing')
+    if visual_version == VERSION and isinstance(shots, dict) and shots:
+        rows = config.get('storyboard', [])
+        if not rows or {row['shot'] for row in rows} != set(shots):
+            raise ValueError('Visual execution requires complete storyboard coverage')
+        validate_plan({'shots': [
+            dict(shots[row['shot']]['visual'], shot_id=row['id'], narration=row['narration'])
+            for row in rows
+        ]})
+        if config.get('presentation') != 'mechanism-fullframe' or [
+                config.get('render', {}).get(k) for k in ('width', 'height', 'fps', 'framing')
+        ] != [1920, 1080, 30, 'fullframe']:
+            raise ValueError('Visual production requires the native 1920x1080/30 fullframe format')
 
 
 def migrate(task, reason):
