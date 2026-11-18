@@ -37,10 +37,10 @@ PERCEPTUAL_CHECKS = {'explosion_clarity', 'subtitle_audio_sync', 'occlusion',
                      'mechanism_visibility'}
 
 
-def production_checks(checks, required):
+def production_checks(checks, required, *, perceptual_extra=()):
     """Unknown perception is pending review; unknown mechanical facts are not."""
     return (required <= set(checks) and all(
-        value == 'PASS' or (key in PERCEPTUAL_CHECKS and value == 'UNKNOWN')
+        value == 'PASS' or (key in PERCEPTUAL_CHECKS | set(perceptual_extra) and value == 'UNKNOWN')
         for key, value in checks.items()))
 
 
@@ -1436,6 +1436,23 @@ def check_qa(task, name, *, acceptance=True):
     from .production_contract import enabled as science_contract, validate_qa as science_qa
     if science_contract(load(task)) and name == 'final-qa':
         science_qa(qa, production['media'], acceptance=acceptance)
+        request=load(task).get('revision_request')
+        if request and acceptance:
+            from .media_revision import validate_report
+            for path,sha in expected:
+                latest=next((r for r in reversed(load(task)['stages'])
+                             if r.get('media',{}).get('sha256')==sha and r.get('revision')),None)
+                if latest is None:
+                    raise ValueError('An improvement claim requires actual decoded revision evidence')
+                ref=latest['revision']
+                if filehash(ref['path']) != ref['sha256']:
+                    raise ValueError('Revision evidence changed')
+                revision_report=json.loads(Path(ref['path']).read_text())
+                claimed=[{k:r[k] for k in ('shot_id','defect_key','knowledge_target','previous_range','current_range')}
+                         for r in revision_report.get('changes',[])]
+                if claimed != request.get('changes'):
+                    raise ValueError('Revision evidence must address the declared defect intervals')
+                validate_report(revision_report,path)
     from .media_policy import enabled as asset_first, validate_qa as validate_hybrid_qa, binding as media_binding
     if asset_first(load(task)) and name == 'final-qa':
         task_data = load(task)
@@ -1466,7 +1483,8 @@ def check_qa(task, name, *, acceptance=True):
     required_checks = ANIMATIC_CHECKS if name == 'animatic-qa' else QA_CHECKS
     if (not required_checks <= set(checks) or
             (any(value != 'PASS' for value in checks.values()) if acceptance
-             else not production_checks(checks, required_checks))):
+             else not production_checks(checks, required_checks,
+                 perceptual_extra={'blueprint_fidelity'} if science_contract(load(task)) else ()))):
         raise ValueError('QA FAIL/UNKNOWN or missing checks prevents advancement')
     if not qa.get('independent_reviewer') or not qa.get('reviewer_thread_id'):
         raise ValueError('Independent reviewer identity is required')
@@ -2023,7 +2041,9 @@ def require_hd_workprint_request(task, config):
 def require_animatic_diagnostic(task, config, qa_path):
     """Authorize only inexpensive raw full-storyboard previews before freeze."""
     data = load(task)
-    if data['state'] != 'RESEARCHING' or qa_path is None:
+    from .production_contract import enabled as science_contract
+    states={'RESEARCHING','ASSET_READY','ANIMATING'} if science_contract(data) else {'RESEARCHING'}
+    if data['state'] not in states or qa_path is None:
         raise ValueError('Low-cost full animatic requires RESEARCHING and independent preproduction QA')
     qa = json.loads(Path(qa_path).read_text())
     if (qa.get('task_id') != data['id'] or qa.get('reviewer_role') != 'QA'
@@ -2218,6 +2238,25 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         event(task, 'cleanup_deferred', reason=str(error))
     with lock(ROOT / 'work/production.lock', wait=True):
         start = time.time()
+        from .production_contract import enabled as science_contract
+        previous_media=None
+        if phase=='final' and science_contract(data):
+            import shutil
+            cfg=json.loads(Path(config).read_text())
+            target=ROOT/'output'/(cfg['id']+'-final.mp4')
+            request=data.get('revision_request',{})
+            previous_media=request.get('previous_media') or next(
+                (r['media'] for r in reversed(data['stages']) if r.get('phase')=='final' and r.get('media')),None)
+            if target.is_file() and not request.get('previous_media'):
+                previous_media=dict(path=str(target),sha256=filehash(target))
+            if previous_media:
+                check_media([previous_media])
+                saved=Path(task)/'revisions'/previous_media['sha256']/'previous.mp4'
+                saved.parent.mkdir(parents=True,exist_ok=True)
+                if not saved.exists():
+                    shutil.copy2(previous_media['path'],saved)
+                previous_media=dict(path=str(saved.resolve()),sha256=filehash(saved))
+                event(task,'previous_media_preserved',media=previous_media)
         args = ['uv', 'run', '--project', str(ROOT), 'python',
                 str(ROOT / 'scripts/produce.py'), str(config), '--phase', phase]
         args += ['--task', str(Path(task).resolve())]
@@ -2271,6 +2310,21 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                        full_shot_renders=sum(r['stage'].startswith('final:') and not r['cache_hit']
                                              for r in observations))
             data['stages'].append(row)
+            if phase=='final' and science_contract(data):
+                from .media_revision import compare, bind
+                cfg=json.loads(Path(config).read_text())
+                target=ROOT/'output'/(cfg['id']+'-final.mp4')
+                row['media']=bind(target)
+                row['previous_media']=previous_media
+                request=data.get('revision_request')
+                if request:
+                    if previous_media is None:
+                        raise ValueError('Improvement claim requires the preserved previous actual MP4')
+                    result=compare(previous_media['path'],target,request['changes'])
+                    revision=Path(task)/'revisions'/('comparison-'+str(time.time_ns())+'.json')
+                    write(revision,result)
+                    row['revision']=bind(revision)
+                    row['upgrade_target_met']=result['status']=='OBSERVABLE_CHANGE_VERIFIED'
             if technical_render and not scoped_render and phase in {'preview', 'final'}:
                 cfg = json.loads(Path(config).read_text())
                 target = ROOT/'output'/(cfg['id']+'-'+phase+'.mp4')

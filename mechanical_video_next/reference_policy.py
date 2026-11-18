@@ -14,6 +14,15 @@ CONTENT_CHECKS = ('reliable_sources', 'specific_mechanism', 'no_model_mixing',
                   'content_duration', 'no_invented_parts', 'executable_shots')
 
 
+def model_program_digest(config):
+    """Mechanical QA identity excludes narration, charts and composition metadata."""
+    from .workflow import digest, filehash
+    native={name:{k:v for k,v in shot.items() if k!='visual'}
+            for name,shot in config.get('shots',{}).items() if shot.get('template')!='editorial'}
+    assembly=Path(config['assembly_config'])
+    return digest({'assembly_sha256':filehash(assembly),'shots':native})
+
+
 def validate_reference_model(report, mechanism_id):
     """Validate a part-level audit, not just solid validity or script success.
 
@@ -27,6 +36,11 @@ def validate_reference_model(report, mechanism_id):
         raise ValueError('Reference-to-model mechanism mismatch or unresolved model mixing')
     if report.get('independent') is not True or not report.get('reviewer_thread_id'):
         raise ValueError('Reference-to-model audit requires an independent reviewer')
+    program=report.get('model_program')
+    if program is not None:
+        config=Path(program.get('path',''))
+        if (not config.is_file() or program.get('program_sha256') != model_program_digest(json.loads(config.read_text()))):
+            raise ValueError('Mechanical model/motion program changed after independent review')
     from .media_policy import enabled as asset_first, validate_shot
     observed_footage = asset_first(report) and report.get('depicted_type') == 'licensed-real-mechanism'
     if observed_footage:
@@ -305,7 +319,9 @@ def validate_preproduction(blueprint, research, asset, qa):
     if visual.version(blueprint) == visual.VERSION:
         visual.validate_research(research)
         visual.validate_plan(blueprint)
-        visual.validate_review(qa.get('visual_checks'), [s['shot_id'] for s in blueprint['shots']], acceptance=True)
+        from .production_contract import enabled as science_contract
+        visual.validate_review(qa.get('visual_checks'), [s['shot_id'] for s in blueprint['shots']],
+                               acceptance=not science_contract(blueprint))
     if (qa.get('reviewer_role') != 'QA' or qa.get('independent') is not True
             or qa.get('plan_sha256') != plan_digest(blueprint, research, asset)):
         raise ValueError('Independent QA must bind exact reference, asset and blueprint versions')

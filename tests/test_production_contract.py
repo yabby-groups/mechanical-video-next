@@ -8,6 +8,21 @@ from mechanical_video_next.workflow import create_task, load, producer_prompt
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_mechanical_review_reuse_tracks_only_its_real_dependencies(self):
+        from mechanical_video_next.reference_policy import model_program_digest
+        with tempfile.TemporaryDirectory() as folder:
+            assembly=Path(folder)/'assembly.json';assembly.write_text('{"parts":["A"]}')
+            cfg=dict(assembly_config=str(assembly),shots={'core':dict(template='state_transition',seconds=4,tracks=[{'object':'A','poses':[]}],visual={'knowledge_goal':'A'}),
+                'chart':dict(template='editorial',graphic={'value':1})},storyboard=[{'narration':['Original']}])
+            before=model_program_digest(cfg)
+            cfg['storyboard'][0]['narration']=['Caption correction']
+            cfg['shots']['chart']['graphic']['value']=2
+            self.assertEqual(model_program_digest(cfg),before)
+            cfg['shots']['core']['camera_direction']=[1,1,1]
+            self.assertNotEqual(model_program_digest(cfg),before)
+            changed=model_program_digest(cfg);assembly.write_text('{"parts":["A","B"]}')
+            self.assertNotEqual(model_program_digest(cfg),changed)
+
     def test_new_hybrid_pins_contract_and_legacy_keeps_original(self):
         with tempfile.TemporaryDirectory() as folder:
             task = create_task('Why?', root=folder, task_id='mixed', visual_policy_version=2, media_policy_version=1)

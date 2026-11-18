@@ -301,6 +301,14 @@ def validate_video(path, config, cues):
             'subtitle_timing':'Exact synthesized utterance intervals; not phoneme alignment',
             'unverified':['Independent full viewing/listening','Occlusion and subjective clarity','Tooth contact and forces','Voice redistribution terms and organization Remotion eligibility before publishing'],
             'automatic_repair_attempts':0,'repair_policy':'No automatic repair; stop on first failure. Any future repair must use <=2 distinct strategies, <=2 attempts each, with measured improvement.'}
+    from mechanical_video_next.production_contract import enabled as science_contract
+    if science_contract(config):
+        result.update(status='TECHNICAL_PASS_UNACCEPTED_WORKPRINT',
+                      production_contract_version=config['production_contract_version'],
+                      production_contract=config['production_contract'],
+                      repair_policy='Validator stops on failure; the existing Producer diagnoses and repairs until pass or an evidenced external boundary. Preserve defect history and change unsuccessful strategies; no fixed round limit.',
+                      repair_counter_scope='This deterministic validation call only; not whole-workflow attempts')
+        result['unverified'][2] = 'Scientific assumptions, contact and force behavior beyond the bound teaching model'
     writejson(path.with_suffix('.validation.json'),result)
     return result
 
