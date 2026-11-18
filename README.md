@@ -144,6 +144,12 @@ uv run python scripts/produce.py config/planetary-printer-ep03-style.json --phas
 
 CAD 与项目共用 uv 管理的 Python 3.14.2：先执行 `uv sync --extra cad --locked`，建模使用 `uv run --extra cad cad run <model.py>`，诊断使用 `uv run --extra cad cad doctor --check`。CAD 依赖统一锁定在 `uv.lock`；`requirements-cad.txt` 仅保留旧入口兼容，不再作为默认依赖入口。Blender 内嵌 Python 是随软件分发的运行时例外。
 
+## 通用科学原理镜头
+
+新增可选的 3D 科学镜头配置：已有 EAS 拆装不变，可组合剖切、局部放大、运动轨迹、
+场线/流向和状态关键帧。Blender 导出跟随点，Remotion 合成标签、数值和放大框。
+使用说明、约束、真实回归样片复现与验收边界见 [通用科学视频制作](docs/science-production.md)。
+
 ## 多 Agent 入口
 
 项目级 `.codex/config.toml` 和 `.codex/agents/*.toml` 使用当前官方独立角色文件格式，最多三个子代理，无第二个 Producer，不修改全局配置。已在 Codex CLI 0.167.0 严格配置模式验证五个角色加载；官方依据：[Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)。配置不会热加载进已存在的会话，本次协作使用当前会话的原生 collaboration 子代理工具并显式传入角色职责。
@@ -309,3 +315,7 @@ uv run python -m mechanical_video_next produce --resume output/tasks/TASK
 ### 正式交付封面（3:4 / 4:3）
 
 3D影片完成后，Producer 在任务交付根目录填写 `cover-plan.json`，绑定实际3D版本、关键动作时间点和短标题。运行 `uv run python -m mechanical_video_next.covers <task>` 生成 `cover/` 下两张标准 PNG、候选与封面报告；增长报告入口也会执行此步骤。封面独立 QA 的 FAIL / UNKNOWN / 缺失，以及来源版本或文案变化都会阻止新增长契约任务正式完成。只使用已有视频帧与排版，不触发视频重制。完整方案格式及独立 QA 契约见 [封面交付](docs/cover-delivery.md)。
+
+### 视觉叙事
+
+新选题默认使用版本 2。核心机械动作保持原生 3D，已授权实拍和原创信息动画可为知识提供补充。旧任务按账本保留原有策略。参见 [视觉叙事制作策略](docs/visual-narrative.md)。

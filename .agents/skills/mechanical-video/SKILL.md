@@ -3,6 +3,14 @@ name: mechanical-video
 description: 用单一视频 JSON 编排分镜、普通话配音、字幕、Remotion 合成及 MP4 技术检测。
 ---
 
+## 视觉叙事策略 2
+
+读 [视觉叙事契约](../../../docs/visual-narrative.md)。补充实拍和原创动态图按 Blueprint 的事实及素材绑定进入同一水平成片，许可不明时换成证据支持的表达并记录限制。复用字幕、安全盒、跟踪标注、读数和放大。精确媒体独立 QA 及旧任务约束继续生效。
+
+## 科学信息后期
+
+参照 `docs/science-production.md` 在 storyboard 写相对镜头起点的 `information`：使用实际 Blender 逐帧投影跟随，同源 3D 放大框、绑定依据的数值和单行说明。视觉安全盒和浏览器测宽仍适用；复看整段排除遮挡与标注干扰。字幕与标注编辑只重合成，正式输出绑定 Remotion 构建到现有 3D provenance，不用技术通过代替听审或观看。
+
 ## 2026-11-16 用户最新决定：按镜头推进（覆盖下文全局观看门禁）
 
 连续观看第三方参考不再是制作硬条件；未观看如实记 REFERENCE_VIEW_UNKNOWN。可靠官方文档、实物图和同型号结构证据可独立支持对应3D镜头。MECHANISM_UNKNOWN 只阻止依赖该未知零件/动作的镜头；继续研究同型号结构，必要时完整切换到有证据的具体型号，禁止型号拼装。PERCEPTUAL_QA_UNKNOWN 允许实际建模、渲染、编码与技术检查，不授予正式验收。只有所有独立工作均不可推进且有外部证据和替代尝试时才 EXTERNAL_BLOCKED。
