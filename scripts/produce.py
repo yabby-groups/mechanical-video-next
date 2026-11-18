@@ -36,10 +36,15 @@ def cached(folder, files):
         m = json.loads(marker.read_text())
         valid = set(files)<=set(m) and all((folder/f).is_file() and filehash(folder/f)==h for f,h in m.items())
         if valid and (folder/'checks.json').is_file():
-            scene_ref = json.loads((folder/'checks.json').read_text()).get('scene_artifact')
+            checks = json.loads((folder/'checks.json').read_text())
+            scene_ref = checks.get('scene_artifact')
             if scene_ref:
                 scene_path = Path(scene_ref['path'])
                 valid = scene_path.is_file() and filehash(scene_path) == scene_ref['sha256']
+            source_ref = checks.get('source_shot')
+            if source_ref:
+                source_path = Path(source_ref['path'])
+                valid = valid and source_path.is_file() and filehash(source_path) == source_ref['sha256']
         if valid:
             (folder/'.last-used').touch()
         return valid
@@ -132,6 +137,20 @@ def prepare_shot_evidence(folder):
         writejson(folder/'qa-images.json', visual_packet([prepare_image(frames[i]) for i in indices]))
 
 
+def shot_input_file(folder, key, shot):
+    """Retain exact render inputs beside opt-in archived scenes, outside work."""
+    archive = shot.get('scene_artifact_dir')
+    target = Path(archive)/(key+'.shot.json') if archive else folder/'shot.json'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(shot, ensure_ascii=False, separators=(',', ':'), sort_keys=True)+'\n'
+    if archive and target.exists():
+        if target.read_text() != text:
+            raise ValueError('Archived shot input changed; preserve it for diagnosis')
+    else:
+        target.write_text(text)
+    return target
+
+
 def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     shot = {k: v for k, v in shot.items() if k != 'visual'}
     from mechanical_video_next.three_d import validate_config
@@ -166,9 +185,9 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         hit = bool(json.loads((folder/'checks.json').read_text()).get('scene_artifact'))
     if not hit:
         folder.mkdir(parents=True,exist_ok=True)
-        (folder/'shot.json').write_text(json.dumps(shot, ensure_ascii=False, separators=(',', ':'))+'\n')
+        shot_path = shot_input_file(folder, key, shot)
         frames=folder/'frames'
-        args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/render_with_provenance.py','--','shot','--asset',model,'--shot',folder/'shot.json','--out',frames,'--width',width,'--height',height,'--fps',fps]
+        args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/render_with_provenance.py','--','shot','--asset',model,'--shot',shot_path,'--out',frames,'--width',width,'--height',height,'--fps',fps]
         args += ['--assembly-config',ROOT/(assembly_path or 'config/assembly.json')]
         if quality=='keys': args+=['--keys']
         if quality=='checks': args+=['--checks-only']

@@ -140,6 +140,10 @@ same-length audio only recompose. Changed shot geometry, verified trajectories,
 frame count or camera invalidate only affected clips. The same lock, work/disk
 budget and chunk encoding remain in place.
 
+With an explicit `scene_artifact_dir`, compact executable shot inputs are
+archived beside the scenes and remain immutable. Cache checks verify their
+hashes as well as rendered outputs.
+
 ## Reproduce the regression
 
 `tests/fixtures/production/science-demo.json` combines an editorial cutaway-like
