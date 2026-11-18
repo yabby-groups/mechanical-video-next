@@ -364,8 +364,9 @@ def complete_media(data, media, final=True):
     coverage = media.get('chapter_ids', [])
     if not expected or None in expected or set(coverage) != expected:
         raise ValueError('Complete chapter coverage must match the measured shared timeline')
-    timeline_duration = content.get('duration_seconds', content.get('duration'))
-    if timeline_duration is None or abs(float(timeline_duration) - duration) > 1 / 30 + 0.001:
+    timeline_duration = content.get('duration_seconds', content.get('duration', content.get('seconds')))
+    if (timeline_duration is None or not math.isfinite(float(timeline_duration))
+            or abs(float(timeline_duration) - duration) > 1 / 30 + 0.001):
         raise ValueError('Full media duration does not match measured shared timeline')
     return dict(duration=duration, fps=fps, chapter_ids=coverage)
 

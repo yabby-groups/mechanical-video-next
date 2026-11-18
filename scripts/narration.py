@@ -192,6 +192,29 @@ def normalize(source, output, profile):
         conditioned.unlink()
         result.update(strategy='peak-conditioning-measured-static-gain',after=after,
                       conditioned_measurement=conditioned_levels,static_gain_db=gain,strategy_attempts=[1,1])
+    if abs(float(after['input_i'])-target['integrated_lufs'])>1.0 or float(after['input_tp'])>target['true_peak_dbtp']+0.2:
+        # A high-crest short utterance can lose >1 LU in the peak limiter even
+        # after gentle compression. Change dynamics, not the speech speed or
+        # concat timeline. Reuse the original PCM; never resubmit paid TTS.
+        conditioned=output.with_suffix('.crest-conditioned.wav')
+        run(['ffmpeg','-v','error','-y','-i',source,'-af',
+             'acompressor=threshold=0.063:ratio=3:attack=1:release=80:makeup=1',
+             '-ar',profile['sample_rate'],'-ac',profile['channels'],'-c:a',profile['format'],conditioned],
+            output.with_suffix('.crest-conditioning.log'))
+        conditioned_levels=measure_loudness(conditioned,profile)
+        gain=target['integrated_lufs']-float(conditioned_levels['input_i'])
+        if abs(gain)>20:
+            raise RuntimeError('Abnormally quiet/loud source; refuse excessive normalization gain')
+        limit=10**((target['true_peak_dbtp']-0.3)/20)
+        run(['ffmpeg','-v','error','-y','-i',conditioned,'-af',
+             f'volume={gain}dB,alimiter=limit={limit}:level=false:latency=true',
+             '-ar',profile['sample_rate'],'-ac',profile['channels'],'-c:a',profile['format'],output],
+            output.with_suffix('.crest-normalize.log'))
+        after=measure_loudness(output,profile)
+        conditioned.unlink()
+        result.setdefault('failed_strategies',[]).append({k:result[k] for k in ('strategy','after')})
+        result.update(strategy='crest-factor-conditioning-measured-static-gain',after=after,
+                      conditioned_measurement=conditioned_levels,static_gain_db=gain,strategy_attempts=[1,1,1])
     writejson(output.with_suffix('.loudness.json'),result)
     if abs(float(after['input_i'])-target['integrated_lufs'])>1.0 or float(after['input_tp'])>target['true_peak_dbtp']+0.2:
         raise RuntimeError('Normalized audio failed loudness / true-peak tolerance')
@@ -226,6 +249,16 @@ def silence_trim(source, output, profile):
 
 
 def sentence(text, profile):
+    # Multiple audio/timeline consumers may request the same sentence. Serialize
+    # synthesis and processing before raw marker creation or trimmed-file cleanup.
+    from mechanical_video_next.workflow import lock
+    identity=digest({'payload':request_payload(text,profile),
+                     'endpoint':os.environ.get('OPENAI_BASE_URL') or profile['base_url']})
+    with lock(STORE/'locks'/(identity+'.lock'),wait=True):
+        return _sentence_locked(text,profile)
+
+
+def _sentence_locked(text, profile):
     raw,hit,rawkey=raw_sentence(text,profile)
     key=digest({'raw':rawkey,'profile':profile,'processing':codehash('scripts/narration.py')})
     folder=STORE/'sentences'/key

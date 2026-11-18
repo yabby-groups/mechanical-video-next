@@ -167,15 +167,22 @@ def evaluate(views, dimension, duration):
 
 def planned_timeline(timeline, blueprint):
     shots = timeline.get('shots', []) or blueprint.get('shots', [])
+    plans = {s.get('shot_id', s.get('id')): s for s in blueprint.get('shots', [])}
+    fps = timeline.get('fps')
     rows = []
     for s in shots:
+        plan = plans.get(s.get('shot_id', s.get('id')), {})
         start = s.get('start', s.get('start_time', s.get('time_range', [None,None])[0]))
         end = s.get('end_time', s.get('time_range', [None,None])[1])
+        if finite(fps) and fps > 0 and finite(s.get('start_frame')):
+            start = s['start_frame'] / fps
+            if finite(s.get('frame_count')):
+                end = (s['start_frame'] + s['frame_count']) / fps
         if end is None and finite(start) and finite(s.get('seconds', s.get('duration_seconds'))):
             end = start + s.get('seconds', s.get('duration_seconds'))
         rows.append({'shot_id': s.get('shot_id', s.get('id')), 'section_id': s.get('section_id'),
-                     'time_range': [start,end], 'knowledge': s.get('new_information', s.get('teaching_goal', s.get('title', s.get('knowledge_goal')))),
-                     'mechanical_action': s.get('mechanical_action', s.get('action')),
+                     'time_range': [start,end], 'knowledge': s.get('new_information', s.get('teaching_goal', s.get('title', s.get('knowledge_goal', plan.get('knowledge_goal'))))),
+                     'mechanical_action': s.get('mechanical_action', s.get('action', plan.get('mechanical_action'))),
                      'narration': s.get('narration'), 'scope': '脚本/实测音频时轴规划，非成片感官结论'})
     return rows
 
