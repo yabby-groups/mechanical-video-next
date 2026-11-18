@@ -21,16 +21,16 @@ const colors = ['#236c87', '#996226', '#39716a', '#586378'];
 const enter = (frame: number, start: number, length: number) =>
   interpolate(frame, [start, start+length], [0, 1], {extrapolateLeft:'clamp', extrapolateRight:'clamp'});
 
-// A minimum of 64 canvas pixels corresponds to 12 px at a 360 px preview.
+// 86 canvas pixels corresponds to 16.1 px at a 360 px preview.
 const PhoneText: React.FC<{text:string; style?:React.CSSProperties}> = ({text,style}) => {
   const ref=useRef<HTMLDivElement>(null);
   useLayoutEffect(()=>{
     const el=ref.current!;
-    if(!text || /[\r\n]/.test(text) || parseFloat(getComputedStyle(el).fontSize)<64 ||
+    if(!text || /[\r\n]/.test(text) || parseFloat(getComputedStyle(el).fontSize)<86 ||
        el.scrollWidth>el.clientWidth+1 || el.scrollHeight>el.clientHeight+1)
       throw new Error(`Phone text does not fit: ${text} (${getComputedStyle(el).fontSize}, ${el.scrollWidth}x${el.scrollHeight} / ${el.clientWidth}x${el.clientHeight})`);
   },[text]);
-  return <div ref={ref} style={{fontSize:64,lineHeight:1.5,whiteSpace:'nowrap',overflow:'hidden',...style}}>{text}</div>;
+  return <div ref={ref} data-science-graphic-text style={{fontSize:86,lineHeight:1.5,whiteSpace:'nowrap',overflow:'hidden',...style}}>{text}</div>;
 };
 
 export const SplitScreen: React.FC<{spec:SplitScreenSpec}> = ({spec}) => <AbsoluteFill style={{background:'#223139'}}>
@@ -49,17 +49,24 @@ const DataAnimation: React.FC<{graphic:Graphic}> = ({graphic}) => {
     throw new Error('Invalid data animation keyframes');
   const max=graphic.domainMax??Math.max(...all.map(p=>p[1]),1);
   if(!Number.isFinite(max) || max<=0 || all.some(p=>p[1]>max)) throw new Error('Invalid data animation domain');
-  return <AbsoluteFill style={{background:'#e6eaed',color:'#172b35',padding:'145px 128px 190px'}}>
-    <PhoneText text={graphic.title} style={{fontWeight:700,marginBottom:24}}/>
+  return <AbsoluteFill style={{background:'#e6eaed',color:'#172b35'}}>
+    <PhoneText text={graphic.title} style={{position:'absolute',left:128,width:1664,top:145,fontWeight:700,lineHeight:1.5}}/>
+    <div style={{position:'absolute',left:128,right:128,top:365,display:'grid',
+      gridTemplateColumns:graphic.items.length===4?'1fr 1fr':'1fr',columnGap:40}}>
     {graphic.items.map((item,i)=>{
       const points=item.keyframes!; const value=interpolate(frame/fps,points.map(p=>p[0]),points.map(p=>p[1]),{extrapolateLeft:'clamp',extrapolateRight:'clamp'});
-      return <div key={i} style={{height:145,display:'grid',gridTemplateColumns:'410px 1fr 330px',gap:20,alignItems:'center'}}>
+      const four=graphic.items.length===4;
+      const bar=<div style={{height:36,background:'#cbd5d9',gridColumn:four?'1 / -1':undefined}}><div style={{height:'100%',width:`${value/max*100}%`,background:colors[i]}}/></div>;
+      return <div key={i} style={{height:four?220:145,display:'grid',gridTemplateColumns:four?'1fr 330px':'410px 1fr 330px',
+        gridTemplateRows:four?'129px 36px':undefined,gap:20,alignItems:'center'}}>
         <PhoneText text={item.label} style={{fontWeight:700}}/>
-        <div style={{height:36,background:'#cbd5d9'}}><div style={{height:'100%',width:`${value/max*100}%`,background:colors[i]}}/></div>
+        {!four && bar}
         <PhoneText text={`${Number(value.toFixed(2))} ${graphic.unit}`} style={{fontVariantNumeric:'tabular-nums',textAlign:'right'}}/>
+        {four && bar}
       </div>;
     })}
-    {graphic.formula && <PhoneText text={graphic.formula} style={{position:'absolute',left:128,width:1664,bottom:135,fontWeight:700}}/>}
+    </div>
+    {graphic.formula && <PhoneText text={graphic.formula} style={{position:'absolute',left:128,width:1664,bottom:145,fontWeight:700}}/>}
   </AbsoluteFill>;
 };
 

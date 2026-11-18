@@ -1,5 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import {VisualGraphic, type Graphic} from './VisualNarrative';
 
 type Standard = {
   type: 'chart' | 'comparison' | 'diagram' | 'timeline';
@@ -10,7 +11,7 @@ type Standard = {
 };
 type Angular = {type: 'angular_comparison'; title: string; travel: number; items: {label: string; radius: number}[]};
 type DualReel = {type:'dual_reel_speed'; title:string; coreRadius:number; fullRadius:number; feedSpeed:number};
-export type EvidenceGraphicSpec = Standard | Angular | DualReel;
+export type EvidenceGraphicSpec = Standard | Angular | DualReel | (Graphic & {type:'data_animation'});
 
 const palette = ['#07576b', '#873c12', '#335b39', '#42365d'];
 const ink = '#122830';
@@ -21,7 +22,7 @@ const AngularEvidence: React.FC<{spec: Angular; progress: number}> = ({spec,prog
   return <svg viewBox="0 0 1920 1080" style={{position:'absolute',inset:0,width:'100%',height:'100%'}}>
     {spec.items.map((item,i)=>{
       const x=480+i*960;
-      const y=484;
+      const y=535;
       const radius=157*item.radius/maxRadius;
       const angle=spec.travel/item.radius*progress;
       const end=[x+Math.sin(angle)*radius,y-Math.cos(angle)*radius];
@@ -45,7 +46,7 @@ const AngularEvidence: React.FC<{spec: Angular; progress: number}> = ({spec,prog
 const DualReelEvidence: React.FC<{spec:DualReel; progress:number}> = ({spec,progress}) => {
   const {coreRadius:a,fullRadius:b,feedSpeed:v}=spec;
   const r1=Math.sqrt(b*b-(b*b-a*a)*progress), r2=Math.sqrt(a*a+(b*b-a*a)*progress);
-  const centerY=460, scale=160/b;
+  const centerY=535, scale=160/b;
   const speed=(r:number)=>v/r;
   const max=v/a;
   const graphX=(p:number)=>1050+650*p;
@@ -91,6 +92,7 @@ const StandardEvidence: React.FC<{spec: Standard; progress: number}> = ({spec,pr
 export const EvidenceGraphic: React.FC<{graphic: EvidenceGraphicSpec; seconds: number}> = ({graphic,seconds}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
+  if(graphic.type==='data_animation') return <VisualGraphic graphic={graphic} seconds={seconds}/>;
   const progress = interpolate(frame, [0,Math.max(1,seconds*fps*.92)], [0,1], {extrapolateRight:'clamp'});
   return <AbsoluteFill style={{background:plate,color:ink,padding:'155px 125px 170px'}}>
     <div style={{fontSize:96,fontWeight:760,lineHeight:1.05}}>{graphic.title}</div>

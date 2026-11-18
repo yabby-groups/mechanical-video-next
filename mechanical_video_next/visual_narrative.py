@@ -245,6 +245,14 @@ def validate_graphic(graphic, *, progression=False):
         domain = graphic.get('domainMax', peak)
         if not nonempty(graphic.get('unit')) or not number(domain) or domain <= 0 or domain < peak:
             raise ValueError('Animated data requires units and a positive domain covering all values')
+        from .remotion_build import validate_phone_text
+        validate_phone_text(graphic['title'],1664)
+        for item in items:
+            validate_phone_text(item['label'],410)
+            for _,value in item['keyframes']:
+                validate_phone_text(f'{value:g} {graphic["unit"]}',330)
+        if 'formula' in graphic:
+            validate_phone_text(graphic['formula'],1664)
     if kind == 'chart' and (not nonempty(graphic.get('unit')) or not any(s['value'] for s in items)):
         raise ValueError('Bar chart requires units and a positive scale')
     if 'formula' in graphic and not nonempty(graphic['formula']):

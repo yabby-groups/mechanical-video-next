@@ -1,4 +1,5 @@
 import React, {useLayoutEffect, useRef} from 'react';
+import {useCurrentFrame} from 'remotion';
 import defaults from '../../config/text-style.json';
 
 export type TextLayer = 'subtitle'|'chapter'|'part'|'principle'|'numeric'|'auxiliary';
@@ -20,6 +21,7 @@ export const assertOverlayRegions=(items:{layer:TextLayer;box?:number[]}[],profi
 // Check the actual browser font as well as the producer's Pillow measurement.
 // Never shrink, wrap or clip an overlong sentence to make validation pass.
 export const TextOverlay:React.FC<{text:string;layer:TextLayer;profile:TextStyle;box?:number[]}> = ({text,layer,profile,box}) => {
+  const frame=useCurrentFrame();
   const ref = useRef<HTMLDivElement>(null);
   const spec = profile[layer];
   const [left,top,right,bottom] = box ?? spec.safe_box;
@@ -32,7 +34,18 @@ export const TextOverlay:React.FC<{text:string;layer:TextLayer;profile:TextStyle
     if(measured>right-left || el.scrollWidth>el.clientWidth+1 || el.scrollHeight>el.clientHeight+1)
       throw new Error(`Text overflow (${layer}): measured=${measured}, box=${right-left}, scroll=${el.scrollWidth}x${el.scrollHeight}, client=${el.clientWidth}x${el.clientHeight}`);
     if(spec.font_size<spec.min_font_size) throw new Error('Text below minimum font size');
-  },[text,layer,profile,left,right]);
+    // Compare actual glyph ranges, not full-width containers, with animated
+    // chart text on every frame. This catches cross-component collisions.
+    const glyphRange=document.createRange();glyphRange.selectNodeContents(el);
+    const own=glyphRange.getBoundingClientRect();
+    document.querySelectorAll('[data-science-graphic-text]').forEach(node=>{
+      const range=document.createRange();range.selectNodeContents(node);
+      const other=range.getBoundingClientRect();
+      if(Math.min(own.right,other.right)-Math.max(own.left,other.left)>1 &&
+         Math.min(own.bottom,other.bottom)-Math.max(own.top,other.top)>1)
+        throw new Error(`Text overlay covers scientific graphic (${layer}): ${text}`);
+    });
+  },[text,layer,profile,left,right,frame]);
   return <div ref={ref} data-text-layer={layer} style={{position:'absolute',left,top,width:right-left,height:bottom-top,
     display:'flex',alignItems:'center',justifyContent:layer==='subtitle'?'center':'flex-start',
     fontFamily:profile.font_family,fontSize:spec.font_size,fontWeight:500,lineHeight:1.15,whiteSpace:'nowrap',

@@ -13,7 +13,7 @@ PROGRESSION_SOURCES = SOURCES[1:] + (
     'remotion/src/progressionEntry.tsx', 'remotion/src/EvidenceGraphic.tsx', 'remotion/src/VisualNarrative.tsx')
 
 
-def validate_phone_text(text, width, *, size=64):
+def validate_phone_text(text, width, *, size=86):
     """Preflight a single line at the smallest supported 360 px preview size.
 
     Browser layout remains authoritative for the actual installed font and box.
@@ -22,7 +22,7 @@ def validate_phone_text(text, width, *, size=64):
     from .text_layout import measure_text
     if (not isinstance(text, str) or not text.strip() or '\n' in text or '\r' in text
             or not isinstance(width, (int, float)) or not math.isfinite(width) or width <= 0
-            or size < 64 or measure_text(text, size=size)['width'] > width):
+            or size < 86 or measure_text(text, size=size)['width'] > width):
         raise ValueError('Text must fit on one line at phone-readable size')
 
 
