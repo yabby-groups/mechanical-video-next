@@ -1,0 +1,207 @@
+"""Validation for opt-in, evidence-bound 3D shot programs."""
+
+import math
+from pathlib import Path
+
+from scripts.common import ROOT, filehash
+
+
+TEMPLATES = {
+    'exploded_view', 'cutaway', 'micro_zoom', 'motion_trace',
+    'field_visualization', 'flow_visualization', 'state_transition',
+    'measurement', 'camera_follow',
+}
+MODE_LABEL = {
+    'conceptual': '原理示意', 'mathematical': '数学模型',
+    'physical_simulation': '物理仿真回放',
+}
+
+
+def number(value):
+    return type(value) in (float, int) and math.isfinite(value)
+
+
+def vector(value, length):
+    return isinstance(value, list) and len(value) == length and all(map(number, value))
+
+
+def name(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def source_binding(row):
+    if not isinstance(row, dict) or not all(name(row.get(key)) for key in ('path', 'sha256', 'position')):
+        raise ValueError('Science evidence requires file, SHA256 and location')
+    path = ROOT / row['path']
+    if not path.is_file() or filehash(path) != row['sha256']:
+        raise ValueError(f'Science evidence file missing or stale: {row["path"]}')
+
+
+def validate(shot, *, files=False):
+    template = shot.get('template')
+    spec = shot.get('science')
+    if spec is None and template not in TEMPLATES:
+        return
+    if not isinstance(spec, dict) or spec.get('version') != 1:
+        raise ValueError('Science templates require science.version=1')
+    if template not in TEMPLATES | {'overall', 'detail', 'motion', 'explode', 'assemble', 'exploded'}:
+        raise ValueError('Unknown science shot template')
+    mode = spec.get('mode')
+    if mode not in MODE_LABEL or not name(spec.get('scope')) or not spec.get('basis'):
+        raise ValueError('Science shot requires mode, stated limits and located basis')
+    if mode == 'physical_simulation':
+        raise ValueError('This renderer does not verify solver outputs; physical_simulation is not supported')
+    for binding in spec['basis']:
+        if not isinstance(binding, dict) or not all(name(binding.get(key)) for key in ('path', 'sha256', 'position')):
+            raise ValueError('Science evidence requires file, SHA256 and location')
+        if files:
+            source_binding(binding)
+    driver = spec.get('driver', 'static')
+    if driver not in {'static', 'asset_motion', 'data_tracks'}:
+        raise ValueError('Unknown science motion driver')
+    if (template not in TEMPLATES and driver != 'static'
+            or template in {'exploded_view', 'state_transition'} and driver != 'data_tracks'
+            or template == 'motion_trace' and driver == 'static'):
+        raise ValueError('Motion driver does not match the template')
+    if driver == 'data_tracks' and not (shot.get('tracks') or shot.get('mesh_tracks')):
+        raise ValueError('Data tracks require prescribed poses')
+    if template == 'exploded_view' and mode != 'conceptual':
+        raise ValueError('An editorial exploded view must be marked as conceptual')
+    if template == 'cutaway' and not shot.get('section_plane'):
+        raise ValueError('Cutaway requires an explicit section plane')
+    if template == 'micro_zoom' and not shot.get('camera_focus_region'):
+        raise ValueError('Micro zoom requires an authored focus region')
+    if template == 'camera_follow' and not name(spec.get('follow')):
+        raise ValueError('Camera follow requires a named asset object')
+    if template == 'camera_follow' and shot.get('camera_focus_region'):
+        raise ValueError('Camera follow cannot use a static focus region')
+    anchors = spec.get('anchors', {})
+    if not isinstance(anchors, dict) or len(anchors) > 16:
+        raise ValueError('At most sixteen screen anchors per shot')
+    for anchor_id, anchor in anchors.items():
+        if not name(anchor_id) or not isinstance(anchor, dict) or not name(anchor.get('object')) or not vector(anchor.get('local'), 3):
+            raise ValueError('Anchor requires an object and a local XYZ triple')
+    if template == 'motion_trace' and spec.get('trace') not in anchors:
+        raise ValueError('Motion trace requires a named object anchor')
+    if template in {'motion_trace', 'field_visualization', 'flow_visualization'}:
+        if not vector(spec.get('color'), 3) or not all(0 <= channel <= 1 for channel in spec['color']):
+            raise ValueError('Curves require a linear RGB color in [0,1]')
+        radius = spec.get('radius')
+        if not number(radius) or radius <= 0:
+            raise ValueError('Curves require a positive radius in scene units')
+    if template in {'field_visualization', 'flow_visualization'}:
+        paths = spec.get('paths')
+        if not isinstance(paths, list) or not 1 <= len(paths) <= 64 or any(
+            not isinstance(path, list) or not 2 <= len(path) <= 1024
+            or not all(vector(point, 3) for point in path)
+            or any(start == end for start, end in zip(path, path[1:])) for path in paths
+        ):
+            raise ValueError('Field and flow require bounded, nondegenerate XYZ polylines')
+    validate_editorial_geometry(spec)
+
+
+def validate_editorial_geometry(spec):
+    if 'stage_rotation' in spec and not vector(spec['stage_rotation'], 3):
+        raise ValueError('Stage rotation requires a finite XYZ Euler triple')
+    if 'camera_path' in spec:
+        path = spec['camera_path']
+        if (not isinstance(path, list) or not 2 <= len(path) <= 16 or any(
+                not isinstance(pose, dict) or not number(pose.get('progress'))
+                or not vector(pose.get('target'), 3) or not vector(pose.get('direction'), 3)
+                or not any(pose['direction']) or not number(pose.get('width')) or pose['width'] <= 0
+                for pose in path) or path[0]['progress'] != 0 or path[-1]['progress'] != 1
+                or any(a['progress'] >= b['progress'] for a, b in zip(path, path[1:]))):
+            raise ValueError('Camera path requires ordered endpoints, aim, direction and orthographic width')
+        for start, end in zip(path, path[1:]):
+            a, b = start['direction'], end['direction']
+            if sum(x*y for x,y in zip(a,b))/(math.hypot(*a)*math.hypot(*b)) < -.95:
+                raise ValueError('Add an intermediate camera key for oppositely directed views')
+    for key in ('guides', 'print_marks'):
+        items = spec.get(key, [])
+        if not isinstance(items, list) or len(items) > 16:
+            raise ValueError(f'At most sixteen {key} per shot')
+        for item in items:
+            if (not isinstance(item, dict) or not vector(item.get('color'), 3)
+                    or not all(0 <= c <= 1 for c in item['color'])):
+                raise ValueError('Editorial mark requires linear RGB')
+            if key == 'print_marks':
+                if (not name(item.get('object')) or not name(item.get('text')) or len(item['text']) > 80
+                        or not number(item.get('size')) or item['size'] <= 0 or not vector(item.get('local'), 3)
+                        or not vector(item.get('rotation_euler'), 3)):
+                    raise ValueError('Printed marks require a surface object, local placement, text and scale')
+                continue
+            kind = item.get('kind')
+            points = item.get('points')
+            active = item.get('window', [0, 1])
+            if (kind not in {'arrow','dashed','marker'} or not number(item.get('width')) or item['width'] <= 0
+                    or not vector(active, 2) or not 0 <= active[0] < active[1] <= 1
+                    or not isinstance(points, list) or len(points) != (1 if kind == 'marker' else 2)
+                    or any(not isinstance(ref, dict) or not name(ref.get('object'))
+                           or not vector(ref.get('local', [0,0,0]), 3)
+                           or ('vertex' in ref and (type(ref['vertex']) is not int or ref['vertex'] < 0))
+                           for ref in points)):
+                raise ValueError('Guide requires evaluated object points, visible time and positive width')
+
+
+def referenced_parts(shot):
+    spec = shot.get('science', {})
+    parts = {anchor['object'] for anchor in spec.get('anchors', {}).values()}
+    parts.update(point['object'] for guide in spec.get('guides', []) for point in guide['points'])
+    parts.update(mark['object'] for mark in spec.get('print_marks', []))
+    if spec.get('follow'):
+        parts.add(spec['follow'])
+    if shot.get('section_plane'):
+        parts.update(shot['section_plane'].get('parts', []))
+    return parts
+
+
+def validate_asset(assembly, mechanism_id=None):
+    reuse = assembly.get('reuse')
+    if reuse is None:
+        return
+    if (not isinstance(reuse, dict) or reuse.get('version') != 1
+            or not all(name(reuse.get(key)) for key in ('mechanism_id', 'license', 'scope', 'units'))
+            or not reuse.get('sources') or not reuse.get('limitations')):
+        raise ValueError('Reusable asset requires exact mechanism, units, rights, scope, source and limits')
+    if mechanism_id is not None and reuse['mechanism_id'] != mechanism_id:
+        raise ValueError('Reusable asset belongs to a different implementation')
+    for row in reuse['sources']:
+        source_binding(row)
+    if 'generator' in reuse:
+        source_binding(reuse['generator'])
+    parts = reuse.get('parts', {})
+    if not isinstance(parts, dict) or set(parts) != set(assembly['required_parts']):
+        raise ValueError('Reusable asset must describe every required part exactly')
+    for part, record in parts.items():
+        parent = record.get('parent')
+        if parent is not None and (parent not in parts or parent == part):
+            raise ValueError('Unknown or self-parented reusable part')
+        visited = {part}
+        while parent is not None:
+            if parent in visited or parent not in parts:
+                raise ValueError('Invalid reusable part hierarchy')
+            visited.add(parent)
+            parent = parts[parent].get('parent')
+        if not name(record.get('material')):
+            raise ValueError('Reusable parts require material descriptions')
+    controls = reuse.get('controls', {})
+    if not isinstance(controls, dict):
+        raise ValueError('Reusable asset controls must be keyed by name')
+    for control in controls.values():
+        if (control.get('driver') not in {'asset_motion', 'data_tracks'}
+                or not control.get('parts') or not set(control['parts']) <= set(parts)
+                or not name(control.get('constraint')) or not name(control.get('dof'))):
+            raise ValueError('Control requires known parts, executable driver, constraint and degrees of freedom')
+
+
+def validate_assembly_shot(shot, assembly):
+    spec = shot.get('science')
+    if not spec:
+        return
+    validate(shot, files=True)
+    if spec.get('driver') == 'asset_motion':
+        control = assembly.get('reuse', {}).get('controls', {}).get(spec.get('control'))
+        if not control or control['driver'] != 'asset_motion':
+            raise ValueError('Asset motion requires a declared reusable control')
+        if assembly.get('kind') == 'source-mesh-assembly-v1':
+            raise ValueError('Imported assembly motion requires explicit data tracks')

@@ -724,6 +724,15 @@ def render_shot(args):
               'source_shot': {'path': str(args.shot), 'sha256': hashlib.sha256(shot_bytes).hexdigest()},
               'checks':{},'unverified':cfg['unverified']}
     template = shot['template']
+    science = shot.get('science')
+    if science:
+        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT/'blender'))
+        from mechanical_video_next.science_shots import TEMPLATES, validate_assembly_shot
+        from science_guides import stage, camera_motion, add_guides, add_print
+        import science_scene
+        validate_assembly_shot(shot, cfg)
+        stage(scene, parts, science)
     if template in ['explode','assemble','exploded']:
         configure_explosion(shot,count)
         assert bpy.ops.eas.animate(mode='EXPLODE') == {'FINISHED'}
@@ -752,6 +761,14 @@ def render_shot(args):
         for o in parts:
             if o.name.startswith('Housing'):
                 o.hide_render = True
+    elif science and template in TEMPLATES:
+        driver = science.get('driver')
+        if driver == 'asset_motion':
+            report['checks']['motion'] = prepare_motion(cfg,count,args.fps)
+        elif driver == 'data_tracks':
+            if any(t['object'] not in original for t in shot.get('tracks', []) + shot.get('mesh_tracks', [])):
+                raise ValueError('Science tracks may only address assembly parts')
+            report['checks']['motion'] = prepare_data_tracks(shot,count)
     elif template != 'overall':
         raise ValueError('Unknown shot template: '+template)
     visible = [o for o in parts if not o.hide_render]
@@ -764,8 +781,16 @@ def render_shot(args):
         offset = float(plane.get('offset', 0))
         sign = -1 if plane['side'] == 'negative' else 1
         cutter_location = [0, 0, 0]
-        cutter_location['xyz'.index(plane['axis'])] = offset + sign * .5
-        bpy.ops.mesh.primitive_cube_add(size=1, location=cutter_location)
+        cutter_size = 1
+        if science:
+            extent = 0
+            for frame in range(1, count+1):
+                scene.frame_set(frame)
+                extent = max(extent, *(abs(coordinate) for obj in visible for vertex in obj.bound_box
+                                       for coordinate in obj.matrix_world @ Vector(vertex)))
+            cutter_size = 2 * max(extent + abs(offset), 1e-6) * 1.1
+        cutter_location['xyz'.index(plane['axis'])] = offset + sign * cutter_size / 2
+        bpy.ops.mesh.primitive_cube_add(size=cutter_size, location=cutter_location)
         cutter = bpy.context.object
         cutter.name = 'TeachingSectionCutter'
         cutter.hide_render = True
@@ -783,8 +808,9 @@ def render_shot(args):
             modifier.solver = 'EXACT'
             modifier.object = cutter
         report['section'] = dict(plane, method='Boolean difference after prescribed deformation')
-    frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] else [1]
-    cam = frame_camera(visible, frames, top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
+    frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] or science else [1]
+    cam = frame_camera(visible, [1] if template == 'camera_follow' else frames,
+                       top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
                        direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0),
                        focus_region=shot.get('camera_focus_region'))
     if shot.get('check_pairs'):
@@ -809,20 +835,38 @@ def render_shot(args):
         import studio_style
         report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam,
                                                    shot.get('studio_lighting'))
+    if science:
+        camera_path = science.get('camera_path')
+        if camera_path:
+            camera_motion(scene, cam, camera_path, count, linear_action)
+            report['checks']['editorial_camera'] = {'poses': len(camera_path), 'scope': 'Authored moving 3D frame; surrounding parts may crop'}
+        if science.get('guides'):
+            report['checks']['editorial_guides'] = add_guides(scene, visible, science['guides'], count, linear_action)
+        if science.get('print_marks'):
+            add_print(visible, science['print_marks'])
+        if template == 'camera_follow':
+            science_scene.follow_camera(scene, cam, visible, science['follow'], count, linear_action)
+        if template in {'motion_trace', 'field_visualization', 'flow_visualization'}:
+            report['checks']['science_geometry'] = science_scene.add_curves(shot, scene, count, visible, linear_action)
+        if science.get('anchors'):
+            report['screen_anchors'] = science_scene.project(scene, cam, visible, science['anchors'], count)
     # Projection only: this does not prove lack of occlusion or visual comprehension.
     margin = 1
     for f in range(1,count+1):
         scene.frame_set(f)
         focus = shot.get('camera_focus_region')
-        projected = ([('editorial_focus_region', point) for point in camera_region_points(focus)]
+        projected = ([] if science and science.get('camera_path') else
+                     [('editorial_focus_region', point) for point in camera_region_points(focus)]
                      if focus else [(o.name, o.matrix_world @ Vector(v))
                                     for o in visible for v in o.bound_box])
         for name, point in projected:
             p = world_to_camera_view(scene,cam,point)
             margin = min(margin,p.x,p.y,1-p.x,1-p.y)
             assert p.z > 0 and 0.01 <= p.x <= 0.99 and 0.01 <= p.y <= 0.99, (name,f,list(p))
-    report['checks']['min_projected_margin'] = margin
-    report['checks']['projection_scope'] = ('Editorial focus region only; surrounding assembly intentionally extends outside detail framing'
+    moving_frame = science and science.get('camera_path')
+    report['checks']['min_projected_margin'] = None if moving_frame else margin
+    report['checks']['projection_scope'] = ('Authored moving crop; no whole-subject projection check' if moving_frame else
+                                            'Editorial focus region only; surrounding assembly intentionally extends outside detail framing'
                                             if shot.get('camera_focus_region') else 'Whole assembly bounding boxes')
     if shot.get('camera_focus_region'):
         report['camera_focus_region'] = shot['camera_focus_region']
@@ -836,7 +880,7 @@ def render_shot(args):
     # Keyframes/short-motion previews are independently inspectable before full rendering.
     if args.keys:
         selected = frames
-    elif template in ['overall','detail','exploded']:
+    elif template in ['overall','detail','exploded'] and not science:
         selected = [count if template == 'exploded' else 1]
     else:
         selected = range(1,count+1)

@@ -1,0 +1,39 @@
+{
+  "id": "planetary-teaching-v1",
+  "kind": "verified-simple-teaching-assembly",
+  "units": "arbitrary proportional units; module = 0.1",
+  "source": "Existing CC0 teaching assembly; see assembly.json and vendor source record",
+  "license": "CC0-1.0 for new scene; generator GPL-2.0-or-later",
+  "sun_teeth": 18,
+  "planet_teeth": 18,
+  "ring_teeth": 54,
+  "planet_count": 3,
+  "module": 0.1,
+  "motion": {"template": "willis-fixed-ring-v1", "fixed": "Ring", "input": "Sun", "output": "Carrier", "sun_revolutions_per_second": 0.25},
+  "required_parts": ["Sun", "Planet_1", "Planet_2", "Planet_3", "Ring", "Carrier", "Housing_lower", "Housing_upper", "Input_shaft"],
+  "unverified": ["Industrial product geometry, tooth contact, loads, friction and manufacturing tolerances"],
+  "reuse": {
+    "version": 1,
+    "mechanism_id": "planetary-teaching-fixed-ring",
+    "license": "CC0-1.0 for new scene; generator GPL-2.0-or-later",
+    "scope": "Fixed-ring textbook teaching rig only",
+    "units": "scene units",
+    "sources": [{"path": "tests/fixtures/production/assembly.json", "sha256": "9295fd49f42ce481fe8b922a27d04713be0d236e60f27c1f6d9bef37230119c9", "position": "geometry, tooth counts and exclusions"}],
+    "generator": {"path": "blender/vendor/SOURCES.json", "sha256": "27bc79f85a960c9ff8467a5366fc01b9f8f4059f3094c98886a4e2d72fce8633", "position": "gear add-on source and license"},
+    "limitations": ["No contact or load simulation", "No commercial product correspondence"],
+    "parts": {
+      "Sun": {"parent": null, "material": "amber metal"},
+      "Planet_1": {"parent": "Carrier", "material": "blue metal"},
+      "Planet_2": {"parent": "Carrier", "material": "blue metal"},
+      "Planet_3": {"parent": "Carrier", "material": "blue metal"},
+      "Ring": {"parent": null, "material": "silver metal"},
+      "Carrier": {"parent": null, "material": "green metal"},
+      "Housing_lower": {"parent": null, "material": "graphite metal"},
+      "Housing_upper": {"parent": null, "material": "graphite metal"},
+      "Input_shaft": {"parent": "Sun", "material": "amber metal"}
+    },
+    "controls": {
+      "fixed_ring": {"driver": "asset_motion", "parts": ["Sun", "Planet_1", "Planet_2", "Planet_3", "Ring", "Carrier", "Input_shaft"], "dof": "1 prescribed input about +Z", "constraint": "Fixed ring; Willis relation in carrier frame"}
+    }
+  }
+}

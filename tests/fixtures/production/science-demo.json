@@ -1,0 +1,54 @@
+{
+  "id": "science-template-demo",
+  "asset": "planetary-teaching-v1",
+  "assembly_config": "tests/fixtures/production/science-demo-assembly.json",
+  "render_route": "3d",
+  "production_scope": "pipeline-test",
+  "narration_profile": "config/narration-neil.json",
+  "presentation": "mechanism-fullframe",
+  "title": "固定齿圈，为什么能减速？",
+  "subtitle": "同一教学装配的拆解和运动",
+  "render": {"width": 1920, "height": 1080, "fps": 30, "video": "h264", "audio": "aac", "framing": "fullframe", "chunk_frames": 12},
+  "shots": {
+    "reveal": {
+      "template": "exploded_view", "seconds": 4,
+      "visual_profile": "printer-ep03-studio-v1", "studio_lighting": {"floor_color": [0.34, 0.38, 0.42]},
+      "camera_direction": [0.95, -1, 0.65],
+      "visible_parts": ["Housing_upper", "Housing_lower", "Sun", "Sun|marker", "Ring", "Carrier", "Planet_1", "Planet_2", "Planet_3"],
+      "tracks": [{"object": "Housing_upper", "poses": [{"progress": 0, "location": [0, 0, 0.82]}, {"progress": 0.12, "location": [0, 0, 0.82]}, {"progress": 0.85, "location": [0, 0, 4.15]}, {"progress": 1, "location": [0, 0, 4.15]}]}],
+      "science": {
+        "version": 1, "driver": "data_tracks", "mode": "conceptual",
+        "scope": "Editorial separation of the teaching housing; not an industrial procedure",
+        "basis": [{"path": "tests/fixtures/production/science-basis.md", "sha256": "be1ccd3240fbffaa565c4e6aa17cfcd9c9aab16118f40eaa61f1c824a8dc26b3", "position": "Teaching rig paragraph 1"}]
+      }
+    },
+    "trace": {
+      "template": "motion_trace", "seconds": 7,
+      "visual_profile": "printer-ep03-studio-v1", "studio_lighting": {"floor_color": [0.34, 0.38, 0.42]},
+      "camera_direction": [0.26, -0.55, 1],
+      "science": {
+        "version": 1, "driver": "asset_motion", "control": "fixed_ring", "mode": "mathematical",
+        "scope": "Ideal pitch-circle motion; the raised center trace is editorial, not a contact simulation",
+        "basis": [{"path": "tests/fixtures/production/science-basis.md", "sha256": "be1ccd3240fbffaa565c4e6aa17cfcd9c9aab16118f40eaa61f1c824a8dc26b3", "position": "Carrier-frame derivation and limitations"}],
+        "anchors": {"planet": {"object": "Planet_1", "local": [0, 0, 0.24]}, "orbit": {"object": "Planet_1", "local": [0, 0, 0.70]}},
+        "trace": "orbit", "color": [0.04, 0.47, 0.88], "radius": 0.044
+      }
+    }
+  },
+  "storyboard": [
+    {"id": "reveal", "shot": "reveal", "seconds": 4, "label": "打开外壳", "note": "盖板移开后能看见齿圈", "accent": "#8dc4dc",
+      "narration": ["打开外壳，你会看到一圈内齿。"], "subtitles": ["打开外壳，你会看到一圈内齿。"]},
+    {"id": "trace", "shot": "trace", "seconds": 7, "label": "轨迹与减速", "note": "固定齿圈，行星架慢转", "accent": "#8dc4dc",
+      "narration": ["齿圈固定。太阳轮转四圈，行星架只转一圈。"],
+      "subtitles": ["齿圈固定。太阳轮转四圈，行星架只转一圈。"],
+      "information": [
+        {"type": "label", "anchor": "planet", "text": "行星轮", "box": [96, 164, 344, 270], "time": [0.25, 7]},
+        {"type": "note", "text": "蓝线：轮心轨迹", "box": [640, 804, 1220, 914], "time": [1, 4.8]},
+        {"type": "note", "text": "转角比 4:1", "box": [640, 804, 1220, 914], "time": [4.8, 7]},
+        {"type": "value", "prefix": "行星架", "unit": "°", "digits": 1, "samples": [[0, 0], [1, 157.5]], "box": [96, 804, 570, 914], "time": [0, 7],
+          "basis": {"path": "tests/fixtures/production/science-basis.md", "sha256": "be1ccd3240fbffaa565c4e6aa17cfcd9c9aab16118f40eaa61f1c824a8dc26b3", "position": "22.5 degrees/s times elapsed time"}},
+        {"type": "value", "prefix": "太阳轮", "unit": "°", "digits": 1, "samples": [[0, 0], [1, 630]], "box": [1320, 804, 1840, 914], "time": [0, 7],
+          "basis": {"path": "tests/fixtures/production/science-basis.md", "sha256": "be1ccd3240fbffaa565c4e6aa17cfcd9c9aab16118f40eaa61f1c824a8dc26b3", "position": "90 degrees/s times elapsed time"}}
+      ]}
+  ]
+}

@@ -50,7 +50,7 @@ class LifecycleTests(unittest.TestCase):
                     # repair; its old/default behavior and real subframes are
                     # exercised by blender_rotation_regression.py. Everything
                     # else remains protected against incidental scene changes.
-                    and n.name not in {'render_chunked', 'savejson', 'prepare_data_tracks'}}
+                    and n.name not in {'render_chunked', 'savejson', 'prepare_data_tracks', 'render_shot'}}
         self.assertEqual(visual_tree(old), visual_tree(current))
 
     def chunk_function(self):

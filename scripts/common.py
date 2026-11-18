@@ -19,14 +19,14 @@ def filehash(path):
             h.update(chunk)
     return h.hexdigest()
 
-def codehash(*paths):
+def codehash(*paths, equivalents=True):
     files = []
     for p in paths:
         p = ROOT / p
         files += sorted(p.rglob('*.py')) if p.is_dir() else [p]
     hashes = {str(p.relative_to(ROOT)): filehash(p) for p in files}
     equivalence = ROOT/'config/cache-code-equivalence.json'
-    if equivalence.exists():
+    if equivalents and equivalence.exists():
         for name, item in json.loads(equivalence.read_text()).items():
             if hashes.get(name) == item['current_sha256']:
                 hashes[name] = item['media_equivalent_sha256']
