@@ -1,29 +1,75 @@
-import React from 'react';
-import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import React, {useLayoutEffect, useRef} from 'react';
+import {AbsoluteFill, OffthreadVideo, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 
-type Graphic = {
-  type: 'diagram' | 'comparison' | 'chart' | 'timeline';
+export type Graphic = {
+  type: 'diagram' | 'comparison' | 'chart' | 'timeline' | 'data_animation';
   title: string;
-  items: {label: string; detail: string; value?: number}[];
+  items: {label: string; detail: string; value?: number; keyframes?: [number,number][]}[];
   unit?: string;
   formula?: string;
+  domainMax?: number;
 };
+export type SplitScreenSpec = {sources:[{media:string;startFrame:number;credit:string},{media:string;startFrame:number;credit:string}]};
 export type VisualProps = {
   graphic?: Graphic;
   footage?: {startFrame: number; credit: string};
   chapter?: string;
+  splitScreen?: SplitScreenSpec;
 };
 
 const colors = ['#236c87', '#996226', '#39716a', '#586378'];
 const enter = (frame: number, start: number, length: number) =>
   interpolate(frame, [start, start+length], [0, 1], {extrapolateLeft:'clamp', extrapolateRight:'clamp'});
 
+// A minimum of 64 canvas pixels corresponds to 12 px at a 360 px preview.
+const PhoneText: React.FC<{text:string; style?:React.CSSProperties}> = ({text,style}) => {
+  const ref=useRef<HTMLDivElement>(null);
+  useLayoutEffect(()=>{
+    const el=ref.current!;
+    if(!text || /[\r\n]/.test(text) || parseFloat(getComputedStyle(el).fontSize)<64 ||
+       el.scrollWidth>el.clientWidth+1 || el.scrollHeight>el.clientHeight+1)
+      throw new Error(`Phone text does not fit: ${text} (${getComputedStyle(el).fontSize}, ${el.scrollWidth}x${el.scrollHeight} / ${el.clientWidth}x${el.clientHeight})`);
+  },[text]);
+  return <div ref={ref} style={{fontSize:64,lineHeight:1.5,whiteSpace:'nowrap',overflow:'hidden',...style}}>{text}</div>;
+};
+
+export const SplitScreen: React.FC<{spec:SplitScreenSpec}> = ({spec}) => <AbsoluteFill style={{background:'#223139'}}>
+  {spec.sources.map((source,i)=><div key={i} style={{position:'absolute',left:`${i*50}%`,top:0,width:'50%',height:'100%',overflow:'hidden'}}>
+    <OffthreadVideo src={staticFile(source.media)} trimBefore={source.startFrame} muted style={{width:'100%',height:'100%',objectFit:'contain'}}/>
+    <PhoneText text={source.credit} style={{position:'absolute',left:32,width:896,bottom:220,color:'white',textShadow:'0 2px 6px black'}}/>
+  </div>)}
+</AbsoluteFill>;
+
+const DataAnimation: React.FC<{graphic:Graphic}> = ({graphic}) => {
+  const frame=useCurrentFrame(); const {fps}=useVideoConfig();
+  const all=graphic.items.flatMap(item=>item.keyframes??[]);
+  if(graphic.items.length<2 || graphic.items.length>4 || !graphic.unit ||
+      graphic.items.some(item=>!item.keyframes || item.keyframes.length<2 || item.keyframes.some((p,i,a)=>
+        p.length!==2 || !Number.isFinite(p[0]) || !Number.isFinite(p[1]) || p[0]<0 || p[1]<0 || (i>0 && p[0]<=a[i-1][0]))))
+    throw new Error('Invalid data animation keyframes');
+  const max=graphic.domainMax??Math.max(...all.map(p=>p[1]),1);
+  if(!Number.isFinite(max) || max<=0 || all.some(p=>p[1]>max)) throw new Error('Invalid data animation domain');
+  return <AbsoluteFill style={{background:'#e6eaed',color:'#172b35',padding:'145px 128px 190px'}}>
+    <PhoneText text={graphic.title} style={{fontWeight:700,marginBottom:24}}/>
+    {graphic.items.map((item,i)=>{
+      const points=item.keyframes!; const value=interpolate(frame/fps,points.map(p=>p[0]),points.map(p=>p[1]),{extrapolateLeft:'clamp',extrapolateRight:'clamp'});
+      return <div key={i} style={{height:145,display:'grid',gridTemplateColumns:'410px 1fr 330px',gap:20,alignItems:'center'}}>
+        <PhoneText text={item.label} style={{fontWeight:700}}/>
+        <div style={{height:36,background:'#cbd5d9'}}><div style={{height:'100%',width:`${value/max*100}%`,background:colors[i]}}/></div>
+        <PhoneText text={`${Number(value.toFixed(2))} ${graphic.unit}`} style={{fontVariantNumeric:'tabular-nums',textAlign:'right'}}/>
+      </div>;
+    })}
+    {graphic.formula && <PhoneText text={graphic.formula} style={{position:'absolute',left:128,width:1664,bottom:135,fontWeight:700}}/>}
+  </AbsoluteFill>;
+};
+
 export const VisualGraphic: React.FC<{graphic: Graphic; seconds: number}> = ({graphic,seconds}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const {type, title, items, unit, formula} = graphic;
+  if(type==='data_animation') return <DataAnimation graphic={graphic}/>;
   const chart = type === 'chart';
-  const maximum = chart ? Math.max(...items.map(item=>item.value!)) : 1;
+  const maximum = chart ? Math.max(...items.map(item=>item.value!)) || 1 : 1;
   const stagger = Math.min(.38, seconds / (items.length+2));
   return <AbsoluteFill style={{background:'#e6eaed',color:'#172b35',padding:'244px 128px 196px'}}>
     <div style={{fontSize:66,fontWeight:700,lineHeight:1.16,marginBottom:56}}>{title}</div>

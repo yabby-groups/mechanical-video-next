@@ -10,7 +10,7 @@ type Note = Window & {type:'note';text:string};
 type Value = Window & {type:'value';prefix:string;unit:string;digits:number;samples:Point[]};
 type Inset = Window & {type:'inset';crop:Box};
 type ScreenAnchors = {fps:number;frame_count:number;samples:Record<string,(Point|null)[]>};
-export type ShotInfo = {information?:(Label|Note|Value|Inset)[];screenAnchors?:ScreenAnchors;scienceLabel?:string;media:string;kind:'image'|'video'};
+export type ShotInfo = {information?:(Label|Note|Value|Inset)[];screenAnchors?:ScreenAnchors;scienceLabel?:string;media:string;kind:'image'|'video';footage?:{startFrame:number;credit:string}};
 
 const layer = (type: string):TextLayer => type==='label'?'part':type==='value'?'numeric':'principle';
 const visibleItems = (shot:ShotInfo, frame:number, fps:number) => (shot.information??[]).filter(item=>{
@@ -32,8 +32,11 @@ export const informationRegions=(shot:ShotInfo,frame:number,fps:number) => [
 const sampleValue=(item:Value,frame:number,fps:number)=>{
   const progress=(frame/fps-item.time[0])/(item.time[1]-item.time[0]);
   const upper=item.samples.findIndex(sample=>sample[0]>progress);
-  const [start,end]=item.samples.slice(Math.max(0,upper-1),upper+1);
-  const value=start[1]+(end[1]-start[1])*(progress-start[0])/(end[0]-start[0]);
+  const first=item.samples[0], last=item.samples[item.samples.length-1];
+  const value=upper===0 ? first[1] : upper===-1 ? last[1] : (()=>{
+    const start=item.samples[upper-1], end=item.samples[upper];
+    return start[1]+(end[1]-start[1])*(progress-start[0])/(end[0]-start[0]);
+  })();
   return `${item.prefix} ${value.toFixed(item.digits)}${item.unit}`;
 };
 
@@ -43,7 +46,7 @@ const FocusInset:React.FC<{item:Inset;shot:ShotInfo;width:number;height:number}>
   const scale=Math.min((right-left)/((cropRight-cropLeft)*width),(bottom-top)/((cropBottom-cropTop)*height));
   const mediaStyle={position:'absolute' as const,left:-cropLeft*width*scale,top:-cropTop*height*scale,width:width*scale,height:height*scale};
   return <div style={{position:'absolute',left,top,width:(cropRight-cropLeft)*width*scale,height:(cropBottom-cropTop)*height*scale,overflow:'hidden',outline:'2px solid #fff'}}>
-    {shot.kind==='image'?<Img src={staticFile(shot.media)} style={mediaStyle}/>:<OffthreadVideo src={staticFile(shot.media)} muted style={mediaStyle}/>}
+    {shot.kind==='image'?<Img src={staticFile(shot.media)} style={mediaStyle}/>:<OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.footage?.startFrame} muted style={mediaStyle}/>}
   </div>;
 };
 

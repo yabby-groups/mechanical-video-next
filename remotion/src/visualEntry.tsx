@@ -2,7 +2,7 @@ import React from 'react';
 import {AbsoluteFill, Audio, Composition, OffthreadVideo, Sequence, registerRoot, staticFile, useCurrentFrame} from 'remotion';
 import {TextOverlay, defaultTextStyle, TextStyle, Annotation, TextLayer, assertOverlayRegions} from './TextOverlay';
 import {ShotInfo, ShotInformation, informationRegions} from './ShotInformation';
-import {ChapterTransition, VisualGraphic, VisualProps} from './VisualNarrative';
+import {ChapterTransition, SplitScreen, VisualGraphic, VisualProps} from './VisualNarrative';
 
 type Cue = {start: number; end: number; text: string};
 type Shot = ShotInfo & VisualProps & {id: string; seconds: number; audio: string};
@@ -27,7 +27,7 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
   if(cues.length) regions.push({layer:'subtitle'});
   assertOverlayRegions(regions,profile,p.width,p.height,p.critical_boxes);
   return <AbsoluteFill style={{background:'#223139',color:'white',fontFamily:'PingFang SC, sans-serif'}}>
-    {shot.graphic ? <VisualGraphic graphic={shot.graphic} seconds={shot.seconds}/> :
+    {shot.graphic ? <VisualGraphic graphic={shot.graphic} seconds={shot.seconds}/> : shot.splitScreen ? <SplitScreen spec={shot.splitScreen}/> :
       <OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.footage?.startFrame} muted
         style={{width:'100%',height:'100%',objectFit:'contain'}}/>}
     <Audio src={staticFile(shot.audio)}/>
