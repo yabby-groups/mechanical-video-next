@@ -1,5 +1,13 @@
 # Configuration-driven 3D science shots
 
+Current production rules are in [production-contract.md](production-contract.md).
+The initial increment and its measured demo below are historical evidence, not
+the latest acceptance result. This upgrade also adds shared monotone time maps,
+animated opacity, evaluated geometric constraints and flexible strip geometry;
+the current capability audit and full-film evidence are linked from
+[the upgrade report](productions/workflow-upgrade-20261118.md). These remain
+prescribed teaching animations, not contact, material or field simulations.
+
 This is an opt-in extension of the current Producer, asset builder, EAS/Blender,
 Remotion, provenance verifier and shot cache. No alternate route, scheduler,
 solver or acceptance system is involved. The first regression uses the existing
