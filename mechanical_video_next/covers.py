@@ -63,6 +63,10 @@ def prepare(task, paths=None):
         if analysis.get('suitability') not in ('PASS', 'FAIL', 'UNKNOWN') or not analysis.get('reason'):
             raise ValueError('Cover requires route suitability and reason')
     title = plan.get('title', [])
+    alignment = plan.get('image_alignment', {})
+    if (not isinstance(alignment, dict) or set(alignment) - {'portrait', 'landscape'}
+            or any(value not in {'top', 'center'} for value in alignment.values())):
+        raise ValueError('Cover image alignment must be top/center per portrait/landscape')
     if not isinstance(title, list) or not 1 <= len(title) <= 2 or any(not isinstance(s, str) or not s.strip() or len(s) > 24 for s in title):
         raise ValueError('Cover title must contain 1-2 nonempty short lines (at most 24 characters each)')
     for key in ('series', 'copy_rationale', 'frame_rationale'):
@@ -97,10 +101,14 @@ def prepare(task, paths=None):
         crop = c.get('source_crop', [0,0,1,1])
         if not isinstance(crop, list) or len(crop) != 4 or not all(isinstance(x, (int,float)) and math.isfinite(x) for x in crop) or not (0 <= crop[0] <= box[0] < box[2] <= crop[2] <= 1 and 0 <= crop[1] <= box[1] < box[3] <= crop[3] <= 1):
             raise ValueError('Cover crop must preserve the important subject_box')
+    if plan.get('portrait_detail_candidate') is not None:
+        if (plan['portrait_detail_candidate'] not in identifiers
+                or not str(plan.get('portrait_detail_label', '')).strip()):
+            raise ValueError('Portrait detail must reference an actual candidate and a short label')
     return plan, sources, selected
 
 
-def compose(source, target, size, plan, box):
+def compose(source, target, size, plan, box, detail=None):
     """Contain the complete frame beneath a separate title band; never crop mechanics."""
     width, height = size
     canvas = Image.new('RGB', size, '#20252b')
@@ -119,6 +127,9 @@ def compose(source, target, size, plan, box):
         scale = min((width-80)/im.width, (height-band-60)/im.height)
         resized = im.resize((round(im.width*scale), round(im.height*scale)), Image.Resampling.LANCZOS)
         x, y = (width-resized.width)//2, band+(height-band-resized.height)//2
+        alignment = plan.get('image_alignment', {}).get('portrait' if height > width else 'landscape', 'center')
+        if alignment == 'top' or (detail and height > width):
+            y = band + 30
         canvas.paste(resized, (x,y))
         subject_width = (box[2]-box[0])*resized.width/width
         subject_height = (box[3]-box[1])*resized.height/height
@@ -127,9 +138,32 @@ def compose(source, target, size, plan, box):
             problems.append('Mechanical subject too small in composition')
         if max(ImageStat.Stat(im.resize((64,64))).stddev) < 4:
             problems.append('Source frame is blank or lacks visible structure')
+    detail_fraction = None
+    if detail and height > width:
+        label_font = ImageFont.truetype(fp, 48)
+        label = plan['portrait_detail_label']
+        if draw.textlength(label, font=label_font) > width-120:
+            raise ValueError('Portrait detail label exceeds safe width')
+        top = y + resized.height + 28
+        draw.text((60, top), label, font=label_font, fill='#ecbc72')
+        top += 72
+        with Image.open(detail[0]) as image:
+            available = height-top-60
+            if available < 120:
+                raise ValueError('Portrait detail has insufficient space')
+            scale = min((width-80)/image.width, available/image.height)
+            image = image.convert('RGB').resize((round(image.width*scale), round(image.height*scale)), Image.Resampling.LANCZOS)
+            canvas.paste(image, ((width-image.width)//2, top))
+            bounds = detail[1]
+            detail_fraction = [(bounds[2]-bounds[0])*image.width/width,
+                               (bounds[3]-bounds[1])*image.height/height]
+            if detail_fraction[0] < .20 or detail_fraction[1] < .15:
+                problems.append('Portrait detail subject too small in composition')
     canvas.save(target, format='PNG')
     return {'status': 'FAIL' if problems else 'UNKNOWN', 'issues': problems,
             'layout': 'Full source frame contained below separate title band; no mechanical crop',
+            'image_alignment': alignment,
+            'detail_subject_fraction': detail_fraction,
             'subject_fraction': [subject_width, subject_height]}
 
 
@@ -137,9 +171,28 @@ def generate(task, paths=None):
     task = Path(task).resolve()
     plan, sources, selected = prepare(task, paths)
     folder = task/'cover'; folder.mkdir(exist_ok=True)
+    if (folder/'cover-report.json').is_file():
+        try:
+            # Preserve exact-report independent QA on unchanged inputs. QA-image
+            # cache timing is not a change to the cover or its provenance.
+            return validate(task, paths=paths)
+        except (ValueError, OSError, KeyError):
+            pass
     candidates_dir = folder/'candidates'; candidates_dir.mkdir(exist_ok=True)
     outputs = []; compositions = {}
     with tempfile.TemporaryDirectory() as tmp:
+        detail = None
+        detail_candidate = next((c for c in plan['candidates'] if c['id'] == plan.get('portrait_detail_candidate')), None)
+        if detail_candidate:
+            detail_path = Path(tmp)/'detail.png'
+            subprocess.run(['ffmpeg','-v','error','-nostdin','-y','-ss',str(detail_candidate['seconds']),
+                            '-i',sources[detail_candidate['route']]['path'],'-frames:v','1','-update','1',str(detail_path)],
+                           check=True, capture_output=True)
+            crop = detail_candidate.get('source_crop', [0,0,1,1])
+            with Image.open(detail_path) as image:
+                image.crop(tuple(round(v*(image.width if i%2==0 else image.height)) for i,v in enumerate(crop))).save(Path(tmp)/'detail-crop.png')
+            box = detail_candidate['subject_box']
+            detail = (Path(tmp)/'detail-crop.png', [(box[i]-crop[i%2])/(crop[2+i%2]-crop[i%2]) for i in range(4)])
         for candidate in plan['candidates']:
             frame = Path(tmp)/'frame.png'
             subprocess.run(['ffmpeg','-v','error','-nostdin','-y','-ss',str(candidate['seconds']),
@@ -154,7 +207,7 @@ def generate(task, paths=None):
                 box = [(box[i]-crop[i%2])/(crop[2+i%2]-crop[i%2]) for i in range(4)]
             for name, size in SIZES.items():
                 target = candidates_dir/(candidate['id']+'-'+name)
-                composition = compose(frame, target, size, plan, box)
+                composition = compose(frame, target, size, plan, box, detail=detail if candidate == selected else None)
                 if candidate.get('source_crop'):
                     composition['layout'] = 'Approved source region contained below title; important subject_box preserved without stretching'
                     composition['source_crop'] = candidate['source_crop']
@@ -169,6 +222,7 @@ def generate(task, paths=None):
               'source_media': sources, 'plan': binding(task/'cover-plan.json'), 'generator': binding(__file__),
               'font': binding(plan.get('font_path') or font_path()),
               'selected_candidate': selected, 'title': plan['title'], 'rationale': plan,
+              'portrait_detail_candidate': detail_candidate,
               'compositions': compositions, 'artifacts': outputs, 'visual_evidence': qa_previews,
               'growth_goals': {'retention': '准确预告视频兑现的问题', 'engagement': '突出关键机械关系',
                                'following': '统一系列标题与视觉'},

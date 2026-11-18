@@ -1,6 +1,6 @@
 # 必交封面
 
-新增长契约任务的三路线完成后，Producer 先确定编辑推荐版本（不等于批准发布），在任务目录写 `cover-plan.json`，再运行：
+当前任务按账本中实际请求的路线生成封面。新制作只有兼容入口 `3d`，混合媒体身份由生产契约决定；下文旧三路线示例只解释历史任务。完整视频落盘后，Producer 先确定编辑推荐版本（不等于批准发布），在任务目录写 `cover-plan.json`，再运行：
 
 ```sh
 uv run python -m mechanical_video_next.covers output/tasks/<task>
@@ -38,6 +38,12 @@ route-run 会在视频与对比片落盘、路线登记完成后调用增长报�
 `subject_box` 是原始帧中必须保留的重要机械结构外框，归一化 `[left, top, right, bottom]`。候选只能来自当前三版实际视频，时间点须在实际时长内。标题限1～2行、每行最多24字符，并检查实际字体像素宽度。可以指定 `font_path`，默认使用系统中文字体。
 
 输出在任务最终交付根目录的 `cover/`：`portrait_cover_3x4.png`（1080×1440）、`landscape_cover_4x3.png`（1440×1080）、`cover-report.md`、`cover-report.json` 和 `candidates/`。两个版式均完整保留来源帧并按比例居中缩放，标题使用独立色带，避免遮挡机械。报告记录各比例主体占比、布局、候选、标题理由、推荐依据、来源视频及哈希。不能用导出成功证明语义或视觉合格。
+
+新方案可显式设置 `image_alignment: {"portrait":"top","landscape":"center"}`。
+竖版可用 `portrait_detail_candidate` 指向同一方案中已验证的实际候选，配合
+`portrait_detail_label` 显示相关局部；仍从候选绑定的视频、时间点和裁区取帧，
+保留主体边界，不生成虚构细节。横版继续单图。省略时保持历史布局。
+输入和产物哈希不变时重复生成复用原报告，避免无关缓存计时使独立 QA 过期。
 
 独立 QA 写 `cover/cover-qa.json`，必须提供 `independent_reviewer: true`、真实 `reviewer_thread_id`、当前 `cover-report.json` 的 `report_sha256`，以及 `cover_checks` 对象。检查键：
 
