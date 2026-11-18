@@ -203,6 +203,10 @@ def centerline_strip(points, width, normal):
 
 
 def validate_editorial_geometry(spec):
+    if 'camera_clip' in spec:
+        clip = spec['camera_clip']
+        if not vector(clip, 2) or not 0 < clip[0] < clip[1]:
+            raise ValueError('Camera clip requires positive increasing near/far distances')
     if 'stage_rotation' in spec and not vector(spec['stage_rotation'], 3):
         raise ValueError('Stage rotation requires a finite XYZ Euler triple')
     if 'camera_path' in spec:

@@ -13,6 +13,12 @@ writing-desk helper is opt-in. Reviewed default-path differences:
 - Retiming and its report field execute only with `science.time_map`.
 - Science preparation, motion, opacity, constraints, camera paths, guides and
   projections execute only when `science` is present.
+- The subsequent `science.camera_clip` repair is inside that same guarded
+  branch and requires the explicit option. It changes no legacy path; science
+  source hashes still invalidate affected render keys. A real saved operation
+  scene at frame 106 reproduced coating/text depth conflicts with clipping
+  0.1–1000 and removed them at 29–31 without altering geometry. This frame is
+  diagnostic evidence, not acceptance of a film.
 - Context props execute only with an explicit `context` declaration.
 - Legacy section cutting retains cube size 1; adaptive cutting is science-only.
 - The extra camera branch names the new `camera_follow` template; prior templates

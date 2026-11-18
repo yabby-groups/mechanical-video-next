@@ -114,6 +114,11 @@ For an in-scene macro, `science.camera_path` accepts ordered keys with
 this path. Moving close-ups deliberately crop the surroundings, so inspect crop
 and occlusion in the preview instead of treating assembly bounds as a QA pass.
 `science.stage_rotation` rotates the shot as a unit without editing the CAD.
+For thin overlapping surfaces, opt in to `science.camera_clip: [near, far]`
+using positive increasing distances in scene units. Bound the entire animated
+subject between those planes; a tighter depth range can prevent render depth
+conflicts without changing the geometry. The distances are recorded in shot
+checks. Historical shots without this option retain their original clipping.
 
 `science.guides` supports `arrow`, `dashed` and `marker`, with a linear RGB
 `color`, scene-unit `width`, an optional normalized `window`, and one or two

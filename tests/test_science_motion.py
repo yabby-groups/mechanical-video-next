@@ -60,6 +60,12 @@ def owner(curves, *, layered=False):
 
 
 class ScienceMotion(unittest.TestCase):
+    def test_camera_depth_range_rejects_nonfinite_reversed_or_zero_planes(self):
+        science_shots.validate_editorial_geometry({'camera_clip': [29, 31]})
+        for clip in ([0, 31], [31, 29], [29, 29], [True, 31], [29, float('inf')], [29]):
+            with self.subTest(clip=clip), self.assertRaisesRegex(ValueError, 'Camera clip'):
+                science_shots.validate_editorial_geometry({'camera_clip': clip})
+
     def setUp(self):
         self.shot = {'science': {'driver': 'data_tracks'}}
         self.mapping = [[0, 0], [.25, .5], [.5, .5], [1, 1]]

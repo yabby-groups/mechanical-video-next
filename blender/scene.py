@@ -889,6 +889,11 @@ def render_shot(args):
         if camera_path:
             camera_motion(scene, cam, camera_path, count, linear_action)
             report['checks']['editorial_camera'] = {'poses': len(camera_path), 'scope': 'Authored moving 3D frame; surrounding parts may crop'}
+        if 'camera_clip' in science:
+            # Small layered surfaces need a bounded depth range to avoid z-fighting.
+            # Explicit opt-in leaves historical cameras unchanged.
+            cam.data.clip_start, cam.data.clip_end = science['camera_clip']
+            report['checks']['camera_clip'] = list(science['camera_clip'])
         if science.get('guides'):
             report['checks']['editorial_guides'] = add_guides(scene, visible, science['guides'], count, linear_action)
         if science.get('print_marks'):
