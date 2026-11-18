@@ -1628,6 +1628,27 @@ def require_animatic(task):
     return check_qa(task, 'animatic-qa', acceptance=False)
 
 
+def check_core_motion_inputs(config):
+    """Catch constant data tracks before costly renders; this is not motion QA."""
+    from .production_contract import enabled
+    if not enabled(config):
+        return
+    for name, shot in config.get('shots', {}).items():
+        if (shot.get('visual', {}).get('mechanical_role') != 'core'
+                or shot.get('science', {}).get('driver') != 'data_tracks'):
+            continue
+        changed = False
+        for track in shot.get('tracks', []):
+            for channel in ('location', 'rotation_euler', 'rotation_quaternion', 'scale'):
+                values = [pose[channel] for pose in track['poses'] if channel in pose]
+                changed |= bool(values) and any(value != values[0] for value in values[1:])
+        for track in shot.get('mesh_tracks', []):
+            values = [pose['vertices'] for pose in track['poses']]
+            changed |= bool(values) and any(value != values[0] for value in values[1:])
+        if not changed:
+            raise ValueError('Core shot has constant data tracks; camera motion is not mechanism motion: ' + name)
+
+
 def check_production_config(task, config=None):
     """Bind approved story decisions to the actual executable config bytes."""
     data = load(task)
@@ -1698,6 +1719,7 @@ def check_production_config(task, config=None):
     program_sha = digest({k: v for k, v in blueprint.items() if k != 'production_config'})
     if not isinstance(compiled, dict) or compiled.get('blueprint_program_sha256') != program_sha:
         raise ValueError('Production config was not compiled from this exact frozen blueprint program')
+    check_core_motion_inputs(compiled)
 
 
 def advance(task, target):

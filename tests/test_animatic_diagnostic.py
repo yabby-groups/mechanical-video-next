@@ -88,6 +88,37 @@ class AnimaticDiagnosticTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'only permits'):
             w.run_stage(self.task, 'final', self.config, animatic_diagnostic=True, preproduction_qa=self.qa_path)
 
+    def test_constant_core_tracks_fail_before_expensive_render(self):
+        shot = dict(science={'driver': 'data_tracks'}, visual={'mechanical_role': 'core'},
+                    tracks=[dict(object='Core', poses=[dict(progress=0, location=[0, 0, 0]),
+                                                      dict(progress=1, location=[0, 0, 0])])])
+        cfg = dict(production_contract_version=1, production_contract='mixed-original-v1',
+                   media_policy_version=1, visual_policy_version=2, shots={'hold': shot})
+        with self.assertRaisesRegex(ValueError, 'constant data tracks.*hold'):
+            w.check_core_motion_inputs(cfg)
+        shot['tracks'][0]['poses'][1]['location'][0] = .001
+        w.check_core_motion_inputs(cfg)
+
+    def test_core_mesh_changes_count_but_opacity_and_camera_do_not(self):
+        shot = dict(science={'driver': 'data_tracks', 'camera_path': [0, 1],
+                             'opacity_tracks': [{'keys': [[0, 0], [1, 1]]}]},
+                    visual={'mechanical_role': 'core'},
+                    mesh_tracks=[dict(object='Belt', poses=[dict(progress=0, vertices=[[0, 0, 0]]),
+                                                           dict(progress=1, vertices=[[0, 0, 0]])])])
+        cfg = dict(production_contract_version=1, production_contract='mixed-original-v1',
+                   media_policy_version=1, visual_policy_version=2, shots={'hold': shot})
+        with self.assertRaisesRegex(ValueError, 'constant data tracks'):
+            w.check_core_motion_inputs(cfg)
+        shot['mesh_tracks'][0]['poses'][1]['vertices'][0][0] = .001
+        w.check_core_motion_inputs(cfg)
+
+    def test_static_preflight_preserves_legacy_and_structural_shots(self):
+        shot = dict(science={'driver': 'data_tracks'}, visual={'mechanical_role': 'core'})
+        w.check_core_motion_inputs(dict(shots={'historical': shot}))
+        shot['visual']['mechanical_role'] = 'support'
+        w.check_core_motion_inputs(dict(production_contract_version=1, production_contract='mixed-original-v1',
+                                       media_policy_version=1, visual_policy_version=2, shots={'structure': shot}))
+
     def test_stale_config_or_transitive_model_dependency_blocks(self):
         self.config.write_text('{}')
         with self.assertRaisesRegex(ValueError, 'Stale'):

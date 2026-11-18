@@ -142,7 +142,10 @@ budget and chunk encoding remain in place.
 
 With an explicit `scene_artifact_dir`, compact executable shot inputs are
 archived beside the scenes and remain immutable. Cache checks verify their
-hashes as well as rendered outputs.
+hashes as well as rendered outputs. New mixed-original production also rejects
+constant data tracks for a planned core mechanical shot before full rendering;
+camera movement and opacity changes alone do not establish mechanism motion.
+This preflight is necessary validation, not independent motion acceptance.
 
 ## Reproduce the regression
 
