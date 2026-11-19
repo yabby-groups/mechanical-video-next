@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "validated": {},
+  "experiments": {
+    "dolly-contact-reveal": {
+      "status": "EXPERIMENTAL",
+      "study": "output/camera-study/experiment.json",
+      "shot": "output/camera-study/B.shot.json",
+      "sample": "output/camera-study/B.mp4",
+      "visual_effectiveness": "UNKNOWN"
+    },
+    "tracking-contact-data": {
+      "status": "EXPERIMENTAL",
+      "study": "output/camera-study/experiment.json",
+      "shot": "output/camera-study/C.shot.json",
+      "sample": "output/camera-study/C.mp4",
+      "visual_effectiveness": "UNKNOWN"
+    }
+  }
+}

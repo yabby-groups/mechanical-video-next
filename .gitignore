@@ -33,3 +33,4 @@ output/narration-audition/neil-documentary-audition-v1/*
 !/config/text-style.json
 
 !/config/cache-code-equivalence.json
+!/config/cinematic-shots.json

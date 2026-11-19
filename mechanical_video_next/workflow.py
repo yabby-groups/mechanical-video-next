@@ -936,6 +936,11 @@ Before CAD/rendering, each Blueprint shot needs actual incremental knowledge, ob
 action, why_visual/composition/lighting/continuity/sound_intent in direction, reusable
 assets and evidence. Design an original question-to-answer narrative, not repeated CAD
 angles. Prefer owned assets and generate meaningful gaps; check lawful external rights.
+For cinematic shots read docs/cinematic-shots.md and config/cinematic-shots.json.
+Choose by knowledge goal, actual action, named contact objects, observation scale,
+screen continuity and viewing difficulty. Stable overviews remain valid. Only independently
+validated entries may become production defaults; experiments require explicit draft
+scope and exact-media comparison. Do not move the camera just to create activity.
 Other creators default to REFERENCE_ONLY and cannot be composited without verified rights.
 Use real 3D or independently verified licensed actual mechanism footage for core actions,
 and original scientific/information animation for explanation. Keep native 3D provenance
