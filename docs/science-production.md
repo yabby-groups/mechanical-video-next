@@ -113,6 +113,16 @@ For an in-scene macro, `science.camera_path` accepts ordered keys with
 `width` in scene units. Set `studio_lighting.camera_push: false` when supplying
 this path. Moving close-ups deliberately crop the surroundings, so inspect crop
 and occlusion in the preview instead of treating assembly bounds as a QA pass.
+
+Opt into geometry-relative framing with
+`science.camera_framing: {"version": 1, "parts": ["Carrier"]}`.
+Use the same camera path with `target: [x, y, 0]` for screen offsets
+(positive right and up, range −0.4 to 0.4) and `width >= 1` for padding
+relative to the fit. Blender fits the named parts' evaluated bounds at each
+render frame and records their minimum screen extent and projected margin.
+Other parts may extend beyond the frame. Review surface visibility, key
+contacts and perceived camera stability in the moving preview.
+
 `science.stage_rotation` rotates the shot as a unit without editing the CAD.
 For thin overlapping surfaces, opt in to `science.camera_clip: [near, far]`
 using positive increasing distances in scene units. Bound the entire animated
