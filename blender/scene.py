@@ -922,6 +922,9 @@ def render_shot(args):
             report['checks']['science_geometry'] = science_scene.add_curves(shot, scene, count, visible, linear_action)
         if science.get('anchors'):
             report['screen_anchors'] = science_scene.project(scene, cam, visible, science['anchors'], count)
+        if 'observation_window' in science:
+            report['checks']['observation_projection'] = science_scene.observation_projection(
+                report['screen_anchors'], science['observation_window'])
     # Projection only: this does not prove lack of occlusion or visual comprehension.
     margin = 1
     min_subject_extent = 1

@@ -90,6 +90,10 @@ def validate(shot, *, files=False):
     for anchor_id, anchor in anchors.items():
         if not name(anchor_id) or not isinstance(anchor, dict) or not name(anchor.get('object')) or not vector(anchor.get('local'), 3):
             raise ValueError('Anchor requires an object and a local XYZ triple')
+    if 'observation_window' in spec:
+        validate_observation_window(spec['observation_window'])
+        if not set(spec['observation_window']['anchors']) <= anchors.keys():
+            raise ValueError('Observation window requires existing science anchors')
     if template == 'motion_trace' and spec.get('trace') not in anchors:
         raise ValueError('Motion trace requires a named object anchor')
     if template in {'motion_trace', 'field_visualization', 'flow_visualization'}:
@@ -110,6 +114,16 @@ def validate(shot, *, files=False):
         raise ValueError('Blended tracking and the fixed follow template cannot drive the same camera')
     validate_editorial_geometry(spec)
     validate_motion_program(shot)
+
+
+def validate_observation_window(window):
+    if not isinstance(window, dict):
+        raise ValueError('Observation window requires an object')
+    anchors, progress = window.get('anchors'), window.get('progress')
+    if (not isinstance(anchors, list) or not 1 <= len(anchors) <= 16
+            or not all(map(name, anchors)) or len(set(anchors)) != len(anchors)
+            or not vector(progress, 2) or not 0 <= progress[0] < progress[1] <= 1):
+        raise ValueError('Observation window needs unique anchors and a positive normalized progress interval')
 
 
 def validate_motion_program(shot):
@@ -145,15 +159,15 @@ def validate_motion_program(shot):
         if not isinstance(constraint, dict):
             raise ValueError('Numerical constraint requires an object')
         kind = constraint.get('kind')
-        if kind not in {'distance', 'path_length', 'motion', 'rotation_ratio'}:
+        if kind not in {'distance', 'path_length', 'motion', 'rotation_ratio', 'hinge', 'slider'}:
             raise ValueError('Unknown numerical constraint kind')
         if not number(constraint.get('tolerance', 0)) or constraint.get('tolerance', 0) < 0:
             raise ValueError('Numerical constraint requires a nonnegative finite tolerance')
         bounds = constraint.get('range')
-        if kind != 'rotation_ratio' and (not vector(bounds, 2) or not 0 <= bounds[0] <= bounds[1]):
+        if kind in {'distance', 'motion', 'path_length'} and (not vector(bounds, 2) or not 0 <= bounds[0] <= bounds[1]):
             raise ValueError('Distance constraint or motion/path length requires a nonnegative range')
         refs = constraint.get('points')
-        expected = {'distance': 2, 'motion': 1, 'rotation_ratio': 2}.get(kind)
+        expected = {'distance': 2, 'motion': 1, 'rotation_ratio': 2, 'hinge': 4, 'slider': 6}.get(kind)
         if (not isinstance(refs, list)
                 or (not 2 <= len(refs) <= 256 if kind == 'path_length' else len(refs) != expected)
                 or any(not isinstance(ref, dict) or not name(ref.get('object'))
@@ -173,8 +187,18 @@ def validate_motion_program(shot):
             raise ValueError('Motion requires positive minimum travel and maximum frame step')
         if kind == 'motion' and constraint.get('tolerance', 0) >= bounds[0]:
             raise ValueError('Motion tolerance must be smaller than the positive minimum travel')
+        if kind in {'hinge', 'slider'}:
+            owners = [ref['object'] for ref in refs]
+            angle = constraint.get('max_axis_angle')
+            half = len(owners) // 2
+            if (len(set(owners[:half])) != 1 or len(set(owners[half:])) != 1 or owners[0] == owners[-1]
+                    or not number(angle) or not 0 <= angle < math.pi / 2):
+                raise ValueError('Joint requires two ordered datums on each of two distinct parts and a bounded axis angle')
+            if kind == 'slider' and (not vector(bounds, 2) or bounds[0] > bounds[1]
+                                     or bounds[1] - bounds[0] <= constraint.get('tolerance', 0)):
+                raise ValueError('Slider requires a signed travel range wider than its tolerance')
         events = constraint.get('events', [])
-        if not isinstance(events, list) or len(events) > 32 or (events and kind in {'motion', 'rotation_ratio'}):
+        if not isinstance(events, list) or len(events) > 32 or (events and kind not in {'distance', 'path_length'}):
             raise ValueError('Event windows require distance/path length constraints; at most 32 events')
         for event in events:
             if (not isinstance(event, dict) or not vector(event.get('progress'), 2)

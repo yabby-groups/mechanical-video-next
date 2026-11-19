@@ -159,6 +159,25 @@ def execute(args, repo, sources, lock_path):
         return check({'kind': 'distance', 'points': [{'object': obj.name} for obj in (a, b)],
                       'range': [0, 0], 'tolerance': 1e-6})
 
+    def axis_case(kind, defect=None):
+        base, moving = mesh('Base'), mesh('Moving')
+        animate(moving, 'location', [
+            (frame, (.01 if defect == 'lateral' and frame == 3 else 0, 0,
+                     (frame - 3) * .05 if kind == 'slider' else 0))
+            for frame in range(1, 6)])
+        animate(moving, 'rotation_euler', [
+            (frame, (.1 if defect == 'tilt' and frame == 3 else 0, 0,
+                     frame * .1 if kind == 'hinge' or defect == 'twist' else 0))
+            for frame in range(1, 6)])
+        datums = [[0, 0, 0], [0, 0, .02]]
+        if kind == 'slider':
+            datums.append([.02, 0, 0])
+        points = [{'object': obj.name, 'local': datum} for obj in (base, moving) for datum in datums]
+        item = dict(kind=kind, points=points, tolerance=1e-6, max_axis_angle=1e-4)
+        if kind == 'slider':
+            item['range'] = [-.1, .08 if defect == 'stop' else .1]
+        return check(item)
+
     def path_case(stretch=False):
         obj = mesh('Strip', strip=True)
         obj.shape_key_add(name='Basis')
@@ -210,6 +229,12 @@ def execute(args, repo, sources, lock_path):
             run('ratio_'+mode, lambda mode=mode: ratio_case(mode), message)
         run('joint_attached', joint_case)
         run('joint_middle_detachment', lambda: joint_case(True), 'frame 3')
+        run('hinge_aligned', lambda: axis_case('hinge'))
+        run('hinge_tilt_at_fixed_pivot', lambda: axis_case('hinge', 'tilt'), 'frame 3')
+        run('slider_signed_range', lambda: axis_case('slider'))
+        run('slider_lateral_drift', lambda: axis_case('slider', 'lateral'), 'frame 3')
+        run('slider_twist_on_axis', lambda: axis_case('slider', 'twist'), 'clocking')
+        run('slider_end_stop', lambda: axis_case('slider', 'stop'), 'frame 5')
         run('path_evaluated_shape_translation', path_case)
         run('path_middle_shape_stretch', lambda: path_case(True), 'frame 3')
         run('motion_closed_cycle', cycle_case)
@@ -223,7 +248,7 @@ def execute(args, repo, sources, lock_path):
         receipt['finished_epoch'] = time.time()
         receipt['passed_cases'] = [row['id'] for row in receipt['cases'] if row['status'] == 'PASS']
         receipt['failed_cases'] = [row['id'] for row in receipt['cases'] if row['status'] != 'PASS']
-        receipt['status'] = 'PASS' if len(receipt['cases']) == 20 and not receipt['failed_cases'] else 'FAIL'
+        receipt['status'] = 'PASS' if len(receipt['cases']) == 26 and not receipt['failed_cases'] else 'FAIL'
         args.receipt.parent.mkdir(parents=True, exist_ok=True)
         args.receipt.write_text(json.dumps(receipt, ensure_ascii=False, indent=2)+'\n')
         print(json.dumps({'status': receipt['status'], 'receipt': str(args.receipt),

@@ -100,6 +100,22 @@ def project(scene, camera, parts, anchors, count):
             'scope': 'Evaluated camera projection, not occlusion or readability QA'}
 
 
+def observation_projection(projected, window):
+    first, last = window['progress']
+    count = projected['frame_count']
+    frames = [i for i in range(count) if first <= i / max(1, count - 1) <= last]
+    if not frames:
+        raise ValueError('Observation window contains no evaluated output frames')
+    results = {}
+    for name in window['anchors']:
+        points = projected['samples'][name]
+        missing = [i for i in frames if points[i] is None]
+        results[name] = {'offscreen_frames': len(missing), 'first_offscreen_frame': missing[0] + 1 if missing else None}
+    return {'frame_range': [frames[0] + 1, frames[-1] + 1], 'anchors': results,
+            'status': 'FAIL' if any(row['offscreen_frames'] for row in results.values()) else 'PASS',
+            'scope': 'Frustum inclusion of the declared datums; occlusion, overlays and comprehension require separate review'}
+
+
 def retime_data(shot, parts, count):
     """Compose the same monotone clock with each rigid and deforming F-curve."""
     from mechanical_video_next.science_shots import retimed_progress_keys, source_progress
@@ -179,6 +195,44 @@ def opacity_tracks(parts, tracks, count, linear_action):
             'scope': 'Editorial transparency; not material transmission, optical simulation or occlusion QA'}
 
 
+def check_joint(kind, points, item, frame):
+    from math import atan2, isfinite
+
+    offset = len(points) // 2
+    a, b = points[:2]
+    c, d = points[offset:offset+2]
+    reference, moving = b - a, d - c
+    if min(reference.length, moving.length) <= max(1e-12, item.get('tolerance', 0)):
+        raise ValueError(f'Degenerate {kind} axis at frame {frame}')
+    reference.normalize()
+    moving.normalize()
+    angle = atan2(reference.cross(moving).length, reference.dot(moving))
+    delta = c - a
+    axial = delta.dot(reference)
+    error = delta.length if kind == 'hinge' else (delta - axial * reference).length
+    tolerance = item.get('tolerance', 0)
+    if (not all(map(isfinite, (angle, error, axial))) or angle > item['max_axis_angle']
+            or error > tolerance):
+        raise ValueError(f'{kind} joint alignment failed at frame {frame}: offset {error}, angle {angle}')
+    if kind == 'slider':
+        transverse = points[2] - a
+        transverse -= reference * transverse.dot(reference)
+        follower_side = points[-1] - c
+        follower_side -= moving * follower_side.dot(moving)
+        if min(transverse.length, follower_side.length) <= max(1e-12, tolerance):
+            raise ValueError(f'Degenerate slider clocking datum at frame {frame}')
+        transverse.normalize()
+        follower_side.normalize()
+        twist = atan2(transverse.cross(follower_side).length, transverse.dot(follower_side))
+        if not isfinite(twist) or twist > item['max_axis_angle']:
+            raise ValueError(f'Slider clocking failed at frame {frame}: angular offset {twist}')
+        angle = max(angle, twist)
+        lo, hi = item['range']
+        if not lo - tolerance <= axial <= hi + tolerance:
+            raise ValueError(f'Slider travel failed at frame {frame}: axis position {axial}')
+    return error, angle, axial
+
+
 def check_constraints(scene, parts, constraints, count):
     """Check declared output-frame kinematics; never solve dynamics or contact."""
     import math
@@ -197,6 +251,7 @@ def check_constraints(scene, parts, constraints, count):
             if 'vertex' in ref and objects[ref['object']].modifiers:
                 raise ValueError('Vertex constraints require stable topology without modifiers')
         values = []
+        joint_angles, joint_positions = [], []
         tolerance = item.get('tolerance', 0)
         previous = None
         initial_angles = None
@@ -234,7 +289,11 @@ def check_constraints(scene, parts, constraints, count):
                 previous = angles
             else:
                 points = [point(ref, objects, depsgraph) for ref in item['points']]
-                if kind == 'motion':
+                if kind in {'hinge', 'slider'}:
+                    value, angle, position = check_joint(kind, points, item, frame)
+                    joint_angles.append(angle)
+                    joint_positions.append(position)
+                elif kind == 'motion':
                     value = 0 if previous is None else (points[0] - previous).length
                     if not math.isfinite(value) or value > item['max_step'] + tolerance:
                         raise ValueError(f'Motion frame step failed at frame {frame}: {value}')
@@ -269,6 +328,12 @@ def check_constraints(scene, parts, constraints, count):
             if not lo - tolerance <= total <= hi + tolerance:
                 raise ValueError(f'Motion travel constraint failed: {total} outside {item["range"]}')
             receipt.update(range=item['range'], total_travel=total, max_step=item['max_step'])
+        elif kind in {'hinge', 'slider'}:
+            receipt.update(level='M2', max_axis_angle=max(joint_angles),
+                           axis_angle_limit=item['max_axis_angle'],
+                           axial_position_range=[min(joint_positions), max(joint_positions)])
+            if kind == 'slider':
+                receipt['range'] = item['range']
         else:
             if any(hit is None for hit in hits):
                 raise ValueError(f'Missing constraint event windows: {[i for i, hit in enumerate(hits) if hit is None]}')
@@ -279,5 +344,5 @@ def check_constraints(scene, parts, constraints, count):
         receipts.append(receipt)
     return {'status': 'PASS', 'physics_status': 'KINEMATIC_ONLY',
             'frame_count': count, 'samples': receipts,
-            'scope': 'Declared evaluated output-frame points and local Euler channels only; '
+            'scope': 'Declared evaluated output-frame points, axes and local Euler channels only; '
                      'not a constraint solver, subframe, collision/contact, force or physical simulation proof'}

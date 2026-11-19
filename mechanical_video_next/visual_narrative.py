@@ -18,6 +18,15 @@ ENGINES = {
     'everyday_return': {'blender', 'remotion', 'footage'},
 }
 CAMERAS = {'establish', 'closeup', 'macro', 'follow', 'reveal', 'cutaway', 'isolate', 'match_cut'}
+OBSERVATION_CAMERAS = {
+    'establish_structure': 'establish',
+    'contact': 'reveal',
+    'linkage': 'reveal',
+    'compare_states': 'reveal',
+    'track_part': 'follow',
+    'expose_interior': 'cutaway',
+}
+FIXED_OBSERVATIONS = {'contact', 'linkage', 'compare_states'}
 SCALES = {'wide', 'medium', 'close', 'macro', 'diagram'}
 RESEARCH = {'use_context', 'common_misconception', 'science_question', 'causal_relationship',
             'comparison', 'technical_background', 'structure_to_phenomenon', 'everyday_conclusion'}
@@ -133,8 +142,8 @@ def validate_design(plan, *, hybrid=False):
     camera = plan['camera']
     if not isinstance(camera, dict) or camera.get('scale') not in SCALES or not nonempty(camera.get('angle')):
         raise ValueError('Visual camera needs scale and angle')
-    if engine == 'blender' and camera.get('preset') not in CAMERAS:
-        raise ValueError('Blender camera needs an executable preset')
+    if engine == 'blender':
+        planned_camera(plan)
     if engine != 'blender' and 'preset' in camera:
         raise ValueError('Blender presets apply only to Blender shots')
     transition = plan['transition']
@@ -148,6 +157,23 @@ def validate_design(plan, *, hybrid=False):
         raise ValueError('Explain how the shot advances or recalls the knowledge')
     if 'material_limit' in plan and not nonempty(plan['material_limit']):
         raise ValueError('Record the unavailable asset and the chosen substitution')
+
+
+def planned_camera(plan):
+    preset = plan['camera'].get('preset')
+    observation = plan.get('direction', {}).get('observation')
+    if observation is not None:
+        from .science_shots import validate_observation_window
+        validate_observation_window(observation)
+        if observation.get('kind') not in OBSERVATION_CAMERAS:
+            raise ValueError('Unknown director observation goal')
+    if preset == 'auto':
+        if not observation:
+            raise ValueError('Automatic camera requires an observation goal with named geometry')
+        return OBSERVATION_CAMERAS[observation['kind']]
+    if preset not in CAMERAS:
+        raise ValueError('Blender camera needs an executable preset')
+    return preset
 
 
 def validate_plan(document):
@@ -288,7 +314,7 @@ def validate_execution(shot, *, progression=False, hybrid=False):
             'cutaway': (shot, 'section_plane'), 'isolate': (shot, 'visible_parts'),
             'match_cut': (science, 'camera_path'),
         }
-        preset = camera['preset']
+        preset = planned_camera(visual)
         rig_follow = science.get('camera_rig', {}).get('follow')
         if preset in required and not (preset == 'follow' and rig_follow) and not required[preset][0].get(required[preset][1]):
             raise ValueError(f'Camera preset {preset} requires {required[preset][1]}')
@@ -331,7 +357,23 @@ def validate_execution(shot, *, progression=False, hybrid=False):
 def configure_blender(shot):
     """Translate named camera choices into the existing Blender renderer inputs."""
     camera = shot['visual']['camera']
-    preset = camera['preset']
+    visual = shot['visual']
+    preset = planned_camera(visual)
+    observation = visual.get('direction', {}).get('observation')
+    if observation is not None:
+        science = shot.get('science')
+        if science is None:
+            raise ValueError('Observation goals require a native science shot')
+        science['observation_window'] = {key: observation[key] for key in ('anchors', 'progress')}
+        if camera['preset'] == 'auto' and observation['kind'] in FIXED_OBSERVATIONS:
+            path = science.get('camera_path')
+            if not path:
+                raise ValueError('Fixed observation requires an authored camera path with a useful first pose')
+            pose = {k: v for k, v in path[0].items() if k != 'follow_weight'}
+            science['camera_path'] = [dict(pose, progress=t) for t in (0, 1)]
+            science.pop('camera_path_follow', None)
+            science.pop('camera_framing', None)
+            science.get('camera_rig', {}).pop('follow', None)
     if preset in {'closeup', 'macro'} and 'focus_region' in camera:
         shot['camera_focus_region'] = camera['focus_region']
     lighting = shot.get('studio_lighting', {}).copy()

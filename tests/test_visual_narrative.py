@@ -7,7 +7,8 @@ from mechanical_video_next.blueprint import compile_config
 from mechanical_video_next.knowledge_progression import validate_media_evidence, validate_timeline
 from mechanical_video_next.three_d import validate_config
 from mechanical_video_next.visual_narrative import (
-    QA_CHECKS, match_blueprint, match_policy, validate_design, validate_footage, validate_graphic, validate_review,
+    QA_CHECKS, configure_blender, match_blueprint, match_policy, validate_design,
+    validate_footage, validate_graphic, validate_review,
 )
 from scripts.common import filehash
 
@@ -33,6 +34,22 @@ def shot(shot_id, start, *, engine, role, kind, camera, knowledge):
 
 
 class VisualNarrativeTests(unittest.TestCase):
+    def test_linkage_observation_holds_camera_without_modifying_tracks(self):
+        first = dict(progress=0, target=[0, 0, 0], direction=[0, -1, 1], width=2)
+        tracks = [{'object': 'Rib', 'poses': [{'progress': 0}, {'progress': 1}]}]
+        observation = dict(kind='linkage', anchors=['joint'], progress=[.2, .9])
+        spec = dict(template='state_transition', tracks=tracks, science={
+            'camera_path': [first, dict(first, progress=1, width=4)],
+            'camera_path_follow': 'Rib',
+            'anchors': {'joint': {'object': 'Rib', 'local': [0, 0, 0]}}})
+        spec['visual'] = {'camera': {'preset': 'auto'}, 'direction': {'observation': observation}}
+        configure_blender(spec)
+        self.assertEqual(spec['science']['camera_path'], [first, dict(first, progress=1)])
+        self.assertNotIn('camera_path_follow', spec['science'])
+        self.assertEqual(spec['science']['observation_window'], {'anchors': ['joint'], 'progress': [.2, .9]})
+        self.assertEqual(spec['tracks'], tracks)
+        self.assertFalse(spec['studio_lighting']['camera_push'])
+
     def test_rig_camera_compiles_without_replacing_scientific_or_motion_inputs(self):
         camera_fields={
             'camera_path':[dict(progress=p,target=[0,0,0],direction=[0,-1,1],width=3-p) for p in (0,1)],
