@@ -69,6 +69,15 @@ def validate(shot, *, files=False):
         raise ValueError('An editorial exploded view must be marked as conceptual')
     if template == 'cutaway' and not shot.get('section_plane'):
         raise ValueError('Cutaway requires an explicit section plane')
+    if 'offset_keys' in shot.get('section_plane', {}):
+        plane = shot['section_plane']
+        keys = plane['offset_keys']
+        if (not isinstance(keys,list) or not 2 <= len(keys) <= 16
+                or any(not vector(key,2) for key in keys) or keys[0][0] != 0 or keys[-1][0] != 1
+                or keys[0][1] != plane.get('offset',0)
+                or any(not 0 <= a[0] < b[0] <= 1 for a,b in zip(keys,keys[1:]))
+                or not plane.get('parts')):
+            raise ValueError('Animated section requires explicit parts and ordered finite offset keys covering the shot')
     if template == 'micro_zoom' and not shot.get('camera_focus_region'):
         raise ValueError('Micro zoom requires an authored focus region')
     if template == 'camera_follow' and not name(spec.get('follow')):

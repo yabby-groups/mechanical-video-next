@@ -20,6 +20,15 @@ FIXTURES = ROOT/'tests/fixtures/production'
 
 
 class ScienceShots(unittest.TestCase):
+    def test_moving_section_must_cover_the_declared_clock_and_explicit_parts(self):
+        shot=copy.deepcopy(self.trace)
+        shot['section_plane']=dict(axis='y',side='negative',offset=0,parts=['Carrier'],
+                                    offset_keys=[[0,0],[1,1]])
+        science_shots.validate(shot)
+        shot['section_plane']['offset_keys'][0][0]=.1
+        with self.assertRaisesRegex(ValueError,'Animated section'):
+            science_shots.validate(shot)
+
     def test_relative_camera_path_binds_visible_geometry_and_screen_offsets(self):
         shot = copy.deepcopy(self.trace)
         spec = shot['science']

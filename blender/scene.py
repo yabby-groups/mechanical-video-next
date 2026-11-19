@@ -849,6 +849,13 @@ def render_shot(args):
             modifier.operation = 'DIFFERENCE'
             modifier.solver = 'EXACT'
             modifier.object = cutter
+        if plane.get('offset_keys'):
+            axis = 'xyz'.index(plane['axis'])
+            for progress, position in plane['offset_keys']:
+                cutter.location[axis] = position + sign * cutter_size / 2
+                cutter.keyframe_insert('location', frame=1+progress*(count-1))
+            linear_action(cutter.animation_data)
+            scene.frame_set(1)
         report['section'] = dict(plane, method='Boolean difference after prescribed deformation')
     frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] or science else [1]
     cam = frame_camera(visible, [1] if template == 'camera_follow' else frames,
