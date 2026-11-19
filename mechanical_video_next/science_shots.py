@@ -97,7 +97,7 @@ def validate(shot, *, files=False):
             or any(start == end for start, end in zip(path, path[1:])) for path in paths
         ):
             raise ValueError('Field and flow require bounded, nondegenerate XYZ polylines')
-    if template == 'camera_follow' and 'camera_path_follow' in spec:
+    if template == 'camera_follow' and {'camera_path_follow', 'camera_framing'} & spec.keys():
         raise ValueError('Blended tracking and the fixed follow template cannot drive the same camera')
     validate_editorial_geometry(spec)
     validate_motion_program(shot)
@@ -233,6 +233,14 @@ def centerline_strip(points, width, normal):
 
 
 def validate_editorial_geometry(spec):
+    if 'camera_framing' in spec:
+        framing = spec['camera_framing']
+        if (not isinstance(framing, dict) or type(framing.get('version')) is not int
+                or framing['version'] != 1 or not isinstance(framing.get('parts'), list)
+                or not framing['parts'] or not all(map(name, framing['parts']))
+                or len(set(framing['parts'])) != len(framing['parts'])
+                or not spec.get('camera_path') or 'camera_path_follow' in spec):
+            raise ValueError('Camera framing v1 requires unique parts and an unblended camera path')
     if 'camera_clip' in spec:
         clip = spec['camera_clip']
         if not vector(clip, 2) or not 0 < clip[0] < clip[1]:
@@ -256,6 +264,10 @@ def validate_editorial_geometry(spec):
             if sum(x*y for x,y in zip(a,b))/(math.hypot(*a)*math.hypot(*b)) < -.95:
                 raise ValueError('Add an intermediate camera key for oppositely directed views')
         for pose in path:
+            if 'camera_framing' in spec and (
+                    pose['width'] < 1 or any(abs(v) > .4 for v in pose['target'][:2])
+                    or pose['target'][2] != 0):
+                raise ValueError('Relative framing requires width >= 1 and normalized XY screen offsets')
             if 'follow_weight' in pose and (
                     not spec.get('camera_path_follow') or not number(pose['follow_weight'])
                     or not 0 <= pose['follow_weight'] <= 1):
@@ -294,6 +306,7 @@ def referenced_parts(shot):
     parts.update(mark['object'] for mark in spec.get('print_marks', []))
     parts.update(track['object'] for track in spec.get('opacity_tracks', []))
     parts.update(ref['object'] for row in spec.get('constraints', []) for ref in row['points'])
+    parts.update(spec.get('camera_framing', {}).get('parts', []))
     if spec.get('follow'):
         parts.add(spec['follow'])
     if spec.get('camera_path_follow'):
