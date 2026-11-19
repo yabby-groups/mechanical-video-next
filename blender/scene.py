@@ -899,11 +899,15 @@ def render_shot(args):
             followed = science_scene.target(visible, follow_name) if follow_name else None
             framing_parts = [science_scene.target(visible, name)
                              for name in science.get('camera_framing', {}).get('parts', [])]
-            camera_motion(scene, cam, camera_path, count, linear_action, followed, framing_parts)
+            rig_report = camera_motion(scene, cam, camera_path, count, linear_action, followed, framing_parts,
+                                       science.get('camera_rig'), visible)
+            if rig_report:
+                cam = scene.camera
+                report['checks']['camera_rig'] = rig_report
             report['checks']['editorial_camera'] = {'poses': len(camera_path), 'scope': 'Authored moving 3D frame; surrounding parts may crop'}
             if followed is not None:
                 report['checks']['editorial_camera']['followed_part'] = followed.name
-        if 'camera_clip' in science:
+        if 'camera_clip' in science and not science.get('camera_rig'):
             # Small layered surfaces need a bounded depth range to avoid z-fighting.
             # Explicit opt-in leaves historical cameras unchanged.
             cam.data.clip_start, cam.data.clip_end = science['camera_clip']

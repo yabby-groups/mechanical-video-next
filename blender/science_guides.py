@@ -17,7 +17,9 @@ def stage(scene, parts, spec):
     root.rotation_euler = Euler(spec['stage_rotation'])
 
 
-def camera_motion(scene, camera, poses, count, linear_action, followed=None, framing=()):
+def camera_motion(scene, camera, poses, count, linear_action, followed=None, framing=(), rig_spec=None, parts=()):
+    if rig_spec:
+        return camera_rig_motion(scene, camera, poses, count, linear_action, rig_spec, parts)
     if followed is not None:
         scene.frame_set(1)
         origin = followed.matrix_world.translation.copy()
@@ -50,6 +52,111 @@ def camera_motion(scene, camera, poses, count, linear_action, followed=None, fra
     linear_action(camera.animation_data)
     linear_action(camera.data.animation_data)
     scene.frame_set(1)
+
+
+def camera_rig_motion(scene, previous, poses, count, linear_action, spec, parts):
+    """Small adapter to the official rig; the existing camera_path owns staging."""
+    import addon_utils
+    from bpy_extras.object_utils import world_to_camera_view
+
+    addon_utils.enable('add_camera_rigs', default_set=True, persistent=False)
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.build_camera_rig(mode=spec['mode'])
+    rig, camera = bpy.context.object, scene.camera
+    camera.name = 'ShotCamera.Cinematic'
+    previous.hide_render = True
+    camera.data.clip_start, camera.data.clip_end = spec['clip']
+    camera.data.sensor_width = 36
+    camera.data.dof.use_dof = False  # Keep both contacting surfaces legible.
+    rig.pose.bones['Camera']['lens'] = spec['lens_mm']
+    controls = []
+    for name, bone in [('DollyCart', 'Camera'), ('ContactAim', 'Aim')]:
+        control = bpy.data.objects.new(name, None)
+        scene.collection.objects.link(control)
+        constraint = rig.pose.bones[bone].constraints.new('COPY_LOCATION')
+        constraint.target = control
+        constraint.owner_space = constraint.target_space = 'WORLD'
+        # Location must be solved before the add-on's target-facing rotation.
+        rig.pose.bones[bone].constraints.move(len(rig.pose.bones[bone].constraints)-1, 0)
+        controls.append(control)
+    cart, aim = controls
+    camera.data.dof.focus_object = aim
+    followed = target(parts, spec['follow']['object']) if spec.get('follow') else None
+    scene.frame_set(1)
+    if followed:
+        initial = marker_center(followed)
+    index = 0
+    rows, previous_matrix, previous_markers, travel = [], None, {}, {}
+    for frame in range(1, count + 1):
+        scene.frame_set(frame)
+        progress = (frame - 1) / max(1, count - 1)
+        while index < len(poses)-2 and progress > poses[index+1]['progress']:
+            index += 1
+        start, end = poses[index:index+2]
+        blend = (progress-start['progress']) / (end['progress']-start['progress'])
+        blend = blend*blend*(3-2*blend)
+        center = Vector(start['target']).lerp(Vector(end['target']), blend)
+        if followed:
+            center += (marker_center(followed)-initial)*spec['follow']['weight']
+        direction = Vector(start['direction']).normalized().lerp(Vector(end['direction']).normalized(), blend).normalized()
+        width = start['width']*(1-blend) + end['width']*blend
+        # Perspective dolly, fixed focal length; width is at the aim plane.
+        cart.location = center + direction * width * spec['lens_mm'] / camera.data.sensor_width
+        aim.location = center
+        cart.keyframe_insert('location', frame=frame)
+        aim.keyframe_insert('location', frame=frame)
+        bpy.context.view_layer.update()
+        matrix = camera.matrix_world.copy()
+        projected = world_to_camera_view(scene, camera, center)
+        # Inspect actual evaluated geometry, not an invented contact coordinate.
+        markers = {}
+        for name in spec.get('inspect_markers', []):
+            obj = target(parts, name)
+            position = marker_center(obj)
+            screen = world_to_camera_view(scene, camera, position)
+            before = previous_markers.get(name, position)
+            travel[name] = travel.get(name, 0) + (position-before).length
+            projected_before = world_to_camera_view(scene, camera, before)
+            delta = position - matrix.translation
+            nearest, first = delta.length + .00001, None
+            graph = bpy.context.evaluated_depsgraph_get()
+            for surface in parts:
+                if surface.hide_render or surface.type != 'MESH':
+                    continue
+                evaluated = surface.evaluated_get(graph)
+                inverse = evaluated.matrix_world.inverted()
+                local_origin = inverse @ matrix.translation
+                local_direction = inverse.to_3x3() @ delta.normalized()
+                hit, hit_position, _, _ = evaluated.ray_cast(local_origin, local_direction)
+                if hit:
+                    distance = (evaluated.matrix_world @ hit_position-matrix.translation).length
+                    if distance < nearest:
+                        nearest, first = distance, surface
+            markers[name] = {'world': list(position), 'screen': [screen.x, 1-screen.y],
+                             'path_m': travel[name],
+                             'surface_step_screen': [screen.x-projected_before.x, projected_before.y-screen.y],
+                             'in_frame': screen.z > 0 and 0 < screen.x < 1 and 0 < screen.y < 1,
+                             'first_rendered_geometry_candidate': first.name if first else None}
+            previous_markers[name] = position
+        rows.append({'frame': frame, 'time': (frame-1)/scene.render.fps,
+                     'camera': list(matrix.translation), 'aim': list(center),
+                     'aim_in_frame': projected.z > 0 and 0 < projected.x < 1 and 0 < projected.y < 1,
+                     'step_m': 0 if previous_matrix is None else (matrix.translation-previous_matrix.translation).length,
+                     'rotation_step_radians': 0 if previous_matrix is None else matrix.to_quaternion().rotation_difference(previous_matrix.to_quaternion()).angle,
+                     'markers': markers})
+        previous_matrix = matrix
+    for control in controls:
+        linear_action(control.animation_data)
+    scene.frame_set(1)
+    return {'addon': 'add_camera_rigs', 'version': '1.9.2', 'mode': spec['mode'],
+            'lens_mm': spec['lens_mm'], 'rig': rig.name, 'camera': camera.name,
+            'frames': rows, 'scope': 'Every-frame evaluated camera and marker projection; ray candidates do not establish visual clarity, transparent occlusion or continuous viewing'}
+
+
+def marker_center(obj):
+    """Centroid of the evaluated native mesh, including animated shape keys."""
+    evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    return evaluated.matrix_world @ (sum((v.co for v in evaluated.data.vertices), Vector()) / len(evaluated.data.vertices))
 
 
 def evaluated_bounds(objects):

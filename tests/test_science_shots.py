@@ -29,6 +29,22 @@ class ScienceShots(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Animated section'):
             science_shots.validate(shot)
 
+    def test_cinematic_rig_rejects_competing_control_and_missing_targets(self):
+        shot = copy.deepcopy(self.trace)
+        spec = shot['science']
+        spec['camera_path'] = [dict(progress=p, target=[0,0,0], direction=[0,-1,1], width=3)
+                               for p in (0,1)]
+        spec['camera_rig'] = dict(version=1, mode='DOLLY', lens_mm=55, clip=[.01,100],
+                                  follow=dict(object='Carrier', weight=.4), inspect_markers=['Carrier'])
+        science_shots.validate_assembly_shot(shot, self.assembly)
+        spec['camera_rig']['follow']['object'] = 'NotInAssembly'
+        with self.assertRaises(ValueError):
+            science_shots.validate_assembly_shot(shot, self.assembly)
+        spec['camera_rig']['follow']['object'] = 'Carrier'
+        spec['camera_framing'] = dict(version=1, parts=['Carrier'])
+        with self.assertRaisesRegex(ValueError, 'competing camera controller'):
+            science_shots.validate(shot)
+
     def test_relative_camera_path_binds_visible_geometry_and_screen_offsets(self):
         shot = copy.deepcopy(self.trace)
         spec = shot['science']

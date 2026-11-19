@@ -106,7 +106,7 @@ def validate(shot, *, files=False):
             or any(start == end for start, end in zip(path, path[1:])) for path in paths
         ):
             raise ValueError('Field and flow require bounded, nondegenerate XYZ polylines')
-    if template == 'camera_follow' and {'camera_path_follow', 'camera_framing'} & spec.keys():
+    if template == 'camera_follow' and {'camera_path_follow', 'camera_framing', 'camera_rig'} & spec.keys():
         raise ValueError('Blended tracking and the fixed follow template cannot drive the same camera')
     validate_editorial_geometry(spec)
     validate_motion_program(shot)
@@ -242,6 +242,20 @@ def centerline_strip(points, width, normal):
 
 
 def validate_editorial_geometry(spec):
+    if 'camera_rig' in spec:
+        rig = spec['camera_rig']
+        if (not isinstance(rig, dict) or rig.get('version') != 1
+                or rig.get('mode') not in {'DOLLY', 'CRANE'} or not spec.get('camera_path')
+                or 'camera_framing' in spec or 'camera_path_follow' in spec
+                or not number(rig.get('lens_mm')) or not 18 <= rig['lens_mm'] <= 150
+                or not vector(rig.get('clip'), 2) or not 0 < rig['clip'][0] < rig['clip'][1]):
+            raise ValueError('Camera rig v1 requires official Dolly/Crane, existing path, focal length and clip range; no competing camera controller')
+        if rig.get('follow') and (not isinstance(rig['follow'], dict)
+                or not name(rig['follow'].get('object')) or not number(rig['follow'].get('weight'))
+                or not 0 <= rig['follow']['weight'] <= 1):
+            raise ValueError('Rig tracking requires an evaluated object and weight in [0,1]')
+        if not isinstance(rig.get('inspect_markers', []), list) or any(not name(x) for x in rig.get('inspect_markers', [])):
+            raise ValueError('Rig marker inspection requires named objects')
     if 'camera_framing' in spec:
         framing = spec['camera_framing']
         if (not isinstance(framing, dict) or type(framing.get('version')) is not int
@@ -316,6 +330,9 @@ def referenced_parts(shot):
     parts.update(track['object'] for track in spec.get('opacity_tracks', []))
     parts.update(ref['object'] for row in spec.get('constraints', []) for ref in row['points'])
     parts.update(spec.get('camera_framing', {}).get('parts', []))
+    parts.update(spec.get('camera_rig', {}).get('inspect_markers', []))
+    if spec.get('camera_rig', {}).get('follow'):
+        parts.add(spec['camera_rig']['follow']['object'])
     if spec.get('follow'):
         parts.add(spec['follow'])
     if spec.get('camera_path_follow'):
@@ -369,6 +386,15 @@ def validate_assembly_shot(shot, assembly):
     if not spec:
         return
     validate(shot, files=True)
+    if spec.get('camera_rig'):
+        rig = spec['camera_rig']
+        names = set(rig.get('inspect_markers', []))
+        if rig.get('follow'):
+            names.add(rig['follow']['object'])
+        available = set(shot.get('visible_parts') or assembly.get('required_parts', []))
+        available.update(assembly.get('reuse', {}).get('parts', {}))
+        if not names <= available:
+            raise ValueError('Camera rig requires visible assembly targets: ' + ', '.join(sorted(names-available)))
     if spec.get('driver') == 'asset_motion':
         control = assembly.get('reuse', {}).get('controls', {}).get(spec.get('control'))
         if not control or control['driver'] != 'asset_motion':
