@@ -37,3 +37,14 @@ stapler-specific frozen configuration/assembly are absent in this tools checkout
 its frozen style integration cannot be rerun here. The approved screenshot and
 immutable source reference remain separately hash-checked. Do not update the
 historical style-lock hashes to manufacture a PASS for the new renderer.
+
+The producer also has a separate storage-only equivalence pin. The exact
+pre-change producer source was reconstructed and verified against the hash
+recorded when the completed MP4 exceeded the work budget. Props construction,
+Remotion sources and render flags are unchanged; only the output destination
+and verified cache retention differ. Versioned mixed-original exports stay
+under output with hash-bound cache references. The existing cleaner removes a
+cache duplicate only after its completion hash equals the protected export and
+the export fully decodes. Historical tasks retain the original destination.
+This preserves composition identity without treating encoding or metadata as
+a visual improvement.
