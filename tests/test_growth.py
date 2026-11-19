@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from mechanical_video_next import growth as g, workflow as w, blueprint as b
-from mechanical_video_next.feedback import ingest
+from mechanical_video_next.feedback import comparable_observations, ingest
 
 
 class GrowthTests(unittest.TestCase):
@@ -145,6 +145,18 @@ class GrowthTests(unittest.TestCase):
         data['platform']='xiaohongshu';self.assertEqual(ingest(data)['platform'],'xiaohongshu')
         data['completion_rate']=2
         with self.assertRaises(ValueError):ingest(data)
+
+    def test_feedback_comparison_keeps_one_observation_per_matching_video(self):
+        target = dict(video_id='new', platform='douyin', account_id='a', topic='gear',
+                      traffic_source='feed', duration_seconds=160,
+                      published_at='2026-11-12T10:00:00+08:00',
+                      observed_at='2026-11-13T10:00:00+08:00')
+        match = dict(target, video_id='match', views=200)
+        older = dict(match, observed_at='2026-11-13T11:00:00+08:00')
+        foreign = dict(match, video_id='foreign', platform='wechat')
+        self.assertEqual(comparable_observations(
+            [older, match, foreign, target], target, duration_tolerance=15,
+            age_tolerance=7200, publication_window=86400), [match])
 
     def test_old_task_and_media_not_migrated_on_load(self):
         for seconds in (38.2,90):
