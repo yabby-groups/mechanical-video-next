@@ -33,6 +33,36 @@ def shot(shot_id, start, *, engine, role, kind, camera, knowledge):
 
 
 class VisualNarrativeTests(unittest.TestCase):
+    def test_rig_camera_compiles_without_replacing_scientific_or_motion_inputs(self):
+        camera_fields={
+            'camera_path':[dict(progress=p,target=[0,0,0],direction=[0,-1,1],width=3-p) for p in (0,1)],
+            'camera_rig':dict(version=1,mode='DOLLY',lens_mm=55,clip=[.001,100],
+                              follow=dict(object='Carrier',weight=.4))}
+        first=shot('contact',0,engine='blender',role='core',kind='annotated_detail',
+                   camera=dict(preset='follow',scale='close',angle='oblique',settings=dict(science=camera_fields)),
+                   knowledge='relative surface motion')
+        tracks=[dict(object='Carrier',poses=[dict(progress=0,rotation_euler=[0,0,0]),
+                                             dict(progress=1,rotation_euler=[0,0,1])])]
+        science=dict(version=1,mode='mathematical',scope='Bounded source-specific motion',basis=[REF])
+        base=dict(asset='planetary-teaching-v1',shots={'core':dict(template='motion',seconds=4,
+                   tracks=tracks,science=science)},render=dict(width=1920,height=1080,fps=30,framing='fullframe'),
+                  presentation='mechanism-fullframe')
+        with tempfile.TemporaryDirectory() as tmp:
+            bp,bp_base,result=(Path(tmp)/name for name in ('blueprint.json','base.json','out.json'))
+            data=dict(visual_policy_version=2,shots=[first])
+            bp.write_text(json.dumps(data)); bp_base.write_text(json.dumps(base))
+            compile_config(bp,bp_base,result,draft=True)
+            compiled=json.loads(result.read_text())['shots']['contact']
+            self.assertEqual(compiled['tracks'],tracks)
+            self.assertEqual(compiled['science']['basis'],science['basis'])
+            self.assertEqual(compiled['science']['scope'],science['scope'])
+            self.assertEqual(compiled['science']['camera_rig'],camera_fields['camera_rig'])
+            self.assertNotIn('camera_rig',json.loads(bp_base.read_text())['shots']['core']['science'])
+            camera_fields['driver']='data_tracks'
+            bp.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError,'only change science camera fields'):
+                compile_config(bp,bp_base,result,draft=True)
+
     def test_trace_requires_located_basis_and_visible_boundary(self):
         graphic = dict(type='data_animation', presentation='trace', title='Cooling', unit='C',
                        formula='Conceptual example', items=[

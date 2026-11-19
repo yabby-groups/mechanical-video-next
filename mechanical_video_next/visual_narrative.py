@@ -289,9 +289,10 @@ def validate_execution(shot, *, progression=False, hybrid=False):
             'match_cut': (science, 'camera_path'),
         }
         preset = camera['preset']
-        if preset in required and not required[preset][0].get(required[preset][1]):
+        rig_follow = science.get('camera_rig', {}).get('follow')
+        if preset in required and not (preset == 'follow' and rig_follow) and not required[preset][0].get(required[preset][1]):
             raise ValueError(f'Camera preset {preset} requires {required[preset][1]}')
-        if preset == 'follow' and shot.get('template') != 'camera_follow':
+        if preset == 'follow' and not rig_follow and shot.get('template') != 'camera_follow':
             raise ValueError('Use the camera_follow template to track the named object')
         if not science.get('basis'):
             raise ValueError('Visual Blender clips require located science and render provenance')

@@ -72,8 +72,16 @@ def validate(data):
             camera = camera.get('settings', {})
             if s['render_engine'] != 'blender' and s['template'] != 'editorial':
                 raise ValueError('Supporting media needs an editorial template')
-        if not isinstance(camera, dict) or (not visual and not camera) or not set(camera) <= CAMERA:
+        allowed = CAMERA | ({'science'} if visual else set())
+        if not isinstance(camera, dict) or (not visual and not camera) or not set(camera) <= allowed:
             raise ValueError('Unsupported or empty camera mapping')
+        if 'science' in camera:
+            science = camera['science']
+            camera_fields = {'camera_path', 'camera_rig', 'camera_clip', 'camera_path_follow', 'camera_framing'}
+            if not isinstance(science, dict) or not science or not set(science) <= camera_fields:
+                raise ValueError('Blueprint camera settings may only change science camera fields')
+            from .science_shots import validate_editorial_geometry
+            validate_editorial_geometry(science)
         if camera.get('camera_view', 'oblique') not in {'oblique', 'top'}:
             raise ValueError('Unsupported camera_view')
         if 'camera_roll' in camera and not number(camera['camera_roll']):
@@ -120,7 +128,14 @@ def compile_config(blueprint, base, output, draft=False):
         if original['template'] != s['template']:
             raise ValueError('Template must match existing shot; geometry tracks cannot be repurposed')
         shot = copy.deepcopy(original)
-        shot.update(s['camera'].get('settings', {}) if visual else s['camera'])
+        settings = s['camera'].get('settings', {}) if visual else s['camera']
+        shot.update({k: copy.deepcopy(v) for k,v in settings.items() if k != 'science'})
+        if settings.get('science'):
+            if not shot.get('science'):
+                raise ValueError('Camera science settings require an existing science shot')
+            shot['science'].update(copy.deepcopy(settings['science']))
+            if settings['science'].get('camera_rig'):
+                shot['science'].pop('camera_clip', None)  # Rig has its own bounded perspective clip.
         shot['seconds'] = s['duration'] if visual else s['time_range'][1] - s['time_range'][0]
         if visual:
             shot['visual'] = copy.deepcopy(design_fields(s))
