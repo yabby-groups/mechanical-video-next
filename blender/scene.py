@@ -887,8 +887,12 @@ def render_shot(args):
                 scene, visible, science['constraints'], count)
         camera_path = science.get('camera_path')
         if camera_path:
-            camera_motion(scene, cam, camera_path, count, linear_action)
+            follow_name = science.get('camera_path_follow')
+            followed = science_scene.target(visible, follow_name) if follow_name else None
+            camera_motion(scene, cam, camera_path, count, linear_action, followed)
             report['checks']['editorial_camera'] = {'poses': len(camera_path), 'scope': 'Authored moving 3D frame; surrounding parts may crop'}
+            if followed is not None:
+                report['checks']['editorial_camera']['followed_part'] = followed.name
         if 'camera_clip' in science:
             # Small layered surfaces need a bounded depth range to avoid z-fighting.
             # Explicit opt-in leaves historical cameras unchanged.

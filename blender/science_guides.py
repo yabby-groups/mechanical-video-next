@@ -17,7 +17,10 @@ def stage(scene, parts, spec):
     root.rotation_euler = Euler(spec['stage_rotation'])
 
 
-def camera_motion(scene, camera, poses, count, linear_action):
+def camera_motion(scene, camera, poses, count, linear_action, followed=None):
+    if followed is not None:
+        scene.frame_set(1)
+        origin = followed.matrix_world.translation.copy()
     index = 0
     for frame in range(1, count + 1):
         progress = (frame - 1) / (count - 1)
@@ -27,6 +30,10 @@ def camera_motion(scene, camera, poses, count, linear_action):
         mix = (progress - start['progress']) / (end['progress'] - start['progress'])
         mix = mix * mix * (3 - 2 * mix)
         center = Vector(start['target']).lerp(Vector(end['target']), mix)
+        if followed is not None:
+            scene.frame_set(frame)
+            weight = start.get('follow_weight', 0) * (1 - mix) + end.get('follow_weight', 0) * mix
+            center += (followed.matrix_world.translation - origin) * weight
         direction = Vector(start['direction']).normalized().lerp(Vector(end['direction']).normalized(), mix).normalized()
         camera.location = center + direction * 30
         camera.rotation_euler = (-direction).to_track_quat('-Z', 'Y').to_euler('XYZ', camera.rotation_euler)

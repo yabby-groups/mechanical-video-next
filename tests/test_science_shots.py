@@ -20,6 +20,20 @@ FIXTURES = ROOT/'tests/fixtures/production'
 
 
 class ScienceShots(unittest.TestCase):
+    def test_authored_camera_path_can_blend_tracking_of_an_assembly_part(self):
+        shot = copy.deepcopy(self.trace)
+        spec = shot['science']
+        spec['camera_path_follow'] = 'Carrier'
+        spec['camera_path'] = [
+            dict(progress=0, target=[0, 0, 0], direction=[0, 0, 1], width=2, follow_weight=0),
+            dict(progress=1, target=[0, 0, 0], direction=[0, 0, 1], width=1, follow_weight=1),
+        ]
+        science_shots.validate_assembly_shot(shot, self.assembly)
+        self.assertIn('Carrier', science_shots.referenced_parts(shot))
+        spec['camera_path'][-1]['follow_weight'] = 1.1
+        with self.assertRaisesRegex(ValueError, 'Camera follow weights'):
+            science_shots.validate(shot)
+
     def setUp(self):
         self.config = json.loads((FIXTURES/'science-demo.json').read_text())
         self.assembly = json.loads((ROOT/self.config['assembly_config']).read_text())

@@ -120,8 +120,9 @@ class LifecycleTests(unittest.TestCase):
             report=json.loads(next(args.out.rglob('report.json')).read_text())
             self.assertEqual(report['status'],'FAIL')
 
-    def test_housekeeping_change_preserves_scene_cache_identity(self):
+    def test_scene_edit_has_a_distinct_cache_identity_from_housekeeping_release(self):
         import common
         equivalence=json.loads(Path('config/cache-code-equivalence.json').read_text())['blender/scene.py']
-        self.assertEqual(common.filehash(Path('blender/scene.py')), equivalence['current_sha256'])
-        self.assertEqual(common.codehash('blender/scene.py'), common.digest({'blender/scene.py':equivalence['media_equivalent_sha256']}))
+        current = common.filehash(Path('blender/scene.py'))
+        self.assertNotEqual(current, equivalence['current_sha256'])
+        self.assertEqual(common.codehash('blender/scene.py'), common.digest({'blender/scene.py': current}))

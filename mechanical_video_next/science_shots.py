@@ -97,6 +97,8 @@ def validate(shot, *, files=False):
             or any(start == end for start, end in zip(path, path[1:])) for path in paths
         ):
             raise ValueError('Field and flow require bounded, nondegenerate XYZ polylines')
+    if template == 'camera_follow' and 'camera_path_follow' in spec:
+        raise ValueError('Blended tracking and the fixed follow template cannot drive the same camera')
     validate_editorial_geometry(spec)
     validate_motion_program(shot)
 
@@ -237,6 +239,9 @@ def validate_editorial_geometry(spec):
             raise ValueError('Camera clip requires positive increasing near/far distances')
     if 'stage_rotation' in spec and not vector(spec['stage_rotation'], 3):
         raise ValueError('Stage rotation requires a finite XYZ Euler triple')
+    if 'camera_path_follow' in spec and (
+            not name(spec['camera_path_follow']) or not spec.get('camera_path')):
+        raise ValueError('Blended tracking requires a named part and an authored camera path')
     if 'camera_path' in spec:
         path = spec['camera_path']
         if (not isinstance(path, list) or not 2 <= len(path) <= 16 or any(
@@ -250,6 +255,11 @@ def validate_editorial_geometry(spec):
             a, b = start['direction'], end['direction']
             if sum(x*y for x,y in zip(a,b))/(math.hypot(*a)*math.hypot(*b)) < -.95:
                 raise ValueError('Add an intermediate camera key for oppositely directed views')
+        for pose in path:
+            if 'follow_weight' in pose and (
+                    not spec.get('camera_path_follow') or not number(pose['follow_weight'])
+                    or not 0 <= pose['follow_weight'] <= 1):
+                raise ValueError('Camera follow weights require a tracked part and values from zero to one')
     for key in ('guides', 'print_marks'):
         items = spec.get(key, [])
         if not isinstance(items, list) or len(items) > 16:
@@ -286,6 +296,8 @@ def referenced_parts(shot):
     parts.update(ref['object'] for row in spec.get('constraints', []) for ref in row['points'])
     if spec.get('follow'):
         parts.add(spec['follow'])
+    if spec.get('camera_path_follow'):
+        parts.add(spec['camera_path_follow'])
     if shot.get('section_plane'):
         parts.update(shot['section_plane'].get('parts', []))
     return parts
