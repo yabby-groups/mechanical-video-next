@@ -8,6 +8,7 @@ export type Graphic = {
   unit?: string;
   formula?: string;
   domainMax?: number;
+  presentation?: 'bars' | 'trace';
 };
 export type SplitScreenSpec = {sources:[{media:string;startFrame:number;credit:string},{media:string;startFrame:number;credit:string}]};
 export type VisualProps = {
@@ -49,6 +50,36 @@ const DataAnimation: React.FC<{graphic:Graphic}> = ({graphic}) => {
     throw new Error('Invalid data animation keyframes');
   const max=graphic.domainMax??Math.max(...all.map(p=>p[1]),1);
   if(!Number.isFinite(max) || max<=0 || all.some(p=>p[1]>max)) throw new Error('Invalid data animation domain');
+  if(graphic.presentation==='trace') {
+    const end=Math.max(...all.map(([time])=>time));
+    const current=Math.min(frame/fps,end);
+    const x=(time:number)=>248+1480*time/end;
+    const y=(value:number)=>746-360*value/max;
+    return <AbsoluteFill style={{background:'#e6eaed',color:'#172b35'}}>
+      <PhoneText text={graphic.title} style={{position:'absolute',left:128,width:1664,top:145,fontWeight:700}}/>
+      <svg viewBox="0 0 1920 1080" style={{position:'absolute',inset:0}}>
+        {[0,.5,1].map(level=><g key={level}>
+          <line x1={248} x2={1728} y1={y(level*max)} y2={y(level*max)} stroke="#abbac0" strokeWidth={3}/>
+          <text x={220} y={y(level*max)} dominantBaseline="middle" textAnchor="end" fontSize={72} fill="#172b35">{Number((level*max).toPrecision(3))}</text>
+        </g>)}
+        <line x1={x(current)} x2={x(current)} y1={386} y2={746} stroke="#566a72" strokeWidth={3}/>
+        {graphic.items.map((item,i)=>{
+          const keys=item.keyframes!;
+          const time=Math.min(current,keys[keys.length-1][0]);
+          const value=interpolate(time,keys.map(p=>p[0]),keys.map(p=>p[1]),{extrapolateLeft:'clamp',extrapolateRight:'clamp'});
+          const points=[...keys.filter(([t])=>t<time),[time,value]];
+          return <g key={i}>
+            <polyline points={points.map(([t,v])=>`${x(t)},${y(v)}`).join(' ')} fill="none" stroke={colors[i]} strokeWidth={12}
+              strokeDasharray={i===1?'24 10':undefined}/>
+            <circle cx={x(time)} cy={y(value)} r={14} fill={colors[i]} stroke="white" strokeWidth={4}/>
+          </g>;
+        })}
+      </svg>
+      {graphic.items.map((item,i)=><PhoneText key={i} text={item.label} style={{position:'absolute',left:248+i*480,width:410,top:258,color:colors[i],fontWeight:700}}/>)}
+      <PhoneText text={graphic.unit!} style={{position:'absolute',right:192,top:258,width:400,textAlign:'right'}}/>
+      <PhoneText text={graphic.formula!} style={{position:'absolute',left:248,width:1480,top:760,fontWeight:700}}/>
+    </AbsoluteFill>;
+  }
   return <AbsoluteFill style={{background:'#e6eaed',color:'#172b35'}}>
     <PhoneText text={graphic.title} style={{position:'absolute',left:128,width:1664,top:145,fontWeight:700,lineHeight:1.5}}/>
     <div style={{position:'absolute',left:128,right:128,top:365,display:'grid',
@@ -57,7 +88,7 @@ const DataAnimation: React.FC<{graphic:Graphic}> = ({graphic}) => {
       const points=item.keyframes!; const value=interpolate(frame/fps,points.map(p=>p[0]),points.map(p=>p[1]),{extrapolateLeft:'clamp',extrapolateRight:'clamp'});
       const four=graphic.items.length===4;
       const bar=<div style={{height:36,background:'#cbd5d9',gridColumn:four?'1 / -1':undefined}}><div style={{height:'100%',width:`${value/max*100}%`,background:colors[i]}}/></div>;
-      return <div key={i} style={{height:four?220:145,display:'grid',gridTemplateColumns:four?'1fr 330px':'410px 1fr 330px',
+      return <div key={i} style={{height:four?220:145,display:'grid',gridTemplateColumns:four?'1fr 400px':'410px 1fr 400px',
         gridTemplateRows:four?'129px 36px':undefined,gap:20,alignItems:'center'}}>
         <PhoneText text={item.label} style={{fontWeight:700}}/>
         {!four && bar}

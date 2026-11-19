@@ -33,6 +33,19 @@ def shot(shot_id, start, *, engine, role, kind, camera, knowledge):
 
 
 class VisualNarrativeTests(unittest.TestCase):
+    def test_trace_requires_located_basis_and_visible_boundary(self):
+        graphic = dict(type='data_animation', presentation='trace', title='Cooling', unit='C',
+                       formula='Conceptual example', items=[
+                           dict(label='Warm', detail='Example', keyframes=[[0, 75], [4, 10]]),
+                           dict(label='Cool', detail='Example', keyframes=[[0, 30], [4, 2]])])
+        with self.assertRaises(ValueError):
+            validate_graphic(graphic)
+        graphic['basis'] = REF
+        validate_graphic(graphic)
+        del graphic['formula']
+        with self.assertRaises(ValueError):
+            validate_graphic(graphic)
+
     def test_progression_requires_distinct_visual_states_and_links_prior_claim(self):
         def example(sid, prior, goal, states):
             return dict(shot_id=sid, knowledge_ids=[goal], knowledge_goal=goal, render_engine='blender',

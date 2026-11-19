@@ -241,6 +241,14 @@ def validate_graphic(graphic, *, progression=False):
                     or keys[0][0] != 0 or any(a[0] >= b[0] for a,b in zip(keys,keys[1:]))):
                 raise ValueError('Animated data needs ordered finite nonnegative [seconds,value] keys from zero')
     if kind == 'data_animation':
+        presentation = graphic.get('presentation', 'bars')
+        if presentation not in {'bars', 'trace'}:
+            raise ValueError('Unknown data animation presentation')
+        if presentation == 'trace':
+            from .science_shots import source_binding
+            source_binding(graphic.get('basis'))
+            if len(items) != 2 or not nonempty(graphic.get('formula')):
+                raise ValueError('Trace compares two series and requires a visible model or measurement boundary')
         peak = max(k[1] for item in items for k in item['keyframes'])
         domain = graphic.get('domainMax', peak)
         if not nonempty(graphic.get('unit')) or not number(domain) or domain <= 0 or domain < peak:
@@ -250,7 +258,8 @@ def validate_graphic(graphic, *, progression=False):
         for item in items:
             validate_phone_text(item['label'],410)
             for _,value in item['keyframes']:
-                validate_phone_text(f'{value:g} {graphic["unit"]}',330)
+                if presentation == 'bars':
+                    validate_phone_text(f'{value:.2f} {graphic["unit"]}',400)
         if 'formula' in graphic:
             validate_phone_text(graphic['formula'],1664)
     if kind == 'chart' and (not nonempty(graphic.get('unit')) or not any(s['value'] for s in items)):
