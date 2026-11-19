@@ -766,11 +766,12 @@ def render_shot(args):
               'checks':{},'unverified':cfg['unverified']}
     template = shot['template']
     science = shot.get('science')
+    framing_parts = []
     if science:
         sys.path.insert(0, str(ROOT))
         sys.path.insert(0, str(ROOT/'blender'))
         from mechanical_video_next.science_shots import TEMPLATES, validate_assembly_shot
-        from science_guides import stage, camera_motion, add_guides, add_print
+        from science_guides import stage, camera_motion, add_guides, add_print, evaluated_bounds
         import science_scene
         validate_assembly_shot(shot, cfg)
         stage(scene, parts, science)
@@ -889,7 +890,9 @@ def render_shot(args):
         if camera_path:
             follow_name = science.get('camera_path_follow')
             followed = science_scene.target(visible, follow_name) if follow_name else None
-            camera_motion(scene, cam, camera_path, count, linear_action, followed)
+            framing_parts = [science_scene.target(visible, name)
+                             for name in science.get('camera_framing', {}).get('parts', [])]
+            camera_motion(scene, cam, camera_path, count, linear_action, followed, framing_parts)
             report['checks']['editorial_camera'] = {'poses': len(camera_path), 'scope': 'Authored moving 3D frame; surrounding parts may crop'}
             if followed is not None:
                 report['checks']['editorial_camera']['followed_part'] = followed.name
@@ -910,22 +913,34 @@ def render_shot(args):
             report['screen_anchors'] = science_scene.project(scene, cam, visible, science['anchors'], count)
     # Projection only: this does not prove lack of occlusion or visual comprehension.
     margin = 1
+    min_subject_extent = 1
     for f in range(1,count+1):
         scene.frame_set(f)
         focus = shot.get('camera_focus_region')
-        projected = ([] if science and science.get('camera_path') else
+        projected = ([('framing parts', point) for point in evaluated_bounds(framing_parts)]
+                     if framing_parts else [] if science and science.get('camera_path') else
                      [('editorial_focus_region', point) for point in camera_region_points(focus)]
                      if focus else [(o.name, o.matrix_world @ Vector(v))
                                     for o in visible for v in o.bound_box])
+        screen = []
         for name, point in projected:
             p = world_to_camera_view(scene,cam,point)
+            screen.append(p)
             margin = min(margin,p.x,p.y,1-p.x,1-p.y)
             assert p.z > 0 and 0.01 <= p.x <= 0.99 and 0.01 <= p.y <= 0.99, (name,f,list(p))
-    moving_frame = science and science.get('camera_path')
+        if framing_parts:
+            min_subject_extent = min(min_subject_extent, max(
+                max(p[i] for p in screen) - min(p[i] for p in screen) for i in (0, 1)))
+    moving_frame = science and science.get('camera_path') and not framing_parts
     report['checks']['min_projected_margin'] = None if moving_frame else margin
-    report['checks']['projection_scope'] = ('Authored moving crop; no whole-subject projection check' if moving_frame else
+    report['checks']['projection_scope'] = ('Evaluated bounding boxes of declared framing parts' if framing_parts else
+                                            'Authored moving crop; no whole-subject projection check' if moving_frame else
                                             'Editorial focus region only; surrounding assembly intentionally extends outside detail framing'
                                             if shot.get('camera_focus_region') else 'Whole assembly bounding boxes')
+    if framing_parts:
+        report['checks']['camera_framing'] = {'version': 1, 'frames': count,
+                                             'parts': [part.name for part in framing_parts],
+                                             'min_subject_extent': min_subject_extent}
     if shot.get('camera_focus_region'):
         report['camera_focus_region'] = shot['camera_focus_region']
     teaching_nail = add_teaching_nail(shot, count)

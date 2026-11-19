@@ -17,13 +17,13 @@ def stage(scene, parts, spec):
     root.rotation_euler = Euler(spec['stage_rotation'])
 
 
-def camera_motion(scene, camera, poses, count, linear_action, followed=None):
+def camera_motion(scene, camera, poses, count, linear_action, followed=None, framing=()):
     if followed is not None:
         scene.frame_set(1)
         origin = followed.matrix_world.translation.copy()
     index = 0
     for frame in range(1, count + 1):
-        progress = (frame - 1) / (count - 1)
+        progress = (frame - 1) / max(1, count - 1)
         while progress > poses[index+1]['progress']:
             index += 1
         start, end = poses[index:index+2]
@@ -35,15 +35,44 @@ def camera_motion(scene, camera, poses, count, linear_action, followed=None):
             weight = start.get('follow_weight', 0) * (1 - mix) + end.get('follow_weight', 0) * mix
             center += (followed.matrix_world.translation - origin) * weight
         direction = Vector(start['direction']).normalized().lerp(Vector(end['direction']).normalized(), mix).normalized()
-        camera.location = center + direction * 30
-        camera.rotation_euler = (-direction).to_track_quat('-Z', 'Y').to_euler('XYZ', camera.rotation_euler)
-        camera.data.ortho_scale = start['width'] * (1 - mix) + end['width'] * mix
+        rotation = (-direction).to_track_quat('-Z', 'Y')
+        width = start['width'] * (1 - mix) + end['width'] * mix
+        distance = 30
+        if framing:
+            scene.frame_set(frame)
+            center, width, distance = fit_camera(scene, rotation, framing, center, width)
+        camera.location = center + direction * distance
+        camera.rotation_euler = rotation.to_euler('XYZ', camera.rotation_euler)
+        camera.data.ortho_scale = width
         camera.keyframe_insert('location', frame=frame)
         camera.keyframe_insert('rotation_euler', frame=frame)
         camera.data.keyframe_insert('ortho_scale', frame=frame)
     linear_action(camera.animation_data)
     linear_action(camera.data.animation_data)
     scene.frame_set(1)
+
+
+def evaluated_bounds(objects):
+    graph = bpy.context.evaluated_depsgraph_get()
+    for obj in objects:
+        evaluated = obj.evaluated_get(graph)
+        for corner in evaluated.bound_box:
+            yield evaluated.matrix_world @ Vector(corner)
+
+
+def fit_camera(scene, rotation, objects, offset, padding):
+    inverse = rotation.inverted()
+    points = [inverse @ point for point in evaluated_bounds(objects)]
+    low = Vector(tuple(min(point[i] for point in points) for i in range(3)))
+    high = Vector(tuple(max(point[i] for point in points) for i in range(3)))
+    span = high - low
+    aspect = scene.render.resolution_x / scene.render.resolution_y
+    width = max(span.x / (.97 - 2 * abs(offset.x)),
+                span.y * aspect / (.97 - 2 * abs(offset.y)), 1e-6) * padding
+    center = (low + high) / 2
+    center -= Vector((offset.x * width, offset.y * width / aspect, 0))
+    distance = max(scene.camera.data.clip_start * 2, span.z / 2 + width * 2)
+    return rotation @ center, width / min(1, aspect), distance
 
 
 def point(ref, objects, depsgraph):
