@@ -33,7 +33,7 @@ def sources_for(document):
     return VISUAL_SOURCES if document.get('visual_policy_version') == 2 else SOURCES
 
 
-def render(props, output, log, *, preview=False, encode_profile=None, visual=False, progression=False):
+def render(props, output, log, *, preview=False, encode_profile=None, visual=False, progression=False, frame_range=None):
     chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
     entry = 'progressionEntry' if progression else 'visualEntry' if visual else 'index'
     concurrency = '1' if encode_profile == 'progression-witness-v1' else '2'
@@ -42,6 +42,11 @@ def render(props, output, log, *, preview=False, encode_profile=None, visual=Fal
             Path(output).resolve(), '--props', Path(props).resolve(), '--codec', 'h264', '--audio-codec', 'aac',
             '--pixel-format', 'yuv420p', '--concurrency', concurrency, '--browser-executable', chrome,
             '--gl', 'angle', '--log', 'error']
+    if frame_range is not None:
+        if (not isinstance(frame_range, (list, tuple)) or len(frame_range) != 2
+                or any(type(f) is not int for f in frame_range) or not 0 <= frame_range[0] <= frame_range[1]):
+            raise ValueError('Render frame range requires inclusive nonnegative integer endpoints')
+        args += ['--frames', f'{frame_range[0]}-{frame_range[1]}']
     if preview:
         args += ['--scale', '0.5', '--crf', '25']
     elif encode_profile == 'witness-v1':
