@@ -363,6 +363,11 @@ def match_assets(blueprint, output, library=Path('references')):
         query.setdefault('usage_scope', 'commercial-video')
         query.setdefault('duration_sec', shot['duration'])
         query.setdefault('project_id', data.get('task_id'))
+        implementation = data.get('product_identity', {}).get('mechanism_id')
+        if shot.get('mechanical_role') == 'core' and implementation:
+            if query.get('mechanism_id', implementation) != implementation:
+                raise ValueError('Core media query differs from Blueprint mechanism identity')
+            query['mechanism_id'] = implementation
         query.update(shot_id=shot['shot_id'], used_intervals=copy.deepcopy(used))
         # Selecting a model still requires the existing Asset/CAD inspection.
         query.setdefault('accepted_types', {'blender':['video','model'], 'remotion':['video','graphic','template'],

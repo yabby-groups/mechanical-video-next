@@ -55,9 +55,9 @@ def repair(task, config, issue_id, shot_id, cue, text, quality='final'):
     media = {}
     for name in dict.fromkeys(s['shot'] for s in fixed['storyboard']):
         shot = fixed['shots'][name]
-        key = produce.shot_key(shot, quality, fixed['render'])
+        key = produce.shot_key(shot, quality, fixed['render'], fixed.get('assembly_config'))
         folder = produce.CACHE / 'shots' / key
-        kind = 'image' if shot['template'] in ['overall', 'detail', 'exploded'] else 'video'
+        kind = 'image' if shot['template'] in ['overall', 'detail', 'exploded'] and not shot.get('science') else 'video'
         filename = 'media.png' if kind == 'image' else 'media.mp4'
         if not produce.cached(folder, [filename, 'checks.json']):
             raise ValueError('Verified shot cache missing; cannot repair subtitles locally')

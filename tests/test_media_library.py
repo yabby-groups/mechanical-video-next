@@ -54,6 +54,23 @@ class MediaLibraryTest(unittest.TestCase):
         self.assertIn('media_hash_invalid', result['attempts'][0]['reasons'])
         self.assertIn('usage_scope_not_authorized', result['attempts'][0]['reasons'])
 
+    def test_core_blueprint_matches_exact_implementation(self):
+        from mechanical_video_next.blueprint import match_assets
+
+        ingest_media({**self.metadata, 'mechanism_id': 'different-gear'}, self.media, self.root)
+        owned = ingest_media({**self.metadata, 'mechanism_id': 'fixed-ring'}, self.media, self.root)
+        plan = {'visual_policy_version': 2, 'media_policy_version': 1,
+                'product_identity': {'mechanism_id': 'fixed-ring'},
+                'shots': [{'shot_id': 'motion', 'visual_type': 'state_change', 'render_engine': 'blender',
+                           'mechanical_role': 'core', 'knowledge_ids': ['rotation'],
+                           'knowledge_goal': 'Show rotation', 'duration': 1,
+                           'media_query': self.shot}]}
+        path = self.root/'plan.json'
+        path.write_text(json.dumps(plan))
+        match = match_assets(path, self.root/'matches.json', self.root)['shots'][0]['match']
+        self.assertEqual(match['selected']['record'], owned['record'])
+        self.assertIn('mechanism_id_mismatch', next(a['reasons'] for a in match['attempts'] if not a['eligible']))
+
     def test_priority_content_quality_and_repeat(self):
         ingest_media(self.metadata, self.media, self.root)
         subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',

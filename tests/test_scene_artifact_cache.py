@@ -10,6 +10,19 @@ import produce
 
 
 class SceneArtifactCacheTests(unittest.TestCase):
+    def test_same_assembly_spec_with_external_blends_uses_actual_bytes(self):
+        shot = {'template': 'overall', 'seconds': 2}
+        assembly = 'tests/fixtures/production/assembly.json'
+        with tempfile.TemporaryDirectory() as temporary:
+            model = Path(temporary)/'external.blend'
+            model.write_bytes(b'first geometry')
+            before = produce.shot_key(shot, 'final', assembly_path=assembly, model=model)
+            model.write_bytes(b'second geometry')
+            after = produce.shot_key(shot, 'final', assembly_path=assembly, model=model)
+            self.assertNotEqual(before, after)
+            shot['visual'] = {'caption': 'Changed explanation'}
+            self.assertEqual(after, produce.shot_key(shot, 'final', assembly_path=assembly, model=model))
+
     def test_permanent_scene_change_and_loss_invalidate_render_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

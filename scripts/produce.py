@@ -107,7 +107,7 @@ def bounded_chunk_frames(requested, needed, width, height, used_bytes):
         raise RuntimeError('Insufficient work budget for one frame and encoding reserve')
     return min(requested, needed, capacity)
 
-def shot_key(shot, quality, render=None, assembly_path=None):
+def shot_key(shot, quality, render=None, assembly_path=None, *, model=None):
     render = render or {'width':1080,'height':1920}
     # Native previews and final shots use identical Blender/encoding arguments.
     # Reuse their verified render rather than render the same frames twice.
@@ -119,12 +119,18 @@ def shot_key(shot, quality, render=None, assembly_path=None):
                        'quality':quality, 'renderer':codehash('scripts/layered.py')})
     assembly_key=asset_key(assembly_path,source_exact=True) if shot.get('science') else asset_key(assembly_path)
     inputs={'asset':assembly_key,'shot':{k:v for k,v in shot.items() if k != 'visual'},'quality':quality,'panel':panel_spec(render,quality)}
+    if model is not None:
+        # The verified canonical builder already binds the source assembly.
+        canonical = CACHE/'assets'/(asset_key(assembly_path) if shot.get('science') else assembly_key)
+        if (Path(model).resolve() != (canonical/'assembly.blend').resolve()
+                or not cached(canonical, ['assembly.blend', 'assembly.inventory.json'])):
+            inputs['external_model_sha256'] = filehash(model)
     inputs['provenance_renderer'] = codehash('blender/render_with_provenance.py')
     if shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
     if shot.get('science'):
         science_files = ['blender/scene.py', 'blender/science_scene.py', 'mechanical_video_next/science_shots.py']
-        if {'camera_path', 'stage_rotation', 'guides', 'print_marks'} & shot['science'].keys():
+        if {'camera_path', 'stage_rotation', 'guides', 'print_marks', 'constraints'} & shot['science'].keys():
             science_files.append('blender/science_guides.py')
         inputs['science_renderer'] = codehash(*science_files, equivalents=False)
     return digest(inputs)
@@ -163,7 +169,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     width,height,fps = panel_spec(render,quality)
     if quality=='checks':
         fps=shot.get('diagnostic_fps',fps)
-    key=shot_key(shot,quality,render,assembly_path)
+    key=shot_key(shot,quality,render,assembly_path,model=model)
     folder=CACHE/'shots'/key
     if shot.get('template') == 'layered':
         from layered import render as render_layers
@@ -362,7 +368,7 @@ def composition_cached_media(folder):
 
 def compose(cfg, quality, media, metrics):
     from narration import effective_profile
-    from mechanical_video_next.science_information import information_props
+    from mechanical_video_next.science_information import information_props, observation_overlay_findings
     from mechanical_video_next.remotion_build import render
     from mechanical_video_next.knowledge_progression import FIELD, enabled
     from mechanical_video_next.visual_narrative import VERSION, version
@@ -489,6 +495,13 @@ def compose(cfg, quality, media, metrics):
         retain_composition_export(cachedir, target,
                                   remove_duplicate=cached_media == cachedir/'video.mp4')
     writejson(target.with_suffix('.props.json'),props)
+    observation_windows = {row['id']: window for row in cfg['storyboard']
+                           if (window := cfg['shots'][row['shot']].get('science', {}).get('observation_window'))}
+    if observation_windows:
+        writejson(target.with_suffix('.observation-overlays.json'), {
+            'media_sha256': filehash(target),
+            'scope': 'Projected datum inside an active overlay rectangle; pixel occlusion requires review',
+            'findings': observation_overlay_findings(props, observation_windows)})
     target.with_suffix('.srt').write_text('\n\n'.join(f'{i+1}\n{srt_time(c["start"])} --> {srt_time(c["end"])}\n{c["text"]}' for i,c in enumerate(cues))+'\n')
     if quality=='final':
         validation=validate_video(target,cfg,cues)

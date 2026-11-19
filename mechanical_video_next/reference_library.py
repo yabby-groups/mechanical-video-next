@@ -319,6 +319,8 @@ def ingest_media(metadata, path, root=Path('references')):
         raise ValueError('Invalid media source_type or origin')
     for name in ('tags', 'mechanism_knowledge', 'used_shots', 'sources', 'visual_capabilities', 'model_capabilities'):
         data[name] = _labels(data.get(name, []))
+    if 'mechanism_id' in data and (not isinstance(data['mechanism_id'], str) or not data['mechanism_id'].strip()):
+        raise ValueError('Media mechanism_id must identify a specific implementation')
     segment = data.get('segment')
     if segment is not None:
         if not isinstance(segment, dict):
@@ -481,6 +483,12 @@ def match_media(shot, root=Path('references')):
     scope = shot.get('usage_scope')
     if not tags or not knowledge or not isinstance(scope, str) or not scope.strip():
         raise ValueError('Shot requires tags, mechanism_knowledge and usage_scope')
+    implementation = shot.get('mechanism_id')
+    if implementation is not None and (not isinstance(implementation, str) or not implementation.strip()):
+        raise ValueError('Shot mechanism_id must identify a specific implementation')
+    duration = shot.get('duration_sec')
+    if duration is not None and (type(duration) not in (int, float) or not math.isfinite(duration) or duration <= 0):
+        raise ValueError('Shot duration must be a positive finite number')
     attempts = []
     for path, record in _media_records(root):
         m, sha = record['metadata'], record['sha256']
@@ -532,6 +540,8 @@ def match_media(shot, root=Path('references')):
                 reasons.append('insufficient_' + key)
         if not tags.intersection(m['tags']) or not knowledge.issubset(m['mechanism_knowledge']):
             reasons.append('content_mismatch')
+        if implementation is not None and m.get('mechanism_id') != implementation:
+            reasons.append('mechanism_id_mismatch')
         capability_field = 'model_capabilities' if m.get('media_kind') == 'model' else 'visual_capabilities'
         needed = _labels(shot.get('required_' + capability_field, []))
         if not set(needed) <= set(m.get(capability_field, [])):
@@ -541,14 +551,10 @@ def match_media(shot, root=Path('references')):
         accepted = shot.get('accepted_types')
         if accepted is not None and (not isinstance(accepted, list) or m.get('media_kind') not in accepted):
             reasons.append('media_type_mismatch')
-        duration = shot.get('duration_sec')
-        if duration is not None:
-            if type(duration) not in (int, float) or not math.isfinite(duration) or duration <= 0:
-                raise ValueError('Shot duration must be a positive finite number')
-            if m.get('media_kind') == 'video':
-                segment = m.get('segment') or {'start_sec': 0, 'end_sec': q.get('duration_sec', 0)}
-                if segment['end_sec'] - segment['start_sec'] + 1e-6 < duration:
-                    reasons.append('segment_too_short')
+        if duration is not None and m.get('media_kind') == 'video':
+            segment = m.get('segment') or {'start_sec': 0, 'end_sec': q.get('duration_sec', 0)}
+            if segment['end_sec'] - segment['start_sec'] + 1e-6 < duration:
+                reasons.append('segment_too_short')
         if sha in shot.get('used_hashes', []) or (shot.get('shot_id') and shot['shot_id'] in m['used_shots']):
             reasons.append('already_used')
         available = m.get('segment') or {'start_sec':0,'end_sec':q.get('duration_sec',0)}

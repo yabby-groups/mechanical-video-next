@@ -6,6 +6,18 @@ from mechanical_video_next.text_layout import (load_style, measure_text, split_t
 
 
 class TextLayoutTests(unittest.TestCase):
+    def test_moving_anchor_in_subtitle_reports_located_frame(self):
+        from mechanical_video_next.science_information import observation_overlay_findings
+
+        props = dict(width=1920, height=1080, fps=30, duration=2,
+                     cues=[{'start': 1, 'end': 2, 'text': 'Look at the hinge'}],
+                     shots=[dict(id='context', seconds=1), dict(id='joint', seconds=1, screenAnchors={
+                         'fps': 15, 'frame_count': 15, 'samples': {'pin': [(0.5, 0.5)]*14+[(0.5, 0.92)]}})])
+        result = observation_overlay_findings(prepare_text_props(props), {
+            'joint': {'anchors': ['pin'], 'progress': [0, 1]}})
+        self.assertEqual(result, [dict(shot_id='joint', frame=index, anchor='pin', box_layer='subtitle')
+                                  for index in (58, 59)])
+
     def test_original_font_collection_resolves_correct_family(self):
         style = load_style()
         path = font_path(style)
