@@ -5,7 +5,7 @@ import json
 from .science_shots import MODE_LABEL, name, number, source_binding, vector
 
 
-def information_props(shot, editorial, media, kind):
+def information_props(shot, editorial, media, kind, *, natural=False):
     science = shot.get('science', {})
     items = editorial.get('information', [])
     if not isinstance(items, list) or len(items) > 24:
@@ -44,4 +44,4 @@ def information_props(shot, editorial, media, kind):
                 raise ValueError('Value requires named units, precision and ordered [progress, value] samples')
             source_binding(item.get('basis'))
     return {'information': items, 'screenAnchors': anchors,
-            'scienceLabel': MODE_LABEL[science['mode']] if science else None}
+            'scienceLabel': MODE_LABEL[science['mode']] if science and not natural else None}

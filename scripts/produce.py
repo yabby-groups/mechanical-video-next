@@ -366,6 +366,15 @@ def compose(cfg, quality, media, metrics):
     from mechanical_video_next.remotion_build import render
     from mechanical_video_next.knowledge_progression import FIELD, enabled
     from mechanical_video_next.visual_narrative import VERSION, version
+    from mechanical_video_next.production_contract import (
+        NATURAL_SCIENCE, PRESENTATION_STYLE, PRODUCTION_LABELS, validate_audience_copy,
+    )
+    natural = cfg.get(PRESENTATION_STYLE) == NATURAL_SCIENCE
+    if natural:
+        validate_audience_copy(cfg)
+        for row in cfg['storyboard']:
+            validate_audience_copy(row)
+            validate_audience_copy(cfg['shots'][row['shot']])
     visual = version(cfg) == VERSION
     voice=effective_profile(cfg) or cfg['voice']
     start=time.time()
@@ -383,7 +392,7 @@ def compose(cfg, quality, media, metrics):
         if path is not None:
             row['media'] = expose(path,key)
         if spec.get('science') or s.get('information'):
-            row.update(information_props(spec, s, path, kind))
+            row.update(information_props(spec, s, path, kind, natural=natural))
         if visual:
             from mechanical_video_next.visual_narrative import editorial_props, validate_footage
             row.update(editorial_props(spec))
@@ -406,6 +415,8 @@ def compose(cfg, quality, media, metrics):
         cues.extend(dict(c,start=round(c['start']+offset,3),end=round(c['end']+offset,3)) for c in sc)
         offset+=s['seconds']
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
+    if natural:
+        props[PRESENTATION_STYLE] = NATURAL_SCIENCE
     if visual:
         props['visual_policy_version'] = VERSION
     from mechanical_video_next.media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
@@ -424,7 +435,11 @@ def compose(cfg, quality, media, metrics):
         if field in cfg:
             if not isinstance(cfg[field],str):
                 raise ValueError(f'{field} must be a string')
-            props[field]=cfg[field]
+            value = cfg[field]
+            if natural and field == 'fullframe_caption':
+                value = ' · '.join(part for part in map(str.strip, value.split('·')) if part not in PRODUCTION_LABELS)
+            if value or not natural:
+                props[field] = value
     from mechanical_video_next.text_layout import prepare_text_props
     from mechanical_video_next.style_lock import verify_lock
     lock = verify_lock(ROOT / 'assets/style-reference/style-lock.json', shared_only=True)
@@ -559,6 +574,12 @@ def main():
     from narration import load_env,effective_profile
     load_env(args.env_file or (ROOT/'.env.local' if (ROOT/'.env.local').exists() else None))
     cfg=json.loads(args.config.read_text())
+    if args.task is not None:
+        from mechanical_video_next.workflow import load
+        from mechanical_video_next.production_contract import PRESENTATION_STYLE
+        task_style = load(args.task).get(PRESENTATION_STYLE)
+        if task_style is not None:
+            cfg[PRESENTATION_STYLE] = task_style
     if cfg.get('production_scope') == 'verified-shots':
         from mechanical_video_next.workflow import require_source_supported_render
         if args.task is None or args.phase not in {'keys', 'checks', 'local'}:

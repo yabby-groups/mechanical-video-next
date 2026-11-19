@@ -972,6 +972,16 @@ cache and failure evidence; no upload/publication. Token/cost without telemetry 
         'in actual time ranges. Tie each defect to its shot, viewer impact, repair owner and verification method.'
         if mixed else 'Apply the original 3D-only policy to the full timeline.'
     )
+    if data.get('presentation_style') == 'natural_science':
+        visual_guidance += (
+            ' Author presentation_style=natural_science in the Blueprint before binding QA. '
+            'Turn research claims into observable questions and direct causal narration. '
+            'Keep source scope and model assumptions in internal records. Explain consequential limitations '
+            'in ordinary language, and reserve screen text for parts, quantities, conditions and credits. '
+            'Independent final QA checks actual visible titles, Blender marks, labels and subtitles, then '
+            'listens for classroom phrasing, subtitle alignment and accurate model boundaries. Record UNKNOWN '
+            'when actual viewing or listening is unavailable.'
+        )
     if evidence_progression(data):
         visual_guidance += (
             ' Apply knowledge_progression_version=1. Explicitly connect the knowledge of the previous shot '
@@ -1093,7 +1103,10 @@ def sync_producer_prompt(task, data):
 
 def create_task(topic, duration=None, voice=None, config=None, task_id=None, root=ROOT,
                 protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1,
-                media_policy_version=0):
+                media_policy_version=0, presentation_style='natural_science'):
+    from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE
+    if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
+        raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
     from .visual_narrative import FIELD, VERSION, match_policy, version
     from .knowledge_progression import FIELD as PROGRESSION_FIELD, VERSION as PROGRESSION_VERSION
@@ -1153,6 +1166,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if progression:
         value[PROGRESSION_FIELD] = PROGRESSION_VERSION
     if protocol_version == 2:
+        value[PRESENTATION_STYLE] = presentation_style
         value['reference_policy_version'] = 1
         value['reference_model_policy_version'] = 1
         value['product_policy_version'] = 1
@@ -1206,6 +1220,10 @@ def put_handoff(task, role, name, payload, dependencies=None):
             artifact(task, dep)
             deps[dep] = data['handoffs'][dep]['sha256']
         v2 = protocol_version(data) == 2
+        from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
+        if name == 'creative-blueprint' and data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
+            for shot in payload.get('shots', []):
+                validate_audience_copy(shot)
         from .production_contract import enabled as science_contract, validate_research as validate_science
         if science_contract(data):
             if name == 'research':
@@ -2434,6 +2452,7 @@ def main():
                    help='New tasks default to 2. Policy 1 retains the all-3D timeline.')
     p.add_argument('--media-policy', type=int, choices=(0, 1),
                    help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
+    p.add_argument('--presentation-style', choices=('natural_science', 'legacy'), default='natural_science')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
@@ -2527,7 +2546,8 @@ def main():
                            visual_policy_version=args.visual_policy if args.visual_policy is not None
                            else (1 if args.config else 2),
                            media_policy_version=args.media_policy if args.media_policy is not None
-                           else (0 if args.config or args.visual_policy == 1 else 1))
+                           else (0 if args.config or args.visual_policy == 1 else 1),
+                           presentation_style=args.presentation_style)
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')

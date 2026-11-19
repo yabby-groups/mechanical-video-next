@@ -7,6 +7,15 @@ routing and tools remain the only workflow.
 
 ## Policy resolution
 
+New tasks default to `presentation_style: natural_science`. Write it into the
+Blueprint before binding QA. Lead narration with the observable question or
+cause. Use screen text for knowledge and required credits. State consequential
+model boundaries in plain language and keep evidence, scope and simulation
+status in the existing internal records. In the existing independent review,
+check rendered titles, subtitles, labels and scene text, then listen for
+narration style, alignment and scientifically meaningful limitations. Archived
+tasks without the field retain their original rendering.
+
 | Task | Effective rules |
 | --- | --- |
 | `production_contract_version=1` | This contract; `production_contract=mixed-original-v1`, `media_policy_version=1`, `visual_policy_version=2`, knowledge progression 1 |

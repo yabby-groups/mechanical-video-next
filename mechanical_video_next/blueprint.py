@@ -49,6 +49,9 @@ def validate(data):
                     'asset', 'template', 'camera', 'narration', 'subtitles', 'overlays'}
         if not isinstance(s, dict) or not required <= s.keys():
             raise ValueError('Shot missing executable fields')
+        from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
+        if data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
+            validate_audience_copy(s)
         if any(not isinstance(s[k], str) or not s[k].strip() for k in
                ('shot_id', 'knowledge_goal', 'mechanical_action', 'asset', 'template')):
             raise ValueError('Shot identifiers and decisions must be nonempty strings')
@@ -103,6 +106,9 @@ def compile_config(blueprint, base, output, draft=False):
     if not draft:
         validate_creative_blueprint(data)
     result, shots, storyboard, mappings = copy.deepcopy(cfg), {}, [], []
+    from .production_contract import PRESENTATION_STYLE
+    if PRESENTATION_STYLE in data:
+        result[PRESENTATION_STYLE] = data[PRESENTATION_STYLE]
     for s in data['shots']:
         key = s.get('existing_shot')
         editorial = visual and s['render_engine'] != 'blender'

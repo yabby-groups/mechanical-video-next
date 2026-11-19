@@ -41,6 +41,7 @@ def prepare(task, script, env_file=None):
     sys.path.insert(0,str(ROOT/'scripts'))
     from narration import effective_profile, load_env, sentence, synthesize_shot
     from .workflow import load
+    from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
     data=load(task)
     script=Path(script)
     content=json.loads(script.read_text())
@@ -49,6 +50,9 @@ def prepare(task, script, env_file=None):
     chapters=content.get('chapters',[])
     if not chapters or len({c['id'] for c in chapters}) != len(chapters):
         raise ValueError('Unique original script chapters required')
+    if data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
+        for chapter in chapters:
+            validate_audience_copy(chapter)
     load_env(env_file)
     profile=effective_profile({'narration_profile':'config/narration-neil.json'})
     rows=[]; cursor=0

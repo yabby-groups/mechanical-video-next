@@ -8,6 +8,35 @@ from .visual_narrative import located, nonempty
 
 FIELD = 'production_contract_version'
 NAME = 'mixed-original-v1'
+PRESENTATION_STYLE = 'presentation_style'
+NATURAL_SCIENCE = 'natural_science'
+PRODUCTION_LABELS = frozenset({
+    '原理示意', '教学动画', '教学模型', '概念模型', '仅供演示',
+    '动画演示', '示意画面', '以下为演示', '3D 模型展示',
+})
+CLASSROOM_OPENINGS = (
+    '下面我们来学习', '接下来进行原理演示', '这里使用一个教学模型',
+    '如动画所示', '这个示意图告诉我们', '现在我们介绍它的工作原理',
+)
+
+
+def validate_audience_copy(row):
+    for line in row.get('narration', []):
+        if line.lstrip().startswith(CLASSROOM_OPENINGS):
+            raise ValueError(f'Rewrite classroom narration as a concrete scientific observation: {line}')
+    graphic = row.get('graphic', {})
+    science = row.get('science', {})
+    visible = [row.get(key) for key in ('title', 'subtitle', 'chapter', 'label', 'note', 'formula')]
+    visible += [graphic.get(key) for key in ('title', 'formula')]
+    visible += [value for item in graphic.get('items', []) for value in (item.get('label'), item.get('detail'))]
+    visible += list(row.get('subtitles', [])) + list(row.get('overlays', []))
+    visible += [item.get('text') for item in row.get('information', []) + row.get('annotations', [])]
+    visible += [mark.get('text') for mark in science.get('print_marks', [])]
+    for line in visible:
+        if isinstance(line, str) and line.strip(' ／/。·') in PRODUCTION_LABELS:
+            raise ValueError(f'Remove the standalone production label or explain the concrete limitation: {line}')
+
+
 DIMENSIONS = {'scientific_accuracy', 'mechanical_motion', 'visual_expression',
               'narrative_comprehension', 'originality_copyright', 'av_delivery'}
 DIRECTION = {'why_visual', 'composition', 'lighting', 'continuity', 'sound_intent'}

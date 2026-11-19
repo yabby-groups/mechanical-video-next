@@ -5,7 +5,7 @@ import {AbsoluteFill, Audio, Composition, Img, OffthreadVideo, Sequence, registe
 
 type Cue = {start:number;end:number;text:string};
 type Shot = ShotInfo & {id:string;label:string;note:string;seconds:number;audio:string;accent:string;formula?:string};
-type Props = {title:string;subtitle:string;shots:Shot[];cues:Cue[];duration:number;fps:number;width:number;height:number;presentation?:'mechanism-fullframe';fullframe_caption?:string;fullframe_credit?:string;text_style?:TextStyle;annotations?:Annotation[];critical_boxes?:number[][]};
+type Props = {title:string;subtitle:string;shots:Shot[];cues:Cue[];duration:number;fps:number;width:number;height:number;presentation?:'mechanism-fullframe';presentation_style?:'natural_science';fullframe_caption?:string;fullframe_credit?:string;text_style?:TextStyle;annotations?:Annotation[];critical_boxes?:number[][]};
 
 const MechanismShot:React.FC<{shot:Shot}> = ({shot}) => <AbsoluteFill>
   {shot.kind==='image' ? <Img src={staticFile(shot.media)} style={{width:'100%',height:'100%',objectFit:'contain'}}/> :
@@ -69,7 +69,7 @@ const Video:React.FC<Props> = p => {
     {!fullframe && <>
     {cue && <TextOverlay text={cue.text} layer='subtitle' profile={profile}/>}
     <div style={{position:'absolute',left:60,right:60,bottom:wide?48:73,height:4,background:'#243043'}}><div style={{height:4,width:`${100*frame/(p.duration*p.fps)}%`,background:'#78ddcd'}}/></div>
-    <div style={{position:'absolute',left:60,bottom:wide?14:35,color:'#78899d',fontSize:wide?19:21}}>教学装配 · 原理示意 · 非接触/受力仿真</div>
+    {p.presentation_style!=='natural_science' && <div style={{position:'absolute',left:60,bottom:wide?14:35,color:'#78899d',fontSize:wide?19:21}}>教学装配 · 原理示意 · 非接触/受力仿真</div>}
     </>}
   </AbsoluteFill>;
 };

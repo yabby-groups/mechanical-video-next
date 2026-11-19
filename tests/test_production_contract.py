@@ -2,12 +2,39 @@ import copy
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from mechanical_video_next import production_contract as c
 from mechanical_video_next.workflow import create_task, load, producer_prompt
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_compose_filters_only_natural_fullframe_labels_and_preserves_credits(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
+        import produce
+
+        class PropsReady(Exception):
+            pass
+
+        for style, caption, expected in (
+                ('natural_science', '原理示意 · 摩擦力大小未模拟', '摩擦力大小未模拟'),
+                ('natural_science', '原理示意', None),
+                ('legacy', '原理示意', '原理示意')):
+            cfg = dict(title='A concrete question', subtitle='A causal answer', voice={},
+                       presentation='mechanism-fullframe', presentation_style=style,
+                       fullframe_caption=caption, fullframe_credit='Source: original evidence',
+                       render=dict(width=1920, height=1080), storyboard=[], shots={})
+            with self.subTest(style=style, caption=caption), \
+                    patch('narration.effective_profile', return_value={}), \
+                    patch('mechanical_video_next.style_lock.verify_lock', return_value={'status': 'PASS'}), \
+                    patch('mechanical_video_next.text_layout.prepare_text_props', side_effect=PropsReady) as prepare:
+                with self.assertRaises(PropsReady):
+                    produce.compose(cfg, 'preview', {}, None)
+                props = prepare.call_args.args[0]
+                self.assertEqual(props.get('fullframe_caption'), expected)
+                self.assertEqual(props['fullframe_credit'], cfg['fullframe_credit'])
+
     def test_audience_decision_binds_the_opening_and_payoff(self):
         plan = dict(production_contract_version=1, production_contract=c.NAME,
                     media_policy_version=1, visual_policy_version=2,
@@ -26,6 +53,20 @@ class ProductionContractTests(unittest.TestCase):
                 plan['narrative']['audience_decision'] = decision | changes
                 c.validate_direction(plan)
 
+    def test_natural_copy_distinguishes_production_labels_from_scientific_limits(self):
+        from mechanical_video_next.science_information import information_props
+        c.validate_audience_copy({
+            'narration': ['只看运动方向，摩擦力大小还要另测。'],
+            'overlays': ['模型按等速带入计算', '压头'],
+        })
+        with self.assertRaisesRegex(ValueError, 'classroom'):
+            c.validate_audience_copy({'narration': ['下面我们来学习修正带。']})
+        with self.assertRaisesRegex(ValueError, 'production label'):
+            c.validate_audience_copy({'science': {'print_marks': [{'text': '教学模型'}]}})
+        shot = {'science': {'mode': 'conceptual'}}
+        self.assertEqual(information_props(shot, {}, None, 'video')['scienceLabel'], '原理示意')
+        self.assertIsNone(information_props(shot, {}, None, 'video', natural=True)['scienceLabel'])
+        self.assertEqual(shot['science']['mode'], 'conceptual')
 
     def test_mechanical_review_reuse_tracks_only_its_real_dependencies(self):
         from mechanical_video_next.reference_policy import model_program_digest
