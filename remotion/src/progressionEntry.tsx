@@ -22,7 +22,7 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
   const auxiliary = shot.footage?.credit ?? (!shot.scienceLabel ? (last && p.fullframe_credit) || p.fullframe_caption : undefined);
   const annotations = (p.annotations??[]).filter(a=>time>=a.start && time<a.end);
   const regions: {layer: TextLayer; box?: number[]}[] = [...informationRegions(shot,frame,p.fps), ...annotations];
-  if(!shot.graphic) regions.push({layer:'chapter'});
+  if(!shot.graphic && p.title) regions.push({layer:'chapter'});
   if(auxiliary) regions.push({layer:'auxiliary'});
   if(cues.length) regions.push({layer:'subtitle'});
   assertOverlayRegions(regions,profile,p.width,p.height,p.critical_boxes);
@@ -34,7 +34,7 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
     <ShotInformation shot={shot} frame={frame} fps={p.fps} width={p.width} height={p.height} profile={profile}/>
     {!shot.graphic && <>
       <div style={{position:'absolute',top:0,left:0,right:0,height:145,background:'linear-gradient(rgba(0,0,0,.23),transparent)'}}/>
-      <TextOverlay text={p.title} layer="chapter" profile={profile}/>
+      {p.title && <TextOverlay text={p.title} layer="chapter" profile={profile}/>}
     </>}
     {shot.chapter && <ChapterTransition text={shot.chapter}/>}
     {auxiliary && <TextOverlay text={auxiliary} layer="auxiliary" profile={profile}/>}
