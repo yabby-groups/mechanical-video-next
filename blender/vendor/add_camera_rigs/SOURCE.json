@@ -1,0 +1,11 @@
+{
+  "url": "https://extensions.blender.org/add-ons/add-camera-rigs/",
+  "version": "1.9.2",
+  "archive_sha256": "548ecf6372563948f5b3cf292dd01a3209f77ef730eb38b0197cd50ffd7377cd",
+  "license": "GPL-3.0-or-later",
+  "upstream_files": "Unmodified official extension files; SPDX headers retained",
+  "runtime_evidence": "output/camera-study/rig-probe.json",
+  "integration": "Opt-in science.camera_rig with existing science.camera_path; no legacy migration",
+  "license_text_source": "Blender 5.2.3 bundled SPDX GPL-3.0-or-later.txt",
+  "license_text_sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+}
