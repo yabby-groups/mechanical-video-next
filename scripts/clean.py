@@ -210,6 +210,51 @@ def retain_composition_export(folder, exported, *, remove_duplicate=False, apply
     return result
 
 
+def retain_shot_export(folder, exported, *, apply=False):
+    """Remove only an identical decoded native-shot duplicate; caller owns lock.
+
+    Keep all scene/input/check/failure evidence. A missing cached MP4 is a normal
+    future cache miss, not a claim that the original renderer can reuse an absent
+    file. The protected export remains the authoritative delivered source clip.
+    """
+    folder, exported = Path(folder).absolute(), Path(exported).absolute()
+    parent = ROOT/'work/cache/shots'
+    if (folder.is_symlink() or folder.parent.resolve()!=parent.resolve()
+            or not re.fullmatch(r'[0-9a-f]{64}',folder.name)
+            or any(p.is_symlink() for p in (ROOT/'work',ROOT/'work/cache',parent))
+            or any(p.is_symlink() for p in folder.rglob('*'))):
+        raise ValueError('Expected an owned regular native-shot cache')
+    if (exported.is_symlink() or not exported.is_file()
+            or not exported.resolve().is_relative_to((ROOT/'output').resolve())
+            or any(p.is_symlink() for p in exported.parents if p.is_relative_to(ROOT))):
+        raise ValueError('Expected a regular protected output export')
+    marker=json.loads((folder/'complete.json').read_text())
+    duplicate=folder/'media.mp4'
+    digest=filehash(exported)
+    if not duplicate.is_file() or marker.get('media.mp4')!=digest or filehash(duplicate)!=digest:
+        raise ValueError('Native-shot duplicate differs; preserve all evidence')
+    checks=folder/'checks.json'
+    if marker.get('checks.json')!=filehash(checks):
+        raise ValueError('Native-shot checks changed')
+    native=json.loads(checks.read_text())
+    for key in ('source_shot','scene_artifact'):
+        binding=native[key]
+        if not Path(binding['path']).is_file() or filehash(binding['path'])!=binding['sha256']:
+            raise ValueError('Native scene/input must remain intact')
+    subprocess.run(['ffmpeg','-v','error','-xerror','-i',str(exported),'-f','null','-'],check=True,capture_output=True)
+    size=duplicate.stat().st_size
+    result=dict(path=str(folder.relative_to(ROOT)),kind='verified_native_shot_export',
+                preserved_export=dict(path=str(exported.resolve()),sha256=digest),
+                checks=dict(path=str(checks),sha256=filehash(checks)),decode='PASS',
+                bytes=size,deleted_bytes=0,delete=False,cache_reuse=False)
+    if apply:
+        writejson(folder/'export-archive.json',result)
+        duplicate.unlink()
+        result.update(deleted_bytes=size,delete=True)
+        writejson(ROOT/'work/cleanup-reports'/str(time.time_ns())/'shot-export.json',result)
+    return result
+
+
 def cleanup_npm_cache(apply=False):
     """Explicitly clear disposable npm download data, never installed modules."""
     target = ROOT/'work/npm-cache'
