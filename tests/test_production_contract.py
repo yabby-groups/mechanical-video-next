@@ -8,6 +8,25 @@ from mechanical_video_next.workflow import create_task, load, producer_prompt
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_audience_decision_binds_the_opening_and_payoff(self):
+        plan = dict(production_contract_version=1, production_contract=c.NAME,
+                    media_policy_version=1, visual_policy_version=2,
+                    narrative=dict(question='Why?', tension='A contradiction', answer='Because', arc_reason='Comparison'),
+                    shots=[dict(shot_id=sid, direction={k:'Concrete decision' for k in c.DIRECTION})
+                           for sid in ('opening', 'answer')])
+        c.validate_direction(plan)
+        decision = dict(daily_context='Everyday use', opening_visual='Visible action',
+                        viewer_takeaway='A causal answer', selection_rationale='A familiar question',
+                        opening_shot_id='opening', payoff_shot_id='answer')
+        plan['narrative']['audience_decision'] = decision
+        c.validate_direction(plan)
+        for changes in ({'opening_shot_id': 'answer'}, {'payoff_shot_id': 'missing'},
+                        {'selection_rationale': ''}):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, 'Audience decision'):
+                plan['narrative']['audience_decision'] = decision | changes
+                c.validate_direction(plan)
+
+
     def test_mechanical_review_reuse_tracks_only_its_real_dependencies(self):
         from mechanical_video_next.reference_policy import model_program_digest
         with tempfile.TemporaryDirectory() as folder:

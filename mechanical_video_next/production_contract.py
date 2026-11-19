@@ -70,6 +70,15 @@ def validate_direction(blueprint, research=None):
     narrative = blueprint.get('narrative', {})
     if not all(nonempty(narrative.get(k)) for k in ('question', 'tension', 'answer', 'arc_reason')):
         raise ValueError('Original question, tension, answer and chosen narrative arc required')
+    if 'audience_decision' in narrative:
+        decision = narrative['audience_decision']
+        if (not isinstance(decision, dict) or not all(nonempty(decision.get(key)) for key in
+                ('daily_context', 'opening_visual', 'viewer_takeaway', 'selection_rationale'))):
+            raise ValueError('Audience decision needs a daily context, opening visual, takeaway and selection rationale')
+        shots = blueprint['shots']
+        if (not shots or decision.get('opening_shot_id') != shots[0]['shot_id']
+                or decision.get('payoff_shot_id') not in {shot['shot_id'] for shot in shots}):
+            raise ValueError('Audience decision must bind the first shot and a payoff shot')
     facts = validate_research(research) if research is not None else None
     for shot in blueprint['shots']:
         direction = shot.get('direction', {})

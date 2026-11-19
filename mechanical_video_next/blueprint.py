@@ -132,6 +132,8 @@ def compile_config(blueprint, base, output, draft=False):
                              knowledge_goal=s['knowledge_goal'], mechanical_action=s['mechanical_action'],
                              asset=s['asset'], template=s['template'], camera=s['camera'],
                              overlays=s['overlays'], motion_validation='UNKNOWN'))
+        if visual and 'direction' in s:
+            mappings[-1]['direction'] = copy.deepcopy(s['direction'])
     result.update(id=cfg.get('id', 'video') + '-blueprint-' + filehash(blueprint)[:16], shots=shots, storyboard=storyboard,
                   blueprint_program_sha256=digest({k: val for k, val in data.items() if k != 'production_config'}),
                   production_status='DRAFT_UNAPPROVED' if draft else 'BLUEPRINT_BOUND_UNVALIDATED')

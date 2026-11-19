@@ -963,8 +963,13 @@ cache and failure evidence; no upload/publication. Token/cost without telemetry 
         'Use visual_policy_version=2 and docs/visual-narrative.md. Core movements stay native 3D. '
         'Licensed footage and original Remotion graphics may support verified claims. '
         'Record visual_research and a provisional Blueprint shots list in the research handoff before CAD. '
+        'Compare a small set of audience questions in their daily context. For new work, record the selected '
+        'opening visual, viewer takeaway, and choice rationale in narrative.audience_decision, linked to the '
+        'first shot and the shot that delivers the answer. Use actual comparable platform observations when available. '
         'Freeze the final supported knowledge and visual decisions in the existing creative-blueprint. '
-        'Use visual_checks in content, animatic, preview and final QA.'
+        'Use visual_checks in content, animatic, preview and final QA. In independent media review, locate '
+        'opening clarity, narrative progress, visual continuity, causal understanding and reasons to return '
+        'in actual time ranges. Tie each defect to its shot, viewer impact, repair owner and verification method.'
         if mixed else 'Apply the original 3D-only policy to the full timeline.'
     )
     if evidence_progression(data):

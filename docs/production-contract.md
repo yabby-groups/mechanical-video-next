@@ -59,6 +59,17 @@ contradiction, structure, mechanism, test, misconception, answer) are adaptable;
 they are not a forced seven-chapter template. Repeated angles, arrows or label
 reveals do not establish new knowledge.
 
+For new creative work, record the selected daily context, visible opening, viewer
+takeaway and rationale in the existing `narrative.audience_decision`. Use
+`opening_shot_id` and `payoff_shot_id` to locate the promise and its payoff in the
+animatic. This optional v1 extension keeps older Blueprints resumable. For
+comparisons that depend on history, `data_animation` supports
+`presentation: trace` with two series, a hash-bound located `basis` and a visible
+model or measurement boundary in `formula`. Use the existing shot-local
+keyframes. Feedback cohorts can use `feedback.comparable_observations` on imported
+records with explicit duration, publication-window and observation-age tolerances
+(seconds). Review the matched observations alongside their Blueprint bindings.
+
 ## Stages and recovery
 
 | Stage | Inputs | Existing authoritative output / next dependency |
