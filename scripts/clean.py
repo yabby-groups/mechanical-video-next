@@ -11,7 +11,7 @@ import os
 import subprocess
 from contextlib import ExitStack
 import time
-from common import ROOT, treebytes
+from common import ROOT, treebytes, filehash, writejson
 
 @contextmanager
 def production_lock():
@@ -169,6 +169,47 @@ def cleanup(older_hours=720, apply=False, only_keys=None, task=None, pressure=Fa
                 (audit/'result.json').write_text(json.dumps(rows, indent=2))
     return rows
 
+def retain_composition_export(folder, exported, *, remove_duplicate=False, apply=True):
+    """Keep a decoded export as the cache source; caller owns production lock."""
+    folder, exported = Path(folder), Path(exported)
+    parent = ROOT/'work/cache/compositions'
+    if (folder.is_symlink() or folder.parent.resolve() != parent.resolve()
+            or not re.fullmatch(r'[0-9a-f]{64}', folder.name)
+            or any(p.is_symlink() for p in (ROOT/'work', ROOT/'work/cache', parent))):
+        raise ValueError('Expected an owned composition cache directory')
+    if (exported.is_symlink() or not exported.is_file()
+            or not exported.resolve().is_relative_to((ROOT/'output').resolve())
+            or any(p.is_symlink() for p in exported.parents if p.is_relative_to(ROOT))):
+        raise ValueError('Expected a regular protected output file')
+    props = folder/'props.json'
+    if props.is_symlink() or not props.is_file():
+        raise ValueError('Composition props missing or unsafe')
+    digest = filehash(exported)
+    duplicate = folder/'video.mp4'
+    size = 0
+    if remove_duplicate:
+        marker = json.loads((folder/'complete.json').read_text())
+        if (duplicate.is_symlink() or not duplicate.is_file()
+                or marker.get('video.mp4') != digest or filehash(duplicate) != digest):
+            raise ValueError('Composition copy differs from the protected export; preserve evidence')
+        size = duplicate.stat().st_size
+    subprocess.run(['ffmpeg', '-v', 'error', '-xerror', '-i', str(exported), '-f', 'null', '-'],
+                   check=True, capture_output=True)
+    receipt = dict(schema_version=1, media=dict(path=str(exported.resolve()), sha256=digest),
+                   props=dict(path=str(props.resolve()), sha256=filehash(props)), decode='PASS')
+    result = dict(path=str(folder.relative_to(ROOT)), kind='verified_composition_export',
+                  preserved_export=receipt['media'], candidate_bytes=size, bytes=size,
+                  deleted_bytes=0, deleted_files=0, delete=False)
+    if apply:
+        writejson(folder/'external-media.json', receipt)
+        if remove_duplicate:
+            duplicate.unlink()
+            result.update(deleted_bytes=size, deleted_files=1, delete=True)
+        audit = ROOT/'work/cleanup-reports'/str(time.time_ns())
+        writejson(audit/'composition-export.json', result)
+    return result
+
+
 def cleanup_npm_cache(apply=False):
     """Explicitly clear disposable npm download data, never installed modules."""
     target = ROOT/'work/npm-cache'
@@ -188,6 +229,8 @@ def main():
     ap.add_argument('--auto',action='store_true',help='Apply safe age-based cleanup before production; never bypass locks or references')
     ap.add_argument('--npm-cache-only', action='store_true',
                     help='Explicit disposable npm download cache only; leaves node_modules and media intact')
+    ap.add_argument('--archive-composition', help='Cache key whose exact decoded export replaces its duplicate video')
+    ap.add_argument('--export', type=Path, help='Protected identical MP4 under output/')
     ap.add_argument('--only-key', action='append', default=None,
                     help='Restrict eligible entries to this SHA256 key; repeat for multiple keys. Age, completion, locks, protections and references still apply')
     ap.add_argument('--dry-run', action='store_true')
@@ -198,8 +241,15 @@ def main():
     args=ap.parse_args()
     if args.older_hours<0: ap.error('Age must be nonnegative')
     try:
-        rows = (cleanup_npm_cache(args.apply and not args.dry_run) if args.npm_cache_only else
-                cleanup(args.older_hours, (args.apply or args.auto) and not args.dry_run, args.only_key, args.task, args.pressure))
+        if args.archive_composition:
+            if not args.export:
+                ap.error('--archive-composition requires --export')
+            with production_lock():
+                rows = [retain_composition_export(ROOT/'work/cache/compositions'/args.archive_composition,
+                        args.export, remove_duplicate=True, apply=args.apply and not args.dry_run)]
+        else:
+            rows = (cleanup_npm_cache(args.apply and not args.dry_run) if args.npm_cache_only else
+                    cleanup(args.older_hours, (args.apply or args.auto) and not args.dry_run, args.only_key, args.task, args.pressure))
     except RuntimeError as exc:
         print(json.dumps({'status':'SKIPPED', 'reason':str(exc), 'deleted_bytes':0}))
         return

@@ -341,6 +341,25 @@ def composition_key(props, quality):
                    'remotion':codehash(*sources),
                    'composition_code':codehash('scripts/produce.py', 'mechanical_video_next/text_layout.py', 'mechanical_video_next/science_information.py', 'mechanical_video_next/remotion_build.py', 'config/text-style.json')})
 
+def composition_cached_media(folder):
+    if cached(folder, ['video.mp4']):
+        return folder/'video.mp4'
+    try:
+        receipt = json.loads((folder/'external-media.json').read_text())
+        output, props = Path(receipt['media']['path']), folder/'props.json'
+        if (receipt.get('schema_version') == 1 and receipt.get('decode') == 'PASS'
+                and output.is_file() and not output.is_symlink()
+                and output.resolve().is_relative_to((ROOT/'output').resolve())
+                and receipt['props']['path'] == str(props.resolve())
+                and filehash(props) == receipt['props']['sha256']
+                and filehash(output) == receipt['media']['sha256']):
+            (folder/'.last-used').touch()
+            return output
+    except (OSError, KeyError, ValueError, TypeError):
+        pass
+    return None
+
+
 def compose(cfg, quality, media, metrics):
     from narration import effective_profile
     from mechanical_video_next.science_information import information_props
@@ -435,15 +454,25 @@ def compose(cfg, quality, media, metrics):
     target=ROOT/'output'/f'{cfg["id"]}-{suffix}.mp4'
     cachedir=CACHE/'compositions'/key
     cachedir.mkdir(parents=True,exist_ok=True)
-    hit=cached(cachedir,['video.mp4'])
+    from mechanical_video_next.production_contract import enabled as science_contract
+    external = science_contract(cfg)
+    cached_media = composition_cached_media(cachedir)
+    hit = cached_media is not None
     if not hit:
         writejson(cachedir/'props.json',props)
-        render(cachedir/'props.json', cachedir/'video.mp4', cachedir/'render.log',
+        cached_media = target if external else cachedir/'video.mp4'
+        render(cachedir/'props.json', cached_media, cachedir/'render.log',
                preview=quality=='preview', encode_profile=encode_profile, visual=visual, progression=enabled(cfg))
-        if quality=='final': validate_video(cachedir/'video.mp4',cfg,cues)
-        else: run(['ffmpeg','-v','error','-i',cachedir/'video.mp4','-f','null','-'],cachedir/'decode.log')
-        complete(cachedir,['video.mp4'])
-    shutil.copy2(cachedir/'video.mp4',target)
+        if quality=='final': validate_video(cached_media,cfg,cues)
+        else: run(['ffmpeg','-v','error','-i',cached_media,'-f','null','-'],cachedir/'decode.log')
+        if not external:
+            complete(cachedir,['video.mp4'])
+    if cached_media.resolve() != target.resolve():
+        shutil.copy2(cached_media,target)
+    if external:
+        from clean import retain_composition_export
+        retain_composition_export(cachedir, target,
+                                  remove_duplicate=cached_media == cachedir/'video.mp4')
     writejson(target.with_suffix('.props.json'),props)
     target.with_suffix('.srt').write_text('\n\n'.join(f'{i+1}\n{srt_time(c["start"])} --> {srt_time(c["end"])}\n{c["text"]}' for i,c in enumerate(cues))+'\n')
     if quality=='final':
