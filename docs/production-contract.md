@@ -419,7 +419,7 @@ prevents technical acceptance. Register known concerns, including a reported
 pronunciation defect, as timecoded QA issues with `requires_audio_review=true`
 for targeted resolution. Human speech and unverified external narration use
 the existing full listening path. Older task ledgers retain their pinned
-strategy.
+strategy. The user-invoked `/audience-review` remains a separate editorial review.
 
 For formal new-contract acceptance, the same immutable QA handoff contains
 `review_observations`: unique `id`, exact `media_sha256`, `reviewer_thread_id`,
