@@ -110,7 +110,7 @@ class MediaPolicyTests(unittest.TestCase):
                                    visual_policy_version=2, media_policy_version=1))
             self.assertTrue(m.enabled(new))
             self.assertEqual(new['production_method'], 'science-story')
-            self.assertEqual(new['production_contract_version'], 5)
+            self.assertEqual(new['production_contract'], 'mechanical-story-v6')
             v4 = load(create_task('Pinned v4', root=Path(tmp), task_id='v4',
                                   visual_policy_version=2, media_policy_version=1, contract_version=4))
             self.assertEqual(v4['production_contract'], 'science-discovery-v4')

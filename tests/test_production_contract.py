@@ -9,11 +9,12 @@ from mechanical_video_next.workflow import continuation, create_task, load, prod
 
 
 class ProductionContractTests(unittest.TestCase):
-    def test_mechanical_story_default_rejects_unanchored_research_and_preserves_v4(self):
+    def test_pinned_mechanical_story_rejects_unanchored_research_and_preserves_v4(self):
         from scripts.common import filehash
 
         with tempfile.TemporaryDirectory() as folder:
-            task = create_task('雨伞', root=folder, visual_policy_version=2, media_policy_version=1)
+            task = create_task('雨伞', root=folder, visual_policy_version=2, media_policy_version=1,
+                               contract_version=c.MECHANICAL_STORY_VERSION)
             data = load(task)
             self.assertEqual(data['production_contract'], c.MECHANICAL_STORY_NAME)
             self.assertEqual(data['visual_direction_version'], 1)
