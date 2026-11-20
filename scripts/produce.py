@@ -373,10 +373,10 @@ def compose(cfg, quality, media, metrics):
     from mechanical_video_next.knowledge_progression import FIELD, enabled
     from mechanical_video_next.visual_narrative import VERSION, version
     from mechanical_video_next.production_contract import (
-        NATURAL_SCIENCE, PRESENTATION_STYLE, PRODUCTION_LABELS, validate_audience_copy,
+        NATURAL_SCIENCE, PRESENTATION_STYLE, audience_caption, validate_audience_copy,
     )
-    natural = cfg.get(PRESENTATION_STYLE) == NATURAL_SCIENCE
-    if natural:
+    natural = cfg.get(PRESENTATION_STYLE, NATURAL_SCIENCE) == NATURAL_SCIENCE
+    if cfg.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
         validate_audience_copy(cfg)
         for row in cfg['storyboard']:
             validate_audience_copy(row)
@@ -421,8 +421,7 @@ def compose(cfg, quality, media, metrics):
         cues.extend(dict(c,start=round(c['start']+offset,3),end=round(c['end']+offset,3)) for c in sc)
         offset+=s['seconds']
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
-    if natural:
-        props[PRESENTATION_STYLE] = NATURAL_SCIENCE
+    props[PRESENTATION_STYLE] = NATURAL_SCIENCE if natural else 'legacy'
     if visual:
         props['visual_policy_version'] = VERSION
     from mechanical_video_next.media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
@@ -443,7 +442,7 @@ def compose(cfg, quality, media, metrics):
                 raise ValueError(f'{field} must be a string')
             value = cfg[field]
             if natural and field == 'fullframe_caption':
-                value = ' · '.join(part for part in map(str.strip, value.split('·')) if part not in PRODUCTION_LABELS)
+                value = audience_caption(value)
             if value or not natural:
                 props[field] = value
     from mechanical_video_next.text_layout import prepare_text_props

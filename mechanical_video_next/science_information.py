@@ -5,7 +5,7 @@ import json
 from .science_shots import MODE_LABEL, name, number, source_binding, vector
 
 
-def information_props(shot, editorial, media, kind, *, natural=False):
+def information_props(shot, editorial, media, kind, *, natural=True):
     science = shot.get('science', {})
     items = editorial.get('information', [])
     if not isinstance(items, list) or len(items) > 24:

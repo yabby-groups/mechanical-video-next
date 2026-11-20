@@ -84,7 +84,7 @@ class TextLayoutTests(unittest.TestCase):
     def test_prepare_all_routes_and_credit_share_region_by_time(self):
         props = {'title': '02 从送料到折脚', 'duration': 6., 'fps': 30,
                  'shots': [{'seconds': 3}, {'seconds': 3}],
-                 'fullframe_caption': '原理示意', 'fullframe_credit': '资料来源已记录',
+                 'fullframe_caption': '尺寸按比例简化', 'fullframe_credit': '资料来源已记录',
                  'cues': [{'start': 0, 'end': 2, 'text': '持续把钉条向前顶。'}],
                  'annotations': [{'layer': 'part', 'text': '推块', 'start': 0, 'end': 3},
                                  {'layer': 'part', 'text': '钉条', 'start': 3, 'end': 6}]}
@@ -95,6 +95,7 @@ class TextLayoutTests(unittest.TestCase):
             self.assertEqual([(i['start'], i['end']) for i in auxiliary], [(0, 3), (3, 6)])
             self.assertEqual(result['cues'], props['cues'])
             self.assertEqual(result['text_style']['font_family'], resolved_font_family())
+            self.assertEqual(next(i for i in result['text_layout_items'] if i['layer']=='chapter')['end'], 3)
         self.assertEqual(props, original)
 
     def test_prepare_rejects_crowding_and_unmeasured_text(self):

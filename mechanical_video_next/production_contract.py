@@ -2,6 +2,7 @@
 import hashlib
 import math
 from pathlib import Path
+import re
 import subprocess
 
 from .visual_narrative import located, nonempty
@@ -13,11 +14,19 @@ NATURAL_SCIENCE = 'natural_science'
 PRODUCTION_LABELS = frozenset({
     '原理示意', '教学动画', '教学模型', '概念模型', '仅供演示',
     '动画演示', '示意画面', '以下为演示', '3D 模型展示',
+    '教学演示', '教学级运动学', '模型示意', '数学模型',
+    '数据驱动动画', '物理仿真', '物理仿真回放', '教学装配',
 })
 CLASSROOM_OPENINGS = (
     '下面我们来学习', '接下来进行原理演示', '这里使用一个教学模型',
     '如动画所示', '这个示意图告诉我们', '现在我们介绍它的工作原理',
 )
+
+
+def audience_caption(text):
+    """Remove standalone production tags while retaining concrete conditions."""
+    return ' · '.join(part for part in map(str.strip, re.split(r'[·｜|]', text))
+                      if part and part.strip(' ／/。') not in PRODUCTION_LABELS)
 
 
 def validate_audience_copy(row):
@@ -33,7 +42,8 @@ def validate_audience_copy(row):
     visible += [item.get('text') for item in row.get('information', []) + row.get('annotations', [])]
     visible += [mark.get('text') for mark in science.get('print_marks', [])]
     for line in visible:
-        if isinstance(line, str) and line.strip(' ／/。·') in PRODUCTION_LABELS:
+        if isinstance(line, str) and any(part.strip(' ／/。') in PRODUCTION_LABELS
+                                        for part in re.split(r'[·｜|]', line)):
             raise ValueError(f'Remove the standalone production label or explain the concrete limitation: {line}')
 
 

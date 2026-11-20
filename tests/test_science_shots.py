@@ -172,7 +172,7 @@ class ScienceShots(unittest.TestCase):
             receipt['samples']['planet'].append(None)
             checks.write_text(json.dumps({'screen_anchors': receipt}))
             props = information_props(self.trace, editorial, media, 'video')
-            self.assertEqual(props['scienceLabel'], science_shots.MODE_LABEL['mathematical'])
+            self.assertIsNone(props['scienceLabel'])
             editorial['information'][0]['anchor'] = 'stale'
             with self.assertRaisesRegex(ValueError, 'missing'):
                 information_props(self.trace, editorial, media, 'video')

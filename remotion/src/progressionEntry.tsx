@@ -1,7 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Composition, OffthreadVideo, Sequence, registerRoot, staticFile, useCurrentFrame} from 'remotion';
-import {TextOverlay, defaultTextStyle, TextStyle, Annotation, TextLayer, assertOverlayRegions} from './TextOverlay';
-import {ShotInfo, ShotInformation, informationRegions} from './ShotInformation';
+import {TextOverlay, defaultTextStyle, TextStyle, Annotation, TextLayer, assertOverlayRegions, audienceCopy, openingTitle} from './TextOverlay';
+import {ShotInfo, ShotInformation, informationRegions, scienceBadge} from './ShotInformation';
 import {ChapterTransition, SplitScreen, VisualGraphic, Graphic, VisualProps} from './VisualNarrative';
 import {EvidenceGraphic, EvidenceGraphicSpec} from './EvidenceGraphic';
 
@@ -11,6 +11,7 @@ type Props = {
   title: string; shots: Shot[]; cues: Cue[]; duration: number; fps: number; width: number; height: number;
   text_style?: TextStyle; annotations?: Annotation[]; critical_boxes?: number[][];
   fullframe_caption?: string; fullframe_credit?: string;
+  presentation_style?: 'natural_science' | 'legacy';
 };
 
 const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> = ({shot,props:p,start,last}) => {
@@ -19,10 +20,12 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
   const profile = p.text_style ?? defaultTextStyle;
   const cues = p.cues.filter(c=>time>=c.start && time<c.end);
   if(cues.length>1) throw new Error('Overlapping subtitle cues');
-  const auxiliary = shot.footage?.credit ?? (!shot.scienceLabel ? (last && p.fullframe_credit) || p.fullframe_caption : undefined);
+  const legacy = p.presentation_style === 'legacy';
+  const title = !shot.graphic && openingTitle(p.title, frame+start, p.fps, legacy);
+  const auxiliary = shot.footage?.credit ?? (!scienceBadge(shot,legacy) ? (last && p.fullframe_credit) || audienceCopy(p.fullframe_caption,legacy) : undefined);
   const annotations = (p.annotations??[]).filter(a=>time>=a.start && time<a.end);
-  const regions: {layer: TextLayer; box?: number[]}[] = [...informationRegions(shot,frame,p.fps), ...annotations];
-  if(!shot.graphic && p.title) regions.push({layer:'chapter'});
+  const regions: {layer: TextLayer; box?: number[]}[] = [...informationRegions(shot,frame,p.fps,legacy), ...annotations];
+  if(title) regions.push({layer:'chapter'});
   if(auxiliary) regions.push({layer:'auxiliary'});
   if(cues.length) regions.push({layer:'subtitle'});
   assertOverlayRegions(regions,profile,p.width,p.height,p.critical_boxes);
@@ -31,12 +34,12 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
       <OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.footage?.startFrame} muted
         style={{width:'100%',height:'100%',objectFit:'contain'}}/>}
     <Audio src={staticFile(shot.audio)}/>
-    <ShotInformation shot={shot} frame={frame} fps={p.fps} width={p.width} height={p.height} profile={profile}/>
-    {!shot.graphic && <>
+    <ShotInformation shot={shot} frame={frame} fps={p.fps} width={p.width} height={p.height} profile={profile} legacy={legacy}/>
+    {title && <>
       <div style={{position:'absolute',top:0,left:0,right:0,height:145,background:'linear-gradient(rgba(0,0,0,.23),transparent)'}}/>
-      {p.title && <TextOverlay text={p.title} layer="chapter" profile={profile}/>}
+      <TextOverlay text={title} layer="chapter" profile={profile}/>
     </>}
-    {shot.chapter && <ChapterTransition text={shot.chapter}/>}
+    {legacy && shot.chapter && <ChapterTransition text={shot.chapter}/>}
     {auxiliary && <TextOverlay text={auxiliary} layer="auxiliary" profile={profile}/>}
     {cues.length===1 && <TextOverlay text={cues[0].text} layer="subtitle" profile={profile}/>}
     {annotations.map((a,i)=><TextOverlay key={i} text={a.text} layer={a.layer} box={a.box} profile={profile}/>)}

@@ -20,11 +20,14 @@ class ProductionContractTests(unittest.TestCase):
         for style, caption, expected in (
                 ('natural_science', '原理示意 · 摩擦力大小未模拟', '摩擦力大小未模拟'),
                 ('natural_science', '原理示意', None),
+                (None, '模型示意｜仅比较运动方向', '仅比较运动方向'),
                 ('legacy', '原理示意', '原理示意')):
             cfg = dict(title='A concrete question', subtitle='A causal answer', voice={},
-                       presentation='mechanism-fullframe', presentation_style=style,
+                       presentation='mechanism-fullframe',
                        fullframe_caption=caption, fullframe_credit='Source: original evidence',
                        render=dict(width=1920, height=1080), storyboard=[], shots={})
+            if style:
+                cfg['presentation_style'] = style
             with self.subTest(style=style, caption=caption), \
                     patch('narration.effective_profile', return_value={}), \
                     patch('mechanical_video_next.style_lock.verify_lock', return_value={'status': 'PASS'}), \
@@ -64,8 +67,8 @@ class ProductionContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'production label'):
             c.validate_audience_copy({'science': {'print_marks': [{'text': '教学模型'}]}})
         shot = {'science': {'mode': 'conceptual'}}
-        self.assertEqual(information_props(shot, {}, None, 'video')['scienceLabel'], '原理示意')
-        self.assertIsNone(information_props(shot, {}, None, 'video', natural=True)['scienceLabel'])
+        self.assertEqual(information_props(shot, {}, None, 'video', natural=False)['scienceLabel'], '原理示意')
+        self.assertIsNone(information_props(shot, {}, None, 'video')['scienceLabel'])
         self.assertEqual(shot['science']['mode'], 'conceptual')
 
     def test_mechanical_review_reuse_tracks_only_its_real_dependencies(self):

@@ -228,6 +228,7 @@ def prepare_text_props(props, *, audio_sha256=None, critical_boxes=None, platfor
     share the auxiliary region at disjoint times. The renderer must implement
     that same timing and use the returned measured ``text_style``.
     """
+    from .production_contract import audience_caption
     width, height = props.get('width', 1920), props.get('height', 1080)
     route = props.get('route', '3d')
     style = scaled_style(width, height, route)
@@ -252,14 +253,20 @@ def prepare_text_props(props, *, audio_sha256=None, critical_boxes=None, platfor
         items.append({'layer': layer, 'text': text, 'start': start, 'end': end,
                       'box': list(box or style[layer]['safe_box'])})
 
-    if props.get('title'):
-        add('chapter', props['title'], 0, duration)
+    legacy = props.get('presentation_style') == 'legacy'
+    title = props.get('title')
+    caption = props.get('fullframe_caption')
+    if not legacy:
+        title = audience_caption(title) if title else title
+        caption = audience_caption(caption) if caption else caption
+    if title:
+        add('chapter', title, 0, duration if legacy else min(duration, 3))
     shots = props.get('shots', [])
     credit = props.get('fullframe_credit')
     credit_start = sum(round(shot['seconds'] * fps) for shot in shots[:-1]) / fps if shots else 0
     caption_end = credit_start if credit else duration
-    if props.get('fullframe_caption') and caption_end > 0:
-        add('auxiliary', props['fullframe_caption'], 0, caption_end)
+    if caption and caption_end > 0:
+        add('auxiliary', caption, 0, caption_end)
     if credit:
         add('auxiliary', credit, credit_start, duration)
     for cue in cues:

@@ -1,6 +1,6 @@
 import React from 'react';
 import {Img, OffthreadVideo, staticFile} from 'remotion';
-import {TextLayer, TextOverlay, TextStyle} from './TextOverlay';
+import {TextLayer, TextOverlay, TextStyle, audienceCopy} from './TextOverlay';
 
 type Point = [number, number];
 type Box = [number, number, number, number];
@@ -23,9 +23,10 @@ const position = (shot:ShotInfo, anchor:string, frame:number, fps:number) => {
   return samples[Math.min(track.frame_count-1,Math.floor(frame*track.fps/fps))];
 };
 const badgeBox:Box=[1424,288,1856,360];
+export const scienceBadge = (shot:ShotInfo, legacy:boolean) => audienceCopy(shot.scienceLabel,legacy);
 
-export const informationRegions=(shot:ShotInfo,frame:number,fps:number) => [
-  ...(shot.scienceLabel?[{layer:'auxiliary' as const,box:badgeBox}]:[]),
+export const informationRegions=(shot:ShotInfo,frame:number,fps:number,legacy=false) => [
+  ...(scienceBadge(shot,legacy)?[{layer:'auxiliary' as const,box:badgeBox}]:[]),
   ...visibleItems(shot,frame,fps).map(item=>({layer:layer(item.type),box:item.box})),
 ];
 
@@ -50,8 +51,10 @@ const FocusInset:React.FC<{item:Inset;shot:ShotInfo;width:number;height:number}>
   </div>;
 };
 
-export const ShotInformation:React.FC<{shot:ShotInfo;frame:number;fps:number;width:number;height:number;profile:TextStyle}>=({shot,frame,fps,width,height,profile})=><>
-  {shot.scienceLabel && <TextOverlay text={shot.scienceLabel} layer="auxiliary" box={badgeBox} profile={profile}/>}
+export const ShotInformation:React.FC<{shot:ShotInfo;frame:number;fps:number;width:number;height:number;profile:TextStyle;legacy?:boolean}>=({shot,frame,fps,width,height,profile,legacy=false})=>{
+  const badge = scienceBadge(shot,legacy);
+  return <>
+  {badge && <TextOverlay text={badge} layer="auxiliary" box={badgeBox} profile={profile}/>}
   {visibleItems(shot,frame,fps).map((item,index)=>{
     if(item.type==='inset')return <FocusInset key={index} item={item} shot={shot} width={width} height={height}/>;
     const point=item.type==='label'?position(shot,item.anchor,frame,fps):null;
@@ -65,4 +68,5 @@ export const ShotInformation:React.FC<{shot:ShotInfo;frame:number;fps:number;wid
       <TextOverlay text={text} layer={layer(item.type)} box={item.box} profile={profile}/>
     </React.Fragment>;
   })}
-</>;
+  </>;
+};

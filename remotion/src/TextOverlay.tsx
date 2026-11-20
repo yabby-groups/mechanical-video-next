@@ -7,6 +7,14 @@ export type TextStyle = typeof defaults;
 export const defaultTextStyle = defaults;
 export type Annotation = {layer:TextLayer;text:string;start:number;end:number;box?:number[]};
 
+const productionLabel = /^(原理示意|教学演示|教学级运动学|模型示意|教学动画|教学模型|概念模型|数学模型|物理仿真|物理仿真回放|数据驱动动画|教学装配|仅供演示|动画演示|示意画面|以下为演示|3D 模型展示)$/;
+export const audienceCopy = (text:string|undefined, legacy:boolean) => legacy ? text :
+  text?.split(/[·｜|]/).map(part=>part.trim()).filter(part=>part &&
+    !productionLabel.test(part.replace(/^[ ／/。]+|[ ／/。]+$/g,''))).join(' · ');
+
+export const openingTitle = (title:string, frame:number, fps:number, legacy:boolean) =>
+  (legacy || frame < 3*fps) ? audienceCopy(title,legacy) : undefined;
+
 export const assertOverlayRegions=(items:{layer:TextLayer;box?:number[]}[],profile:TextStyle,width:number,height:number,critical:number[][]=[])=>{
   const overlap=(a:number[],b:number[])=>Math.max(a[0],b[0])<Math.min(a[2],b[2]) && Math.max(a[1],b[1])<Math.min(a[3],b[3]);
   const boxes=items.map(item=>{
