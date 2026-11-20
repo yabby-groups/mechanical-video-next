@@ -331,9 +331,10 @@ def validate_preproduction(blueprint, research, asset, qa):
     if visual.version(blueprint) == visual.VERSION:
         visual.validate_research(research)
         visual.validate_plan(blueprint)
-        from .production_contract import enabled as science_contract
-        visual.validate_review(qa.get('visual_checks'), [s['shot_id'] for s in blueprint['shots']],
-                               acceptance=not science_contract(blueprint))
+        from .production_contract import enabled as science_contract, producer_directed
+        if not producer_directed(blueprint):
+            visual.validate_review(qa.get('visual_checks'), [s['shot_id'] for s in blueprint['shots']],
+                                   acceptance=not science_contract(blueprint))
     if (qa.get('reviewer_role') != 'QA' or qa.get('independent') is not True
             or qa.get('plan_sha256') != plan_digest(blueprint, research, asset)):
         raise ValueError('Independent QA must bind exact reference, asset and blueprint versions')

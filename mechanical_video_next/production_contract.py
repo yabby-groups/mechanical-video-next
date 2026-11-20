@@ -19,6 +19,7 @@ MECHANICAL_STORY_VERSION = 5
 MECHANICAL_STORY_NAME = 'mechanical-story-v5'
 CREATIVE_SELECTION_VERSION = 6
 CREATIVE_SELECTION_NAME = 'mechanical-story-v6'
+PRODUCER_DIRECTED = 'producer-directed'
 CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME,
                   DISCOVERY_VERSION: DISCOVERY_NAME, MECHANICAL_STORY_VERSION: MECHANICAL_STORY_NAME,
                   CREATIVE_SELECTION_VERSION: CREATIVE_SELECTION_NAME}
@@ -115,6 +116,11 @@ def mechanical_story(document):
     return version(document) >= MECHANICAL_STORY_VERSION
 
 
+def producer_directed(document):
+    return (document.get('production_method') == PRODUCER_DIRECTED
+            and version(document) == CREATIVE_SELECTION_VERSION)
+
+
 def subject_kind(document):
     return document.get('subject_kind') or document.get('science', {}).get('subject_kind')
 
@@ -178,7 +184,8 @@ def validate_audience_decision(decision, *, creative=False, story=False):
 
 
 def validate_research(research):
-    if (version(research) >= CREATIVE_SELECTION_VERSION
+    directed = producer_directed(research)
+    if (not directed and version(research) >= CREATIVE_SELECTION_VERSION
             and research.get('story_exploration', {}).get('phase') == 'EDITORIAL'):
         selected_story(research, allow_unselected=True)
         return {}
@@ -221,7 +228,9 @@ def validate_research(research):
             located(fact.get('sources'))
         elif not nonempty(fact.get('limitation')):
             raise ValueError('Unknown facts need a specific limitation')
-    if discovery(research):
+    if directed and not any(fact['status'] == 'VERIFIED' for fact in facts):
+        raise ValueError('The story needs verified facts')
+    if discovery(research) and not directed:
         selected_story(research, allow_unselected=True)
     return {fact['id']: fact for fact in facts}
 
@@ -230,6 +239,16 @@ def validate_direction(blueprint, research=None):
     if not enabled(blueprint):
         return
     narrative = blueprint.get('narrative', {})
+    if producer_directed(blueprint):
+        if not all(nonempty(narrative.get(k)) for k in ('question', 'answer')):
+            raise ValueError('Blueprint needs the story question and supported answer')
+        if research is not None:
+            facts = validate_research(research)
+            for row in [*blueprint['shots'], *blueprint['timeline']['narration']]:
+                for identity in row['knowledge_ids']:
+                    if identity not in facts or facts[identity]['status'] != 'VERIFIED':
+                        raise ValueError('Unsupported fact cannot enter picture or narration: ' + identity)
+        return
     if not all(nonempty(narrative.get(k)) for k in ('question', 'tension', 'answer', 'arc_reason')):
         raise ValueError('Original question, tension, answer and chosen narrative arc required')
     creative = creative_first(blueprint)

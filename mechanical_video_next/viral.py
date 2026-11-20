@@ -242,9 +242,11 @@ def validate_reference_recreation(blueprint, research):
 
 
 def validate_creative_blueprint(payload):
-    from .production_contract import science_story
+    from .production_contract import producer_directed, science_story
     fields = BLUEPRINT_FIELDS
-    if science_story(payload):
+    if producer_directed(payload):
+        fields = {'core_question', 'original_topic', 'shots', 'duration_seconds', 'sources'}
+    elif science_story(payload):
         fields = fields - {'disassembly_order', 'reference_principles'}
     if payload.get('content_policy_version') == 1 or payload.get('growth_policy_version') == 2:
         from .growth import validate_contract
@@ -253,9 +255,10 @@ def validate_creative_blueprint(payload):
         raise ValueError('Complete FROZEN blueprint required')
     if any(payload.get(k) in (None, '', [], {}) for k in fields):
         raise ValueError('Blueprint field lacks an executable decision')
-    first = payload['first_motion_seconds']
-    if isinstance(first, bool) or not isinstance(first, (int, float)) or not math.isfinite(first) or first < 0:
-        raise ValueError('First visible motion needs a finite time')
+    first = payload.get('first_motion_seconds')
+    if 'first_motion_seconds' in fields or first is not None:
+        if isinstance(first, bool) or not isinstance(first, (int, float)) or not math.isfinite(first) or first < 0:
+            raise ValueError('First visible motion needs a finite time')
     end = 0
     shot_ids = set()
     for s in payload['shots']:
@@ -274,7 +277,7 @@ def validate_creative_blueprint(payload):
             raise ValueError('Shot mappings must not be empty')
         if not evidence_exists(s['feasibility_evidence']):
             raise ValueError('Shot feasibility evidence missing or changed')
-    if first >= end:
+    if first is not None and first >= end:
         raise ValueError('First motion must occur within the storyboard')
     if payload['duration_seconds'] != end:
         raise ValueError('Blueprint duration must match actual shot timeline')
@@ -287,7 +290,7 @@ def validate_creative_blueprint(payload):
             raise ValueError('Principle must map to execution, actual QA and bounded repair')
         if not isinstance(p['shot_ids'], list) or not set(p['shot_ids']) <= shot_ids:
             raise ValueError('Principle must map to existing shots')
-    for requirement in payload['qa_requirements']:
+    for requirement in payload.get('qa_requirements', []):
         if not {'requirement_id', 'shot_id', 'expected_observable_effect', 'verification_method', 'minimal_repair'} <= requirement.keys():
             raise ValueError('QA requirement lacks observable acceptance mapping')
         if requirement['shot_id'] not in shot_ids:

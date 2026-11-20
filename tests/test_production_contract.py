@@ -9,6 +9,175 @@ from mechanical_video_next.workflow import continuation, create_task, load, prod
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_default_director_registers_one_evidenced_story_and_resumes(self):
+        import json
+        import sys
+        import wave
+        from types import SimpleNamespace
+        from mechanical_video_next import blueprint, joint_timeline as joint, reference_policy as references
+        from mechanical_video_next import workflow as w
+
+        with tempfile.TemporaryDirectory() as folder:
+            task = create_task('行星齿轮', root=folder, visual_policy_version=2, media_policy_version=1)
+            data = load(task)
+            self.assertTrue(c.producer_directed(data))
+            self.assertEqual(continuation(task, persist=False)['next_action']['owner'], 'Producer')
+            self.assertNotIn('EDITORIAL', (task / 'producer-prompt.md').read_text())
+            self.assertEqual(load(task)['timeline_policy_version'], 1)
+            w.advance(task, 'RESEARCHING')
+            source = task / 'manual.txt'
+            source.write_text('With a fixed ring, the carrier rotates more slowly than the sun gear.')
+            evidence = dict(path=str(source), sha256=w.filehash(source), position='Operating instructions')
+            research = {key: data[key] for key in (c.FIELD, 'production_contract', 'production_method',
+                                                  'visual_policy_version', 'media_policy_version')}
+            fact = dict(id='reduction', status='VERIFIED', kind='observed', claim=source.read_text(),
+                        scope='One mechanism', assumptions=[], sources=[evidence])
+            research.update(mechanism_id='fixture', science=dict(subject_kind='mechanical_implementation',
+                            question='Why does the carrier turn more slowly?', answer=fact['claim'],
+                            scope=fact['scope'], facts=[fact]), references=[
+                dict(id='manual', location=str(source), source_name='Manual', author='Fixture',
+                     type='manual', acquired_at='2026-11-20', structure_evidence='Fixed ring',
+                     motion_evidence='Reduction', license='REFERENCE_ONLY', usable_content='Description',
+                     mechanism_id='fixture', unresolved_core_conflict=False, unknowns=[], conflicts=[],
+                     viewed_scope=dict(status='DOCUMENT_READ', evidence=evidence))])
+            with self.assertRaisesRegex(ValueError, 'production method'):
+                put_handoff(task, 'Producer', 'research', research | {'production_method': 'science-story'})
+            with self.assertRaisesRegex(ValueError, 'Located visual evidence'):
+                put_handoff(task, 'Producer', 'research',
+                            research | {'science': research['science'] | {'facts': [fact | {'sources': []}]}})
+            put_handoff(task, 'Producer', 'research', research)
+            resumed = continuation(task, persist=False)
+            self.assertEqual(resumed['next_action']['handoff'], 'asset-plan')
+            remaining = {row['handoff'] for row in resumed['remaining_work']}
+            self.assertTrue({'reference-model-qa', 'content-qa', 'final-qa'} <= remaining)
+            self.assertFalse({'diagnostic-animatic', 'diagnostic-qa', 'animatic-qa', 'preview-qa'} & remaining)
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: creative-blueprint'):
+                w.require_animatic(task)
+            self.assertIsNone(w.check_qa(task, 'preview-qa'))
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: final-qa'):
+                w.check_qa(task, 'final-qa')
+
+            base = Path('tests/fixtures/production/science-demo.json')
+            cfg = json.loads(base.read_text())
+            timeline = dict(frame_count=210, shots=[dict(id='trace', start_frame=0, end_frame=210)],
+                            actions=[], narration=[dict(id='line', text='看行星架', knowledge_ids=['reduction'],
+                                                        start_frame=0, deadline_frame=30)])
+            sample = task / 'speech.wav'
+            with wave.open(str(sample), 'wb') as wav:
+                wav.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+                wav.writeframes(b'\x01\x00' * 24000)
+            measured = joint.measure(timeline, lambda line: (sample, {}), task / 'narration.wav')
+            w.write(task / 'timing.json', measured)
+            shot = dict(shot_id='trace', time_range=[0, 7], duration=7, asset=cfg['asset'],
+                        existing_shot='trace', template=cfg['shots']['trace']['template'],
+                        overlays=[], knowledge_goal='See the output', mechanical_action='Carrier rotates',
+                        visual_type='state_change', render_engine='blender', mechanical_role='core',
+                        camera=dict(scale='wide', angle='oblique', preset='establish'),
+                        visual_focus='Carrier', visual_action='Rotation', assets=[cfg['asset']],
+                        evidence=cfg['shots']['trace']['science']['basis'], knowledge_ids=['reduction'],
+                        transition=dict(kind='cut', link='Carrier'), progression=dict(kind='new', reason='Output'),
+                        feasibility_evidence=[evidence], source_type='GENERATED', source_url=None,
+                        source_time_range=None, license_status='VERIFIED', usage_restrictions=[],
+                        selected_asset=None, reuse_decision='GENERATE', generation_required=True,
+                        license=dict(status='VERIFIED', name='Owned fixture', holder='Fixture',
+                                     editing_and_distribution=True, commercial_use=True, proof=evidence),
+                        credit='Fixture', content_verified=True,
+                        matching=dict(attempts=[dict(priority=i, status='NONE') for i in range(1, 6)],
+                                      generation_reason='Use matching native model'))
+            question = research['science']['question']
+            policy = {key: research[key] for key in (c.FIELD, 'production_contract', 'production_method',
+                                                      'visual_policy_version', 'media_policy_version')}
+            plan = dict(policy, timeline_policy_version=1, reference_policy_version=1, status='FROZEN',
+                        timeline=timeline, measured_timeline=joint.binding(task / 'timing.json'),
+                        narrative=dict(question=question, answer=fact['claim']), core_question=question,
+                        original_topic=data['topic'], duration_seconds=7, sources=[evidence], shots=[shot],
+                        evidence_map=[dict(knowledge_id='reduction', conclusion=fact['claim'], source_ids=['manual'],
+                                           reference_locations=[dict(source_id='manual', position='Instructions')],
+                                           parts=['Carrier'], actions=['Rotation'], usable_material='Native model',
+                                           shot_ids=['trace'], verification_method='Inspect', verified=True)],
+                        content_timing=dict(basis='Measured timeline', status='PASS', measured_narration_seconds=.5,
+                                            chapters=[dict(id='trace', knowledge_ids=['reduction'],
+                                                           new_information='Output', duration_reason='Action')]))
+            model = task / 'model.blend'
+            model.write_bytes(b'fixture model')
+            model_ref = joint.binding(model)
+            candidate = dict(strategy='verified-existing', id='model', reason='Exact embodiment', qualified=True,
+                             source_ids=['manual'], mechanism_id='fixture', validation_evidence=[evidence],
+                             legal_use=True, content_match=True, source_files=[model_ref])
+            asset = dict(policy, mechanism_id='fixture', strategy=candidate['strategy'], selected_candidate_id='model',
+                         candidates=[dict(strategy='existing-media', reason='No match'), candidate],
+                         model=model_ref, model_source=evidence, substantive_repairs=[],
+                         qualified=True, independent_meshes=True, missing_required_parts=[])
+            put_handoff(task, 'Asset', 'asset-plan', asset, ['research'])
+            plan_path, config_path = task / 'plan.json', task / 'compiled.json'
+            w.write(plan_path, plan)
+            blueprint.compile_config(plan_path, base, config_path)
+            plan['production_config'] = joint.binding(config_path)
+            put_handoff(task, 'Producer', 'creative-blueprint', plan, ['research', 'asset-plan'])
+            self.assertEqual(load(task)['config'], str(config_path.resolve()))
+            self.assertEqual(load(task)['shared_production']['timeline'], plan['measured_timeline'])
+            put_handoff(task, 'Producer', 'script', {'narration': timeline['narration']},
+                        ['research', 'creative-blueprint'])
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: reference-model-qa'):
+                w.require_animatic(task)
+            part = dict(part_id='carrier', source_locations=[dict(source_id='manual', position='Instructions')],
+                        cad_parts=['Carrier'], function='Output', connections='Planet pins', motion_constraints='Axis',
+                        verification=dict(status='PASS', evidence='Fixture'))
+            mechanical_qa = dict(mechanism_id='fixture', depicted_type='native', scope='Fixed ring',
+                                 bindings=[model_ref], parts=[part], independent=True, reviewer_thread_id='qa',
+                                 motion_basis=evidence, dimensions_basis=evidence, no_model_mixing=True,
+                                 unresolved_core_issues=[], consistency_checks={
+                                     key: dict(status='PASS', evidence='Fixture')
+                                     for key in ('appearance', 'key_parts', 'connections', 'input_action',
+                                                 'transmission', 'output_action', 'work_and_reset',
+                                                 'exploded_relationships')})
+            put_handoff(task, 'QA', 'reference-model-qa', mechanical_qa, ['research', 'asset-plan'])
+            content_qa = dict(reviewer_role='QA', independent=True,
+                              reviewer_thread_id='qa',
+                              plan_sha256=references.plan_digest(plan, research, asset),
+                              content_checks={key: dict(status='PASS', evidence='Fixture')
+                                              for key in references.CONTENT_CHECKS})
+            put_handoff(task, 'QA', 'content-qa', content_qa,
+                        ['research', 'asset-plan', 'creative-blueprint', 'reference-model-qa'])
+            put_handoff(task, 'Producer', 'feasibility', {'checks': dict.fromkeys(w.FEASIBILITY_CHECKS, 'PASS')},
+                        ['research', 'asset-plan', 'creative-blueprint'])
+            w.advance(task, 'ASSET_READY')
+            w.advance(task, 'ANIMATING')
+            self.assertIsNone(w.require_animatic(task))
+            self.assertEqual(continuation(task, persist=False)['next_action']['handoff'], 'animation-manifest')
+            preview = task / 'preview.mp4'
+            preview.write_bytes(b'fixture preview')
+            preview_media = dict(joint.binding(preview), chapter_ids=['trace'])
+            put_handoff(task, 'Animation', 'animation-manifest',
+                        dict(media=[preview_media], keyframes_verified=True),
+                        ['research', 'asset-plan', 'creative-blueprint', 'feasibility'])
+            probe = dict(streams=[
+                dict(codec_type='video', avg_frame_rate='30/1', duration='7', width=1920, height=1080),
+                dict(codec_type='audio', duration='7')])
+            with patch('mechanical_video_next.multiroute.probe', return_value=probe):
+                for state in ('PREVIEW_READY', 'PREVIEW_CHECKING', 'EDITING'):
+                    w.advance(task, state)
+            self.assertEqual(load(task)['state'], 'EDITING')
+            # Exercise the stage and ledger with test bytes in place of the renderer.
+            compiled = json.loads(config_path.read_text())
+            final = task.parents[1] / (compiled['id'] + '-final.mp4')
+            with (patch.object(w, 'ROOT', task.parents[2]),
+                  patch.object(w.subprocess, 'run', side_effect=lambda *a, **kw: final.write_bytes(b'fixture final')),
+                  patch.dict(sys.modules, {'clean': SimpleNamespace(cleanup=lambda **kw: None)}),
+                  patch('mechanical_video_next.multiroute.probe', return_value=probe)):
+                w.run_stage(task, 'final', config_path)
+                media = load(task)['route_runs']['3d']['outputs']
+                self.assertEqual(media, dict(joint.binding(final), chapter_ids=['trace']))
+                put_handoff(task, 'Editor', 'timeline', dict(media=[media], technical_pass=True),
+                            ['script', 'animation-manifest'])
+                w.advance(task, 'FINAL_CHECKING')
+                self.assertEqual(continuation(task, persist=False)['production_status'], 'FINAL_QA_PENDING')
+                with self.assertRaisesRegex(ValueError, 'Missing handoff: final-qa'):
+                    w.advance(task, 'COMPLETED')
+            shot['source_type'] = 'REFERENCE_ONLY'
+            with self.assertRaisesRegex(ValueError, 'editing/distribution rights'):
+                blueprint.validate(plan)
+
     def test_pinned_mechanical_story_rejects_unanchored_research_and_preserves_v4(self):
         from scripts.common import filehash
 

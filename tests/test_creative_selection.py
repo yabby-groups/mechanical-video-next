@@ -13,7 +13,8 @@ class CreativeSelectionTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.task = w.create_task('Mechanical object', root=tmp.name, visual_policy_version=2, media_policy_version=1)
+        self.task = w.create_task('Mechanical object', root=tmp.name, visual_policy_version=2,
+                                  media_policy_version=1, contract_version=contract.CREATIVE_SELECTION_VERSION)
         w.advance(self.task, 'RESEARCHING')
         source = self.task / 'reference.txt'
         source.write_text('Test fixture')

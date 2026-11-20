@@ -16,6 +16,7 @@ import sys
 import time
 
 from . import creative_selection as editorial_policy
+from .production_contract import PRODUCER_DIRECTED, producer_directed
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
@@ -667,7 +668,23 @@ def continuation(task, persist=True):
                          ('mechanical-qa', 'QA', 'Independently compare reference, CAD, motion and visible mechanism')]
     from .production_contract import discovery, mechanical_story, science_story
     from .visual_narrative import scene_direction_enabled
-    if science_story(data):
+    directed = producer_directed(data)
+    if directed:
+        optional = {'animatic-manifest', 'animatic-qa', 'preview-qa'}
+        sequence = [row for row in sequence if row[0] not in optional]
+        sequence[0] = ('research', 'Producer', 'Research the real machine and develop a complete story grounded in located facts')
+        sequence = [
+            (name, 'Producer', 'Direct the complete visual story and bind it to measured narration and evidence')
+            if name == 'creative-blueprint' else
+            (name, 'Producer', 'Register the original script developed with the visual edit')
+            if name == 'script' else
+            (name, 'Animation', 'Verify keyframes and bind the complete low-cost preview')
+            if name == 'animation-manifest' else
+            (name, 'Editor', 'Compose the complete film with the measured joint timeline')
+            if name == 'timeline' else (name, owner, action)
+            for name, owner, action in sequence
+        ]
+    elif science_story(data):
         sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
         if mechanical_story(data):
             sequence[0] = ('research', 'Research', 'Compare evidence-backed mechanical design stories and their visible payoffs before choosing an implementation or assets')
@@ -701,8 +718,10 @@ def continuation(task, persist=True):
     resume = ['uv', 'run', 'python', '-m', 'mechanical_video_next', 'produce', '--resume', str(task)]
     plan = data.get('production_plan', {})
     plan_path = Path(plan.get('path', ''))
+    render_handoffs = {'feasibility', 'content-qa'} if directed else {
+        'feasibility', 'animatic-manifest', 'animatic-qa'}
     executable_plan = (plan_path.is_file() and plan.get('sha256') == filehash(plan_path)
-                       and {'feasibility', 'animatic-manifest', 'animatic-qa'} <= set(valid))
+                       and render_handoffs <= set(valid))
     execution_failure = data.get('production_execution_failure', {})
     execution_needs_repair = (execution_failure.get('status') == 'OPEN'
         and execution_failure.get('plan_sha256') == plan.get('sha256')
@@ -751,6 +770,9 @@ def continuation(task, persist=True):
                       action=issue.get('suggested_fix', 'Diagnose the failed exact-media checks, repair affected shots and obtain independent re-verification'),
                       qa_handoff=name, defect_key=issue.get('defect_key'),
                       evidence=issue.get('evidence', report.get('media')), command=None)
+    elif directed and milestone == 'FINAL_RENDERED' and 'timeline' not in valid:
+        action = dict(owner='Editor', handoff='timeline', command=None, media=rendered,
+                      action='Bind the rendered film and technical verification to the current edit')
     elif routes and len(rendered) == len(routes) and not accepted:
         action = dict(owner='QA/Producer',
                       action='Bind missing provenance handoffs to the existing complete route media and resolve final exact-media acceptance gaps; preserve verified renders',
@@ -912,9 +934,17 @@ def delivery_files(task, data, routes):
     growth_binding = data.get('growth_report') or {'path': str(Path(task) / 'growth-report.json')}
     growth_path = Path(growth_binding['path'])
     required.append(dict(path=str(growth_path), sha256=growth_binding.get('sha256') or filehash(growth_path)))
+    directed = producer_directed(data)
+    if directed:
+        artifact(task, 'final-qa')
+        qa_path = Path(task) / data['handoffs']['final-qa']['path']
+        required.append(dict(path=str(qa_path), sha256=filehash(qa_path)))
     reference = data.get('reference_model_report')
     if not reference:
-        name = next((name for name in ('reference-to-model', 'reference-model-qa') if name in data.get('handoffs', {})), None)
+        names = ('reference-to-model', 'reference-model-qa')
+        if directed and not reference_model_required(data):
+            names += ('research',)
+        name = next((name for name in names if name in data.get('handoffs', {})), None)
         if not name:
             raise ValueError('Reference-to-model report binding required for three-route delivery')
         artifact(task, name)
@@ -957,6 +987,31 @@ def record_delivery(task, files, reason):
 
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
+    if producer_directed(data):
+        return f'''You are the sole native Codex Producer for {identity} ({topic}).
+Task directory {task}. Read its ledger and the Producer-directed section of docs/production-contract.md.
+You make the complete film for 君哥拆机器. 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
+
+Research the actual machine and find the story worth telling. Follow the subject into its invention,
+people, use, design tradeoffs or evolution where they make the film more revealing. Choose the story,
+visual language and length. Then choose an evidenced implementation and assets that serve it.
+Direct the whole visual story, including where the viewer needs to see a teardown, cutaway or mechanism
+in motion. Use lawful context and original graphics where they help. Use Research, CAD, Animation and
+Editor as needed. Own the decisions about the picture, narration, pacing and sound throughout.
+
+Record located facts and verify the exact implementation, constraints and depicted motion. Scope
+unknowns to affected shots. Use inspectable native 3D or rights-verified, independently observed
+real footage for core actions. Keep REFERENCE_ONLY media and internal source or model identifiers
+out of audience copy. Explain consequential model limits plainly.
+
+Use the existing Blueprint, Blender/EAS, measured Neil, Joint Timeline and Remotion/FFmpeg.
+Inspect key actions and a low-cost full edit, then finish the film. Use existing handoffs, serial
+rendering and caches. Diagnose failed work before retrying. Have independent QA watch and listen
+to the exact complete MP4 and check science, motion, clarity, originality and rights. Record
+unavailable observations as UNKNOWN. Deliver 1920×1080/30, phone-readable single-line subtitles,
+both covers and the existing provenance, QA and production records. Preserve historical assets
+and use local delivery only.
+'''
     from .production_contract import enabled as science_contract, creative_first, discovery, mechanical_story, science_story
     if science_contract(data):
         creative = creative_first(data)
@@ -1264,7 +1319,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if contract_version is not None and (not hybrid or config or type(contract_version) is not int
                                          or contract_version not in CONTRACT_NAMES):
         raise ValueError('Explicit mixed production contract requires a new topic-only hybrid task')
-    if hybrid and not config and contract_version is None:
+    directed = hybrid and not config and contract_version is None
+    if directed:
         contract_version = CREATIVE_SELECTION_VERSION
     creative = contract_version is not None and contract_version >= CREATIVE_FIRST_VERSION
     if asset_strategy == 'illustrated':
@@ -1320,9 +1376,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         if config is None:
             value.update({CONTRACT_FIELD: contract_version or 1,
                           'production_contract': CONTRACT_NAMES[contract_version]})
-    if progression:
+    if progression and not directed:
         value[PROGRESSION_FIELD] = PROGRESSION_VERSION
-    if contract_version is not None and contract_version >= DISCOVERY_VERSION:
+    if contract_version is not None and contract_version >= DISCOVERY_VERSION and not directed:
         value[DIRECTION_FIELD] = DIRECTION_VERSION
     if creative:
         from .joint_timeline import FIELD as TIMELINE_FIELD, VERSION as TIMELINE_VERSION
@@ -1331,9 +1387,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value[PRESENTATION_STYLE] = presentation_style
         value['reference_policy_version'] = 1
         value['reference_model_policy_version'] = 1
-        value['product_policy_version'] = 1
-        value['growth_policy_version'] = 2
-        value['content_policy_version'] = 1
+        if not directed:
+            value.update(product_policy_version=1, growth_policy_version=2, content_policy_version=1)
         value['duration_policy'] = {'minimum': minimum_duration, 'maximum': maximum_duration,
                                     'mode': 'knowledge-driven' if duration is None else 'requested',
                                     'requested_seconds': duration}
@@ -1342,7 +1397,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
             value['production_method'] = 'asset-first-hybrid'
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
         if contract_version is not None and contract_version >= STORY_VERSION:
-            value['production_method'] = 'science-story'
+            value['production_method'] = PRODUCER_DIRECTED if directed else 'science-story'
             value['autonomy_policy'].update(reference_first=False, physical_reference_to_cad=False)
         value['requested_routes'] = requested_routes
         value['route_runs'] = {route: {'status': 'PENDING', 'outputs': {}} for route in requested_routes}
@@ -1467,8 +1522,10 @@ def put_handoff(task, role, name, payload, dependencies=None):
     with lock(Path(task) / '.ledger.lock'):
         data = load(task)
         competition = editorial_policy.enabled(data)
-        producer_research = competition and role == 'Producer' and name == 'research'
-        if name not in ROLES.get(role, set()) and not producer_research:
+        directed = producer_directed(data)
+        producer_work = role == 'Producer' and (
+            ((competition or directed) and name == 'research') or (directed and name == 'script'))
+        if name not in ROLES.get(role, set()) and not producer_work:
             raise ValueError('Role does not own this artifact')
         deps = {}
         for dep in dependencies or []:
@@ -1495,10 +1552,12 @@ def put_handoff(task, role, name, payload, dependencies=None):
         from .production_contract import (enabled as science_contract, discovery, selected_story,
                                           version as contract_version, validate_research as validate_science)
         if science_contract(data):
+            if name in {'research', 'creative-blueprint'} and producer_directed(payload) != directed:
+                raise ValueError('Handoff production method differs from task creation policy')
             if name == 'research':
                 if discovery(data) and contract_version(payload) != contract_version(data):
                     raise ValueError('Research must use the task discovery policy')
-                if creative_first(data) and not (competition and
+                if creative_first(data) and not directed and not (competition and
                         payload.get('story_exploration', {}).get('selected_id') is None):
                     validate_audience_decision(payload.get('audience_decision'), creative=True, story=story)
                 validate_science(payload)
@@ -1513,13 +1572,15 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 from . import joint_timeline as joint
                 if joint.enabled(data):
                     joint.validate(payload['timeline'], payload.get('shots'))
-                    joint.receipt(payload['timeline'], payload['measured_timeline'])
+                    measured = joint.receipt(payload['timeline'], payload['measured_timeline'])
                 validate_direction(payload, artifact(task, 'research'))
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
         if story and name == 'creative-blueprint':
             required = {'diagnostic-animatic'}
         if story and name in {'diagnostic-animatic', 'asset-plan'}:
             required = {'research'} if name == 'diagnostic-animatic' else {'research', 'diagnostic-animatic'}
+        if directed and name in {'asset-plan', 'creative-blueprint', 'animation-manifest'}:
+            required = required - {'diagnostic-animatic', 'animatic-manifest', 'animatic-qa'}
         technical_handoff = v2 and name in {'animation-manifest', 'timeline'} and require_source_supported_render(task)
         if technical_handoff:
             # These are technical-media handoffs, not fabricated perceptual QA.
@@ -1632,6 +1693,20 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 if payload.get('reference_policy_version') != 1:
                     raise ValueError('New blueprint requires reference_policy_version=1')
                 rp.validate_plan(payload, artifact(task, "research"), artifact(task, "asset-plan"))
+                if directed:
+                    requested = data.get('duration')
+                    if requested is not None and abs(payload['duration_seconds'] - requested) > 1 / 30:
+                        raise ValueError('Blueprint differs from requested duration')
+                    config_binding = payload.get('production_config', {})
+                    config_path = (ROOT / config_binding.get('path', '')).resolve()
+                    if not config_path.is_file() or filehash(config_path) != config_binding.get('sha256'):
+                        raise ValueError('Blueprint must bind the compiled config')
+                    cfg = json.loads(config_path.read_text())
+                    visual.match_policy(data, cfg)
+                    visual.match_blueprint(payload, cfg)
+                    if cfg.get('blueprint_program_sha256') != digest({
+                            key: value for key, value in payload.items() if key != 'production_config'}):
+                        raise ValueError('Production config was not compiled from this exact frozen Blueprint')
             elif name == "content-qa":
                 blueprint = artifact(task, 'creative-blueprint')
                 rp.validate_preproduction(blueprint, artifact(task, "research"), artifact(task, "asset-plan"), payload)
@@ -1667,7 +1742,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
             draft_plan = json.loads(blueprint_path.read_text())
             if not isinstance(draft_plan, dict):
                 raise ValueError('Diagnostic blueprint JSON must be an object')
-            if discovery(data) and draft_plan.get('story_id') != selected_story(artifact(task, 'research'))['id']:
+            if discovery(data) and not directed and draft_plan.get('story_id') != selected_story(artifact(task, 'research'))['id']:
                 raise ValueError('Moving draft must address the selected research story')
             from .visual_narrative import scene_direction_enabled, validate_scene_direction
             if scene_direction_enabled(data):
@@ -1748,6 +1823,12 @@ def put_handoff(task, role, name, payload, dependencies=None):
         write(Path(task) / path, envelope)
         if data.get('reference_policy_version') == 1 and name == 'asset-plan':
             data['asset_strategy'] = payload['strategy']
+        if directed and name == 'creative-blueprint':
+            if not data.get('config') or Path(data['config']) != config_path:
+                data['route_runs']['3d'] = {'status': 'PENDING', 'outputs': {}}
+            data['config'] = str(config_path)
+            data['shared_production'].update(timeline=payload['measured_timeline'],
+                                             narration=measured['narration_audio'])
         data['handoffs'][name] = dict(path=path, version=version, sha256=envelope['sha256'])
         if competition:
             versions[name] = version
@@ -1789,6 +1870,11 @@ def check_media(evidence):
 def check_qa(task, name, *, acceptance=True):
     if name not in {'preview-qa', 'animatic-qa', 'final-qa'}:
         raise ValueError('Diagnostic reports cannot grant production acceptance')
+    data = load(task)
+    directed = producer_directed(data)
+    # A Producer preview is a working edit. Final QA reviews the complete film.
+    if directed and name == 'preview-qa' and name not in data['handoffs']:
+        return None
     qa = artifact(task, name)
     if editorial_policy.enabled(load(task)) and qa['story_review']['outcome'] != 'PASS':
         raise ValueError('The current moving edit requires an independent creative PASS')
@@ -1812,7 +1898,7 @@ def check_qa(task, name, *, acceptance=True):
     if not expected or not expected <= reviewed:
         raise ValueError('QA must review the exact production MP4')
     from .production_contract import creative_first, science_story, validate_creative_review
-    if name in {'animatic-qa', 'final-qa'} and creative_first(load(task)):
+    if not directed and name in {'animatic-qa', 'final-qa'} and creative_first(data):
         from scripts.common import probe
         durations = {digest: float(probe(path)['format']['duration']) for path, digest in expected}
         story_gate = science_story(load(task)) and name == 'animatic-qa'
@@ -1850,7 +1936,7 @@ def check_qa(task, name, *, acceptance=True):
                ('copyright_review','original_expression_review')):
             raise ValueError('Copyright and original expression reviewers must be independent of production')
     from . import visual_narrative as visual
-    if visual.version(load(task)) == visual.VERSION:
+    if visual.version(data) == visual.VERSION and not directed:
         blueprint = artifact(task, 'creative-blueprint')
         visual.validate_review(qa.get('visual_checks'), [s['shot_id'] for s in blueprint['shots']],
                                acceptance=acceptance)
@@ -1996,7 +2082,7 @@ def require_reference_content(task):
 
 
 def require_animatic(task):
-    """Fail closed for full renders; a v1 ledger is an explicit legacy path."""
+    """Check full-render prerequisites under the task's pinned workflow."""
     from .production_contract import science_story
     data = load(task)
     require_visual_story_review(task)
@@ -2012,6 +2098,8 @@ def require_animatic(task):
     if not production_checks(checks, FEASIBILITY_CHECKS):
         raise ValueError('Feasibility requires every check PASS')
     check_asset(task)
+    if producer_directed(data):
+        return
     return check_qa(task, 'animatic-qa', acceptance=False)
 
 
@@ -2132,6 +2220,9 @@ def advance(task, target):
             check_media(animation.get('media'))
             if not animation.get('keyframes_verified'):
                 raise ValueError('Keyframe verification missing')
+            if producer_directed(data):
+                for preview in animation['media']:
+                    complete_media(data, preview, final=False)
         if target == 'EDITING':
             check_qa(task, 'preview-qa', acceptance=False)
         if target == 'FINAL_CHECKING':
@@ -2186,10 +2277,14 @@ def check_requested_routes(task, data):
         return  # Existing single-route and historical ledgers keep their gates.
     from .covers import validate as validate_covers
     from .growth_report import validate as validate_growth
-    if data.get('content_policy_version') == 1 or (Path(task)/'cover-plan.json').exists():
+    if producer_directed(data) or data.get('content_policy_version') == 1 or (Path(task)/'cover-plan.json').exists():
         validate_covers(task, require_pass=True)
         validate_growth(task)
     report = artifact(task, 'final-qa')
+    if producer_directed(data):
+        complete_media(data, output)
+        if not any(item['sha256'] == output['sha256'] for item in report['media']):
+            raise ValueError('Independent final QA must cover the registered full film')
     route_checks = report.get('route_checks', {})
     for route in routes:
         result = route_checks.get(route, {})
@@ -2745,6 +2840,9 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                 cfg=json.loads(Path(config).read_text())
                 target=ROOT/'output'/(cfg['id']+'-final.mp4')
                 row['media']=bind(target)
+                if producer_directed(data):
+                    media = dict(row['media'], chapter_ids=[shot['id'] for shot in cfg['storyboard']])
+                    data['route_runs']['3d'] = {'status': 'TECHNICAL_PASS_UNACCEPTED', 'outputs': media}
                 row['previous_media']=previous_media
                 request=data.get('revision_request')
                 if request:
@@ -2828,7 +2926,7 @@ def main():
                    help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
     p.add_argument('--presentation-style', choices=('natural_science', 'legacy'), default='natural_science')
     p.add_argument('--production-contract', type=int, choices=tuple(CONTRACT_NAMES),
-                   help=f'Topic-only mixed tasks default to {CREATIVE_SELECTION_NAME}.')
+                   help=f'Pin a historical workflow, including {CREATIVE_SELECTION_NAME} with candidate review. Omit for Producer-directed mixed production.')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
@@ -3020,6 +3118,10 @@ def main():
             data['multiroute_status'] = report['status']
             data['next_step'] = 'Current Producer dispatches independent exact-media route QA; UNKNOWN prevents completion.'
             for route, media in report['routes'].items():
+                if producer_directed(data):
+                    current = data['route_runs'].get(route, {}).get('outputs', {})
+                    if current.get('sha256') == media['sha256']:
+                        media = current | media
                 data.setdefault('route_runs', {})[route] = {'status': 'TECHNICAL_PASS_UNACCEPTED', 'outputs': media}
             for name, path in plan_data.get('shared', {}).items():
                 data.setdefault('shared_production', {})[name] = {'path': str(Path(path).resolve()), 'sha256': filehash(path)}

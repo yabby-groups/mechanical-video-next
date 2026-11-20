@@ -34,11 +34,11 @@ class VisualStoryDirectionTests(unittest.TestCase):
                 story.update(substitution_reason='Renderer startup failed', capability_gap='Coin reveal is absent')
                 self.assertEqual(visual.validate_scene_direction(plan, media), ['observation'])
 
-    def test_new_task_pre_voice_gate_requires_complete_picture_review(self):
+    def test_pinned_task_pre_voice_gate_requires_complete_picture_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             task = workflow.create_task('Optical phenomenon', root=root, visual_policy_version=2,
-                                        media_policy_version=1)
+                                        media_policy_version=1, contract_version=6)
             self.assertTrue(visual.scene_direction_enabled(workflow.load(task)))
             with self.assertRaisesRegex(ValueError, 'Missing handoff: diagnostic-animatic'):
                 workflow.require_visual_story_review(task)

@@ -2,7 +2,7 @@
 from pathlib import Path
 import unicodedata
 
-from .production_contract import CREATIVE_SELECTION_VERSION, version
+from .production_contract import CREATIVE_SELECTION_VERSION, producer_directed, version
 from .visual_narrative import located, nonempty, number
 
 
@@ -23,7 +23,7 @@ EDITORIAL_FIELDS = ('use_context', 'tension', 'visible_discovery', 'viewer_takea
 
 
 def enabled(document):
-    return version(document) >= CREATIVE_SELECTION_VERSION
+    return version(document) >= CREATIVE_SELECTION_VERSION and not producer_directed(document)
 
 
 def normalized(text):

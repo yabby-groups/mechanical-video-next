@@ -194,10 +194,12 @@ def compile_config(blueprint, base, output, draft=False):
     else:
         for key in (joint.FIELD, 'timeline', 'measured_timeline'):
             result.pop(key, None)
-    from .production_contract import FIELD as CONTRACT_FIELD, enabled as science_contract
+    from .production_contract import FIELD as CONTRACT_FIELD, enabled as science_contract, producer_directed
     if science_contract(data):
         for key in (CONTRACT_FIELD, 'production_contract', 'narrative'):
             result[key] = copy.deepcopy(data[key])
+        if producer_directed(data):
+            result['subject_kind'] = data.get('subject_kind', 'mechanical_implementation')
     if data.get('content_policy_version') == 1:
         from .growth import shot_requirements
         result.update(content_policy_version=1, growth_goals=copy.deepcopy(data['growth_goals']))
