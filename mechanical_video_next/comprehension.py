@@ -28,6 +28,11 @@ def phenomenon(data, research=None):
                                       or (research or {}).get('science',{}).get('subject_kind'))=='physical_phenomenon'
 
 
+def subject_story(data):
+    from .production_contract import discovery, nonmechanical_subject
+    return discovery(data) and nonmechanical_subject(data)
+
+
 def _required(row, fields, label):
     if not isinstance(row, dict) or any(not row.get(k) for k in fields):
         raise ValueError(label + ': missing evidence ' + ', '.join(fields))
@@ -49,10 +54,12 @@ def _binding(row, label):
 
 def validate_product_sources(data, research=None):
     """Validate the observed product or an explicit bounded scientific subject."""
-    if phenomenon(data,research):
+    if subject_story(data) or phenomenon(data,research):
         subject=data.get('subject_identity') or data.get('science',{}).get('subject',{})
         _required(subject,('id','name','scope','model_kind'),'Bounded science subject')
-        if subject['model_kind'] not in {'conceptual','mathematical'}:
+        from .production_contract import subject_kind
+        models = {'documented'} if subject_kind(data) == 'documented_technology' else {'conceptual', 'mathematical'}
+        if subject['model_kind'] not in models:
             raise ValueError('Unverified simulation cannot identify a scientific subject')
         refs=data.get('subject_references',[])
         if not refs:
@@ -137,6 +144,8 @@ def validate_product_research(research):
 def validate_product_plan(data, research=None):
     """Check specific product evidence and executable cause/effect, never perception."""
     sources = validate_product_sources(data, research)
+    if subject_story(data):
+        return validate_subject_story(data, sources)
     from .joint_timeline import enabled as joint, shot_narration
     physical=phenomenon(data,research)
     product = data['subject_identity'] if physical else data['product_identity']
@@ -194,6 +203,24 @@ def validate_product_plan(data, research=None):
     return {'product_id': product['id'] if physical else product['product_id'], 'shots': len(shots), 'status': 'PLAN_VALIDATED_NOT_MEDIA_ACCEPTED'}
 
 
+def validate_subject_story(data, sources):
+    shots = data.get('shots', [])
+    opening = data.get('subject_opening', {})
+    _required(opening, ('shot_id', 'time_range', 'subject_reveal', 'why_question'), 'Subject opening')
+    decision = data.get('narrative', {}).get('audience_decision', {})
+    if (not shots or opening['shot_id'] != shots[0]['shot_id']
+            or not _interval(opening['time_range'], shots[0]['time_range'])
+            or opening['why_question'] != decision.get('question')):
+        raise ValueError('Opening must establish the researched subject and audience question')
+    for shot in shots:
+        row = shot.get('comprehension', {})
+        _required(row, ('reference_ids', 'new_knowledge', 'visual_evidence'), 'Subject comprehension')
+        if not set(row['reference_ids']) <= sources.keys():
+            raise ValueError('Subject comprehension needs a located source')
+    return {'subject_id': data['subject_identity']['id'], 'shots': len(shots),
+            'status': 'PLAN_VALIDATED_NOT_MEDIA_ACCEPTED'}
+
+
 def validate_media_qa(blueprint, report, media=None):
     """Fail closed on absent/stale media, unreviewed motion/audio, or self acceptance.
 
@@ -225,7 +252,12 @@ def validate_media_qa(blueprint, report, media=None):
         if abs(durations[item['sha256']] - blueprint['shots'][-1]['time_range'][1]) > .15:
             raise ValueError('Incomplete MP4 cannot establish full comprehension')
     shots = {s['shot_id']: s for s in blueprint['shots']}
-    for category in ('product_recognition', 'mechanism_comprehension', 'viewer_comprehension'):
+    subject = subject_story(blueprint)
+    categories = (('subject_recognition', 'story_comprehension', 'viewer_comprehension') if subject else
+                  ('product_recognition', 'mechanism_comprehension', 'viewer_comprehension'))
+    questions = ('subject', 'question', 'turning_point', 'takeaway', 'narration_match') if subject else QUESTIONS
+    recognition = 'subject_identified' if subject else 'product_identified'
+    for category in categories:
         rows = report.get(category, [])
         expected = {(sha, sid) for sha in durations for sid in shots}
         if len(rows) != len(expected) or {(r.get('media_sha256'), r.get('shot_id')) for r in rows} != expected:
@@ -248,7 +280,7 @@ def validate_media_qa(blueprint, report, media=None):
                 expected_receipt = dict(reviewer_thread_id=reviewer, category=category)
                 for key in ('media_sha256', 'shot_id', 'time_range', 'observed_object', 'observed_action',
                             'observed_causal_chain', 'heard_narration', 'answers', 'continuous_viewing',
-                            'listening', 'viewing_method', 'product_identified', 'narration_matches_action'):
+                            'listening', 'viewing_method', recognition, 'narration_matches_action'):
                     expected_receipt[key] = row.get(key)
                 if category == 'viewer_comprehension':
                     for key in ('blind_observation', 'script_review_order'):
@@ -259,14 +291,14 @@ def validate_media_qa(blueprint, report, media=None):
                     or row.get('viewing_method') != 'continuous_video'
                     or row.get('time_range') != shot['time_range']):
                 raise ValueError('Comprehension FAIL/UNKNOWN or incomplete continuous audiovisual evidence')
-            if row.get('narration_matches_action') is not True or row.get('product_identified') is not True:
-                raise ValueError('Unrecognizable product or narration/action mismatch')
+            if row.get('narration_matches_action') is not True or row.get(recognition) is not True:
+                raise ValueError('Unrecognizable subject or narration/action mismatch')
             if row['heard_narration'] not in (shot_narration(blueprint, shot) or ([None] if joint(blueprint) else [])):
                 raise ValueError('Observed narration does not match planned mechanical explanation')
             if row.get('reference_ids') != shot['comprehension']['reference_ids']:
                 raise ValueError('Actual media observation must bind planned source evidence')
-            if set(row['answers']) != set(QUESTIONS) or any(not v for v in row['answers'].values()):
-                raise ValueError('Eight viewer comprehension answers required')
+            if set(row['answers']) != set(questions) or any(not v for v in row['answers'].values()):
+                raise ValueError('Complete viewer comprehension answers required')
             if category == 'viewer_comprehension':
                 blind = row.get('blind_observation', {})
                 if blind.get('script_withheld') is not True or not blind.get('object') or not blind.get('action'):

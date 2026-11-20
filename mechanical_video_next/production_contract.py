@@ -13,7 +13,10 @@ CREATIVE_FIRST_VERSION = 2
 CREATIVE_FIRST_NAME = 'creative-first-v2'
 STORY_VERSION = 3
 STORY_NAME = 'science-story-v3'
-CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME}
+DISCOVERY_VERSION = 4
+DISCOVERY_NAME = 'science-discovery-v4'
+CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME,
+                  DISCOVERY_VERSION: DISCOVERY_NAME}
 CREATIVE_DURATION = (1 / 30, 300)
 PRESENTATION_STYLE = 'presentation_style'
 NATURAL_SCIENCE = 'natural_science'
@@ -96,7 +99,57 @@ def creative_first(document):
 
 
 def science_story(document):
-    return version(document) == STORY_VERSION
+    return version(document) >= STORY_VERSION
+
+
+def discovery(document):
+    return version(document) >= DISCOVERY_VERSION
+
+
+def subject_kind(document):
+    return document.get('subject_kind') or document.get('science', {}).get('subject_kind')
+
+
+def nonmechanical_subject(document):
+    kind = subject_kind(document)
+    return ((enabled(document) and kind == 'physical_phenomenon')
+            or (discovery(document) and kind == 'documented_technology'))
+
+
+def selected_story(research):
+    exploration = research.get('story_exploration', {})
+    if not isinstance(exploration, dict):
+        raise ValueError('Story exploration must be an object')
+    candidates = exploration.get('candidates')
+    if not isinstance(candidates, list) or not 1 <= len(candidates) <= 4:
+        raise ValueError('Explore a bounded shortlist of one to four defensible story candidates')
+    seen, questions, winner = set(), set(), None
+    facts = {fact['id']: fact for fact in research['science']['facts']}
+    angles = exploration.get('angles')
+    if not isinstance(angles, dict) or not angles or not all(
+            nonempty(name) and nonempty(finding) for name, finding in angles.items()):
+        raise ValueError('Record exploratory findings or evidence gaps by angle')
+    for candidate in candidates:
+        fields = ('id', 'question', 'angle', 'visual_test', 'decision_reason')
+        if not isinstance(candidate, dict) or not all(nonempty(candidate.get(key)) for key in fields):
+            raise ValueError('Each candidate needs its question, angle, observable test and editorial judgment')
+        identity, question = candidate['id'], candidate['question']
+        if identity in seen or question in questions:
+            raise ValueError('Story candidates need distinct identities and questions')
+        seen.add(identity)
+        questions.add(question)
+        ids = candidate.get('fact_ids', [])
+        if not isinstance(ids, list) or any(not nonempty(key) or key not in facts for key in ids):
+            raise ValueError('Story candidates must link claims to the current research ledger')
+        if identity == exploration.get('selected_id'):
+            if not ids or any(facts[key]['status'] != 'VERIFIED' for key in ids):
+                raise ValueError('The selected story must be grounded in verified facts')
+            winner = candidate
+    if winner is None or winner['question'] != research.get('audience_decision', {}).get('question'):
+        raise ValueError('The audience question must come from the selected research story')
+    if len(candidates) == 1 and not nonempty(exploration.get('shortlist_limit')):
+        raise ValueError('Explain why no second candidate warranted development')
+    return winner
 
 
 def validate_audience_decision(decision, *, creative=False, story=False):
@@ -111,15 +164,18 @@ def validate_audience_decision(decision, *, creative=False, story=False):
 
 def validate_research(research):
     science = research.get('science', {})
-    if science.get('subject_kind') not in {'mechanical_implementation', 'physical_phenomenon'}:
-        raise ValueError('Identify the mechanical implementation or bounded physical phenomenon')
+    kind = science.get('subject_kind')
+    technology = kind == 'documented_technology' and discovery(research)
+    if kind not in {'mechanical_implementation', 'physical_phenomenon'} and not technology:
+        raise ValueError('Identify a supported subject and its concrete scope')
     if not all(nonempty(science.get(k)) for k in ('question', 'answer', 'scope')):
         raise ValueError('Scientific question, supported answer and scope required')
-    if science['subject_kind']=='physical_phenomenon':
+    if kind == 'physical_phenomenon' or technology:
         subject=science.get('subject',{})
+        models = {'documented'} if technology else {'conceptual','mathematical'}
         if (not all(nonempty(subject.get(k)) for k in ('id','name','scope'))
-                or subject.get('model_kind') not in {'conceptual','mathematical'}):
-            raise ValueError('Physical phenomena need a named bounded conceptual/mathematical subject, not a fabricated retail product')
+                or subject.get('model_kind') not in models):
+            raise ValueError('Nonmechanical subjects need a named, bounded model or documented scope')
     facts = science.get('facts')
     if not isinstance(facts, list) or not facts:
         raise ValueError('Concise science.facts ledger required')
@@ -131,16 +187,21 @@ def validate_research(research):
         seen.add(identity)
         if fact.get('status') not in {'VERIFIED', 'UNKNOWN'}:
             raise ValueError('Fact status must disclose VERIFIED or UNKNOWN')
-        if fact.get('kind') not in {'observed', 'derived', 'teaching_approximation', 'hypothesis'}:
+        kinds = {'observed', 'derived', 'teaching_approximation', 'hypothesis'}
+        if discovery(research):
+            kinds |= {'historical_fact', 'scientific_fact', 'story_lead', 'legend'}
+        if fact.get('kind') not in kinds:
             raise ValueError('Disclose the scientific evidence kind')
         if not nonempty(fact.get('scope')) or not isinstance(fact.get('assumptions'), list):
             raise ValueError('Facts require scope and explicit assumptions')
         if fact['status'] == 'VERIFIED':
-            if fact['kind'] == 'hypothesis':
-                raise ValueError('An unverified hypothesis cannot support a narrated fact')
+            if fact['kind'] in {'hypothesis', 'story_lead', 'legend'}:
+                raise ValueError('A hypothesis, lead or legend cannot support a narrated fact')
             located(fact.get('sources'))
         elif not nonempty(fact.get('limitation')):
             raise ValueError('Unknown facts need a specific limitation')
+    if discovery(research):
+        selected_story(research)
     return {fact['id']: fact for fact in facts}
 
 
@@ -164,6 +225,14 @@ def validate_direction(blueprint, research=None):
             if research is not None and decision['question'] != research.get('audience_decision', {}).get('question'):
                 raise ValueError('A changed audience question needs updated research')
     facts = validate_research(research) if research is not None else None
+    if discovery(blueprint):
+        if not nonempty(narrative.get('story_id')):
+            raise ValueError('Blueprint must name its selected research story')
+        if research is not None:
+            selected = selected_story(research)
+            used = {key for shot in blueprint['shots'] for key in shot['knowledge_ids']}
+            if narrative['story_id'] != selected['id'] or not set(selected['fact_ids']) <= used:
+                raise ValueError('Blueprint must carry the selected story and its verified central facts')
     mechanism_run = []
     for shot in blueprint['shots']:
         direction = shot.get('direction', {})

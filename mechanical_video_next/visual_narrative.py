@@ -8,6 +8,8 @@ from scripts.common import ROOT, filehash, probe
 
 VERSION = 2
 FIELD = 'visual_policy_version'
+DIRECTION_FIELD = 'visual_direction_version'
+DIRECTION_VERSION = 1
 ENGINES = {
     'real_use': {'footage'}, 'product_exterior': {'blender', 'footage'},
     'exploded_view': {'blender'}, 'mechanical_cutaway': {'blender'},
@@ -92,6 +94,67 @@ def nonempty(value):
     return isinstance(value, str) and bool(value.strip())
 
 
+def scene_direction_enabled(document):
+    return document.get(DIRECTION_FIELD) == DIRECTION_VERSION
+
+
+def validate_scene_direction(plan, media):
+    """Check continuity and traceability of the actual low-cost picture edit."""
+    scenes = plan.get('scenes')
+    if not isinstance(scenes, list) or not scenes:
+        raise ValueError('Picture draft needs an ordered scene direction')
+    clips = [Path(row['path']) for row in media if Path(row['path']).suffix.lower() == '.mp4']
+    if len(clips) != 1:
+        raise ValueError('Scene direction needs one exact moving edit')
+    picture = next((row for row in probe(clips[0])['streams'] if row['codec_type'] == 'video'), None)
+    if picture is None:
+        raise ValueError('Scene direction needs a picture track')
+    cursor, previous_role, seen, gaps = 0, None, set(), []
+    fields = ('id', 'event', 'subject', 'setting', 'change', 'focus', 'camera',
+              'transition', 'purpose', 'planned_medium', 'actual_medium')
+    for scene in scenes:
+        if not isinstance(scene, dict) or not all(nonempty(scene.get(key)) for key in fields):
+            raise ValueError('Each scene needs an event, visible change, direction and realized medium')
+        if scene['id'] in seen or scene.get('role') not in {'story', 'explanation'}:
+            raise ValueError('Scene IDs must be unique and roles must identify story or explanation')
+        seen.add(scene['id'])
+        interval = scene.get('time_range')
+        if (not isinstance(interval, list) or len(interval) != 2 or not all(number(x) for x in interval)
+                or abs(interval[0]-cursor) > .001 or interval[1] <= interval[0]):
+            raise ValueError('Scene times must cover one contiguous edit from zero')
+        cursor = interval[1]
+        if previous_role is not None and scene['role'] != previous_role and not nonempty(scene.get('carry')):
+            raise ValueError('Describe what viewers carry between context and explanation')
+        previous_role = scene['role']
+        located(scene.get('sources'))
+        gap = scene.get('capability_gap')
+        if gap is not None and not nonempty(gap):
+            raise ValueError('Describe the visible evidence missing from the draft')
+        if scene['planned_medium'] != scene['actual_medium'] and not nonempty(scene.get('substitution_reason')):
+            raise ValueError('Record why the realized medium replaced the original visual approach')
+        if gap is not None:
+            gaps.append(scene['id'])
+    duration = float(picture.get('duration', 'nan'))
+    if not math.isfinite(duration) or abs(duration-cursor) > .05:
+        raise ValueError('Scene direction must span the complete actual picture')
+    return gaps
+
+
+def validate_scene_review(review):
+    if not isinstance(review, dict):
+        raise ValueError('Visual story review needs a structured record')
+    status = review.get('status')
+    if (status not in {'PASS', 'FAIL', 'UNKNOWN'} or not nonempty(review.get('observation'))
+            or not nonempty(review.get('method'))):
+        raise ValueError('Visual story review needs a decision and actual observations')
+    if status == 'PASS' and (review['method'] not in {'continuous_video', 'continuous_audiovisual'}
+                             or review.get('full_picture_reviewed') is not True):
+        raise ValueError('Visual story PASS requires continuous viewing of the complete draft')
+    if status == 'FAIL' and not nonempty(review.get('revision')):
+        raise ValueError('Visual story FAIL needs a concrete scene or edit revision')
+    return status
+
+
 def number(value):
     return type(value) in {int, float} and math.isfinite(value)
 
@@ -113,6 +176,10 @@ def located(refs):
 
 
 def validate_research(research):
+    from .production_contract import discovery, validate_research as validate_science
+    if discovery(research):
+        validate_science(research)
+        return
     topics = research.get('visual_research', {})
     if set(topics) != RESEARCH:
         raise ValueError('Visual research must address all eight research angles')
@@ -188,7 +255,7 @@ def validate_plan(document):
     """Check the plan before committing to CAD or native rendering."""
     from .media_policy import enabled as asset_first, validate_document
     from . import joint_timeline as joint
-    from .production_contract import science_story
+    from .production_contract import nonmechanical_subject, science_story
     hybrid = asset_first(document)
     shots = document['shots']
     if not isinstance(shots, list) or not shots:
@@ -217,7 +284,7 @@ def validate_plan(document):
             findings.append({'shot_id': sid, 'issue': 'reused_knowledge', 'review': shot['progression']['reason']})
         seen |= ids
         previous = shot
-    if not (science_story(document) and document.get('subject_kind') == 'physical_phenomenon'):
+    if not (science_story(document) and nonmechanical_subject(document)):
         if not any(s['mechanical_role'] == 'core' for s in shots):
             raise ValueError('Mechanical production requires an evidenced core action')
     from .knowledge_progression import enabled, validate_timeline

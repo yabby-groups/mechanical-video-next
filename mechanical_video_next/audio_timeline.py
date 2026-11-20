@@ -40,13 +40,14 @@ def speech_phrases(narration):
 def prepare(task, script, env_file=None):
     sys.path.insert(0,str(ROOT/'scripts'))
     from narration import effective_profile, load_env, sentence, synthesize_shot
-    from .workflow import load
+    from .workflow import load, require_visual_story_review
     from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy, creative_first
     data=load(task)
     script=Path(script)
     content=json.loads(script.read_text())
     if content.get('task_id') != data['id']:
         raise ValueError('Original script must belong to this task')
+    require_visual_story_review(task)
     from . import joint_timeline
     if joint_timeline.enabled(data):
         if not joint_timeline.enabled(content):

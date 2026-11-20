@@ -205,7 +205,7 @@ def validate_asset(research, asset):
     candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
     if selected[0] == 'existing-media':
         from .media_policy import enabled as asset_first, validate_shot
-        from .production_contract import science_story
+        from .production_contract import nonmechanical_subject, science_story
         if asset_first(asset) and candidate.get('mechanism_shots'):
             for row in candidate['mechanism_shots']:
                 if row.get('mechanical_role') != 'core' or row.get('render_engine') != 'footage':
@@ -213,7 +213,9 @@ def validate_asset(research, asset):
                 validate_shot(row, row['duration'])
                 if row['selected_asset'] not in candidate['source_files']:
                     raise ValueError('Observed mechanism video differs from selected source files')
-        elif science_story(asset) and research.get('science', {}).get('subject_kind') == 'physical_phenomenon':
+        elif science_story(asset) and nonmechanical_subject(research | {
+                key: asset[key] for key in ('production_contract_version', 'production_contract',
+                                            'media_policy_version', 'visual_policy_version') if key in asset}):
             from .media_policy import validate_rights
             from .visual_narrative import validate_footage
             for source in candidate['source_files']:

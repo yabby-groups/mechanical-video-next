@@ -54,9 +54,9 @@ def active_media_repair(data, *, final=False):
 
 
 def reference_model_required(data):
-    from .comprehension import phenomenon
-    from .production_contract import science_story
-    return data.get('reference_model_policy_version') == 1 and not (science_story(data) and phenomenon(data))
+    from .production_contract import nonmechanical_subject, science_story
+    return data.get('reference_model_policy_version') == 1 and not (
+        science_story(data) and nonmechanical_subject(data))
 
 
 AUTONOMY_POLICY = {
@@ -662,10 +662,15 @@ def continuation(task, persist=True):
         sequence[2:2] = [('cad-model', 'CAD', 'Register the reference-matched model and dimensional approximations'),
                          ('mechanical-diagnostics', 'Animation', 'Validate input, transmission, output and return motion'),
                          ('mechanical-qa', 'QA', 'Independently compare reference, CAD, motion and visible mechanism')]
-    from .production_contract import science_story
+    from .production_contract import discovery, science_story
+    from .visual_narrative import scene_direction_enabled
     if science_story(data):
         sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
+        if discovery(data):
+            sequence[0] = ('research', 'Research', 'Explore distinct stories and develop the Producer selection with located evidence')
         sequence.insert(1, ('diagnostic-animatic', 'Producer', 'Draft and play the complete low-cost visual story before committing to assets'))
+        if scene_direction_enabled(data):
+            sequence.insert(2, ('diagnostic-qa', 'QA', 'Review the complete picture story and any capability gaps before measured narration'))
         sequence = [(name, 'Producer', 'Own the visual story and lock picture/action before measured dialogue')
                     if name == 'creative-blueprint' else
                     (name, 'Editor', 'Shape the complete picture, timing, dialogue, music and effects')
@@ -679,6 +684,12 @@ def continuation(task, persist=True):
         sequence.insert(index, ('reference-model-qa', 'QA', 'Verify part-level references, model, constraints and depicted motion'))
     missing = [dict(handoff=name, owner=owner, action=action)
                for name, owner, action in sequence if name not in valid]
+    if scene_direction_enabled(data) and 'diagnostic-qa' in valid:
+        review = valid['diagnostic-qa']['visual_story_review']
+        if review['status'] != 'PASS':
+            owner = 'Producer' if review['status'] == 'FAIL' else 'QA'
+            missing.insert(0, dict(handoff='diagnostic-qa', owner=owner, action=review.get(
+                'revision', 'Independently watch the current complete picture draft before formal Neil or HD')))
     resume = ['uv', 'run', 'python', '-m', 'mechanical_video_next', 'produce', '--resume', str(task)]
     plan = data.get('production_plan', {})
     plan_path = Path(plan.get('path', ''))
@@ -936,7 +947,7 @@ def record_delivery(task, files, reason):
 
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
-    from .production_contract import enabled as science_contract, creative_first, science_story
+    from .production_contract import enabled as science_contract, creative_first, discovery, science_story
     if science_contract(data):
         creative = creative_first(data)
         approach = (
@@ -952,13 +963,32 @@ def producer_prompt(data, task):
             if creative else 'Execute research -> original script -> visual direction -> lawful assets.')
         from .joint_timeline import enabled as joint_timing
         if science_story(data):
+            research_instruction = (
+                'Begin with bounded exploration of the subject, including historical context, design choices, '
+                'tradeoffs, alternative solutions, applications and testable surprises where relevant. '
+                'Compare a short list of distinct audience questions and their strongest visible moments. '
+                'Make the editorial selection before matching assets. Record why the other directions are deferred '
+                'and keep useful leads for later episodes. Deepen only the evidence for the shortlist and selected story. '
+                'An archive can establish a technological change, while a model can test a physical cause. '
+                'Choose the story form and preview its full edit before investing in production.'
+                if discovery(data) else
+                'Start with a familiar event, a surprising observable change and a specific discovery the viewer can take away. '
+                'Choose the visual language by what best reveals the cause. Compare an alternative in the audience decision.')
+            from .visual_narrative import scene_direction_enabled
+            direction_instruction = (
+                'Direct scene events before selecting tools. Give each scene a subject, setting, visible change, '
+                'focus, camera, transition, story purpose and source. Connect story scenes and explanatory views '
+                'through a recognizable object, viewpoint or result. Plan the whole picture draft about what '
+                'viewers can see without narration. If a tool fails, test another viable treatment and record '
+                'any missing visual capability. Have QA review the exact complete draft before formal Neil or HD. '
+                'Look for text-only explanation, repetitive views and absent events. A hold can earn its time.'
+                if scene_direction_enabled(data) else '')
             return f'''You are the sole native Codex Producer for {identity}: {topic}.
 Task: {task}. Read docs/production-contract.md and the current ledger. Your series
 is about life and science, including phenomena, nature, materials and inventions.
-Own the creative decision yourself. Start with a familiar event, a surprising
-observable change and a specific discovery the viewer can take away. Choose the
-visual language by what best reveals the cause. Compare an alternative in the
-audience decision. Use the research-bound diagnostic-animatic for an inexpensive
+Own the creative decision yourself. {research_instruction}
+{direction_instruction}
+Use the research-bound diagnostic-animatic for an inexpensive
 moving edit of the complete story before committing to a production method.
 Research owns facts and content value. Asset owns matching and rights. Use CAD
 and Animation where the picture needs spatial geometry or verified mechanism
@@ -1178,11 +1208,12 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1,
                 media_policy_version=0, presentation_style='natural_science', contract_version=None):
     from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
-                                      CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION, CREATIVE_DURATION)
+                                      CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION,
+                                      DISCOVERY_VERSION, CREATIVE_DURATION)
     if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
         raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
-    from .visual_narrative import FIELD, VERSION, match_policy, version
+    from .visual_narrative import DIRECTION_FIELD, DIRECTION_VERSION, FIELD, VERSION, match_policy, version
     from .knowledge_progression import FIELD as PROGRESSION_FIELD, VERSION as PROGRESSION_VERSION
     require_route(routes)
     from .media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
@@ -1193,8 +1224,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                                          or contract_version not in CONTRACT_NAMES):
         raise ValueError('Explicit mixed production contract requires a new topic-only hybrid task')
     if hybrid and not config and contract_version is None:
-        contract_version = STORY_VERSION
-    creative = contract_version in (CREATIVE_FIRST_VERSION, STORY_VERSION)
+        contract_version = DISCOVERY_VERSION
+    creative = contract_version is not None and contract_version >= CREATIVE_FIRST_VERSION
     if asset_strategy == 'illustrated':
         raise ValueError('3D-only production rejects illustrated assets')
     progression = visual_policy_version == VERSION
@@ -1250,6 +1281,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                           'production_contract': CONTRACT_NAMES[contract_version]})
     if progression:
         value[PROGRESSION_FIELD] = PROGRESSION_VERSION
+    if contract_version == DISCOVERY_VERSION:
+        value[DIRECTION_FIELD] = DIRECTION_VERSION
     if creative:
         from .joint_timeline import FIELD as TIMELINE_FIELD, VERSION as TIMELINE_VERSION
         value[TIMELINE_FIELD] = TIMELINE_VERSION
@@ -1267,7 +1300,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         if hybrid:
             value['production_method'] = 'asset-first-hybrid'
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
-        if contract_version == STORY_VERSION:
+        if contract_version is not None and contract_version >= STORY_VERSION:
             value['production_method'] = 'science-story'
             value['autonomy_policy'].update(reference_first=False, physical_reference_to_cad=False)
         value['requested_routes'] = requested_routes
@@ -1309,6 +1342,20 @@ def artifact(task, name):
     return payload
 
 
+def require_visual_story_review(task):
+    """Check the current pre-voice picture review, including unresolved media substitutions."""
+    from .visual_narrative import scene_direction_enabled, validate_scene_direction, validate_scene_review
+    if not scene_direction_enabled(load(task)):
+        return
+    draft = artifact(task, 'diagnostic-animatic')
+    plan = json.loads(Path(draft['blueprint_evidence']['path']).read_text())
+    if validate_scene_direction(plan, draft['media']):
+        raise ValueError('Resolve the recorded visual capability gaps before formal production')
+    review = artifact(task, 'diagnostic-qa')
+    if validate_scene_review(review.get('visual_story_review', {})) != 'PASS':
+        raise ValueError('Independent complete picture review is pending')
+
+
 def put_handoff(task, role, name, payload, dependencies=None):
     if name not in ROLES.get(role, set()):
         raise ValueError('Role does not own this artifact')
@@ -1331,14 +1378,18 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if name == 'creative-blueprint' and data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
             for shot in payload.get('shots', []):
                 validate_audience_copy(shot, creative=creative_first(data))
-        from .production_contract import enabled as science_contract, validate_research as validate_science
+        from .production_contract import (enabled as science_contract, discovery, selected_story,
+                                          version as contract_version, validate_research as validate_science)
         if science_contract(data):
             if name == 'research':
+                if discovery(data) and contract_version(payload) != contract_version(data):
+                    raise ValueError('Research must use the task discovery policy')
                 if creative_first(data):
                     validate_audience_decision(payload.get('audience_decision'), creative=True, story=story)
                 validate_science(payload)
                 data['subject_kind']=payload['science']['subject_kind']
             if name == 'creative-blueprint':
+                require_visual_story_review(task)
                 from .production_contract import validate_direction
                 from . import joint_timeline as joint
                 if joint.enabled(data):
@@ -1408,11 +1459,13 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 from .media_policy import enabled as asset_first
                 if asset_first(data) != asset_first(payload):
                     raise ValueError('Asset plan media policy differs from task creation policy')
-                if story and not science_story(payload):
+                if story and (not science_story(payload) or
+                              (discovery(data) and contract_version(payload) != contract_version(data))):
                     raise ValueError('Science-story asset plan must declare the current contract')
             if visual.version(data) == visual.VERSION:
                 if name == 'research':
-                    visual.validate_research(payload)
+                    if not discovery(data):
+                        visual.validate_research(payload)
                     from .knowledge_progression import FIELD, enabled
                     plan = {'shots': payload.get('visual_plan', [])}
                     from .media_policy import enabled as asset_first
@@ -1489,8 +1542,14 @@ def put_handoff(task, role, name, payload, dependencies=None):
             if (blueprint_path.suffix.lower() != '.json' or not blueprint_path.is_file()
                     or filehash(blueprint_path) != evidence.get('sha256')):
                 raise ValueError('Diagnostic blueprint JSON evidence missing or changed')
-            if not isinstance(json.loads(blueprint_path.read_text()), dict):
+            draft_plan = json.loads(blueprint_path.read_text())
+            if not isinstance(draft_plan, dict):
                 raise ValueError('Diagnostic blueprint JSON must be an object')
+            if discovery(data) and draft_plan.get('story_id') != selected_story(artifact(task, 'research'))['id']:
+                raise ValueError('Moving draft must address the selected research story')
+            from .visual_narrative import scene_direction_enabled, validate_scene_direction
+            if scene_direction_enabled(data):
+                validate_scene_direction(draft_plan, payload['media'])
             if story:
                 from scripts.common import probe
                 for item in payload['media']:
@@ -1510,6 +1569,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     or payload['reviewer_thread_id'] in {
                         r['thread_id'] for r in data['agent_runs'] if r['role'] != 'QA'}):
                 raise ValueError('Diagnostic QA requires independent reviewer identity')
+            from .visual_narrative import scene_direction_enabled, validate_scene_review
+            if scene_direction_enabled(data):
+                validate_scene_review(payload.get('visual_story_review', {}))
         if v2 and name == 'animation-manifest':
             require_animatic(task)
         if role == 'QA':
@@ -1779,6 +1841,7 @@ def require_animatic(task):
     """Fail closed for full renders; a v1 ledger is an explicit legacy path."""
     from .production_contract import science_story
     data = load(task)
+    require_visual_story_review(task)
     require_current_scheme(data)
     if not science_story(data) and require_source_supported_render(task):
         return
@@ -2591,8 +2654,8 @@ def main():
     p.add_argument('--media-policy', type=int, choices=(0, 1),
                    help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
     p.add_argument('--presentation-style', choices=('natural_science', 'legacy'), default='natural_science')
-    p.add_argument('--production-contract', type=int, choices=(1, 2, 3),
-                   help='Topic-only mixed tasks default to science-story version 3.')
+    p.add_argument('--production-contract', type=int, choices=(1, 2, 3, 4),
+                   help='Topic-only mixed tasks default to science-discovery version 4.')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
