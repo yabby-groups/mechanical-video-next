@@ -54,6 +54,34 @@ class ScreeningTests(unittest.TestCase):
         self.assertEqual(r['candidates'][0]['screening']['coverage'], .6)
         self.assertNotIn('opening', r['candidates'][0]['screening']['available'])
 
+    def test_directed_viewing_scope_and_cache_reuse(self):
+        from mechanical_video_next.reference_library import ingest
+
+        candidate = self.candidate()
+        candidate.update(observations=['0–30s: close-up reveals the movement'],
+                         transfer_rationale='Show the output from a matching camera angle')
+        report = self.data([candidate]) | {'selected_ids': [candidate['id']]}
+        v.validate_directed_analysis(report)
+        for status in ('SCREENSHOTS_ONLY', 'PAGE_ONLY', 'VIDEO_NOT_VIEWED'):
+            other = dict(candidate, viewing={'status': status, 'limitation': 'Playback unavailable'})
+            with self.subTest(status=status), self.assertRaisesRegex(ValueError, 'Selected references'):
+                v.validate_directed_analysis(report | {'candidates': [other]})
+        short = dict(candidate, viewing=candidate['viewing'] | {'covered_seconds': 12})
+        with self.assertRaisesRegex(ValueError, 'time coverage'):
+            v.validate_directed_analysis(report | {'candidates': [short]})
+        with self.assertRaisesRegex(ValueError, 'Public metrics'):
+            v.validate_directed_analysis(report | {'candidates': [dict(candidate, metrics_evidence={})]})
+        library = Path(self.tmp.name) / 'references'
+        ingest(report, topic='拉链', root=library)
+
+        def reusable():
+            plan = v.directed_plan('拉链', library)
+            return plan['local_references']['results'][0]['observations'][0]['reusable_expression']
+
+        self.assertTrue(reusable())
+        self.path.write_text('Changed evidence')
+        self.assertFalse(reusable())
+
     def test_missing_metrics_remain_null_and_weights_renormalize(self):
         c = self.candidate(); c['followers'] = None
         r = v.analyze(self.data([c]))['candidates'][0]

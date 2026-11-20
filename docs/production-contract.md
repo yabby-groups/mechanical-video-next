@@ -49,10 +49,64 @@ mechanism diagnostic is an internal checkpoint, never project acceptance.
 
 ## Producer-directed production
 
+New topic-only tasks start with `research/search-plan.json` and the
+`viral-analysis` continuation action. Check the existing library for matching
+viewing evidence first. Reuse sufficient, relevant observations with current
+hashes. Cached engagement is historical. When there are gaps, look for the
+same machine on Douyin, Xiaohongshu, Bilibili and YouTube, then consider similar
+mechanisms or visual techniques. If playback is unavailable, switch sources.
+Choose a small useful set based on observed clarity, visual interest, progression
+and Blender/EAS feasibility. Use verified public engagement as one signal and
+evaluate retention only from retention data.
+
+Play the reference where possible. Describe what first earns attention, how new
+discoveries and the payoff arrive, and how framing, camera motion, teardown,
+cutaways, scale and narration support them. Examine relevant history, uses and
+design choices where observed. Record what transfers, what the current tools can
+execute, what requires original production, and any limits on lawful reuse.
+Write original scripts and direct original shot sequences. Treat public footage
+and music as `REFERENCE_ONLY` by default and verify rights for any media reuse.
+
+The Producer can do this work directly or ask the existing ViralResearch role to
+investigate a specific viewing gap after checking the cache and active assignments.
+Either role can register `viral-analysis`. A valid handoff completes this step
+on resume. Register a dated limitation and proceed to the story when accessible
+sources are exhausted. Record reusable public observations in the existing
+library with `uv run python -m mechanical_video_next.reference_library ingest`.
+
+- The handoff takes `task_id`, `topic`, ISO `observed_at` with timezone,
+  `candidates` and `selected_ids`. If selection is empty, `limitation` records
+  the source attempts and why they yielded no applicable observation.
+- Each candidate takes an `id`, `observed_at`, original `url` or hashed
+  `source_files`, and `viewing.status`. Use `FULL_VIDEO_VIEWED` with
+  `duration_seconds`, `viewing.continuous_visual=true` and equal
+  `viewing.covered_seconds` for actual continuous start-to-finish observation.
+  Use `PARTIAL_VIDEO_VIEWED` with `viewing.time_ranges` in seconds for actual
+  observed segments. Both take `viewing.evidence` entries with `path` and
+  `sha256` for the dated viewing record. Use `SCREENSHOTS_ONLY`, `PAGE_ONLY` or
+  `VIDEO_NOT_VIEWED` for those access levels. Supply `viewing.limitation` for
+  incomplete viewing. Record audio and other unobserved details as unknown.
+- Selected videos need timecoded `observations` strings and a
+  `transfer_rationale`. Record public counts only with the matching fields in
+  `metrics_evidence` and a hashed page capture in candidate `evidence`. Missing
+  counts can be null. Media rights follow the existing asset workflow.
+- The Producer implements useful techniques from the selection in the actual Blueprint
+  shots, for example a camera move or a staged reveal suited to this machine.
+  Each existing `reference_principles` row uses `reference_id`, `principle`,
+  `production_requirement` for the original execution decision, and `shot_ids`.
+  The Blueprint declares `viral-analysis` alongside `research` and `asset-plan`
+  as immutable handoff dependencies. The principles may be empty when the
+  research records a limitation. Existing tasks without a search plan resume
+  with their recorded dependencies.
+
 Research the real machine and choose a complete story before matching assets.
 Follow the history, use, people and design choices that matter to that story.
 The Producer owns the visual story, narration and edit. The existing roles
 provide evidence, modeling, animation and editing help.
+Build the recognizable 君哥拆机器 identity around teardown and mechanical discovery.
+Connect episodes when the machines share a question or design choice. Give viewers
+a reason to return through what each episode reveals. Keep actual viewing,
+likes and follows as separate measures in later post-publication review.
 
 Include the task's `production_method` and contract in research and Blueprint.
 Use `science.facts` and the reference records for evidence. Where the machine

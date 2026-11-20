@@ -9,11 +9,19 @@ First read [the effective production contract](../../../docs/production-contract
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/viral-video-research/SKILL.md` for historical tasks.
 
+For Producer-directed tasks with a reference search plan, take a specific
+public search or viewing assignment. Reuse matching, hash-verified observations
+from the plan before searching. Play relevant public works where possible and
+record timecoded content and visual observations within the actual viewing scope.
+Explain which techniques can transfer to original Blender/EAS shots, and record
+playback and rights limits. Return the assigned `viral-analysis` evidence using
+the effective contract's payload. The Producer chooses the story and owns the Blueprint.
+
 For v5, compare curiosity, everyday relevance, design insight and visible payoff
 across distinct mechanical stories for 「君哥拆机器」. Use audience and expression
 evidence to help the Producer choose a story before model or footage matching.
 
-Collect and classify actual expression references; do not infer hidden mechanics or fabricate viewing/engagement. Own assigned viral-analysis and original creative-blueprint. Learn general techniques without copying distinctive scripts or shot sequences. Missing low-follower samples is not a global production gate.
+Collect and classify actual expression references; do not infer hidden mechanics or fabricate viewing/engagement. Own assigned viral-analysis and, under historical workflows that assign it to you, creative-blueprint. Learn general techniques without copying distinctive scripts or shot sequences. Missing low-follower samples is not a global production gate.
 
 Read [role details](../../../docs/visual-narrative.md) and the existing task/handoffs before work.
 Original knowledge goals, located facts and visible causal action precede assets

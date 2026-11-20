@@ -673,8 +673,11 @@ def continuation(task, persist=True):
         optional = {'animatic-manifest', 'animatic-qa', 'preview-qa'}
         sequence = [row for row in sequence if row[0] not in optional]
         sequence[0] = ('research', 'Producer', 'Research the real machine and develop a complete story grounded in located facts')
+        blueprint_action = ('Direct the original shots using the observed reference techniques, located facts and measured narration'
+                            if data.get('reference_search_plan') else
+                            'Direct the complete visual story and bind it to measured narration and evidence')
         sequence = [
-            (name, 'Producer', 'Direct the complete visual story and bind it to measured narration and evidence')
+            (name, 'Producer', blueprint_action)
             if name == 'creative-blueprint' else
             (name, 'Producer', 'Register the original script developed with the visual edit')
             if name == 'script' else
@@ -684,6 +687,9 @@ def continuation(task, persist=True):
             if name == 'timeline' else (name, owner, action)
             for name, owner, action in sequence
         ]
+        if data.get('reference_search_plan'):
+            sequence.insert(0, ('viral-analysis', 'Producer',
+                'Review cached observations first. Search accessible public works for gaps, play and analyze useful references, then record what was actually observed or why it was unavailable.'))
     elif science_story(data):
         sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
         if mechanical_story(data):
@@ -708,6 +714,9 @@ def continuation(task, persist=True):
         sequence.insert(index, ('reference-model-qa', 'QA', 'Verify part-level references, model, constraints and depicted motion'))
     missing = [dict(handoff=name, owner=owner, action=action)
                for name, owner, action in sequence if name not in valid]
+    if missing and missing[0]['handoff'] == 'viral-analysis':
+        missing[0].update(search_plan=str(task / data['reference_search_plan']),
+                          analysis_input=str(task / 'research/viral-analysis.json'))
     if scene_direction_enabled(data) and 'diagnostic-qa' in valid:
         review = valid['diagnostic-qa']['visual_story_review']
         if review['status'] != 'PASS':
@@ -988,16 +997,43 @@ def record_delivery(task, files, reason):
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
     if producer_directed(data):
+        reference_work = ''
+        if data.get('reference_search_plan'):
+            reference_work = f'''Start with the next action from `uv run python -m mechanical_video_next continue "{task}"` and the task's
+{data['reference_search_plan']}. It already searched the local reference library and supplies public searches
+for Douyin, Xiaohongshu, Bilibili and YouTube. Reuse sufficient matching observations with verified evidence.
+Otherwise search the same machine first and then related mechanisms or transferable visual treatments.
+Use available browser/playback tools to observe actual video. Switch sources when playback is unavailable.
+Record timecoded observations of the opening, new discoveries, payoff, teardown/cutaway, motion, camera,
+and narration where observed. Record the exact viewing scope and limitations. Treat verified public counts
+as dated interaction evidence. Retention requires separate evidence. Pick a small useful set by clarity,
+audience appeal, pacing, transferability and feasibility in Blender/EAS.
+
+Do the research yourself or assign an unresolved public viewing question to ViralResearch after checking
+the cache and active work. Save observations and attempted sources in `research/viral-analysis.json`
+as you go and reuse that work if interrupted. Register the task-bound `viral-analysis` handoff once,
+including a limitation with empty `selected_ids` when options are exhausted. Resume from an existing
+handoff. Follow the payload and cache instructions in the Producer-directed section of docs/production-contract.md.
+
+Carry useful techniques from the selection into the existing Blueprint `reference_principles` with the reference ID, technique,
+original execution decision and actual shot IDs. Author the resulting camera, action, staging or edit in those
+shots. Learn general methods and keep the script, shots, music and distinctive expression original. Treat
+public footage as REFERENCE_ONLY unless its reuse rights are verified independently.
+
+'''
         return f'''You are the sole native Codex Producer for {identity} ({topic}).
 Task directory {task}. Read its ledger and the Producer-directed section of docs/production-contract.md.
 You make the complete film for 君哥拆机器. 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
 
-Research the actual machine and find the story worth telling. Follow the subject into its invention,
+{reference_work}Research the actual machine and find the story worth telling. Follow the subject into its invention,
 people, use, design tradeoffs or evolution where they make the film more revealing. Choose the story,
 visual language and length. Then choose an evidenced implementation and assets that serve it.
 Direct the whole visual story, including where the viewer needs to see a teardown, cutaway or mechanism
 in motion. Use lawful context and original graphics where they help. Use Research, CAD, Animation and
 Editor as needed. Own the decisions about the picture, narration, pacing and sound throughout.
+Use the recognizable 君哥拆机器 teardown identity and meaningful links between episodes. Give viewers a
+reason to return through the mechanical discoveries. Keep actual viewing, likes and follows as separate
+observations in the existing production/growth reporting when post-publication data is available.
 
 Record located facts and verify the exact implementation, constraints and depicted motion. Scope
 unknowns to affected shots. Use inspectable native 3D or rights-verified, independently observed
@@ -1383,6 +1419,10 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if creative:
         from .joint_timeline import FIELD as TIMELINE_FIELD, VERSION as TIMELINE_VERSION
         value[TIMELINE_FIELD] = TIMELINE_VERSION
+    if directed:
+        from .viral import directed_plan
+        value['reference_search_plan'] = 'research/search-plan.json'
+        write(task / value['reference_search_plan'], directed_plan(topic, Path(root) / 'references'))
     if protocol_version == 2:
         value[PRESENTATION_STYLE] = presentation_style
         value['reference_policy_version'] = 1
@@ -1523,9 +1563,12 @@ def put_handoff(task, role, name, payload, dependencies=None):
         data = load(task)
         competition = editorial_policy.enabled(data)
         directed = producer_directed(data)
+        directed_references = directed and data.get('reference_search_plan')
         producer_work = role == 'Producer' and (
-            ((competition or directed) and name == 'research') or (directed and name == 'script'))
-        if name not in ROLES.get(role, set()) and not producer_work:
+            ((competition or directed) and name == 'research') or (directed and name == 'script')
+            or (directed_references and name == 'viral-analysis'))
+        if ((name not in ROLES.get(role, set()) and not producer_work)
+                or (directed_references and name == 'creative-blueprint' and role != 'Producer')):
             raise ValueError('Role does not own this artifact')
         deps = {}
         for dep in dependencies or []:
@@ -1581,6 +1624,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
             required = {'research'} if name == 'diagnostic-animatic' else {'research', 'diagnostic-animatic'}
         if directed and name in {'asset-plan', 'creative-blueprint', 'animation-manifest'}:
             required = required - {'diagnostic-animatic', 'animatic-manifest', 'animatic-qa'}
+        if directed_references and name == 'creative-blueprint':
+            required = required | {'viral-analysis'}
         technical_handoff = v2 and name in {'animation-manifest', 'timeline'} and require_source_supported_render(task)
         if technical_handoff:
             # These are technical-media handoffs, not fabricated perceptual QA.
@@ -1613,13 +1658,22 @@ def put_handoff(task, role, name, payload, dependencies=None):
             reference = artifact(task, 'viral-analysis')
             validate_viral_analysis(reference)
             check_research_binding(data, reference)
-        if v2 and name in {'viral-analysis', 'creative-blueprint'}:
+        if directed_references and name == 'viral-analysis':
+            from .viral import validate_directed_analysis
+            check_research_binding(data, payload)
+            validate_directed_analysis(payload)
+        elif v2 and name in {'viral-analysis', 'creative-blueprint'}:
             from .viral import validate_viral_analysis, validate_creative_blueprint
             (validate_viral_analysis if name == 'viral-analysis'
              else validate_creative_blueprint)(payload)
             if name == 'viral-analysis' and data.get('production_method') == 'reference-recreation':
                 check_research_binding(data, payload)
             if name == 'creative-blueprint':
+                if directed_references:
+                    selected = set(artifact(task, 'viral-analysis')['selected_ids'])
+                    used = {item['reference_id'] for item in payload.get('reference_principles', [])}
+                    if used - selected or (selected and not used):
+                        raise ValueError('Blueprint must adapt the selected observations in its shots')
                 if data.get('content_policy_version') == 1:
                     from .growth import validate_contract
                     if payload.get('content_policy_version') != 1:

@@ -52,7 +52,12 @@ def evidence_exists(items):
         if not isinstance(e, dict) or not e.get('path') or not e.get('sha256'):
             return False
         p = Path(e['path'])
-        if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != e['sha256']:
+        try:
+            with p.open('rb') as stream:
+                actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+        except OSError:
+            return False
+        if actual != e['sha256']:
             return False
     return True
 
@@ -203,6 +208,113 @@ def validate_viral_analysis(payload):
         raise ValueError('Reference kind must distinguish observed material from verified breakout metrics')
 
 
+VIDEO_VIEWING = {'FULL_VIDEO_VIEWED', 'PARTIAL_VIDEO_VIEWED', 'SCREENSHOTS_ONLY',
+                 'PAGE_ONLY', 'VIDEO_NOT_VIEWED'}
+
+
+def _text(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _seconds(value):
+    return type(value) in (int, float) and math.isfinite(value) and value >= 0
+
+
+def _viewed_video(candidate):
+    viewing = candidate['viewing']
+    duration = candidate.get('duration_seconds')
+    if viewing['status'] == 'FULL_VIDEO_VIEWED':
+        covered = viewing.get('covered_seconds')
+        return (_seconds(duration) and _seconds(covered) and covered == duration
+                and full_view(candidate))
+    if viewing['status'] != 'PARTIAL_VIDEO_VIEWED':
+        return False
+    ranges = viewing.get('time_ranges')
+    return (isinstance(ranges, list) and bool(ranges)
+            and all(isinstance(span, list) and len(span) == 2
+                    and all(_seconds(t) for t in span) and span[0] < span[1]
+                    and (duration is None or _seconds(duration) and span[1] <= duration)
+                    for span in ranges)
+            and evidence_exists(viewing.get('evidence')))
+
+
+def reusable_expression(candidate):
+    observations = candidate.get('observations')
+    viewing = candidate.get('viewing') or {}
+    return (candidate.get('source_kind', 'video') == 'video'
+            and isinstance(viewing, dict)
+            and viewing.get('status') in ('FULL_VIDEO_VIEWED', 'PARTIAL_VIDEO_VIEWED')
+            and (viewing['status'] == 'FULL_VIDEO_VIEWED' or _text(viewing.get('limitation')))
+            and isinstance(observations, list) and bool(observations) and all(map(_text, observations))
+            and _text(candidate.get('transfer_rationale')) and _viewed_video(candidate))
+
+
+def validate_directed_analysis(payload):
+    """Record a bounded research pass, including a pass without applicable viewing."""
+    date(payload.get('observed_at'))
+    candidates, selected = payload.get('candidates'), payload.get('selected_ids')
+    if not isinstance(candidates, list) or not isinstance(selected, list) or not all(map(_text, selected)):
+        raise ValueError('Reference research requires candidates and selected_ids arrays')
+    if not selected and not _text(payload.get('limitation')):
+        raise ValueError('Record why the search or cache check yielded no usable reference')
+    seen, ids, usable = set(), set(), set()
+    for candidate in candidates:
+        if not isinstance(candidate, dict) or candidate.get('source_kind', 'video') != 'video':
+            raise ValueError('Candidate must describe a video work')
+        candidate_id = candidate.get('id')
+        if not _text(candidate_id) or candidate_id in ids:
+            raise ValueError('Unique nonempty candidate IDs required')
+        ids.add(candidate_id)
+        date(candidate.get('observed_at'))
+        if candidate.get('url'):
+            source = identity(candidate['url'])
+        elif evidence_exists(candidate.get('source_files')):
+            source = 'local:' + candidate['source_files'][0]['sha256']
+        else:
+            raise ValueError('Reference needs an original work URL or hashed local source')
+        if source in seen:
+            raise ValueError('Record each reference work once')
+        seen.add(source)
+        viewing = candidate.get('viewing') or {}
+        if not isinstance(viewing, dict):
+            raise ValueError('Record the actual video viewing scope')
+        status = viewing.get('status')
+        if not isinstance(status, str) or status not in VIDEO_VIEWING:
+            raise ValueError('Record the actual video viewing scope')
+        if status != 'FULL_VIDEO_VIEWED' and not _text(viewing.get('limitation')):
+            raise ValueError('Record the limits of incomplete viewing')
+        if status in {'FULL_VIDEO_VIEWED', 'PARTIAL_VIDEO_VIEWED'} and not _viewed_video(candidate):
+            raise ValueError('Viewing claim requires matching time coverage and hashed observation evidence')
+        metrics = [key for key in METRICS if candidate.get(key) is not None]
+        if metrics and (not all(_seconds(candidate[key]) for key in metrics)
+                        or not all(_text((candidate.get('metrics_evidence') or {}).get(key)) for key in metrics)
+                        or not evidence_exists(candidate.get('evidence'))):
+            raise ValueError('Public metrics require located evidence or null values')
+        if candidate_id in selected and reusable_expression(candidate):
+            usable.add(candidate_id)
+    if len(selected) != len(set(selected)) or not set(selected) <= usable:
+        raise ValueError('Selected references require observed video and a transferable analysis')
+
+
+def directed_plan(topic, library_root):
+    from .reference_library import search
+
+    try:
+        local = search(topic, root=library_root)
+    except (ValueError, OSError, KeyError, TypeError) as error:
+        local = {'results': [], 'limitation': str(error)}
+    for work in local['results']:
+        for observation in work['observations']:
+            observation['reusable_expression'] = reusable_expression(observation['candidate'])
+    return {'topic': topic, 'observed_at': now(), 'local_references': local,
+            'queries': [{'platform': platform, 'url': base + quote(topic, safe='')}
+                        for platform, base in (
+                            ('douyin', 'https://www.douyin.com/search/'),
+                            ('xiaohongshu', 'https://www.xiaohongshu.com/search_result?keyword='),
+                            ('bilibili', 'https://search.bilibili.com/all?keyword='),
+                            ('youtube', 'https://www.youtube.com/results?search_query='))]}
+
+
 def validate_reference_recreation(blueprint, research):
     recreation = blueprint.get('reference_recreation')
     if not isinstance(recreation, dict):
@@ -284,6 +396,13 @@ def validate_creative_blueprint(payload):
     mapped = {'production_requirement', 'shot_ids', 'expected_observable_effect',
               'verification_method', 'minimal_repair', 'decision_basis', 'implementation_cost'}
     for p in payload.get('reference_principles', []):
+        if producer_directed(payload):
+            if (not isinstance(p, dict) or not all(_text(p.get(key)) for key in
+                    ('reference_id', 'principle', 'production_requirement'))
+                    or not isinstance(p.get('shot_ids'), list) or not p['shot_ids']
+                    or not all(_text(s) and s in shot_ids for s in p['shot_ids'])):
+                raise ValueError('Reference technique needs an original production decision and existing shot IDs')
+            continue
         if not p.get('reference_id') or not p.get('principle') or not evidence_exists(p.get('evidence')):
             raise ValueError('Observed transferable principle evidence required')
         if not mapped <= p.keys() or any(p[k] in (None, '', [], {}) for k in mapped):

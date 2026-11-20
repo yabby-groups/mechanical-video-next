@@ -21,13 +21,30 @@ class ProductionContractTests(unittest.TestCase):
             task = create_task('行星齿轮', root=folder, visual_policy_version=2, media_policy_version=1)
             data = load(task)
             self.assertTrue(c.producer_directed(data))
-            self.assertEqual(continuation(task, persist=False)['next_action']['owner'], 'Producer')
+            first = continuation(task, persist=False)['next_action']
+            self.assertEqual((first['owner'], first['handoff']), ('Producer', 'viral-analysis'))
+            search = json.loads(Path(first['search_plan']).read_text())
+            self.assertEqual([query['platform'] for query in search['queries']],
+                             ['douyin', 'xiaohongshu', 'bilibili', 'youtube'])
             self.assertNotIn('EDITORIAL', (task / 'producer-prompt.md').read_text())
             self.assertEqual(load(task)['timeline_policy_version'], 1)
             w.advance(task, 'RESEARCHING')
             source = task / 'manual.txt'
             source.write_text('With a fixed ring, the carrier rotates more slowly than the sun gear.')
             evidence = dict(path=str(source), sha256=w.filehash(source), position='Operating instructions')
+            viewing_note = task / 'reference-observation.txt'
+            viewing_note.write_text('Integration fixture: 2–4s, move from the whole tool to the output.')
+            observed = '2026-11-20T08:00:00+08:00'
+            candidate = dict(id='ref', url='https://youtu.be/fixture', observed_at=observed,
+                             observations=['2–4s: Go from whole tool to the output'],
+                             transfer_rationale='Reframe around the slow carrier',
+                             viewing=dict(status='PARTIAL_VIDEO_VIEWED', time_ranges=[[2, 4]],
+                                          limitation='Only the transition was observed',
+                                          evidence=[joint.binding(viewing_note)]))
+            put_handoff(task, 'ViralResearch', 'viral-analysis',
+                        dict(task_id=data['id'], topic=data['topic'], observed_at=observed,
+                             candidates=[candidate], selected_ids=['ref']))
+            self.assertEqual(continuation(task, persist=False)['next_action']['handoff'], 'research')
             research = {key: data[key] for key in (c.FIELD, 'production_contract', 'production_method',
                                                   'visual_policy_version', 'media_policy_version')}
             fact = dict(id='reduction', status='VERIFIED', kind='observed', claim=source.read_text(),
@@ -109,11 +126,18 @@ class ProductionContractTests(unittest.TestCase):
                          model=model_ref, model_source=evidence, substantive_repairs=[],
                          qualified=True, independent_meshes=True, missing_required_parts=[])
             put_handoff(task, 'Asset', 'asset-plan', asset, ['research'])
+            dependencies = ['research', 'asset-plan', 'viral-analysis']
+            with self.assertRaisesRegex(ValueError, 'adapt the selected observations'):
+                put_handoff(task, 'Producer', 'creative-blueprint', plan, dependencies)
+            plan['reference_principles'] = [dict(reference_id='ref', principle='Reveal output after establishing scale',
+                                                 production_requirement='Hold the full view with the carrier visible',
+                                                 shot_ids=['trace'])]
             plan_path, config_path = task / 'plan.json', task / 'compiled.json'
             w.write(plan_path, plan)
             blueprint.compile_config(plan_path, base, config_path)
             plan['production_config'] = joint.binding(config_path)
-            put_handoff(task, 'Producer', 'creative-blueprint', plan, ['research', 'asset-plan'])
+            handoff = put_handoff(task, 'Producer', 'creative-blueprint', plan, dependencies)
+            self.assertEqual(handoff['dependencies']['viral-analysis'], load(task)['handoffs']['viral-analysis']['sha256'])
             self.assertEqual(load(task)['config'], str(config_path.resolve()))
             self.assertEqual(load(task)['shared_production']['timeline'], plan['measured_timeline'])
             put_handoff(task, 'Producer', 'script', {'narration': timeline['narration']},
@@ -177,6 +201,24 @@ class ProductionContractTests(unittest.TestCase):
             shot['source_type'] = 'REFERENCE_ONLY'
             with self.assertRaisesRegex(ValueError, 'editing/distribution rights'):
                 blueprint.validate(plan)
+
+    def test_reference_access_limit_continues_and_existing_policies_resume(self):
+        with tempfile.TemporaryDirectory() as folder:
+            task = create_task('棘轮扳手', root=folder, visual_policy_version=2, media_policy_version=1)
+            observed = '2026-11-20T08:00:00+08:00'
+            put_handoff(task, 'Producer', 'viral-analysis', dict(
+                task_id=task.name, topic='棘轮扳手', observed_at=observed, candidates=[], selected_ids=[],
+                limitation='Playback unavailable across the accessible results, and cache only has page evidence'))
+            for _ in range(2):
+                result = continuation(task)
+                self.assertEqual(result['lifecycle'], 'WORKING')
+                self.assertEqual(result['next_action']['handoff'], 'research')
+                self.assertNotIn('viral-analysis', {row['handoff'] for row in result['remaining_work']})
+            history = create_task('棘轮扳手', root=folder, visual_policy_version=2, media_policy_version=1,
+                                  contract_version=6)
+            self.assertEqual(continuation(history)['next_action']['handoff'], 'research')
+            self.assertNotIn('reference_search_plan', load(history))
+            self.assertIn('EDITORIAL', (history / 'producer-prompt.md').read_text())
 
     def test_pinned_mechanical_story_rejects_unanchored_research_and_preserves_v4(self):
         from scripts.common import filehash
