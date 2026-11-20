@@ -29,7 +29,7 @@ Producer 根据研究结果选择表达方式和已验证的素材。CLI 建账�
 
 ## 先确定观众会发现什么
 
-「君哥拆机器」的新混合任务默认使用 `mechanical-story-v5`。比较每个机械故事的设计问题和可见回报，先选故事再定实现。三维拆解、剖视和运动展示揭示关键设计，历史转折可以用档案或原创重建，设计取舍可以用同条件对比。写下选中的 `audience_decision`，先用完整动稿试节奏和回报，再确认素材。Blueprint 用具体镜头绑定开场与视觉回报。连续三段以上的内部机构视图需要导演说明其因果连贯性的价值。动态预览以实际媒体和时间码评审，对不清楚的镜头提出具体替换方案。
+「君哥拆机器」的新混合任务默认使用 `mechanical-story-v6`。根据真实使用、观众疑问、设计矛盾和可见发现登记创意顺序，再核实科学和制作条件。三维拆解、剖视和运动展示揭示关键设计，历史转折可以用档案或原创重建，设计取舍可以用同条件对比。写下选中的 `audience_decision`，先用完整动稿检查节奏和回报，再确认正式素材。Blueprint 用具体镜头绑定开场与视觉回报。连续三段以上的内部机构视图需要导演说明其因果连贯性的价值。动态预览以实际媒体和时间码评审。局部画面缺陷回到对应镜头，故事缺少观众问题或整条因果进展时回到选题。
 
 v4 起，研究用 `story_exploration` 保存候选与取舍，并在 `science.facts` 绑定实际查阅位置、文件路径和 SHA256。较早版本的 `visual_research` 使用八个键 `use_context`、`common_misconception`、`science_question`、`causal_relationship`、`comparison`、`technical_background`、`structure_to_phenomenon`、`everyday_conclusion`。可用信息填 `SUPPORTED`、`finding`、`evidence`，其余写 `UNKNOWN` 或 `NOT_APPLICABLE` 及原因。确定要展示的知识、动作和画面任务后，再选用装配或开始 CAD。
 

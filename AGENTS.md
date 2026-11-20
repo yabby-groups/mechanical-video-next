@@ -29,14 +29,16 @@ QA is independent and only writes reports. Record actual native identity and
 available telemetry; unknown tokens, costs and interventions are null.
 
 Research and original knowledge/visual planning precede CAD and expensive renders.
-New topic-only mixed tasks use `mechanical-story-v5`. Start from machines, tools,
+New topic-only mixed tasks use `mechanical-story-v6`. Record the Producer's
+editorial order in the research handoff before assessing scientific support and
+production feasibility. Start from machines, tools,
 mechanisms and everyday objects with a mechanical design question. Explore invention,
 design choices, tradeoffs, alternatives, real use, evolution, failures, improvements
 and cross-domain mechanical applications. Use scientific principles in service of
 the machine, instrument or application. Compare distinct, evidenced stories and
 their visible payoffs before choosing the implementation, assets, shots and voice.
 3D disassembly, cutaways and motion remain the account's core visual techniques.
-Use supporting media where it advances the story. Keep v4 and older pinned rules.
+Use supporting media where it advances the story. Keep v5 and older pinned rules.
 Verify the concrete implementation, never mix models or guess hidden mechanics.
 Unknown evidence blocks only dependent shots. Keep original narration/visual design,
 prefer matching owned assets, verify external rights; other creators default to

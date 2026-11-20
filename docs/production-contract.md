@@ -24,7 +24,8 @@ Use explicit `presentation_style: legacy` to reproduce older display conventions
 
 | Task | Effective rules |
 | --- | --- |
-| `production_contract_version=5` | Default for new topic-only mixed production. `mechanical-story-v5` applies Science Discovery to the account's mechanical stories and retains v4's timeline, media, visual and evidence capabilities |
+| `production_contract_version=6` | Default for new topic-only mixed production. `mechanical-story-v6` records editorial priority before the evidence and production decision, then reviews the actual moving edit |
+| `production_contract_version=5` | `mechanical-story-v5` applies Science Discovery to the account's mechanical stories and retains v4's timeline, media, visual and evidence capabilities |
 | `production_contract_version=4` | `science-discovery-v4` preserves the original story exploration and documented technology subject scope, with media 1, visual 2, knowledge progression 1 and joint timeline 1 |
 | `production_contract_version=3` | `science-story-v3`, media 1, visual 2, knowledge progression 1 and joint timeline 1 |
 | `production_contract_version=2` | `creative-first-v2`, media 1, visual 2, knowledge progression 1 |
@@ -49,7 +50,39 @@ mechanism diagnostic is an internal checkpoint, never project acceptance.
 
 ## Discovering stories for new topics
 
-Start v5 from machines, tools, mechanical devices, structures and everyday objects
+For v6, compare distinct stories on the same everyday object before investigating
+specific production paths. Describe who would care in actual use, which effect
+or design choice creates tension, what viewers could see, what they would learn,
+and whether the case earns an episode. Explain what the leading story offers
+over its strongest creative alternative. A well-evidenced detail can support
+another story. It can lead its own episode when its use, tension and visible
+discovery sustain one.
+
+The Producer registers this order in the existing `research` handoff with
+`story_exploration.phase=EDITORIAL` and no selection. Limited source reading
+can establish that a premise is worth investigating. Technical dispositions
+belong in the next immutable research revision, `phase=DECISION`. Give the
+scientific and production checks their own findings and located sources.
+Investigate a plausible source, controlled observation, asset or low-cost
+depiction before passing over a stronger candidate. Missing local CAD is a
+reason to investigate, while concrete production gaps can defer an otherwise
+promising story. The recorded order is an initial editorial judgment. The
+Producer compares the findings and gives the final reason for selecting an
+evidenced, realizable standalone story or deferring the topic. Document which
+ideas serve as supporting scenes.
+
+Register the complete moving edit in `diagnostic-animatic`. The existing QA
+reviewer evaluates the exact edit, including whether the audience question,
+design discovery and payoff survive the transition from research to picture.
+Compare with the strongest alternative. Tie a creative failure to an observed
+section and a concrete change. An isolated obstruction or confusing cut goes
+to its production owner. A failed premise or failed progression returns to
+the current story shortlist. The ledger preserves the prior media and review
+and retires dependent approvals. Independent continuous viewing is required
+for a creative PASS. Sampled frames may support specific findings, and the
+remaining sensory judgment stays UNKNOWN.
+
+From v5, start with machines, tools, mechanical devices, structures and everyday objects
 with a consequential mechanical design. A bare topic is enough to begin. Discover
 what people needed, which choice solved it, what it cost, how it was used and why
 someone might change it. A law of optics, chemistry or astronomy may explain a
@@ -66,8 +99,8 @@ experiments and peer-reviewed work for science, and original product or
 engineering documentation for scope. Record where the evidence comes from.
 
 From v4, use the existing research handoff's `story_exploration.angles` for
-findings and evidence gaps and `candidates` for up to four plausible audience
-questions. Each candidate has an ID, angle, visible test, decision reason and
+findings and evidence gaps and `candidates` for a bounded set of plausible audience
+questions. V4 and v5 retain the four-candidate limit. Each candidate has an ID, angle, visible test, decision reason and
 fact IDs where available. A single viable candidate includes a shortlist limit.
 In v5, each candidate's `mechanical_focus` names the device and the design choice
 or behavior the story explains. V5 research accepts `mechanical_implementation`
