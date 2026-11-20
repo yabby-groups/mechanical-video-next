@@ -12,11 +12,9 @@ the account directly.
 
 ## Policy resolution
 
-New tasks default to `presentation_style: natural_science`. Lead with a familiar
-question and use visible motion to explain its cause. Introduce technical terms
-after the everyday explanation. Keep optional titles in the first three seconds
-and tie labels to the relevant action. Use subtitles for narration and leave
-generic production badges and chapter cards out of the default presentation.
+New tasks default to `presentation_style: natural_science`. Let the subject
+determine the opening. Use ordinary language and tie labels to the relevant
+action. Reserve subtitles for narration and keep production notes in the ledger.
 Explain consequential model boundaries in plain language. Keep the evidence,
 scope and simulation status in the existing internal records. Independent QA
 checks the actual rendered words, obstructions, continuity and narration.
@@ -24,7 +22,8 @@ Use explicit `presentation_style: legacy` to reproduce older display conventions
 
 | Task | Effective rules |
 | --- | --- |
-| `production_contract_version=6` | Default for new topic-only mixed production. `mechanical-story-v6` records editorial priority before the evidence and production decision, then reviews the actual moving edit |
+| `production_contract_version=6`, `production_method=producer-directed` | Default for new topic-only mixed production. The Producer directs the whole film using the existing technical checks and independent final QA |
+| Other `production_contract_version=6` tasks | Original `mechanical-story-v6` candidate workflow. `--production-contract 6` explicitly selects this path |
 | `production_contract_version=5` | `mechanical-story-v5` applies Science Discovery to the account's mechanical stories and retains v4's timeline, media, visual and evidence capabilities |
 | `production_contract_version=4` | `science-discovery-v4` preserves the original story exploration and documented technology subject scope, with media 1, visual 2, knowledge progression 1 and joint timeline 1 |
 | `production_contract_version=3` | `science-story-v3`, media 1, visual 2, knowledge progression 1 and joint timeline 1 |
@@ -48,7 +47,34 @@ passing dynamic QA; one identical studio composition for every shot. Historic
 records and original policies remain available for their tasks. The 10–15 s
 mechanism diagnostic is an internal checkpoint, never project acceptance.
 
-## Discovering stories for new topics
+## Producer-directed production
+
+Research the real machine and choose a complete story before matching assets.
+Follow the history, use, people and design choices that matter to that story.
+The Producer owns the visual story, narration and edit. The existing roles
+provide evidence, modeling, animation and editing help.
+
+Include the task's `production_method` and contract in research and Blueprint.
+Use `science.facts` and the reference records for evidence. Where the machine
+appears in motion, verify the exact implementation and depicted constraints.
+Bind the question, answer, shots, measured Neil Joint Timeline and compiled
+config in the Blueprint. Use `asset-plan`, the applicable mechanical and
+reference checks, `content-qa` and feasibility to establish render readiness.
+Use `advance` and `stage`, verify key actions and watch the low-cost full
+preview before composing the final MP4. `animation-manifest` binds the preview
+and `timeline` binds the final edit.
+
+Candidate tables, pre-voice picture approvals and independent animatic/preview
+approval are optional. Independent `final-qa` reviews the exact film and sound.
+The existing quality dimensions cover advice on the story as well as science,
+motion and audiovisual quality. Preserve separate rights checks and record
+unavailable sensory evidence as UNKNOWN. Deliver the film, both covers,
+provenance and the existing QA and production reports.
+
+## Historical story discovery and creative review
+
+Use the original pinned workflows for the discovery and preproduction approval
+steps below. Producer-directed tasks use the section above.
 
 For v6, compare distinct stories on the same everyday object before investigating
 specific production paths. Describe who would care in actual use, which effect
@@ -297,9 +323,9 @@ Six separate final dimensions: scientific accuracy; mechanical motion; visual
 expression; narrative/comprehension; originality/copyright; audio/video/delivery.
 Each binds exact media and located observations. Full timeline coverage and
 continuous key-action viewing/listening are required. Sampled frames, ASR,
-loudness, unit tests and full decode do not grant sensory acceptance. Existing
-separate copyright/original-expression reports and comprehension/growth gates
-remain required. All unknown capabilities remain UNKNOWN.
+loudness, unit tests and full decode do not grant sensory acceptance. Mixed media
+keeps separate copyright and originality reviews. Comprehension and growth
+gates follow the pinned task policies. Unknown capabilities stay UNKNOWN.
 
 For formal new-contract acceptance, the same immutable QA handoff contains
 `review_observations`: unique `id`, exact `media_sha256`, `reviewer_thread_id`,

@@ -28,17 +28,12 @@ Sol/Terra/Luna routing, default two children, compact fork_turns=none assignment
 QA is independent and only writes reports. Record actual native identity and
 available telemetry; unknown tokens, costs and interventions are null.
 
-Research and original knowledge/visual planning precede CAD and expensive renders.
-New topic-only mixed tasks use `mechanical-story-v6`. Record the Producer's
-editorial order in the research handoff before assessing scientific support and
-production feasibility. Start from machines, tools,
-mechanisms and everyday objects with a mechanical design question. Explore invention,
-design choices, tradeoffs, alternatives, real use, evolution, failures, improvements
-and cross-domain mechanical applications. Use scientific principles in service of
-the machine, instrument or application. Compare distinct, evidenced stories and
-their visible payoffs before choosing the implementation, assets, shots and voice.
-3D disassembly, cutaways and motion remain the account's core visual techniques.
-Use supporting media where it advances the story. Keep v5 and older pinned rules.
+For new topic-only mixed tasks the Producer researches and directs the complete
+film. Choose the story before matching an implementation and assets. Let each
+subject determine how history, use, design and mechanics enter the film.
+Use 3D disassembly, cutaways and motion where they reveal the design. Apply the
+pinned workflow to existing tasks, including the original v6 creative process.
+The effective contract also governs role Skills and their historical examples.
 Verify the concrete implementation, never mix models or guess hidden mechanics.
 Unknown evidence blocks only dependent shots. Keep original narration/visual design,
 prefer matching owned assets, verify external rights; other creators default to
@@ -47,11 +42,8 @@ observed lawful real-mechanism footage. Mixed output has complete independent me
 provenance and cannot claim historical 3D-only acceptance.
 
 Keep measured Neil speech where authored, 1920×1080/30 and phone-readable
-single-line subtitles. For v3 and later, the Producer chooses the visual
-language and length from the subject and tests the complete moving edit before
-committing production assets. Science evidence and creative review are separate.
-Independent creative PASS on the exact animatic precedes formal rendering.
-UNKNOWN sensory QA remains valid for draft experiments. Full film/audio review
+single-line subtitles. The Producer reviews the low-cost full edit and directs
+the final composition. Full film/audio review
 and continuous key actions are required; images/tests/ASR/loudness do not replace
 watching/listening. Deliver actual MP4, both covers, sources/provenance, independent
 QA and production/growth reports before record-delivery. No publication or drafts.
