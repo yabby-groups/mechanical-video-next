@@ -1,11 +1,12 @@
 # Mechanical Video Next
 
 制作「生活中的知识与科学原理」原创横屏科普。当前 Codex 主会话作为唯一
-Producer，从生活现象和科学问题出发，按题材选用真实影像、原创动画、
+Producer，从生活现象、真实发明和设计困境中筛选故事，按题材选用真实影像、原创动画、
 信息图或三维制作，沿用独立 QA。
 
 **有效规则从 [生产契约](docs/production-contract.md) 开始。** 新建 topic-only
-任务默认使用 `science-story-v3`、媒体策略 1、视觉策略 2。
+任务默认使用 `science-discovery-v4`、媒体策略 1、视觉策略 2。
+先查相关故事角度并比较可视化方案，再把选中的问题和证据带入完整动态分镜。
 逐镜头规划真实因果、原创科学/信息动画和合法补充素材；核心机械证据须为
 可核验原生 3D 或独立核实且获许可的真实机构影像。混合成片使用完整媒体
 来源清单，原生 3D 段保留自己的来源链。历史 3D-only 任务不自动升级。
@@ -14,6 +15,8 @@ Producer，从生活现象和科学问题出发，按题材选用真实影像、
 当前 Producer 继续推理和执行；它不是后台智能服务。任意选题都能自动
 交付合格全片尚未获得验证，实际三级验收结果见
 [本次生产报告](docs/productions/workflow-upgrade-20261118.md)。
+新题材的创意取舍、实际动稿与完整工作版见
+[跨题材验证](docs/productions/science-discovery-validation-20261120.md)。
 
 ```sh
 uv sync --locked
@@ -29,7 +32,8 @@ uv run python -m mechanical_video_next continue output/tasks/TASK
 以静态卡替代动作、复制其他作者的独创脚本或完整镜头安排。禁止自动发布。
 
 `task.json` 是任务、版本、状态和交付的账本；研究保存精简 `science.facts`，
-Blueprint 保存原创叙事与逐镜头 `direction`、知识和素材决策。编译配置是
+研究交接的 `story_exploration` 保存候选和取舍。Blueprint 保存原创叙事与
+逐镜头 `direction`、知识和素材决策。编译配置是
 有哈希绑定的派生数据；Handoff 保存不可变版本和依赖。没有第二个调度系统。
 
 ```sh

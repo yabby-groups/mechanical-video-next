@@ -19,7 +19,8 @@ Use explicit `presentation_style: legacy` to reproduce older display conventions
 
 | Task | Effective rules |
 | --- | --- |
-| `production_contract_version=3` | Default for new topic-only mixed production. `science-story-v3`, media 1, visual 2, knowledge progression 1 and joint timeline 1 |
+| `production_contract_version=4` | Default for new topic-only mixed production. `science-discovery-v4` adds story exploration and documented technology subjects; retains media 1, visual 2, knowledge progression 1 and joint timeline 1 |
+| `production_contract_version=3` | `science-story-v3`, media 1, visual 2, knowledge progression 1 and joint timeline 1 |
 | `production_contract_version=2` | `creative-first-v2`, media 1, visual 2, knowledge progression 1 |
 | `production_contract_version=1` | `production_contract=mixed-original-v1`, media 1, visual 2, knowledge progression 1, historical 120–300 s |
 | Existing `media_policy_version=1` | Asset-first hybrid v1, with its own complete media manifest |
@@ -40,12 +41,42 @@ passing dynamic QA; one identical studio composition for every shot. Historic
 records and original policies remain available for their tasks. The 10–15 s
 mechanism diagnostic is an internal checkpoint, never project acceptance.
 
-## Science stories for new topics
+## Discovering stories for new topics
+
+Research makes a low-cost pass through relevant angles: documented stories,
+original needs, design constraints and materials, working science, clever
+details, tradeoffs, alternatives, uses, cross-domain connections, evolution,
+failures, counterfactuals or experiments, and future directions. Seek the people
+and conditions behind a design. Prefer archival and museum records for history,
+experiments and peer-reviewed work for science, and original product or
+engineering documentation for scope. Record where the evidence comes from.
+
+In the existing v4 research handoff, use `story_exploration.angles` for
+findings and evidence gaps and `candidates` for up to four plausible audience
+questions. Each candidate has an ID, angle, visible test, decision reason and
+fact IDs where available. A single viable candidate includes a shortlist limit.
+Deepen only the promising directions. Compare curiosity, story and knowledge
+value, design insight, visual payoff, difficulty, daily relevance, originality,
+source confidence and cost. The Producer selects one direction, records why
+the others are deferred and keeps promising questions for later episodes.
+Judgment and evidence decide. The selected ID links the research, the moving
+draft's `story_id`, and Blueprint's `narrative.story_id`.
+
+A story may center on a phenomenon, invention, design choice, tradeoff,
+technical change, experiment, real application, failure, surprising finding
+or a combination. Keep one main line. Compare alternatives under stated
+conditions. Distinguish shared principles, similar methods, visual analogy
+and documented lineage. Separate deployed technology, research and future
+hypotheses. V4 adds historical and scientific fact kinds plus unverified
+story leads and legends to the existing ledger. Derivations and approximations
+retain assumptions. A patent alone cannot establish sole invention or its date.
 
 The series explores everyday science, nature, materials and inventions. The
 Producer owns the audience question, visual discovery, picture structure and
 decision to proceed. Research owns factual support and identifies what changes
-the viewer's understanding. For v3, `research.audience_decision.visual_approach`
+the viewer's understanding. ViralResearch investigates audience interest when
+it informs a concrete direction choice. For v3 and later,
+`research.audience_decision.visual_approach`
 explains the chosen visual language, a credible alternative and the reason for
 the choice. Use the same question in Blueprint and bind its opening and payoff.
 Color, scale, setting and media follow each subject. Preserve the protected
@@ -62,6 +93,35 @@ Animation solve the spatial or mechanical problems called for by the picture.
 Research remains scientific evidence. Comparative media research can inform
 direction when it has a specific question to answer.
 
+### Picture direction before production
+
+New Discovery v4 tasks pin `visual_direction_version=1` at creation. The existing
+diagnostic edit plan records the main scenes across the whole picture. A story
+scene shows an event, person, setting or phenomenon. An explanatory scene
+reveals the process or comparison necessary to understand that observation.
+When moving between them, preserve something the audience can recognize, such
+as an object, viewpoint, motion, result or the conditions of an experiment.
+The length and mix of these scenes follow the individual story.
+
+Record each scene's event, subject, setting, visible change or meaningful hold,
+point of attention, camera, transition, purpose and located source. Choose the
+visual treatment before testing tool availability. Record the intended and
+realized medium. If a renderer or asset path fails, try a treatment that can
+show the intended observation. Give the reason for a substitution and record a
+`capability_gap` when an intended action or real observation is missing.
+Historic reconstructions and modeled observations carry their actual provenance.
+
+Use the existing `diagnostic-qa` handoff to assess the exact low-cost picture
+before formal Neil measurement, Blueprint freeze or formal rendering. Look for
+shots that rely on subtitles to advance, repeated viewpoints without new
+meaning, missing real-world context and explanations that break the viewer's
+connection to an observed result. A static hold can provide useful observation
+time. Keep `visual_story_review` UNKNOWN when continuous viewing is unavailable
+and identify a concrete scene or edit change on FAIL. Formal production requires
+continuous picture review and resolution of visual capability gaps. Diagnostic
+experiments can proceed with an unresolved review. The later measured animatic
+retains its full picture and sound checks.
+
 Author audience copy explicitly. Keep patent and paper IDs, product matching,
 engineering parameters, evidence, debug marks and QA in production records by
 default. Add a source, standard or invention name when it contributes to the story.
@@ -71,11 +131,13 @@ that works through picture or sound. Use measured Neil for authored speech and
 let the edit determine the duration.
 
 The existing final preproduction `animatic-qa` reviews the exact measured dynamic
-edit before formal render. V3 requires all six creative judgments to pass,
+edit before formal render. V3 and later require all six creative judgments to pass,
 with pace, visual work and voice/sound reviewed across the whole edit. A failure
 returns to visual direction. Missing sensory evidence leaves scope for draft
 experiments. Scientific accuracy and source limits remain separate from creative
-quality throughout. Final delivery still requires independent science, audience,
+quality throughout. Creative review checks how the chosen direction earns its
+runtime, what discovery the pictures carry and where an explanation stalls.
+Final delivery still requires independent science, audience,
 rights and audiovisual review of the exact film.
 
 ## Existing records, no duplicate truth
@@ -242,7 +304,7 @@ through existing tools. Preserve historical assets/output and failed evidence.
 Keep readable single-line subtitles and shot-specific composition. Existing tasks
 retain their applicable style policy. Preserve the protected reference screenshot.
 
-V2 and v3 tasks with `timeline_policy_version=1` derive running time from the joint story
+V2 and later tasks with `timeline_policy_version=1` derive running time from the joint story
 edit, with no fixed editorial floor or ceiling. Already created v2 tasks without
 that field keep their original duration policy. Production disk and cache
 budgets apply to all versions.
@@ -269,6 +331,13 @@ that specific teaching implementation, never a claim of a retail mechanism.
 Blueprint derives `subject_kind`, `subject_identity`, `subject_references` and
 `subject_opening` from that research. Its existing comprehension rows connect
 phenomenon, conditions, model, causal test and return to the opening question.
+V4 can instead use `science.subject_kind=documented_technology` with
+`model_kind=documented` for a named technology, period and historical scope.
+Reference locations bind documented facts, and original reconstructions
+disclose their status when viewers might mistake them for archival images.
+V4 nonmechanical comprehension follows the selected question and visible
+turning point without a prescribed parts or causality sequence. Scoped
+mechanical implementations still require matching product and motion evidence.
 The compiled config/build/manifest preserve the subject identity and policy.
 Source/model/motion and full sensory acceptance stay strict; a named conceptual
 subject is not evidence of a physical simulation. Legacy product tasks retain

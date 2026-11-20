@@ -6,13 +6,20 @@ This contract governs the existing sole native Producer and its role agents; it 
 
 | Responsibility | Model | Reasoning effort |
 | --- | --- | --- |
-| Producer | gpt-6.1-sol | high |
-| mechanical_research, cad | gpt-6.1-sol | high |
+| Producer | gpt-6.2-sol | high |
+| mechanical_research, cad | gpt-6.2-sol | high |
 | qa | gpt-6.1-terra | high |
 | animation, editor, research | gpt-6.1-terra | medium |
 | viral_research, asset | gpt-6-luna | medium |
 
 Only these three models are in scope. Do not silently substitute a model or reasoning level if a role cannot start: record the actual error and resolve the configuration or availability issue. The default is at most two concurrent subagents. A session may explicitly override this to at most three when independent research or verification justifies the additional concurrency; record the reason. The root remains the sole Producer, and agents do not delegate further.
+
+For v4, ask Research to explore credible story candidates before assigning
+mechanism analysis. Assign ViralResearch a concrete audience or expression
+question when helpful. Asset checks visual relevance and rights against the
+selected story. CAD and Animation solve evidence-supported shots. Editor
+develops picture, speech and sound together. QA records scientific findings
+and creative observations independently for the exact moving edit.
 
 ## Before each spawn
 

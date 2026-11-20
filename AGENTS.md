@@ -26,6 +26,8 @@ QA is independent and only writes reports. Record actual native identity and
 available telemetry; unknown tokens, costs and interventions are null.
 
 Research and original knowledge/visual planning precede CAD and expensive renders.
+For v4, explore distinct stories across relevant angles and develop the Producer's
+selection with located historical/scientific evidence before asset matching.
 Verify the concrete implementation, never mix models or guess hidden mechanics.
 Unknown evidence blocks only dependent shots. Keep original narration/visual design,
 prefer matching owned assets, verify external rights; other creators default to
@@ -34,7 +36,7 @@ observed lawful real-mechanism footage. Mixed output has complete independent me
 provenance and cannot claim historical 3D-only acceptance.
 
 Keep measured Neil speech where authored, 1920×1080/30 and phone-readable
-single-line subtitles. For science-story v3, the Producer chooses the visual
+single-line subtitles. For v3 and later, the Producer chooses the visual
 language and length from the subject and tests the complete moving edit before
 committing production assets. Science evidence and creative review are separate.
 Independent creative PASS on the exact animatic precedes formal rendering.

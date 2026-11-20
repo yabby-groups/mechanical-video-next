@@ -1,5 +1,11 @@
 # Real product and viewer comprehension contract
 
+For v4 physical phenomena and documented technologies, the same policy checks
+subject identity and location-bound evidence. The opening links to the chosen
+audience question. Shots bind knowledge and an observable contribution. Media
+review asks whether viewers can identify the subject and follow its turning point
+and takeaway. Mechanical implementations use the product checks below.
+
 New protocol-v2 tasks use `product_policy_version=1` and
 `growth_policy_version=2`. Historical tasks keep their own contract. The existing
 spin-mop task is explicitly upgraded at the user's request; its audio, CAD and
