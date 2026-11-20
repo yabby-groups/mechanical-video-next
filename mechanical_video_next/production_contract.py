@@ -15,8 +15,10 @@ STORY_VERSION = 3
 STORY_NAME = 'science-story-v3'
 DISCOVERY_VERSION = 4
 DISCOVERY_NAME = 'science-discovery-v4'
+MECHANICAL_STORY_VERSION = 5
+MECHANICAL_STORY_NAME = 'mechanical-story-v5'
 CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME,
-                  DISCOVERY_VERSION: DISCOVERY_NAME}
+                  DISCOVERY_VERSION: DISCOVERY_NAME, MECHANICAL_STORY_VERSION: MECHANICAL_STORY_NAME}
 CREATIVE_DURATION = (1 / 30, 300)
 PRESENTATION_STYLE = 'presentation_style'
 NATURAL_SCIENCE = 'natural_science'
@@ -106,6 +108,10 @@ def discovery(document):
     return version(document) >= DISCOVERY_VERSION
 
 
+def mechanical_story(document):
+    return version(document) >= MECHANICAL_STORY_VERSION
+
+
 def subject_kind(document):
     return document.get('subject_kind') or document.get('science', {}).get('subject_kind')
 
@@ -129,10 +135,12 @@ def selected_story(research):
     if not isinstance(angles, dict) or not angles or not all(
             nonempty(name) and nonempty(finding) for name, finding in angles.items()):
         raise ValueError('Record exploratory findings or evidence gaps by angle')
+    fields = ('id', 'question', 'angle', 'visual_test', 'decision_reason')
+    if mechanical_story(research):
+        fields += ('mechanical_focus',)
     for candidate in candidates:
-        fields = ('id', 'question', 'angle', 'visual_test', 'decision_reason')
         if not isinstance(candidate, dict) or not all(nonempty(candidate.get(key)) for key in fields):
-            raise ValueError('Each candidate needs its question, angle, observable test and editorial judgment')
+            raise ValueError('Each candidate requires: ' + ', '.join(fields))
         identity, question = candidate['id'], candidate['question']
         if identity in seen or question in questions:
             raise ValueError('Story candidates need distinct identities and questions')
@@ -168,6 +176,8 @@ def validate_research(research):
     technology = kind == 'documented_technology' and discovery(research)
     if kind not in {'mechanical_implementation', 'physical_phenomenon'} and not technology:
         raise ValueError('Identify a supported subject and its concrete scope')
+    if mechanical_story(research) and kind == 'physical_phenomenon':
+        raise ValueError('Mechanical stories need a machine, device or documented mechanical technology as the subject')
     if not all(nonempty(science.get(k)) for k in ('question', 'answer', 'scope')):
         raise ValueError('Scientific question, supported answer and scope required')
     if kind == 'physical_phenomenon' or technology:

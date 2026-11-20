@@ -662,11 +662,13 @@ def continuation(task, persist=True):
         sequence[2:2] = [('cad-model', 'CAD', 'Register the reference-matched model and dimensional approximations'),
                          ('mechanical-diagnostics', 'Animation', 'Validate input, transmission, output and return motion'),
                          ('mechanical-qa', 'QA', 'Independently compare reference, CAD, motion and visible mechanism')]
-    from .production_contract import discovery, science_story
+    from .production_contract import discovery, mechanical_story, science_story
     from .visual_narrative import scene_direction_enabled
     if science_story(data):
         sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
-        if discovery(data):
+        if mechanical_story(data):
+            sequence[0] = ('research', 'Research', 'Compare evidence-backed mechanical design stories and their visible payoffs before choosing an implementation or assets')
+        elif discovery(data):
             sequence[0] = ('research', 'Research', 'Explore distinct stories and develop the Producer selection with located evidence')
         sequence.insert(1, ('diagnostic-animatic', 'Producer', 'Draft and play the complete low-cost visual story before committing to assets'))
         if scene_direction_enabled(data):
@@ -947,7 +949,7 @@ def record_delivery(task, files, reason):
 
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
-    from .production_contract import enabled as science_contract, creative_first, discovery, science_story
+    from .production_contract import enabled as science_contract, creative_first, discovery, mechanical_story, science_story
     if science_contract(data):
         creative = creative_first(data)
         approach = (
@@ -963,7 +965,24 @@ def producer_prompt(data, task):
             if creative else 'Execute research -> original script -> visual direction -> lawful assets.')
         from .joint_timeline import enabled as joint_timing
         if science_story(data):
+            positioning = (
+                'You produce exclusively for the Douyin account 君哥拆机器. '
+                '拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。'
+                if mechanical_story(data) else 'Follow the historical topic scope pinned in this task.')
             research_instruction = (
+                'Start with a machine, tool, mechanism, mechanical structure or everyday engineered object. '
+                'With a bare topic, independently explore distinct questions about why it was invented, why it was '
+                'designed this way, clever details, tradeoffs, alternatives, actual use, evolution, failures and '
+                'improvements, and mechanical applications in other fields. Science enters through the design, '
+                'instrument or application. For an off-domain prompt, pursue a faithful, evidenced mechanical angle '
+                'when one exists. Otherwise record the scope mismatch. '
+                'For each shortlisted story, record a mechanical_focus naming the device and consequential design '
+                'choice, located facts, the observable payoff and the editorial tradeoff. Compare audience curiosity, '
+                'design insight, specificity of evidence, visual payoff and feasibility. Select one story before locking '
+                'the exact implementation, assets, shots or voice. Avoid a sequence of part identifications. '
+                'Use original 3D disassembly, cutaways and motion to reveal the decisive design. Real use, archival '
+                'context and original graphics can carry the scenes they serve.'
+                if mechanical_story(data) else
                 'Begin with bounded exploration of the subject, including historical context, design choices, '
                 'tradeoffs, alternative solutions, applications and testable surprises where relevant. '
                 'Compare a short list of distinct audience questions and their strongest visible moments. '
@@ -984,8 +1003,8 @@ def producer_prompt(data, task):
                 'Look for text-only explanation, repetitive views and absent events. A hold can earn its time.'
                 if scene_direction_enabled(data) else '')
             return f'''You are the sole native Codex Producer for {identity}: {topic}.
-Task: {task}. Read docs/production-contract.md and the current ledger. Your series
-is about life and science, including phenomena, nature, materials and inventions.
+Task: {task}. Read docs/production-contract.md and the current ledger.
+{positioning}
 Own the creative decision yourself. {research_instruction}
 {direction_instruction}
 Use the research-bound diagnostic-animatic for an inexpensive
@@ -1209,7 +1228,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 media_policy_version=0, presentation_style='natural_science', contract_version=None):
     from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
                                       CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION,
-                                      DISCOVERY_VERSION, CREATIVE_DURATION)
+                                      DISCOVERY_VERSION, MECHANICAL_STORY_VERSION, CREATIVE_DURATION)
     if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
         raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
@@ -1224,7 +1243,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                                          or contract_version not in CONTRACT_NAMES):
         raise ValueError('Explicit mixed production contract requires a new topic-only hybrid task')
     if hybrid and not config and contract_version is None:
-        contract_version = DISCOVERY_VERSION
+        contract_version = MECHANICAL_STORY_VERSION
     creative = contract_version is not None and contract_version >= CREATIVE_FIRST_VERSION
     if asset_strategy == 'illustrated':
         raise ValueError('3D-only production rejects illustrated assets')
@@ -1281,7 +1300,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                           'production_contract': CONTRACT_NAMES[contract_version]})
     if progression:
         value[PROGRESSION_FIELD] = PROGRESSION_VERSION
-    if contract_version == DISCOVERY_VERSION:
+    if contract_version is not None and contract_version >= DISCOVERY_VERSION:
         value[DIRECTION_FIELD] = DIRECTION_VERSION
     if creative:
         from .joint_timeline import FIELD as TIMELINE_FIELD, VERSION as TIMELINE_VERSION
@@ -2638,6 +2657,8 @@ def select_route(task, route, reason):
 
 
 def main():
+    from .production_contract import CONTRACT_NAMES, MECHANICAL_STORY_NAME
+
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     p = sub.add_parser('produce')
@@ -2654,8 +2675,8 @@ def main():
     p.add_argument('--media-policy', type=int, choices=(0, 1),
                    help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
     p.add_argument('--presentation-style', choices=('natural_science', 'legacy'), default='natural_science')
-    p.add_argument('--production-contract', type=int, choices=(1, 2, 3, 4),
-                   help='Topic-only mixed tasks default to science-discovery version 4.')
+    p.add_argument('--production-contract', type=int, choices=tuple(CONTRACT_NAMES),
+                   help=f'Topic-only mixed tasks default to {MECHANICAL_STORY_NAME}.')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)

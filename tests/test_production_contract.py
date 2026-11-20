@@ -5,10 +5,53 @@ import unittest
 from unittest.mock import patch
 
 from mechanical_video_next import production_contract as c
-from mechanical_video_next.workflow import create_task, load, producer_prompt
+from mechanical_video_next.workflow import continuation, create_task, load, producer_prompt, put_handoff
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_mechanical_story_default_rejects_unanchored_research_and_preserves_v4(self):
+        from scripts.common import filehash
+
+        with tempfile.TemporaryDirectory() as folder:
+            task = create_task('雨伞', root=folder, visual_policy_version=2, media_policy_version=1)
+            data = load(task)
+            self.assertEqual(data['production_contract'], c.MECHANICAL_STORY_NAME)
+            self.assertEqual(data['visual_direction_version'], 1)
+            self.assertEqual(data['timeline_policy_version'], 1)
+            self.assertIn('君哥拆机器', producer_prompt(data, task))
+            self.assertIn('mechanical design', continuation(task, persist=False)['next_action']['action'])
+            policy = dict(production_contract_version=data[c.FIELD], production_contract=data['production_contract'],
+                          visual_policy_version=2, media_policy_version=1)
+            question = 'How does the geometry bend light?'
+            decision = dict.fromkeys(c.CREATIVE_DECISION + ('visual_approach',), 'Specific choice')
+            decision['question'] = question
+            source = Path(folder) / 'fixture.txt'
+            source.write_text('Evidence binding fixture')
+            fact = dict(id='geometry', claim='Geometry changes the light path', kind='scientific_fact',
+                        status='VERIFIED', scope='One model', assumptions=[],
+                        sources=[dict(path=str(source), sha256=filehash(source), position='line 1')])
+            candidate = dict(id='geometry', question=question, angle='comparison', visual_test='Change one input',
+                             decision_reason='Separates the inputs', fact_ids=['geometry'])
+            research = dict(policy, science=dict(subject_kind='physical_phenomenon', question=question,
+                            answer='A bounded optical model', scope='One model', facts=[fact],
+                            subject=dict(id='model', name='Light path', scope='One model', model_kind='mathematical')),
+                            audience_decision=decision, story_exploration=dict(angles={'geometry': 'One approach'},
+                            candidates=[candidate], selected_id='geometry', shortlist_limit='One supported approach'))
+            with self.assertRaisesRegex(ValueError, 'Mechanical stories need'):
+                put_handoff(task, 'Research', 'research', research)
+            self.assertEqual(load(task)['handoffs'], {})
+            historic = dict(research, production_contract_version=c.DISCOVERY_VERSION,
+                            production_contract=c.DISCOVERY_NAME)
+            self.assertIn('geometry', c.validate_research(historic))
+
+            science = research['science']
+            science['subject_kind'] = 'documented_technology'
+            science['subject'].update(name='Adjustable lens mount', model_kind='documented')
+            with self.assertRaisesRegex(ValueError, 'mechanical_focus'):
+                put_handoff(task, 'Research', 'research', research)
+            candidate['mechanical_focus'] = 'A lens carriage moves along a threaded mount to change lens spacing.'
+            self.assertIn('geometry', c.validate_research(research))
+
     def test_science_story_checks_the_whole_edit_and_preserves_v2_review(self):
         report = {'creative_review': {key: dict(status='PASS', media_sha256='cut', time_range=[0, 4],
                            method='continuous_audiovisual', observation='Observed visual and audio progression',
