@@ -28,6 +28,12 @@ def validate(data):
     from .three_d import validate_config
     validate_config(data)
     from .production_contract import validate_direction
+    from . import joint_timeline as joint
+    shared = joint.enabled(data)
+    if shared:
+        joint.validate(data['timeline'], data.get('shots'))
+        if data.get('status') == 'FROZEN':
+            joint.receipt(data['timeline'], data['measured_timeline'])
     validate_direction(data)
     visual = version(data) == VERSION
     if visual:
@@ -42,11 +48,13 @@ def validate(data):
         validate_contract(data)
     if data.get('reference_policy_version') == 1 and not all(data.get(k) for k in ('evidence_map', 'content_timing')):
         raise ValueError('Reference-first blueprint requires evidence_map and content_timing')
-    maximum = 300 if data.get('content_policy_version') == 1 else 120
+    maximum = data['timeline']['frame_count'] / 30 if shared else 300 if data.get('content_policy_version') == 1 else 120
     end, ids = 0, set()
     for s in data['shots']:
         required = {'shot_id', 'time_range', 'knowledge_goal', 'mechanical_action',
                     'asset', 'template', 'camera', 'narration', 'subtitles', 'overlays'}
+        if shared:
+            required -= {'narration', 'subtitles'}
         if not isinstance(s, dict) or not required <= s.keys():
             raise ValueError('Shot missing executable fields')
         from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
@@ -90,10 +98,10 @@ def validate(data):
             d = camera['camera_direction']
             if not isinstance(d, list) or len(d) != 3 or not all(number(v) for v in d) or not any(d):
                 raise ValueError('camera_direction requires a nonzero finite vector')
-        for key in ('narration', 'subtitles', 'overlays'):
+        for key in (('overlays',) if shared else ('narration', 'subtitles', 'overlays')):
             if not isinstance(s[key], list) or any(not isinstance(v, str) or not v.strip() for v in s[key]):
                 raise ValueError(key + ' must be a list of nonempty strings')
-        if not s['narration'] or len(s['narration']) != len(s['subtitles']):
+        if not shared and (not s['narration'] or len(s['narration']) != len(s['subtitles'])):
             raise ValueError('One subtitle per narration utterance required')
     return end
 
@@ -106,6 +114,9 @@ def compile_config(blueprint, base, output, draft=False):
     from .three_d import validate_config
     validate_config(cfg)
     validate(data)
+    from . import joint_timeline as joint
+    shared = joint.enabled(data)
+    picture = {s['id']: s for s in data['timeline']['shots']} if shared else {}
     visual = version(data) == VERSION
     if FIELD in cfg:
         match_policy(data, cfg)
@@ -136,7 +147,18 @@ def compile_config(blueprint, base, output, draft=False):
             shot['science'].update(copy.deepcopy(settings['science']))
             if settings['science'].get('camera_rig'):
                 shot['science'].pop('camera_clip', None)  # Rig has its own bounded perspective clip.
-        shot['seconds'] = s['duration'] if visual else s['time_range'][1] - s['time_range'][0]
+        seconds = s['duration'] if visual else s['time_range'][1] - s['time_range'][0]
+        if shared:
+            offset = picture[s['shot_id']].get('source_start_frame', 0)
+            if (not editorial and 'seconds' in original and joint.frame_number(original['seconds']) >=
+                    offset + joint.frame_number(seconds)):
+                shot['seconds'] = original['seconds']
+            elif offset and not editorial:
+                raise ValueError('Source render cannot cover the joint picture interval')
+            else:
+                shot['seconds'] = seconds
+        else:
+            shot['seconds'] = seconds
         if visual:
             shot['visual'] = copy.deepcopy(design_fields(s))
             if not editorial:
@@ -146,8 +168,10 @@ def compile_config(blueprint, base, output, draft=False):
         inherited = next((x for x in cfg.get('storyboard', []) if x['shot'] == key), {})
         editor_fields = inherited | {k: s[k] for k in ('accent', 'formula', 'information') if visual and k in s}
         row = {k: copy.deepcopy(editor_fields[k]) for k in ('accent', 'formula', 'information') if k in editor_fields}
-        row.update(id=sid, shot=sid, seconds=shot['seconds'], label=s['knowledge_goal'],
-                   note=' / '.join(s['overlays']), narration=s['narration'], subtitles=s['subtitles'])
+        words = joint.shot_narration(data, s)
+        row.update(id=sid, shot=sid, seconds=seconds, label=s['knowledge_goal'],
+                   note=' / '.join(s['overlays']), narration=words,
+                   subtitles=words if shared else s['subtitles'])
         row.setdefault('accent', '#8dc4dc'); storyboard.append(row)
         mappings.append(dict(shot_id=sid, existing_shot=key, time_range=s['time_range'],
                              knowledge_goal=s['knowledge_goal'], mechanical_action=s['mechanical_action'],
@@ -158,6 +182,13 @@ def compile_config(blueprint, base, output, draft=False):
     result.update(id=cfg.get('id', 'video') + '-blueprint-' + filehash(blueprint)[:16], shots=shots, storyboard=storyboard,
                   blueprint_program_sha256=digest({k: val for k, val in data.items() if k != 'production_config'}),
                   production_status='DRAFT_UNAPPROVED' if draft else 'BLUEPRINT_BOUND_UNVALIDATED')
+    if shared:
+        for key in (joint.FIELD, 'timeline', 'measured_timeline'):
+            if key in data:
+                result[key] = copy.deepcopy(data[key])
+    else:
+        for key in (joint.FIELD, 'timeline', 'measured_timeline'):
+            result.pop(key, None)
     from .production_contract import FIELD as CONTRACT_FIELD, enabled as science_contract
     if science_contract(data):
         for key in (CONTRACT_FIELD, 'production_contract', 'narrative'):
@@ -174,9 +205,9 @@ def compile_config(blueprint, base, output, draft=False):
         else:
             result.pop('duration_policy_override', None)
         for row, shot in zip(storyboard, data['shots']):
-            row.update(shot_requirements(shot))
+            row.update(shot_requirements(shot, data))
         for row, shot in zip(mappings, data['shots']):
-            row.update(shot_requirements(shot))
+            row.update(shot_requirements(shot, data))
     if data.get('reference_policy_version') == 1:
         for key in ('reference_policy_version', 'evidence_map', 'content_timing'):
             result[key] = copy.deepcopy(data[key])

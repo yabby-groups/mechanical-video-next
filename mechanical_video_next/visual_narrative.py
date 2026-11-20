@@ -46,6 +46,9 @@ def version(document):
 
 
 def match_policy(task, document):
+    from .joint_timeline import enabled as joint
+    if joint(task) != joint(document):
+        raise ValueError('Joint timeline policy differs from task creation policy')
     from .production_contract import enabled as science_contract
     if science_contract(task) != science_contract(document):
         raise ValueError('Production contract differs from task creation policy')
@@ -71,10 +74,15 @@ def match_blueprint(blueprint, config):
     """Check the executable timeline against the frozen visual decisions."""
     if len(config['storyboard']) != len(blueprint['shots']):
         raise ValueError('Visual config differs from the frozen shot list')
+    from . import joint_timeline as joint
+    shared = joint.enabled(blueprint)
+    if shared and any(config.get(k) != blueprint.get(k) for k in ('timeline', 'measured_timeline')):
+        raise ValueError('Executable timing differs from the frozen joint timeline')
     for row, planned in zip(config['storyboard'], blueprint['shots'], strict=True):
         spec = config['shots'][row['shot']]
         if (row['id'] != planned['shot_id'] or row['seconds'] != planned['duration']
-                or row['narration'] != planned['narration'] or row['subtitles'] != planned['subtitles']
+                or row['narration'] != joint.shot_narration(blueprint, planned)
+                or row['subtitles'] != (row['narration'] if shared else planned['subtitles'])
                 or spec['visual'] != design_fields(planned)
                 or any(spec.get(k) != planned.get(k) for k in ('graphic', 'footage', 'split_screen'))):
             raise ValueError(f'Executable visual shot differs from Blueprint: {planned["shot_id"]}')
@@ -179,18 +187,20 @@ def planned_camera(plan):
 def validate_plan(document):
     """Check the plan before committing to CAD or native rendering."""
     from .media_policy import enabled as asset_first, validate_document
+    from . import joint_timeline as joint
     hybrid = asset_first(document)
     shots = document['shots']
     if not isinstance(shots, list) or not shots:
         raise ValueError('Visual Blueprint needs ordered shots')
+    shared = joint.enabled(document)
     seen, shot_ids, findings, previous = set(), set(), [], None
     for shot in shots:
         validate_design(shot, hybrid=hybrid)
         ids = set(shot['knowledge_ids'])
         sid = shot.get('shot_id')
         narration = shot.get('narration')
-        if (not nonempty(sid) or sid in shot_ids or not isinstance(narration, list)
-                or not narration or not all(nonempty(x) for x in narration)):
+        if (not nonempty(sid) or sid in shot_ids or (not shared and
+                (not isinstance(narration, list) or not narration or not all(nonempty(x) for x in narration)))):
             raise ValueError('Visual plan requires shot ID and narration')
         shot_ids.add(sid)
         if not ids - seen and shot['progression']['kind'] == 'new':

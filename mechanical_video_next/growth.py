@@ -30,6 +30,7 @@ def goal_schema(data):
 def validate_goal_bindings(data):
     """Validate plans, not audience understanding or predicted platform results."""
     from .viral import evidence_exists
+    from .joint_timeline import enabled as joint, shot_narration
     ids = {s['shot_id']: s for s in data.get('shots', [])}
     references = {r.get('reference_id', r.get('id')) for r in data.get('reference_principles', [])}
     references.update(r.get('reference_id') for r in data.get('evidence_map', []))
@@ -49,7 +50,10 @@ def validate_goal_bindings(data):
             for row in rows:
                 if not isinstance(row, dict) or any(k not in row for k in GOAL_FIELDS):
                     raise ValueError('Growth v2 requires complete goal binding: '+key)
-                if any(not row[k] for k in GOAL_FIELDS if k not in {'actual_media_evidence', 'qa_status'}):
+                optional = {'actual_media_evidence', 'qa_status'}
+                if joint(data):
+                    optional.add('narration')
+                if any(not row[k] for k in GOAL_FIELDS if k not in optional):
                     raise ValueError('Empty observable growth binding: '+key)
                 if row['goal_id'] in seen:
                     raise ValueError('Duplicate growth goal_id')
@@ -62,8 +66,8 @@ def validate_goal_bindings(data):
                     raise ValueError('Growth shot/time binding mismatch: '+key)
                 if row['reference_id'] not in references:
                     raise ValueError('Growth reference is not a mapped source')
-                narration = shot['narration']
-                if row['narration'] not in narration:
+                narration = shot_narration(data, shot)
+                if row['narration'] not in (narration or ([None] if joint(data) else [])):
                     raise ValueError('Growth narration differs from shot')
                 if row.get('qa_status') == 'PASS' and not evidence_exists(row.get('actual_media_evidence')):
                     raise ValueError('Growth PASS requires actual media evidence')
@@ -93,12 +97,18 @@ def finite(value):
     return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
 
 
-def shot_requirements(shot):
+def shot_requirements(shot, document=None):
+    from .joint_timeline import enabled as joint, shot_narration
+    if joint(document or {}):
+        return {k: shot[k] for k in SHOT_FIELDS if k != 'narration'} | {'narration': shot_narration(document, shot)}
     return {k: shot[k] for k in SHOT_FIELDS}
 
 
 def duration_bounds(data):
     """Keep the longform default; trace an explicitly requested concise recut."""
+    from .joint_timeline import enabled as joint
+    if joint(data):
+        return 1 / 30, math.inf
     override = data.get('duration_policy_override')
     if override is None:
         return 120, 300
@@ -123,8 +133,10 @@ def validate_contract(data, requested=None):
     ids = {s['shot_id']: s for s in shots}
     end = 0
     information = set()
+    from .joint_timeline import enabled as joint
+    nonessential = {'start_time', 'end_time'} | ({'narration'} if joint(data) else set())
     for shot in shots:
-        if any(not shot.get(k) for k in SHOT_FIELDS if k not in {'start_time', 'end_time'}):
+        if any(not shot.get(k) for k in SHOT_FIELDS if k not in nonessential):
             raise ValueError('Shot lacks teaching, proof or duration requirements')
         a, b = shot.get('start_time'), shot.get('end_time')
         if not finite(a) or not finite(b) or a != end or b <= a or shot.get('time_range') != [a, b]:
@@ -264,12 +276,14 @@ def validate_actual_goals(blueprint, report):
                     t = row.get('time_range')
                     observations = row.get('observed', {})
                     shot = shots[plan['shot_id']]
+                    heard = ('heard_narration' in observations and observations['heard_narration'] is None
+                             if plan.get('narration') is None else bool(observations.get('heard_narration')))
                     if (row.get('status') != 'PASS' or row.get('shot_id') != plan['shot_id']
                         or not isinstance(t,list) or len(t)!=2 or not all(finite(v) for v in t)
                         or not shot['start_time'] <= t[0] <= plan['time_range'][0] < plan['time_range'][1] <= t[1] <= shot['end_time']
                         or row.get('continuous_viewing') is not True or row.get('listening') is not True
                         or not evidence_exists(row.get('actual_media_evidence'))
-                        or not all(observations.get(k) for k in ('visible_action','heard_narration','knowledge_demonstrated'))
+                        or not heard or not all(observations.get(k) for k in ('visible_action','knowledge_demonstrated'))
                         or observations.get('action_matches_plan') is not True
                         or observations.get('narration_matches_action') is not True
                         or observations.get('goal_realized') is not True):

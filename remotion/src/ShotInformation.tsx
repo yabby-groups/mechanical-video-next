@@ -10,7 +10,7 @@ type Note = Window & {type:'note';text:string};
 type Value = Window & {type:'value';prefix:string;unit:string;digits:number;samples:Point[]};
 type Inset = Window & {type:'inset';crop:Box};
 type ScreenAnchors = {fps:number;frame_count:number;samples:Record<string,(Point|null)[]>};
-export type ShotInfo = {information?:(Label|Note|Value|Inset)[];screenAnchors?:ScreenAnchors;scienceLabel?:string;media:string;kind:'image'|'video';footage?:{startFrame:number;credit:string}};
+export type ShotInfo = {information?:(Label|Note|Value|Inset)[];screenAnchors?:ScreenAnchors;scienceLabel?:string;media:string;kind:'image'|'video';footage?:{startFrame:number;credit:string};mediaStartFrame?:number};
 
 const layer = (type: string):TextLayer => type==='label'?'part':type==='value'?'numeric':'principle';
 const visibleItems = (shot:ShotInfo, frame:number, fps:number) => (shot.information??[]).filter(item=>{
@@ -20,7 +20,7 @@ const visibleItems = (shot:ShotInfo, frame:number, fps:number) => (shot.informat
 const position = (shot:ShotInfo, anchor:string, frame:number, fps:number) => {
   const track=shot.screenAnchors!;
   const samples=track.samples[anchor];
-  return samples[Math.min(track.frame_count-1,Math.floor(frame*track.fps/fps))];
+  return samples[Math.min(track.frame_count-1,Math.floor((frame+(shot.mediaStartFrame??0))*track.fps/fps))];
 };
 const badgeBox:Box=[1424,288,1856,360];
 export const scienceBadge = (shot:ShotInfo, legacy:boolean) => audienceCopy(shot.scienceLabel,legacy);
@@ -47,7 +47,7 @@ const FocusInset:React.FC<{item:Inset;shot:ShotInfo;width:number;height:number}>
   const scale=Math.min((right-left)/((cropRight-cropLeft)*width),(bottom-top)/((cropBottom-cropTop)*height));
   const mediaStyle={position:'absolute' as const,left:-cropLeft*width*scale,top:-cropTop*height*scale,width:width*scale,height:height*scale};
   return <div style={{position:'absolute',left,top,width:(cropRight-cropLeft)*width*scale,height:(cropBottom-cropTop)*height*scale,overflow:'hidden',outline:'2px solid #fff'}}>
-    {shot.kind==='image'?<Img src={staticFile(shot.media)} style={mediaStyle}/>:<OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.footage?.startFrame} muted style={mediaStyle}/>}
+    {shot.kind==='image'?<Img src={staticFile(shot.media)} style={mediaStyle}/>:<OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.mediaStartFrame??shot.footage?.startFrame} muted style={mediaStyle}/>}
   </div>;
 };
 

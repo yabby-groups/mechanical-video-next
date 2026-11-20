@@ -47,6 +47,23 @@ def prepare(task, script, env_file=None):
     content=json.loads(script.read_text())
     if content.get('task_id') != data['id']:
         raise ValueError('Original script must belong to this task')
+    from . import joint_timeline
+    if joint_timeline.enabled(data):
+        if not joint_timeline.enabled(content):
+            raise ValueError('The task requires a joint Blueprint timeline')
+        plan = joint_timeline.validate(content['timeline'], content.get('shots'))
+        for segment in plan['narration']:
+            validate_audience_copy({'narration': [segment['text']]})
+        load_env(env_file)
+        profile = effective_profile({'narration_profile': 'config/narration-neil.json'})
+        if profile['voice'] != 'Neil' or profile['target_speed'] != 1:
+            raise ValueError('Joint timeline requires unmodified Neil speech')
+        shared = Path(task) / 'shared'
+        result = joint_timeline.measure(plan, lambda line: sentence(line, profile), shared / 'narration.wav')
+        result['task_id'] = data['id']
+        result['script'] = joint_timeline.binding(script)
+        writejson(shared / 'timeline.json', result)
+        return result
     chapters=content.get('chapters',[])
     if not chapters or len({c['id'] for c in chapters}) != len(chapters):
         raise ValueError('Unique original script chapters required')

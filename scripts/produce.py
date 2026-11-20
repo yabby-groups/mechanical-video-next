@@ -372,6 +372,7 @@ def compose(cfg, quality, media, metrics):
     from mechanical_video_next.remotion_build import render
     from mechanical_video_next.knowledge_progression import FIELD, enabled
     from mechanical_video_next.visual_narrative import VERSION, version
+    from mechanical_video_next import joint_timeline as joint
     from mechanical_video_next.production_contract import (
         NATURAL_SCIENCE, PRESENTATION_STYLE, audience_caption, validate_audience_copy,
     )
@@ -382,21 +383,45 @@ def compose(cfg, quality, media, metrics):
             validate_audience_copy(row)
             validate_audience_copy(cfg['shots'][row['shot']])
     visual = version(cfg) == VERSION
-    voice=effective_profile(cfg) or cfg['voice']
+    shared = joint.enabled(cfg)
+    if shared:
+        plan = joint.validate(cfg['timeline'])
+        measured = joint.receipt(plan, cfg['measured_timeline'])
+        picture = {s['id']: s for s in plan['shots']}
+        master = joint.bound(measured['narration_audio'])
+        voice = None
+    else:
+        voice=effective_profile(cfg) or cfg['voice']
     start=time.time()
     render_shots=[]
     audio_sources=[]
     cues=[]
     offset=0
     for s in cfg['storyboard']:
-        audio,sc,_=tts(s,voice,metrics)
-        audio_sources.append(filehash(audio))
         spec = cfg['shots'][s['shot']]
         path,kind,key=media.get(s['shot'], (None,'graphic',None))
         row = {k:s[k] for k in ['id','label','note','seconds','accent']} | {
-            'formula':s.get('formula'), 'kind':kind, 'audio':expose(audio,filehash(audio))}
+            'formula':s.get('formula'), 'kind':kind}
+        if not shared:
+            audio,sc,_=tts(s,voice,metrics)
+            audio_sha = filehash(audio)
+            audio_sources.append(audio_sha)
+            row['audio'] = expose(audio,audio_sha)
         if path is not None:
             row['media'] = expose(path,key)
+        if shared:
+            cut = picture[s['id']]
+            count = cut['end_frame'] - cut['start_frame']
+            if s['seconds'] != count / 30 or cut['start_frame'] != round(offset * 30):
+                raise ValueError('Compiled storyboard drifted from the joint picture track')
+            if kind == 'video':
+                trim = cut.get('source_start_frame', 0)
+                if spec.get('footage') and trim != spec['footage']['start_frame']:
+                    raise ValueError('Joint picture offset differs from licensed footage interval')
+                joint.validate_source_clip(path, trim, count)
+                row['mediaStartFrame'] = trim
+            elif kind == 'image' or cut.get('source_start_frame'):
+                raise ValueError('Joint dynamic storyboard needs moving media or an original graphic')
         if spec.get('science') or s.get('information'):
             row.update(information_props(spec, s, path, kind, natural=natural))
         if visual:
@@ -415,12 +440,22 @@ def compose(cfg, quality, media, metrics):
                                     'startFrame': source['start_frame'], 'credit': source['credit']})
                 row['splitScreen'] = {'sources': entries}
         render_shots.append(row)
-        subtitles=s.get('subtitles',[c['text'] for c in sc])
-        assert len(subtitles)==len(sc), 'One subtitle entry per synthesized utterance'
-        sc=[dict(c,text=text) for c,text in zip(sc,subtitles)]
-        cues.extend(dict(c,start=round(c['start']+offset,3),end=round(c['end']+offset,3)) for c in sc)
+        if not shared:
+            subtitles=s.get('subtitles',[c['text'] for c in sc])
+            assert len(subtitles)==len(sc), 'One subtitle entry per synthesized utterance'
+            sc=[dict(c,text=text) for c,text in zip(sc,subtitles)]
+            cues.extend(dict(c,start=round(c['start']+offset,3),end=round(c['end']+offset,3)) for c in sc)
         offset+=s['seconds']
+    if shared:
+        if len(render_shots) != len(picture) or round(offset * 30) != plan['frame_count']:
+            raise ValueError('Compiled storyboard must cover the complete joint timeline')
+        cues = joint.cues(measured)
+        offset = plan['frame_count'] / 30
+        audio_sources = [measured['narration_audio']['sha256']]
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
+    if shared:
+        props[joint.FIELD] = joint.VERSION
+        props['narrationTrack'] = expose(master, audio_sources[0])
     props[PRESENTATION_STYLE] = NATURAL_SCIENCE if natural else 'legacy'
     if visual:
         props['visual_policy_version'] = VERSION

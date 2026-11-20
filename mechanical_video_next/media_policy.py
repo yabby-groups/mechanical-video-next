@@ -207,6 +207,8 @@ def write_manifest(path, final, config, build_proof):
     """Bind the complete hybrid timeline to its actual existing Remotion build."""
     validate_document(config)
     proof = json.loads(Path(build_proof).read_text())
+    from . import joint_timeline as joint
+    shared = joint.enabled(config)
     rows, cursor = [], 0
     for chapter, segment in zip(config['storyboard'], proof['build']['segments'], strict=True):
         spec = config['shots'][chapter['shot']]
@@ -216,8 +218,12 @@ def write_manifest(path, final, config, build_proof):
         row.update(shot_id=chapter['id'], render_engine=visual['render_engine'],
                    output_time_range=[cursor / 30, (cursor + frames) / 30],
                    frame_range=[cursor, cursor + frames],
-                   audio=segment['audio'], source_audio='muted',
+                   source_audio='muted',
                    production_method=visual['render_engine'])
+        if shared:
+            row['source_start_frame'] = segment['source_start_frame']
+        else:
+            row['audio'] = segment['audio']
         if 'render_output' in segment:
             row['render_output'] = segment['render_output']
         if 'split_screen' in spec:
@@ -229,6 +235,8 @@ def write_manifest(path, final, config, build_proof):
                 'build_proof': binding(build_proof), 'shots': rows, 'frame_count': cursor,
                 'source_audio_policy': 'muted', 'formal_acceptance': False,
                 'original_3d_only_acceptance': False}
+    if shared:
+        manifest.update({joint.FIELD: joint.VERSION, 'narration': proof['build']['narration']})
     for key in ('production_contract_version','production_contract','knowledge_progression_version','subject_kind'):
         if key in config:
             manifest[key]=config[key]
@@ -279,6 +287,10 @@ def validate_manifest(path, media=None):
     from .provenance import verify_remotion_inputs
     verify_remotion_inputs(proof['build'])
     config = proof['build']['visual_config']
+    from . import joint_timeline as joint
+    shared = joint.enabled(config)
+    if shared and doc.get('narration') != proof['build']['narration']:
+        raise ValueError('Hybrid manifest narration differs from the joint master')
     from .visual_narrative import match_policy
     match_policy(config, doc)
     validate_document(config)
@@ -302,10 +314,16 @@ def validate_manifest(path, media=None):
         count = round(chapter['seconds'] * 30)
         if (row['shot_id'] != chapter['id'] or row['frame_range'] != [cursor, cursor+count]
                 or row['output_time_range'] != [cursor/30, (cursor+count)/30]
-                or row['audio'] != segment['audio'] or row.get('source_audio') != 'muted'
+                or row.get('source_audio') != 'muted'
                 or row.get('render_output') != segment.get('render_output')):
             raise ValueError('Hybrid timeline has changed sources, gaps or overlaps')
-        bound(row['audio'])
+        if shared:
+            if row.get('source_start_frame') != segment['source_start_frame'] or 'audio' in row:
+                raise ValueError('Hybrid shot must bind its exact source offset and use the joint master')
+        else:
+            if row['audio'] != segment['audio']:
+                raise ValueError('Hybrid shot audio differs from the build')
+            bound(row['audio'])
         cursor += count
     if cursor != doc['frame_count'] or cursor != proof['build']['frame_count']:
         raise ValueError('Hybrid timeline frame count mismatch')

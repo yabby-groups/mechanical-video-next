@@ -47,12 +47,14 @@ def bound(value):
 
 
 def verify_remotion_inputs(build):
+    from . import joint_timeline as joint
     from .remotion_build import sources_for
     from .visual_narrative import VERSION, editorial_props, match_policy, validate_footage, version
     props_file = bound(build['props'])
     props = json.loads(props_file.read_text())
     sources = {bound(row).resolve() for row in build['render_sources']}
     visual = version(build) == VERSION
+    shared = joint.enabled(build)
     match_policy(build, props)
     if sources != {(ROOT/name).resolve() for name in sources_for(build)}:
         raise ValueError('Unexpected or incomplete Remotion renderer sources')
@@ -66,6 +68,16 @@ def verify_remotion_inputs(build):
         config = build['visual_config']
         match_policy(build, config)
         validate_config(config)
+    if shared:
+        plan = joint.validate(config['timeline'])
+        measured = joint.receipt(plan, config['measured_timeline'])
+        relative = Path(props['narrationTrack'])
+        if (relative.parts[:1] != ('cache',) or len(relative.parts) != 2
+                or '\\' in props['narrationTrack']
+                or build.get('narration') != measured['narration_audio']
+                or filehash(ROOT/'remotion/public'/relative) != filehash(bound(build['narration']))
+                or props['cues'] != joint.cues(measured)):
+            raise ValueError('Replayed joint narration or subtitles differ from the measured master')
     cursor = 0
     for index, (row, segment) in enumerate(zip(props['shots'], build['segments'])):
         role = segment.get('media_kind', 'mechanical-3d')
@@ -79,11 +91,12 @@ def verify_remotion_inputs(build):
             spec = config['shots'][chapter['shot']]
             expected_role = {'blender': 'mechanical-3d', 'remotion': 'information', 'footage': 'licensed-footage'}[spec['visual']['render_engine']]
             if (role != expected_role or segment['shot_id'] != chapter['shot'] or row['id'] != chapter['id']
-                    or row['seconds'] != spec['seconds'] or segment['start_frame'] != cursor
+                    or row['seconds'] != (chapter['seconds'] if shared else spec['seconds'])
+                    or segment['start_frame'] != cursor
                     or {k: row[k] for k in ('graphic', 'footage', 'chapter') if k in row} != editorial_props(spec)):
                 raise ValueError('Timeline diverges from the approved visual shot')
             if role == 'licensed-footage':
-                validate_footage(spec['footage'], seconds=spec['seconds'])
+                validate_footage(spec['footage'], seconds=chapter['seconds'] if shared else spec['seconds'])
                 if bound(segment['render_output']).resolve() != (ROOT / spec['footage']['path']).resolve():
                     raise ValueError('Footage asset differs from the licensed source')
                 if 'split_screen' in spec:
@@ -111,10 +124,21 @@ def verify_remotion_inputs(build):
                 raise ValueError('Information graphic cannot substitute unbound media')
         elif role != 'mechanical-3d' or {'graphic', 'footage', 'chapter'} & row.keys():
             raise ValueError('Legacy 3D-only composition cannot include editorial media')
+        if shared:
+            cut = plan['shots'][index]
+            offset = cut.get('source_start_frame', 0)
+            if (cut['id'] != row['id'] or cut['start_frame'] != cursor
+                    or cut['end_frame'] - cursor != segment['frame_count']
+                    or segment.get('source_start_frame') != offset
+                    or ('audio' in row or 'audio' in segment)
+                    or (role != 'information' and row.get('mediaStartFrame') != offset)):
+                raise ValueError('Replayed edit differs from the joint picture/action timeline')
         cursor += segment['frame_count']
-        inputs = [('audio', 'audio')]
+        inputs = [] if shared else [('audio', 'audio')]
         if role != 'information':
             inputs.append(('media', 'render_output'))
+            if shared:
+                joint.validate_source_clip(bound(segment['render_output']), offset, segment['frame_count'])
         for key, binding_key in inputs:
             relative = Path(row[key])
             if (relative.parts[:1] != ('cache',) or len(relative.parts) != 2
@@ -131,10 +155,12 @@ def verify_remotion_inputs(build):
 
 
 def write_remotion_proof(path, final, props_path, config, media, assembly, model):
+    from . import joint_timeline as joint
     from .remotion_build import sources_for
     from .knowledge_progression import FIELD, enabled
     from .visual_narrative import VERSION, version
     visual = version(config) == VERSION
+    shared = joint.enabled(config)
     props = json.loads(props_path.read_text())
     shots, segments = {}, []
     cursor = 0
@@ -148,8 +174,11 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
         shot_id = chapter['shot']
         spec = config['shots'][shot_id]
         count = round(row['seconds'] * 30)
-        segment = dict(shot_id=shot_id, chapter_id=row['id'],
-                       audio=binding(ROOT/'remotion/public'/row['audio']), start_frame=cursor, frame_count=count)
+        segment = dict(shot_id=shot_id, chapter_id=row['id'], start_frame=cursor, frame_count=count)
+        if shared:
+            segment['source_start_frame'] = row.get('mediaStartFrame', 0)
+        else:
+            segment['audio'] = binding(ROOT/'remotion/public'/row['audio'])
         segments.append(segment)
         cursor += count
         if visual:
@@ -170,15 +199,19 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
         checks = json.loads(checks_file.read_text())
         raw_ref = binding(raw)
         if shot_id not in shots:
+            trim = segment.get('source_start_frame', 0)
             shots[shot_id] = dict(shot_id=shot_id, render_output=raw_ref, scene=checks['scene_artifact'],
                 motion_data=binding(checks_file), executable_shot=checks['source_shot'], cache_key=cache_key,
                 model_assets=model_assets,
                 product_references=[dict(binding(ROOT/ref['path']), position=ref['position']) for ref in basis],
                 shot_role=spec.get('science', {}).get('role', 'core'),
-                verification_frames=sorted({1, round((1+count)/2), count}))
+                verification_frames=sorted({trim+1, trim+round((1+count)/2), trim+count}))
         segment['render_output'] = raw_ref
     build = dict(renderer='remotion-v1', frame_count=cursor, segments=segments,
                  props=binding(props_path), render_sources=[binding(ROOT/name) for name in sources_for(config)])
+    if shared:
+        measured = joint.receipt(config['timeline'], config['measured_timeline'])
+        build.update({joint.FIELD: joint.VERSION, 'narration': measured['narration_audio']})
     for field in ('production_contract_version','production_contract','subject_kind'):
         if field in config:
             build[field]=config[field]
@@ -193,6 +226,8 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
     verify_remotion_inputs(build)
     document = dict(schema_version=1, media=binding(final), render_route='3d',
         shots=list(shots.values()), build=build, formal_acceptance=False)
+    if shared:
+        document[joint.FIELD] = joint.VERSION
     if hybrid:
         document.update(media_policy_version=1, visual_policy_version=2,
                         media_contract='asset-first-hybrid-v1', original_3d_only_acceptance=False)

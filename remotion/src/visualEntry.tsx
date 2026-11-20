@@ -5,12 +5,13 @@ import {ShotInfo, ShotInformation, informationRegions, scienceBadge} from './Sho
 import {ChapterTransition, SplitScreen, VisualGraphic, VisualProps} from './VisualNarrative';
 
 type Cue = {start: number; end: number; text: string};
-type Shot = ShotInfo & VisualProps & {id: string; seconds: number; audio: string};
+type Shot = ShotInfo & VisualProps & {id: string; seconds: number; audio?: string; mediaStartFrame?: number};
 type Props = {
   title: string; shots: Shot[]; cues: Cue[]; duration: number; fps: number; width: number; height: number;
   text_style?: TextStyle; annotations?: Annotation[]; critical_boxes?: number[][];
   fullframe_caption?: string; fullframe_credit?: string;
   presentation_style?: 'natural_science' | 'legacy';
+  narrationTrack?: string;
 };
 
 const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> = ({shot,props:p,start,last}) => {
@@ -30,9 +31,9 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
   assertOverlayRegions(regions,profile,p.width,p.height,p.critical_boxes);
   return <AbsoluteFill style={{background:'#223139',color:'white',fontFamily:'PingFang SC, sans-serif'}}>
     {shot.graphic ? <VisualGraphic graphic={shot.graphic} seconds={shot.seconds}/> : shot.splitScreen ? <SplitScreen spec={shot.splitScreen}/> :
-      <OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.footage?.startFrame} muted
+      <OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.mediaStartFrame ?? shot.footage?.startFrame} muted
         style={{width:'100%',height:'100%',objectFit:'contain'}}/>}
-    <Audio src={staticFile(shot.audio)}/>
+    {shot.audio && <Audio src={staticFile(shot.audio)}/>}
     <ShotInformation shot={shot} frame={frame} fps={p.fps} width={p.width} height={p.height} profile={profile} legacy={legacy}/>
     {title && <>
       <div style={{position:'absolute',top:0,left:0,right:0,height:145,background:'linear-gradient(rgba(0,0,0,.23),transparent)'}}/>
@@ -47,7 +48,7 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
 
 const Movie: React.FC<Props> = p => {
   let from=0;
-  return <AbsoluteFill>{p.shots.map((shot,i)=>{
+  return <AbsoluteFill>{p.narrationTrack && <Audio src={staticFile(p.narrationTrack)}/>} {p.shots.map((shot,i)=>{
     const start=from;
     const count=Math.round(shot.seconds*p.fps);
     from+=count;

@@ -137,6 +137,7 @@ def validate_product_research(research):
 def validate_product_plan(data, research=None):
     """Check specific product evidence and executable cause/effect, never perception."""
     sources = validate_product_sources(data, research)
+    from .joint_timeline import enabled as joint, shot_narration
     physical=phenomenon(data,research)
     product = data['subject_identity'] if physical else data['product_identity']
     required_relations=PHENOMENON_RELATIONS if physical else RELATIONS
@@ -147,7 +148,7 @@ def validate_product_plan(data, research=None):
     for shot in shots:
         row = shot.get('comprehension', {})
         _required(row, ('reference_ids', 'product_parts', 'input_action', 'transmission', 'output_action',
-                        'visual_evidence', 'narration', 'new_knowledge', 'necessity', 'causal_link',
+                        'visual_evidence', 'new_knowledge', 'necessity', 'causal_link',
                         'recognition_relations', 'verification_method'), 'Shot comprehension ' + str(shot.get('shot_id')))
         if not set(row['reference_ids']) <= sources.keys():
             raise ValueError('Shot comprehension has unbound product reference')
@@ -162,7 +163,7 @@ def validate_product_plan(data, research=None):
                 raise ValueError('Input/transmission/output must bind actual supported source claims')
             if stage == 'transmission' and source.get('type') == 'photo' and source['observations'].get('internal_structure_visible') is not True:
                 raise ValueError('Exterior photo cannot establish internal transmission')
-        if row['narration'] not in shot.get('narration', []):
+        if row.get('narration') not in (shot_narration(data, shot) or ([None] if joint(data) else [])):
             raise ValueError('Comprehension narration does not match executable shot')
         if row['new_knowledge'] in seen_information:
             raise ValueError('Repeated shot knowledge cannot fill duration')
@@ -192,6 +193,7 @@ def validate_media_qa(blueprint, report, media=None):
     viewers understand. File and time coverage are mechanically checked here;
     semantic correctness still requires the recorded independent inspection.
     """
+    from .joint_timeline import enabled as joint, shot_narration
     validate_product_plan(blueprint)
     if report.get('independent') is not True or report.get('reviewer_role') != 'QA':
         raise ValueError('Comprehension requires independent QA')
@@ -251,7 +253,7 @@ def validate_media_qa(blueprint, report, media=None):
                 raise ValueError('Comprehension FAIL/UNKNOWN or incomplete continuous audiovisual evidence')
             if row.get('narration_matches_action') is not True or row.get('product_identified') is not True:
                 raise ValueError('Unrecognizable product or narration/action mismatch')
-            if row['heard_narration'] not in shot.get('narration', []):
+            if row['heard_narration'] not in (shot_narration(blueprint, shot) or ([None] if joint(blueprint) else [])):
                 raise ValueError('Observed narration does not match planned mechanical explanation')
             if row.get('reference_ids') != shot['comprehension']['reference_ids']:
                 raise ValueError('Actual media observation must bind planned source evidence')
