@@ -1,0 +1,11 @@
+{
+  "task_id": "longitude-at-sea-v4",
+  "chapters": [
+    {"id":"open","knowledge_ids":["time-difference"],"narration":["大海上看不见岸，怎么知道自己向西走了多远？","想象一艘帆船。太阳升到最高处，船上到了当地正午。"]},
+    {"id":"time","knowledge_ids":["earth-rotation"],"narration":["就在这一刻，带上船的港口时间却是下午一点。","正午晚到一小时，说明船在港口以西十五度。"]},
+    {"id":"error","knowledge_ids":["clock-error"],"narration":["地球四分钟转过一度。","表要是快了四分钟，算出来的位置就会偏一度。"]},
+    {"id":"trial","knowledge_ids":["jamaica-trial"],"narration":["哈里森为此做了多代航海计时器。","一七六一年，他的儿子带着一只大怀表模样的计时器，启程前往牙买加试航。"],"captions":{"2":"1761 年，他的儿子带着航海表前往牙买加试航。"}},
+    {"id":"choice","knowledge_ids":["lunar-alternative","cost-and-adoption"],"narration":["当时还有一条路，量月亮和星星的夹角，再查表算时间。","带只钟省下了这一步。早期航海钟很贵，简化了设计才渐渐普及。"],"captions":{"2":"带只钟省去测月。航海钟简化后才逐渐普及。"}},
+    {"id":"return","knowledge_ids":["position-from-time"],"narration":["现在再看这只表。","它带上船的是一个留在岸上的正午。","有了这个参照，太阳就能告诉你走到了哪条经线上。"]}
+  ]
+}
