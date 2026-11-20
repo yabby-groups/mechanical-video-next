@@ -322,7 +322,7 @@ def validate_creative_review(report, film_hashes, *, acceptance, whole_edit=Fals
             raise ValueError(f'Creative review remains {status}: {key}')
 
 
-def validate_qa(report, media, *, acceptance, blueprint=None):
+def validate_qa(report, media, *, acceptance, blueprint=None, technical_audio=False):
     """Six conclusions are independent; deterministic success cannot fill senses."""
     review = report.get('quality_dimensions', {})
     if set(review) != DIMENSIONS:
@@ -334,11 +334,21 @@ def validate_qa(report, media, *, acceptance, blueprint=None):
             raise ValueError('Quality dimensions require exact-media observations: ' + name)
         if row['status'] == 'FAIL' or (acceptance and row['status'] != 'PASS'):
             raise ValueError('Quality dimension prevents acceptance: ' + name)
+    if technical_audio and (report.get('audio_perceptual_review') != 'NOT_PERFORMED'
+            or report.get('full_audio_listened') not in (None, False)
+            or report.get('checks', {}).get('listening') not in (None, 'UNKNOWN')
+            or report.get('hybrid_media_review', {}).get('listening') not in (None, False)
+            or any(REVIEW_METHODS.get(row.get('method'), set()) & {'audio'}
+                   for row in report.get('review_observations', []))):
+        raise ValueError('Technical audio acceptance cannot claim a perceptual listening result')
     if acceptance and (report.get('full_video_reviewed') is not True
-            or report.get('full_audio_listened') is not True):
+            or (not technical_audio and report.get('full_audio_listened') is not True)):
         raise ValueError('Complete actual viewing and listening required for acceptance')
     if acceptance:
-        validate_review_observations(report, media, blueprint)
+        if technical_audio:
+            from .audio_acceptance import check_evidence
+            check_evidence(report, media)
+        validate_review_observations(report, media, blueprint, technical_audio=technical_audio)
 
 
 def review_media_identity(binding):
@@ -379,7 +389,7 @@ def review_media_identity(binding):
                                  'channels': int(audio['channels'])}}
 
 
-def validate_review_observations(report, media, blueprint):
+def validate_review_observations(report, media, blueprint, *, technical_audio=False):
     """Validate traceable attestations in the existing QA handoff, not senses.
 
     These records are hash-bound by the same immutable QA envelope as the six
@@ -400,8 +410,14 @@ def validate_review_observations(report, media, blueprint):
         raise ValueError('Review observations require an independent reviewer identity')
     if reviewer in report.get('production_thread_ids', []):
         raise ValueError('Production agents cannot supply independent review observations')
-    identities = {m['sha256']: review_media_identity(m) for m in media}
-    coverage = {sha: {'video': [], 'audio': []} for sha in identities}
+    if technical_audio:
+        from scripts.common import probe
+        identities = {m['sha256']: {'durations': {'video': float(next(
+            stream['duration'] for stream in probe(m['path'])['streams']
+            if stream['codec_type'] == 'video'))}} for m in media}
+    else:
+        identities = {m['sha256']: review_media_identity(m) for m in media}
+    coverage = {sha: {kind: [] for kind in identity['durations']} for sha, identity in identities.items()}
     observations = {}
     for row in rows:
         if not isinstance(row, dict):
@@ -424,6 +440,8 @@ def validate_review_observations(report, media, blueprint):
                 or not max(0, start-.001) <= window[0] < window[1] <= min(stop, max(identities[sha]['durations'].values()))+.001):
             raise ValueError('Review observation interval lies outside its actual media shot')
         modalities = REVIEW_METHODS[method]
+        if technical_audio and 'audio' in modalities:
+            raise ValueError('Technical audio acceptance uses actual video observation intervals')
         if 'audio' in modalities and any(row.get(key) != identities[sha][key]
                                         for key in ('audio_pcm_sha256', 'audio_pcm_format')):
             raise ValueError('Listening observations must bind the actual decoded audio and format')
@@ -456,8 +474,9 @@ def validate_review_observations(report, media, blueprint):
         # A full-film conclusion cannot cite only a conveniently selected scene.
         # Rights/original-expression conclusions may instead cite document review;
         # the separate existing copyright and originality checks remain mandatory.
-        modalities = ({'video'} if name in {'mechanical_motion', 'visual_expression'} else
-                      set() if name == 'originality_copyright' else {'video', 'audio'})
+        modalities = (set() if name == 'originality_copyright' else
+                      {'video'} if technical_audio or name in {'mechanical_motion', 'visual_expression'} else
+                      {'video', 'audio'})
         for sid, shot in shots.items():
             start, stop = shot['time_range']
             for modality in modalities or {None}:

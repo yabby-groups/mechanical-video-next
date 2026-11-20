@@ -119,7 +119,8 @@ preview before composing the final MP4. `animation-manifest` binds the preview
 and `timeline` binds the final edit.
 
 Candidate tables, pre-voice picture approvals and independent animatic/preview
-approval are optional. Independent `final-qa` reviews the exact film and sound.
+approval are optional. Independent `final-qa` reviews the exact film. New
+Producer-directed tasks pin the verified Neil audio policy at creation.
 The existing quality dimensions cover advice on the story as well as science,
 motion and audiovisual quality. Preserve separate rights checks and record
 unavailable sensory evidence as UNKNOWN. Deliver the film, both covers,
@@ -371,15 +372,54 @@ connection, voice and sound, and payoff. Each question has a concrete
 Identify a replacement shot, cut or soundtrack treatment for each failure.
 Continuous video or audio is required for the corresponding PASS. The existing
 independent reviewer and unresolved-major-defect checks still govern HD work.
-Whole-film sensory coverage remains required for final acceptance.
+Whole-film continuous viewing remains required for final acceptance.
 
 Six separate final dimensions: scientific accuracy; mechanical motion; visual
 expression; narrative/comprehension; originality/copyright; audio/video/delivery.
 Each binds exact media and located observations. Full timeline coverage and
-continuous key-action viewing/listening are required. Sampled frames, ASR,
-loudness, unit tests and full decode do not grant sensory acceptance. Mixed media
+continuous key-action viewing are required. Historically pinned policies and
+the listening path require continuous audio coverage. Mixed media
 keeps separate copyright and originality reviews. Comprehension and growth
 gates follow the pinned task policies. Unknown capabilities stay UNKNOWN.
+
+### Technical audio acceptance for verified Neil narration
+
+New Producer-directed tasks carry `audio_acceptance_policy=verified_neil_technical`
+in `task.json`. If the independent reviewer has no full listening record, submit
+the normal `final-qa` handoff with real `continuous_video` observations and leave
+`checks.listening` absent or `UNKNOWN`. The workflow generates
+`audio_acceptance_mode`, `audio_technical_status` and `audio_technical_evidence`.
+On this path it records `audio_perceptual_review=NOT_PERFORMED`. The independent
+hybrid and route reviews leave listening absent, false or UNKNOWN as appropriate.
+Keep the other applicable QA checks and the per-shot visual observations for
+the scientific, narrative and AV dimensions. Use actual observations for the
+visual timing and narration/action checks together with the verified script and
+measured subtitle intervals.
+
+The automatic check verifies the approved Neil profile, sealed request and WAV
+cache, expected text, source hashes, exact measured sample intervals, final
+composition inputs, and composed caption cues. It decodes the complete AAC
+track, records its decoded PCM hash, and compares the audio against the bound
+master in short sample-aligned windows through the last utterance. It verifies
+per-utterance profile loudness, final loudness against the bound mix or master,
+and true peak. It checks sample peaks and flags silence of at
+least 0.5 s below −48 dBFS inside a measured utterance. Authored gaps between
+utterances are part of the timeline. The caption evidence covers utterance
+intervals. Pronunciation, naturalness and word-level alignment require actual
+listening when a concern is raised.
+
+An optional `audio_mix` in the bound composition supplies a mono 48 kHz PCM
+`master` and its `stems` with `kind` (`bgm` or `sfx`), `source` binding,
+`start_sample`, `end_sample`, `source_start_sample`, `gain_db` and the existing
+rights fields. The verifier reconstructs the additive mix and checks local
+peaks and a 10 dB speech-to-background margin in active speech windows. This
+margin detects measurable masking risk. Audible clarity remains a listening
+judgment. An unverified mix, narration/source mismatch or failed audio measure
+prevents technical acceptance. Register known concerns, including a reported
+pronunciation defect, as timecoded QA issues with `requires_audio_review=true`
+for targeted resolution. Human speech and unverified external narration use
+the existing full listening path. Older task ledgers retain their pinned
+strategy.
 
 For formal new-contract acceptance, the same immutable QA handoff contains
 `review_observations`: unique `id`, exact `media_sha256`, `reviewer_thread_id`,
@@ -393,10 +433,12 @@ and document review do not fill sensory coverage. Listening rows also bind
 `audio_pcm_sha256` and `audio_pcm_format`, obtained from
 `production_contract.review_media_identity` for that exact film. The format is
 decoded s16le at the actual stream sample rate/channel count, not a copied AAC
-container. Coverage must include the entire actual video and audio timeline,
-without gaps beyond 1 ms timestamp rounding. Each quality dimension references
-its records via `observation_ids`; scientific, narrative and AV conclusions
-require full audiovisual coverage, mechanical/visual conclusions full video.
+container. Coverage must include the entire actual timeline for the required
+modalities, with a 1 ms timestamp tolerance. Each quality dimension references
+its records via `observation_ids`. Scientific, narrative and AV conclusions
+require full audiovisual coverage on the listening path and full video plus
+generated audio evidence on the Neil technical path. Mechanical and visual
+conclusions require full video coverage.
 Copyright/originality may reference located document review in addition to the
 existing separate rights checks. These records improve traceability, never prove
 that someone actually watched/listened. Unsupported workprints retain UNKNOWN

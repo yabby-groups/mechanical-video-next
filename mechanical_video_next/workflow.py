@@ -14,6 +14,7 @@ import math
 import subprocess
 import sys
 import time
+import wave
 
 from . import creative_selection as editorial_policy
 from .production_contract import PRODUCER_DIRECTED, producer_directed
@@ -624,8 +625,9 @@ def continuation(task, persist=True):
     unresolved_content = [row for row in data.get('content_repairs', []) if row.get('status') != 'RESOLVED']
     failed_qa = {name: report for name, report in valid.items()
                  if name.endswith('-qa') and
-                 ('FAIL' in report.get('checks', {}).values() or any(
-                     str(issue.get('severity', '')).lower() in {'critical', 'major', 'error'}
+                 ('FAIL' in report.get('checks', {}).values() or report.get('audio_technical_status') == 'FAIL' or any(
+                     (issue.get('requires_audio_review') is True or
+                      str(issue.get('severity', '')).lower() in {'critical', 'major', 'error'})
                      and issue.get('status') != 'RESOLVED' for issue in report.get('issues', [])))}
     if milestone == 'FINAL_RENDERED' and data['state'] == 'COMPLETED' and not unresolved_content:
         try:
@@ -775,8 +777,9 @@ def continuation(task, persist=True):
         issues = [issue for issue in report.get('issues', []) if issue.get('status') != 'RESOLVED']
         issue = next((issue for issue in issues if str(issue.get('severity', '')).lower()
                       in {'critical', 'major', 'error'}), issues[0] if issues else {})
+        audio_failure = report.get('audio_technical_evidence', {}).get('reason')
         action = dict(owner=issue.get('responsible_agent', 'Producer'),
-                      action=issue.get('suggested_fix', 'Diagnose the failed exact-media checks, repair affected shots and obtain independent re-verification'),
+                      action=issue.get('suggested_fix', audio_failure or 'Diagnose the failed exact-media checks, repair affected shots and obtain independent re-verification'),
                       qa_handoff=name, defect_key=issue.get('defect_key'),
                       evidence=issue.get('evidence', report.get('media')), command=None)
     elif directed and milestone == 'FINAL_RENDERED' and 'timeline' not in valid:
@@ -997,6 +1000,12 @@ def record_delivery(task, files, reason):
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
     if producer_directed(data):
+        from .audio_acceptance import MODE
+        audio_review = ('Use the verified Neil technical audio gate for the exact final MP4. '
+                        'Record actual listening only when it happened. Register any known audio concern '
+                        'as a timecoded QA issue for targeted review.'
+                        if data.get('audio_acceptance_policy') == MODE else
+                        'Have independent QA listen to the exact complete MP4.')
         reference_work = ''
         if data.get('reference_search_plan'):
             reference_work = f'''Start with the next action from `uv run python -m mechanical_video_next continue "{task}"` and the task's
@@ -1042,8 +1051,8 @@ out of audience copy. Explain consequential model limits plainly.
 
 Use the existing Blueprint, Blender/EAS, measured Neil, Joint Timeline and Remotion/FFmpeg.
 Inspect key actions and a low-cost full edit, then finish the film. Use existing handoffs, serial
-rendering and caches. Diagnose failed work before retrying. Have independent QA watch and listen
-to the exact complete MP4 and check science, motion, clarity, originality and rights. Record
+rendering and caches. Diagnose failed work before retrying. Have independent QA watch
+the exact complete MP4 and check science, motion, clarity, originality and rights. {audio_review} Record
 unavailable observations as UNKNOWN. Deliver 1920×1080/30, phone-readable single-line subtitles,
 both covers and the existing provenance, QA and production records. Preserve historical assets
 and use local delivery only.
@@ -1421,6 +1430,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value[TIMELINE_FIELD] = TIMELINE_VERSION
     if directed:
         from .viral import directed_plan
+        from .audio_acceptance import MODE
+        value['audio_acceptance_policy'] = MODE
         value['reference_search_plan'] = 'research/search-plan.json'
         write(task / value['reference_search_plan'], directed_plan(topic, Path(root) / 'references'))
     if protocol_version == 2:
@@ -1862,6 +1873,22 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     validate_defect_key(issue.get('defect_key'))
             if any(v not in {'PASS', 'FAIL', 'UNKNOWN'} for v in payload.get('checks', {}).values()):
                 raise ValueError('QA checks must be PASS, FAIL or UNKNOWN')
+        if name == 'final-qa':
+            if any(key in payload for key in ('audio_acceptance_mode', 'audio_technical_status',
+                                               'audio_technical_evidence')):
+                raise ValueError('Final audio acceptance evidence is generated by the workflow')
+            from .audio_acceptance import MODE, verify
+            if directed and data.get('audio_acceptance_policy') == MODE and payload.get('full_audio_listened') is not True:
+                if payload.get('audio_perceptual_review', 'NOT_PERFORMED') != 'NOT_PERFORMED':
+                    raise ValueError('Record actual listening results only with the corresponding observations')
+                payload = dict(payload, audio_acceptance_mode=MODE, audio_perceptual_review='NOT_PERFORMED')
+                try:
+                    evidence = verify(artifact(task, 'timeline'), artifact(task, 'creative-blueprint'))
+                except (OSError, ValueError, RuntimeError, KeyError, TypeError,
+                        EOFError, wave.Error, subprocess.SubprocessError) as error:
+                    payload.update(audio_technical_status='FAIL', audio_technical_evidence={'reason': str(error)})
+                else:
+                    payload.update(audio_technical_status='PASS', audio_technical_evidence=evidence)
         from .qa_images import handoff_visuals
         visual_evidence = handoff_visuals(payload)
         versions = data.setdefault('creative_handoff_versions', {}) if competition else {}
@@ -1921,6 +1948,12 @@ def check_media(evidence):
             raise ValueError('Media evidence missing or changed')
 
 
+def technical_audio_review(data, report):
+    from .audio_acceptance import MODE
+    return (producer_directed(data) and data.get('audio_acceptance_policy') == MODE
+            and report.get('audio_acceptance_mode') == MODE)
+
+
 def check_qa(task, name, *, acceptance=True):
     if name not in {'preview-qa', 'animatic-qa', 'final-qa'}:
         raise ValueError('Diagnostic reports cannot grant production acceptance')
@@ -1930,6 +1963,11 @@ def check_qa(task, name, *, acceptance=True):
     if directed and name == 'preview-qa' and name not in data['handoffs']:
         return None
     qa = artifact(task, name)
+    technical_audio = name == 'final-qa' and technical_audio_review(data, qa)
+    if name == 'final-qa' and acceptance and any(
+            issue.get('requires_audio_review') is True and issue.get('status') != 'RESOLVED'
+            for issue in qa.get('issues', [])):
+        raise ValueError('Unresolved audio issue requires targeted review')
     if editorial_policy.enabled(load(task)) and qa['story_review']['outcome'] != 'PASS':
         raise ValueError('The current moving edit requires an independent creative PASS')
     from .comprehension import enabled, validate_media_qa
@@ -1938,7 +1976,7 @@ def check_qa(task, name, *, acceptance=True):
         review['production_thread_ids'] = [r['thread_id'] for r in load(task).get('agent_runs', [])
                                           if r['role'] != 'QA']
         validate_media_qa(artifact(task, 'creative-blueprint'), review)
-    if name == 'final-qa' and load(task).get('reference_policy_version') == 1:
+    if name == 'final-qa' and data.get('reference_policy_version') == 1:
         from .reference_policy import validate_final_report
         validate_final_report(qa.get('reference_report', {}), qa.get('media', []))
     check_media(qa.get('media'))
@@ -1959,8 +1997,10 @@ def check_qa(task, name, *, acceptance=True):
         validate_creative_review(qa, durations, acceptance=acceptance or story_gate, whole_edit=story_gate)
     from .production_contract import enabled as science_contract, validate_qa as science_qa
     if science_contract(load(task)) and name == 'final-qa':
-        science_qa(qa, production['media'], acceptance=acceptance,
-                   blueprint=artifact(task, 'creative-blueprint') if acceptance else None)
+        film = [row for row in production['media'] if Path(row['path']).suffix.lower() == '.mp4']
+        science_qa(qa, film if technical_audio else production['media'], acceptance=acceptance,
+                   blueprint=artifact(task, 'creative-blueprint') if acceptance else None,
+                   technical_audio=technical_audio)
         request=load(task).get('revision_request')
         if request and acceptance:
             from .media_revision import revision_claims, validate_report
@@ -1984,7 +2024,7 @@ def check_qa(task, name, *, acceptance=True):
                            for key,handoff in (('research','research'),('script','script'),('blueprint','creative-blueprint'))}
         for path, _ in expected:
             validate_hybrid_qa(qa, Path(path).with_suffix('.media-provenance.json'), acceptance=acceptance,
-                               original_inputs=original_inputs)
+                               original_inputs=original_inputs, technical_audio=technical_audio)
         production_threads = {r['thread_id'] for r in task_data['agent_runs'] if r['role'] != 'QA'}
         if any(qa[section]['reviewer_thread_id'] in production_threads for section in
                ('copyright_review','original_expression_review')):
@@ -2005,6 +2045,13 @@ def check_qa(task, name, *, acceptance=True):
         check_media_duration(blueprint, production['media'])
     checks = qa.get('checks', {})
     required_checks = ANIMATIC_CHECKS if name == 'animatic-qa' else QA_CHECKS
+    from .audio_acceptance import MODE
+    pending_preview_audio = (name == 'preview-qa' and directed and data.get('audio_acceptance_policy') == MODE
+                             and checks.get('listening') in (None, 'UNKNOWN'))
+    if technical_audio or pending_preview_audio:
+        # Final audio evidence is evaluated on the delivered MP4, after the optional preview.
+        required_checks = required_checks - {'listening'}
+        checks = {key: value for key, value in checks.items() if key != 'listening'}
     if (not required_checks <= set(checks) or
             (any(value != 'PASS' for value in checks.values()) if acceptance
              else not production_checks(checks, required_checks,
@@ -2359,7 +2406,12 @@ def check_requested_routes(task, data):
             blueprint = artifact(task, 'creative-blueprint')
             validate_media_checks(blueprint, dict(result, media=[media]))
             check_media_duration(blueprint, [media])
-        if not all(result.get('checks', {}).get(check) == 'PASS' for check in QA_CHECKS):
+        route_checks_required = QA_CHECKS
+        if technical_audio_review(data, report):
+            route_checks_required = QA_CHECKS - {'listening'}
+            if result.get('checks', {}).get('listening') not in (None, 'UNKNOWN'):
+                raise ValueError('Technical audio acceptance cannot claim a route listening result')
+        if not all(result.get('checks', {}).get(check) == 'PASS' for check in route_checks_required):
             raise ValueError('Requested route final QA has FAIL/UNKNOWN/missing checks: ' + route)
         recorded = data.get('route_runs', {}).get(route, {}).get('outputs', {})
         if not recorded or recorded.get('sha256') != media.get('sha256'):

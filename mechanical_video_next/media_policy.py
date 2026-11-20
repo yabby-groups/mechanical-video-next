@@ -334,7 +334,7 @@ def validate_manifest(path, media=None):
     return doc
 
 
-def validate_qa(qa, manifest, *, acceptance, original_inputs=None):
+def validate_qa(qa, manifest, *, acceptance, original_inputs=None, technical_audio=False):
     doc = validate_manifest(manifest)
     review = qa.get('hybrid_media_review', {})
     if review.get('manifest') != binding(manifest) or review.get('media') != doc['media']:
@@ -348,7 +348,8 @@ def validate_qa(qa, manifest, *, acceptance, original_inputs=None):
             if (not check.get('observation') or check.get('status') not in {'PASS','FAIL','UNKNOWN'}
                     or check['status'] == 'FAIL' or (acceptance and check['status'] != 'PASS')):
                 raise ValueError('Hybrid QA FAIL/UNKNOWN prevents acceptance')
-    if acceptance and (review.get('continuous_video') is not True or review.get('listening') is not True):
+    if acceptance and (review.get('continuous_video') is not True
+                       or (not technical_audio and review.get('listening') is not True)):
         raise ValueError('Hybrid acceptance requires actual continuous viewing and listening')
     # Lawful reuse and original expression are independent findings. No asset ratio grants either.
     for name, required in (('copyright_review', COPYRIGHT_CHECKS),

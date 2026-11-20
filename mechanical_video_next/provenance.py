@@ -72,10 +72,16 @@ def verify_remotion_inputs(build):
         plan = joint.validate(config['timeline'])
         measured = joint.receipt(plan, config['measured_timeline'])
         relative = Path(props['narrationTrack'])
+        playback = build['narration']
+        if config.get('audio_mix') is not None:
+            from .audio_acceptance import verify_mix
+            verify_mix(config['audio_mix'], joint.bound(measured['narration_audio']),
+                       plan['frame_count'] * joint.SAMPLES_PER_FRAME, check_masking=False)
+            playback = config['audio_mix']['master']
         if (relative.parts[:1] != ('cache',) or len(relative.parts) != 2
                 or '\\' in props['narrationTrack']
                 or build.get('narration') != measured['narration_audio']
-                or filehash(ROOT/'remotion/public'/relative) != filehash(bound(build['narration']))
+                or filehash(ROOT/'remotion/public'/relative) != filehash(bound(playback))
                 or props['cues'] != joint.cues(measured)):
             raise ValueError('Replayed joint narration or subtitles differ from the measured master')
     cursor = 0

@@ -455,7 +455,12 @@ def compose(cfg, quality, media, metrics):
     props={'title':cfg['title'],'subtitle':cfg['subtitle'],'shots':render_shots,'cues':cues,'duration':offset,'fps':30,'width':cfg['render']['width'],'height':cfg['render']['height']}
     if shared:
         props[joint.FIELD] = joint.VERSION
-        props['narrationTrack'] = expose(master, audio_sources[0])
+        playback = master
+        if 'audio_mix' in cfg:
+            from mechanical_video_next.audio_acceptance import verify_mix
+            playback, _ = verify_mix(cfg['audio_mix'], master, plan['frame_count'] * joint.SAMPLES_PER_FRAME,
+                                     check_masking=False)
+        props['narrationTrack'] = expose(playback, filehash(playback))
     props[PRESENTATION_STYLE] = NATURAL_SCIENCE if natural else 'legacy'
     if visual:
         props['visual_policy_version'] = VERSION
