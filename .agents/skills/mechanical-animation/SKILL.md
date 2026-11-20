@@ -1,9 +1,12 @@
 ---
 name: mechanical-animation
-description: 使用现有 EAS/Blender 参数化制作有依据的机械与科学镜头。
+description: 为「君哥拆机器」使用现有 EAS/Blender 制作有依据的三维拆解、剖视与运动镜头。
 ---
 
 # mechanical-animation
+
+For v5, use 3D disassembly, cutaways and motion to reveal the selected story's
+mechanical design for 「君哥拆机器」. Let each shot's observation determine the treatment.
 
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are

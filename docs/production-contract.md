@@ -1,9 +1,14 @@
 # Effective production contract
 
-This is the single entry point for future production. Explicit user instructions
-take precedence. Task creation pins the policy versions; resume never migrates a
-historical task. The existing native Producer, handoffs, state machine, role model
-routing and tools remain the only workflow.
+Mechanical Video Next is the production system for the single Douyin account
+「君哥拆机器」.
+
+> 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
+
+This contract governs future production. Explicit user instructions take precedence.
+Task creation pins the policy versions and resume retains the historical policy.
+The existing native Producer, handoffs, state machine, role routing and tools serve
+the account directly.
 
 ## Policy resolution
 
@@ -19,7 +24,8 @@ Use explicit `presentation_style: legacy` to reproduce older display conventions
 
 | Task | Effective rules |
 | --- | --- |
-| `production_contract_version=4` | Default for new topic-only mixed production. `science-discovery-v4` adds story exploration and documented technology subjects; retains media 1, visual 2, knowledge progression 1 and joint timeline 1 |
+| `production_contract_version=5` | Default for new topic-only mixed production. `mechanical-story-v5` applies Science Discovery to the account's mechanical stories and retains v4's timeline, media, visual and evidence capabilities |
+| `production_contract_version=4` | `science-discovery-v4` preserves the original story exploration and documented technology subject scope, with media 1, visual 2, knowledge progression 1 and joint timeline 1 |
 | `production_contract_version=3` | `science-story-v3`, media 1, visual 2, knowledge progression 1 and joint timeline 1 |
 | `production_contract_version=2` | `creative-first-v2`, media 1, visual 2, knowledge progression 1 |
 | `production_contract_version=1` | `production_contract=mixed-original-v1`, media 1, visual 2, knowledge progression 1, historical 120–300 s |
@@ -43,6 +49,14 @@ mechanism diagnostic is an internal checkpoint, never project acceptance.
 
 ## Discovering stories for new topics
 
+Start v5 from machines, tools, mechanical devices, structures and everyday objects
+with a consequential mechanical design. A bare topic is enough to begin. Discover
+what people needed, which choice solved it, what it cost, how it was used and why
+someone might change it. A law of optics, chemistry or astronomy may explain a
+machine, measuring instrument or application. Standalone phenomena fall outside
+the default editorial scope. For an off-domain prompt, pursue a faithful, sourced
+mechanical question when one exists. Otherwise record the scope mismatch.
+
 Research makes a low-cost pass through relevant angles: documented stories,
 original needs, design constraints and materials, working science, clever
 details, tradeoffs, alternatives, uses, cross-domain connections, evolution,
@@ -51,14 +65,20 @@ and conditions behind a design. Prefer archival and museum records for history,
 experiments and peer-reviewed work for science, and original product or
 engineering documentation for scope. Record where the evidence comes from.
 
-In the existing v4 research handoff, use `story_exploration.angles` for
+From v4, use the existing research handoff's `story_exploration.angles` for
 findings and evidence gaps and `candidates` for up to four plausible audience
 questions. Each candidate has an ID, angle, visible test, decision reason and
 fact IDs where available. A single viable candidate includes a shortlist limit.
+In v5, each candidate's `mechanical_focus` names the device and the design choice
+or behavior the story explains. V5 research accepts `mechanical_implementation`
+or mechanically anchored `documented_technology` as the subject. Facts may use
+any relevant science. Evidence and editorial judgment establish actual relevance.
 Deepen only the promising directions. Compare curiosity, story and knowledge
 value, design insight, visual payoff, difficulty, daily relevance, originality,
 source confidence and cost. The Producer selects one direction, records why
-the others are deferred and keeps promising questions for later episodes.
+the others are deferred and keeps promising questions for later episodes. Identify
+the exact implementation, production assets, shots and measured voice from the
+selected story. Existing models can then be checked for a genuine match.
 Judgment and evidence decide. The selected ID links the research, the moving
 draft's `story_id`, and Blueprint's `narrative.story_id`.
 
@@ -71,8 +91,10 @@ hypotheses. V4 adds historical and scientific fact kinds plus unverified
 story leads and legends to the existing ledger. Derivations and approximations
 retain assumptions. A patent alone cannot establish sole invention or its date.
 
-The series explores everyday science, nature, materials and inventions. The
-Producer owns the audience question, visual discovery, picture structure and
+Three-dimensional disassembly, cutaways and motion are the account's core visual
+techniques. Use them to reveal the consequential design where they earn the shot.
+Real use, archives and original graphics can carry context, history and comparisons.
+The Producer owns the audience question, visual discovery, picture structure and
 decision to proceed. Research owns factual support and identifies what changes
 the viewer's understanding. ViralResearch investigates audience interest when
 it informs a concrete direction choice. For v3 and later,
@@ -95,7 +117,7 @@ direction when it has a specific question to answer.
 
 ### Picture direction before production
 
-New Discovery v4 tasks pin `visual_direction_version=1` at creation. The existing
+Discovery tasks from v4 pin `visual_direction_version=1` at creation. The existing
 diagnostic edit plan records the main scenes across the whole picture. A story
 scene shows an event, person, setting or phenomenon. An explanatory scene
 reveals the process or comparison necessary to understand that observation.
@@ -321,9 +343,9 @@ Implementation details: [science shots](science-production.md), [visual plan](vi
 [covers](cover-delivery.md). This entry point resolves conflicting historical prose;
 it does not weaken the executable checks for historical tasks.
 
-## Non-mechanical scientific subjects
+## Bounded subjects for documented technology and legacy science
 
-For `science.subject_kind=physical_phenomenon`, research identifies a bounded
+For legacy tasks using `science.subject_kind=physical_phenomenon`, research identifies a bounded
 `science.subject` (`id`, `name`, `scope`, `model_kind=conceptual|mathematical`).
 It does not invent a retail product. Located `subject_references` bind inspected
 sources and supported claims. The existing compatibility `mechanism_id` names
@@ -331,11 +353,14 @@ that specific teaching implementation, never a claim of a retail mechanism.
 Blueprint derives `subject_kind`, `subject_identity`, `subject_references` and
 `subject_opening` from that research. Its existing comprehension rows connect
 phenomenon, conditions, model, causal test and return to the opening question.
-V4 can instead use `science.subject_kind=documented_technology` with
+From v4, `science.subject_kind=documented_technology` uses
 `model_kind=documented` for a named technology, period and historical scope.
+V5 keeps this route for mechanical technology stories whose scope spans a design
+change or multiple documented implementations. Each depicted mechanism still needs
+its own evidence. A fact about shared principles alone cannot establish lineage.
 Reference locations bind documented facts, and original reconstructions
 disclose their status when viewers might mistake them for archival images.
-V4 nonmechanical comprehension follows the selected question and visible
+Comprehension for these bounded subjects follows the selected question and visible
 turning point without a prescribed parts or causality sequence. Scoped
 mechanical implementations still require matching product and motion evidence.
 The compiled config/build/manifest preserve the subject identity and policy.

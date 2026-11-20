@@ -1,9 +1,12 @@
 ---
 name: mechanical-asset
-description: 优先复用并验证合法匹配的机械资产和媒体。
+description: 为「君哥拆机器」核实并优先复用与机械故事相符的合规资产和媒体。
 ---
 
 # mechanical-asset
+
+For v5, match assets only after 「君哥拆机器」 has a selected mechanical story
+and defined visual tasks. Verify the exact implementation, visible action and rights.
 
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are

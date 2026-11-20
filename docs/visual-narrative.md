@@ -25,13 +25,13 @@
 uv run python -m mechanical_video_next produce --topic '修正带为什么能收紧？'
 ```
 
-Producer 根据研究结果选择表达方式和已验证的素材。CLI 建账并写入现有 Producer 指令，由当前 Codex 会话执行研究和制作。现象与有档案依据的技术故事按有效契约绑定具体主题与来源；机构证据用于有相应主张的题材。
+Producer 根据研究结果选择表达方式和已验证的素材。CLI 建账并写入现有 Producer 指令，由当前 Codex 会话执行研究和制作。机械技术史按有效契约绑定主题与档案，具体机构的结构和动作有各自的证据。
 
 ## 先确定观众会发现什么
 
-新混合任务默认使用 `science-discovery-v4`。先比较研究候选能给观众看到什么。历史转折可以用档案或原创重建，设计取舍可以用同条件对比，实验可直接展示改变一个条件之后的结果。写下选中的 `audience_decision`，先用完整动稿试节奏和回报，再确认素材。Blueprint 用具体镜头绑定开场与视觉回报。连续三段以上的内部机构视图需要导演说明其因果连贯性的价值。动态预览以实际媒体和时间码评审，对不清楚的镜头提出具体替换方案。
+「君哥拆机器」的新混合任务默认使用 `mechanical-story-v5`。比较每个机械故事的设计问题和可见回报，先选故事再定实现。三维拆解、剖视和运动展示揭示关键设计，历史转折可以用档案或原创重建，设计取舍可以用同条件对比。写下选中的 `audience_decision`，先用完整动稿试节奏和回报，再确认素材。Blueprint 用具体镜头绑定开场与视觉回报。连续三段以上的内部机构视图需要导演说明其因果连贯性的价值。动态预览以实际媒体和时间码评审，对不清楚的镜头提出具体替换方案。
 
-在现有 `research` 交接写 `visual_research`。八个键为 `use_context`、`common_misconception`、`science_question`、`causal_relationship`、`comparison`、`technical_background`、`structure_to_phenomenon`、`everyday_conclusion`。可用信息用 `SUPPORTED`、`finding`、`evidence`；其余用 `UNKNOWN` 或 `NOT_APPLICABLE` 并记录原因。依据记录文件路径、SHA256 和实际查看位置。先在 `visual_plan` 附待冻结的 Blueprint 镜头行，确定要展示的知识、动作和所需资产，再选用装配或开始 CAD。
+v4 起，研究用 `story_exploration` 保存候选与取舍，并在 `science.facts` 绑定实际查阅位置、文件路径和 SHA256。较早版本的 `visual_research` 使用八个键 `use_context`、`common_misconception`、`science_question`、`causal_relationship`、`comparison`、`technical_background`、`structure_to_phenomenon`、`everyday_conclusion`。可用信息填 `SUPPORTED`、`finding`、`evidence`，其余写 `UNKNOWN` 或 `NOT_APPLICABLE` 及原因。确定要展示的知识、动作和画面任务后，再选用装配或开始 CAD。
 
 最终在原 `creative-blueprint.shots` 保留 `shot_id`、`time_range`、`narration`、`subtitles`、`evidence_map` 的双向映射，并添加下列信息。
 

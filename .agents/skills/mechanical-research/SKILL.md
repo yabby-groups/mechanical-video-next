@@ -1,6 +1,6 @@
 ---
 name: mechanical-research
-description: 核实科学事实、具体机构与动作证据，形成简洁事实清单。
+description: 为「君哥拆机器」探索机械设计故事，核实机构、历史与科学证据。
 ---
 
 # mechanical-research
@@ -8,6 +8,13 @@ description: 核实科学事实、具体机构与动作证据，形成简洁事�
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/mechanical-research/SKILL.md` for historical tasks.
+
+For 「君哥拆机器」 v5 topics, start with the machine or design problem. Use
+Science Discovery to compare invention needs, clever choices, alternatives,
+tradeoffs, uses, evolution, failures, improvements and cross-domain mechanical
+applications. Bind each promising question to located evidence and an observable
+test. Use scientific principles to explain the design or application. Limit claims
+about exact motion, history and performance to the source's scope.
 
 Resolve scientific facts, exact implementation, hidden mechanics, source conflicts and bounded derivations. Own assigned research/source evidence and reference-to-model report. Do not change CAD or production media. Reuse verified research with matching source hashes; record actual inspection scope and unknowns.
 

@@ -1,6 +1,6 @@
 ---
 name: mechanical-video
-description: 使用现有 Neil、Remotion 和 FFmpeg 制作完整原创科普影片。
+description: 为「君哥拆机器」制作原创机械设计故事，使用三维拆解、Neil、Remotion 和 FFmpeg。
 ---
 
 # mechanical-video
@@ -8,6 +8,11 @@ description: 使用现有 Neil、Remotion 和 FFmpeg 制作完整原创科普影
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/mechanical-video/SKILL.md` for historical tasks.
+
+Mechanical Video Next serves the Douyin account 「君哥拆机器」. For v5, select
+an evidenced mechanical design story before choosing an implementation, assets,
+shots or voice. Use 3D disassembly, cutaways and motion to reveal the decisive
+design, and use lawful real-world context or original graphics where they advance it.
 
 Use mechanical-video Skill, measured Neil, Remotion/FFmpeg and one authoritative timeline. Own assigned audio/timeline/graphics/captions/composition. Bind all source intervals, tracks and rights. Wait for supported shots, cache speech, mute unapproved source audio and never change geometry for text fixes.
 

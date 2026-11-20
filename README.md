@@ -1,27 +1,29 @@
 # Mechanical Video Next
 
-制作「生活中的知识与科学原理」原创横屏科普。当前 Codex 主会话作为唯一
-Producer，从生活现象、真实发明和设计困境中筛选故事，按题材选用真实影像、原创动画、
-信息图或三维制作，沿用独立 QA。
+Mechanical Video Next 是「君哥拆机器」抖音账号的专属视频生产系统。
+
+> 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
+
+当前 Codex 主会话是唯一 Producer。从机器、工具、机械装置、结构和生活用品发掘
+设计故事，追问它为何被发明、为何如此设计、有哪些取舍，以及怎样演变和改进。
+科学原理通过具体机械设计、测量仪器或实际应用进入叙事。默认独立选题聚焦机械。
 
 **有效规则从 [生产契约](docs/production-contract.md) 开始。** 新建 topic-only
-任务默认使用 `science-discovery-v4`、媒体策略 1、视觉策略 2。
-先查相关故事角度并比较可视化方案，再把选中的问题和证据带入完整动态分镜。
-逐镜头规划真实因果、原创科学/信息动画和合法补充素材；核心机械证据须为
-可核验原生 3D 或独立核实且获许可的真实机构影像。混合成片使用完整媒体
-来源清单，原生 3D 段保留自己的来源链。历史 3D-only 任务不自动升级。
+任务默认使用 `mechanical-story-v5`、媒体策略 1、视觉策略 2。
+沿用 Science Discovery 比较多个有证据的机械故事，先选观众问题和可见回报，
+再定实施例、完整动态分镜、素材和旁白。三维拆解、剖视和运动是核心视觉能力。
+实际使用、历史上下文和比较可用合规实拍或原创信息动画。核心机械证据使用可核验
+原生 3D，或获许可且经独立连续观察的真实机构影像。混合成片保留完整媒体来源链，
+历史任务继续适用其立项版本。
 
-本仓库提供可恢复的确定性工具和原生 Agent 指令。名称入口建立任务，由
-当前 Producer 继续推理和执行；它不是后台智能服务。任意选题都能自动
-交付合格全片尚未获得验证，实际三级验收结果见
-[本次生产报告](docs/productions/workflow-upgrade-20261118.md)。
-新题材的创意取舍、实际动稿与完整工作版见
-[跨题材验证](docs/productions/science-discovery-validation-20261120.md)。
+本仓库提供可恢复的确定性工具和原生 Agent 指令。主题入口建账并生成派工，
+由当前 Producer 完成研究取舍和后续制作。实际三级验收结果见
+[历史生产报告](docs/productions/workflow-upgrade-20261118.md)。
 
 ```sh
 uv sync --locked
 npm ci --prefix remotion --cache work/npm-cache --no-audit --no-fund
-uv run python -m mechanical_video_next produce --topic '某个现象为什么会这样？' --routes 3d
+uv run python -m mechanical_video_next produce --topic '雨伞'
 uv run python -m mechanical_video_next produce --resume output/tasks/TASK
 uv run python -m mechanical_video_next continue output/tasks/TASK
 ```

@@ -1,6 +1,6 @@
 ---
 name: viral-video-research
-description: 研究可核验参考表达，形成原创知识叙事和视觉分镜。
+description: 为「君哥拆机器」研究可核验的机械故事表达与原创视觉分镜。
 ---
 
 # viral-video-research
@@ -8,6 +8,10 @@ description: 研究可核验参考表达，形成原创知识叙事和视觉分�
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/viral-video-research/SKILL.md` for historical tasks.
+
+For v5, compare curiosity, everyday relevance, design insight and visible payoff
+across distinct mechanical stories for 「君哥拆机器」. Use audience and expression
+evidence to help the Producer choose a story before model or footage matching.
 
 Collect and classify actual expression references; do not infer hidden mechanics or fabricate viewing/engagement. Own assigned viral-analysis and original creative-blueprint. Learn general techniques without copying distinctive scripts or shot sequences. Missing low-follower samples is not a global production gate.
 
