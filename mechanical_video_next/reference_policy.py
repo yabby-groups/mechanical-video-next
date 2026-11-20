@@ -205,6 +205,7 @@ def validate_asset(research, asset):
     candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
     if selected[0] == 'existing-media':
         from .media_policy import enabled as asset_first, validate_shot
+        from .production_contract import science_story
         if asset_first(asset) and candidate.get('mechanism_shots'):
             for row in candidate['mechanism_shots']:
                 if row.get('mechanical_role') != 'core' or row.get('render_engine') != 'footage':
@@ -212,6 +213,12 @@ def validate_asset(research, asset):
                 validate_shot(row, row['duration'])
                 if row['selected_asset'] not in candidate['source_files']:
                     raise ValueError('Observed mechanism video differs from selected source files')
+        elif science_story(asset) and research.get('science', {}).get('subject_kind') == 'physical_phenomenon':
+            from .media_policy import validate_rights
+            from .visual_narrative import validate_footage
+            for source in candidate['source_files']:
+                validate_rights(source)
+                validate_footage(source)
         else:
             from .provenance import validate
             if not candidate.get('three_d_provenance'):
@@ -275,10 +282,13 @@ def validate_plan(blueprint, research, asset):
     if timing.get('status') != 'PASS' or timing.get('measured_narration_seconds') is None:
         raise ValueError('Content insufficient or narration not measured; do not lock duration')
     duration = blueprint.get('duration_seconds')
-    if (not finite(duration) or not 120 <= duration <= 300
+    from .production_contract import creative_first
+    from .growth import duration_bounds
+    minimum, maximum = duration_bounds(blueprint) if creative_first(blueprint) else (120, 300)
+    if (not finite(duration) or not minimum <= duration <= maximum
             or not finite(timing['measured_narration_seconds'])
             or not 0 < timing['measured_narration_seconds'] <= duration):
-        raise ValueError('Knowledge-supported duration must be 120–300 seconds')
+        raise ValueError('Measured narration and film must fit the versioned duration policy')
     covered = set()
     for chapter in timing['chapters']:
         _required(chapter, ('id', 'knowledge_ids', 'new_information', 'duration_reason'), 'Chapter')

@@ -183,6 +183,14 @@ def validate_product_plan(data, research=None):
         raise ValueError('Product identity, real action and why must appear within first five seconds')
     if not ({'phenomenon','conditions'} if physical else {'whole_product', 'operation'}) <= set(first['comprehension']['recognition_relations']):
         raise ValueError('Opening cannot consist only of abstract moving parts')
+    from .production_contract import creative_first
+    if creative_first(data):
+        decision = data.get('narrative', {}).get('audience_decision', {})
+        if opening['why_question'] != decision.get('question'):
+            raise ValueError('Comprehension opening must answer the planned everyday question')
+        ending_relation = 'return_to_question' if physical else 'return_to_function'
+        if ending_relation not in shots[-1]['comprehension']['recognition_relations']:
+            raise ValueError('The ending must return to the phenomenon or product in the opening')
     return {'product_id': product['id'] if physical else product['product_id'], 'shots': len(shots), 'status': 'PLAN_VALIDATED_NOT_MEDIA_ACCEPTED'}
 
 

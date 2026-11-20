@@ -49,7 +49,7 @@ def match_policy(task, document):
     from .joint_timeline import enabled as joint
     if joint(task) != joint(document):
         raise ValueError('Joint timeline policy differs from task creation policy')
-    from .production_contract import enabled as science_contract
+    from .production_contract import version as science_contract
     if science_contract(task) != science_contract(document):
         raise ValueError('Production contract differs from task creation policy')
     if science_contract(task) and task.get('subject_kind') is not None and task['subject_kind'] != document.get('subject_kind','mechanical_implementation'):
@@ -188,6 +188,7 @@ def validate_plan(document):
     """Check the plan before committing to CAD or native rendering."""
     from .media_policy import enabled as asset_first, validate_document
     from . import joint_timeline as joint
+    from .production_contract import science_story
     hybrid = asset_first(document)
     shots = document['shots']
     if not isinstance(shots, list) or not shots:
@@ -216,8 +217,9 @@ def validate_plan(document):
             findings.append({'shot_id': sid, 'issue': 'reused_knowledge', 'review': shot['progression']['reason']})
         seen |= ids
         previous = shot
-    if not any(s['mechanical_role'] == 'core' for s in shots):
-        raise ValueError('Mechanical production requires at least one core Blender shot')
+    if not (science_story(document) and document.get('subject_kind') == 'physical_phenomenon'):
+        if not any(s['mechanical_role'] == 'core' for s in shots):
+            raise ValueError('Mechanical production requires an evidenced core action')
     from .knowledge_progression import enabled, validate_timeline
     if enabled(document):
         findings.extend(validate_timeline(shots))

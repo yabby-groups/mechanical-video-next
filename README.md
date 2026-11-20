@@ -1,10 +1,11 @@
 # Mechanical Video Next
 
-原创横屏科学与机械科普制作工具。当前 Codex 主会话作为唯一 Producer，
-沿用研究、资产/CAD、EAS/Blender、Neil、Remotion/FFmpeg 和独立 QA。
+制作「生活中的知识与科学原理」原创横屏科普。当前 Codex 主会话作为唯一
+Producer，从生活现象和科学问题出发，按题材选用真实影像、原创动画、
+信息图或三维制作，沿用独立 QA。
 
-**有效规则从 [生产契约](docs/production-contract.md) 开始。** 新任务显式使用
-`production_contract_version=1` / `mixed-original-v1`、媒体策略 1、视觉策略 2。
+**有效规则从 [生产契约](docs/production-contract.md) 开始。** 新建 topic-only
+任务默认使用 `science-story-v3`、媒体策略 1、视觉策略 2。
 逐镜头规划真实因果、原创科学/信息动画和合法补充素材；核心机械证据须为
 可核验原生 3D 或独立核实且获许可的真实机构影像。混合成片使用完整媒体
 来源清单，原生 3D 段保留自己的来源链。历史 3D-only 任务不自动升级。
@@ -22,9 +23,9 @@ uv run python -m mechanical_video_next produce --resume output/tasks/TASK
 uv run python -m mechanical_video_next continue output/tasks/TASK
 ```
 
-新任务以可靠知识和 Neil 实测音频决定 120–300 秒，1920×1080/30fps、H.264/AAC，
-单行字幕、3:4/4:3 封面及来源/QA/生产报告。没有视听能力时保留 UNKNOWN，
-技术制作可以推进，但不记录正式验收或 DELIVERED。不得注水、加速塞词、
+影片长度由完整的视听故事决定。正式交付使用 1920×1080/30fps、H.264/AAC、
+单行字幕、3:4/4:3 封面及来源、QA 和生产报告。独立创意评审通过后才进入
+正式渲染。没有视听能力时保留 UNKNOWN 和可复查的动态样片。不得注水、加速塞词、
 以静态卡替代动作、复制其他作者的独创脚本或完整镜头安排。禁止自动发布。
 
 `task.json` 是任务、版本、状态和交付的账本；研究保存精简 `science.facts`，
@@ -46,7 +47,7 @@ Stage 执行适用的研究、装配、机械、内容和动态分镜门禁；�
 科学镜头支持同源相机与跟随、剖切、隔离、轨迹、概念场线、状态驱动、
 共享时间映射、透明度和柔性带材轨道；不是通用物理求解器。
 Remotion 支持图表、公式、数据关键帧、双素材分屏、跟随标签和同源放大，
-来源、实际区间、许可证和合成输入均绑定哈希。现有品牌灰/金属风格保持一致。
+来源、实际区间、许可证和合成输入均绑定哈希。镜头语言、色彩和材质服务本集的科学问题。
 
 声称镜头改进的版本须比较实际 MP4 对应区间：
 

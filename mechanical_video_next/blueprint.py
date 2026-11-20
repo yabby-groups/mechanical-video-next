@@ -57,9 +57,9 @@ def validate(data):
             required -= {'narration', 'subtitles'}
         if not isinstance(s, dict) or not required <= s.keys():
             raise ValueError('Shot missing executable fields')
-        from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
+        from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy, creative_first
         if data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
-            validate_audience_copy(s)
+            validate_audience_copy(s, creative=creative_first(data))
         if any(not isinstance(s[k], str) or not s[k].strip() for k in
                ('shot_id', 'knowledge_goal', 'mechanical_action', 'asset', 'template')):
             raise ValueError('Shot identifiers and decisions must be nonempty strings')
@@ -125,7 +125,8 @@ def compile_config(blueprint, base, output, draft=False):
     if not draft:
         validate_creative_blueprint(data)
     result, shots, storyboard, mappings = copy.deepcopy(cfg), {}, [], []
-    from .production_contract import PRESENTATION_STYLE
+    from .production_contract import PRESENTATION_STYLE, science_story
+    story = science_story(data)
     if PRESENTATION_STYLE in data:
         result[PRESENTATION_STYLE] = data[PRESENTATION_STYLE]
     for s in data['shots']:
@@ -166,10 +167,14 @@ def compile_config(blueprint, base, output, draft=False):
                 configure_blender(shot)
         sid = s['shot_id']; shots[sid] = shot
         inherited = next((x for x in cfg.get('storyboard', []) if x['shot'] == key), {})
-        editor_fields = inherited | {k: s[k] for k in ('accent', 'formula', 'information') if visual and k in s}
+        editor_fields = dict(inherited)
+        if story:
+            for field in ('formula', 'information'):
+                editor_fields.pop(field, None)
+        editor_fields.update({k: s[k] for k in ('accent', 'formula', 'information') if visual and k in s})
         row = {k: copy.deepcopy(editor_fields[k]) for k in ('accent', 'formula', 'information') if k in editor_fields}
         words = joint.shot_narration(data, s)
-        row.update(id=sid, shot=sid, seconds=seconds, label=s['knowledge_goal'],
+        row.update(id=sid, shot=sid, seconds=seconds, label='' if story else s['knowledge_goal'],
                    note=' / '.join(s['overlays']), narration=words,
                    subtitles=words if shared else s['subtitles'])
         row.setdefault('accent', '#8dc4dc'); storyboard.append(row)

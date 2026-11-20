@@ -33,10 +33,12 @@ REFERENCE_ONLY. Core motion requires inspectable native 3D or independently
 observed lawful real-mechanism footage. Mixed output has complete independent media
 provenance and cannot claim historical 3D-only acceptance.
 
-Keep Neil, measured audio, 120–300 s knowledge-supported length, 1920×1080/30,
-brand consistency and phone-readable single-line subtitles. Never pad or force
-speed changes. Full dynamic animatic precedes formal rendering. UNKNOWN sensory
-QA permits supported workprints, never formal acceptance. Full film/audio review
+Keep measured Neil speech where authored, 1920×1080/30 and phone-readable
+single-line subtitles. For science-story v3, the Producer chooses the visual
+language and length from the subject and tests the complete moving edit before
+committing production assets. Science evidence and creative review are separate.
+Independent creative PASS on the exact animatic precedes formal rendering.
+UNKNOWN sensory QA remains valid for draft experiments. Full film/audio review
 and continuous key actions are required; images/tests/ASR/loudness do not replace
 watching/listening. Deliver actual MP4, both covers, sources/provenance, independent
 QA and production/growth reports before record-delivery. No publication or drafts.

@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from mechanical_video_next import media_policy as m
-from mechanical_video_next.visual_narrative import match_policy, validate_design
+from mechanical_video_next.visual_narrative import match_policy, validate_design, validate_plan
 from mechanical_video_next.workflow import create_task, load, producer_prompt
 from tests.test_visual_narrative import shot
 
@@ -109,12 +109,28 @@ class MediaPolicyTests(unittest.TestCase):
             new = load(create_task('New topic', root=Path(tmp), task_id='new',
                                    visual_policy_version=2, media_policy_version=1))
             self.assertTrue(m.enabled(new))
-            self.assertEqual(new['production_method'],'asset-first-hybrid')
+            self.assertEqual(new['production_method'], 'science-story')
+            self.assertEqual(new['production_contract_version'], 3)
+            v2 = load(create_task('Pinned v2', root=Path(tmp), task_id='v2',
+                                  visual_policy_version=2, media_policy_version=1, contract_version=2))
+            self.assertEqual(v2['production_method'], 'asset-first-hybrid')
+            self.assertEqual(v2['production_contract_version'], 2)
             self.assertIn('REFERENCE_ONLY', producer_prompt(new, Path(tmp)))
             with self.assertRaisesRegex(ValueError, 'creation policy'):
                 match_policy(new, {'visual_policy_version':2,'knowledge_progression_version':1})
             with self.assertRaisesRegex(ValueError, 'explicit visual policy 2'):
                 create_task('Bad legacy upgrade', root=Path(tmp),task_id='bad',media_policy_version=1)
+
+    def test_physical_story_can_have_no_mechanical_shots(self):
+        document = dict(visual_policy_version=2, media_policy_version=1,
+                        production_contract_version=3, production_contract='science-story-v3',
+                        subject_kind='physical_phenomenon', shots=[self.row()])
+        validate_plan(document)
+        with self.assertRaisesRegex(ValueError, 'core action'):
+            validate_plan(document | {'subject_kind': 'mechanical_implementation'})
+        with self.assertRaisesRegex(ValueError, 'core action'):
+            validate_plan(document | {'production_contract_version': 2,
+                                      'production_contract': 'creative-first-v2'})
 
     def test_reuse_native_graphic_requires_exact_definition(self):
         row = self.row()

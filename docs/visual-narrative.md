@@ -27,7 +27,9 @@ uv run python -m mechanical_video_next produce --topic '修正带为什么能收
 
 Producer 根据研究结果选择表达方式和已验证的素材。CLI 建账并写入现有 Producer 指令，由当前 Codex 会话执行研究和制作。纯现象可以使用数学或概念模板讲解，正式制作仍受现有具体产品、机构模型及 3D 核心门禁约束。
 
-## 先研究，再选镜头
+## 先确定观众会发现什么
+
+新混合任务默认使用 `creative-first-v2`。研究先用受众在生活中见过的现象提出一个可回答的问题。记录哪一点出乎意料、观众能看到什么变化、要记住哪个科学结论、哪部分需要 3D、还有哪些形式适合其他镜头，以及素材是否可得和为何需要这段时长。写入研究 `audience_decision` 后再选材和建模。Blueprint 用具体镜头绑定生活开场与视觉回报。连续三段以上的内部机构视图需要导演说明其因果连贯性的价值。动态预览以实际媒体和时间码评审，对不清楚的镜头提出具体替换方案。
 
 在现有 `research` 交接写 `visual_research`。八个键为 `use_context`、`common_misconception`、`science_question`、`causal_relationship`、`comparison`、`technical_background`、`structure_to_phenomenon`、`everyday_conclusion`。可用信息用 `SUPPORTED`、`finding`、`evidence`；其余用 `UNKNOWN` 或 `NOT_APPLICABLE` 并记录原因。依据记录文件路径、SHA256 和实际查看位置。先在 `visual_plan` 附待冻结的 Blueprint 镜头行，确定要展示的知识、动作和所需资产，再选用装配或开始 CAD。
 

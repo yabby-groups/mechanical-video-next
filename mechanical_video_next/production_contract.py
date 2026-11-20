@@ -9,6 +9,12 @@ from .visual_narrative import located, nonempty
 
 FIELD = 'production_contract_version'
 NAME = 'mixed-original-v1'
+CREATIVE_FIRST_VERSION = 2
+CREATIVE_FIRST_NAME = 'creative-first-v2'
+STORY_VERSION = 3
+STORY_NAME = 'science-story-v3'
+CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME}
+CREATIVE_DURATION = (1 / 30, 300)
 PRESENTATION_STYLE = 'presentation_style'
 NATURAL_SCIENCE = 'natural_science'
 PRODUCTION_LABELS = frozenset({
@@ -21,6 +27,17 @@ CLASSROOM_OPENINGS = (
     '下面我们来学习', '接下来进行原理演示', '这里使用一个教学模型',
     '如动画所示', '这个示意图告诉我们', '现在我们介绍它的工作原理',
 )
+CREATIVE_OPENINGS = CLASSROOM_OPENINGS + (
+    '首先介绍', '接下来我们来看', '下面分析工作原理', '现在进入第二阶段', '综上所述',
+)
+AUDIENCE_DECISION = ('daily_context', 'opening_visual', 'viewer_takeaway', 'selection_rationale')
+CREATIVE_DECISION = AUDIENCE_DECISION + (
+    'question', 'surprise', 'scientific_discovery', 'essential_3d', 'other_visuals',
+    'material_feasibility', 'length_rationale',
+)
+CREATIVE_CHECKS = {
+    'opening', 'visual_tasks', 'pace', 'everyday_connection', 'voice_and_sound', 'payoff',
+}
 
 
 def audience_caption(text):
@@ -29,9 +46,10 @@ def audience_caption(text):
                       if part and part.strip(' ／/。') not in PRODUCTION_LABELS)
 
 
-def validate_audience_copy(row):
+def validate_audience_copy(row, *, creative=False):
+    openings = CREATIVE_OPENINGS if creative else CLASSROOM_OPENINGS
     for line in row.get('narration', []):
-        if line.lstrip().startswith(CLASSROOM_OPENINGS):
+        if line.lstrip().startswith(openings):
             raise ValueError(f'Rewrite classroom narration as a concrete scientific observation: {line}')
     graphic = row.get('graphic', {})
     science = row.get('science', {})
@@ -57,15 +75,38 @@ REVIEW_METHODS = {
 }
 
 
-def enabled(document):
+def version(document):
     version = document.get(FIELD, 0)
-    if type(version) is not int or version not in {0, 1}:
+    names = CONTRACT_NAMES
+    if type(version) is not int or version not in {0, *names}:
         raise ValueError('Unsupported production contract version')
-    if version == 1 and (document.get('production_contract') != NAME
+    if version and (document.get('production_contract') != names[version]
             or document.get('media_policy_version') != 1
             or document.get('visual_policy_version') != 2):
-        raise ValueError('mixed-original-v1 needs matching explicit policy versions')
-    return version == 1
+        raise ValueError('Mixed production needs matching explicit policy versions')
+    return version
+
+
+def enabled(document):
+    return bool(version(document))
+
+
+def creative_first(document):
+    return version(document) >= CREATIVE_FIRST_VERSION
+
+
+def science_story(document):
+    return version(document) == STORY_VERSION
+
+
+def validate_audience_decision(decision, *, creative=False, story=False):
+    fields = CREATIVE_DECISION if creative else AUDIENCE_DECISION
+    if story:
+        fields = tuple(field for field in CREATIVE_DECISION if field not in {'essential_3d', 'other_visuals'})
+        fields += ('visual_approach',)
+    if not isinstance(decision, dict) or not all(nonempty(decision.get(key)) for key in fields):
+        raise ValueError('Audience decision needs concrete choices about the question, visuals and takeaway'
+                         if creative else 'Audience decision needs a daily context, opening visual, takeaway and selection rationale')
 
 
 def validate_research(research):
@@ -109,24 +150,67 @@ def validate_direction(blueprint, research=None):
     narrative = blueprint.get('narrative', {})
     if not all(nonempty(narrative.get(k)) for k in ('question', 'tension', 'answer', 'arc_reason')):
         raise ValueError('Original question, tension, answer and chosen narrative arc required')
-    if 'audience_decision' in narrative:
-        decision = narrative['audience_decision']
-        if (not isinstance(decision, dict) or not all(nonempty(decision.get(key)) for key in
-                ('daily_context', 'opening_visual', 'viewer_takeaway', 'selection_rationale'))):
-            raise ValueError('Audience decision needs a daily context, opening visual, takeaway and selection rationale')
+    creative = creative_first(blueprint)
+    if creative or 'audience_decision' in narrative:
+        decision = narrative.get('audience_decision')
+        validate_audience_decision(decision, creative=creative, story=science_story(blueprint))
         shots = blueprint['shots']
         if (not shots or decision.get('opening_shot_id') != shots[0]['shot_id']
                 or decision.get('payoff_shot_id') not in {shot['shot_id'] for shot in shots}):
             raise ValueError('Audience decision must bind the first shot and a payoff shot')
+        if creative:
+            if decision['payoff_shot_id'] == decision['opening_shot_id'] or decision['question'] != narrative['question']:
+                raise ValueError('Bind the same everyday question to distinct opening and payoff actions')
+            if research is not None and decision['question'] != research.get('audience_decision', {}).get('question'):
+                raise ValueError('A changed audience question needs updated research')
     facts = validate_research(research) if research is not None else None
+    mechanism_run = []
     for shot in blueprint['shots']:
         direction = shot.get('direction', {})
         if not DIRECTION <= direction.keys() or not all(nonempty(direction[k]) for k in DIRECTION):
             raise ValueError('Each shot requires visual rationale, composition, light, continuity and sound intent')
+        if creative:
+            if shot.get('visual_type') in {'exploded_view', 'mechanical_cutaway', 'annotated_detail'} or (
+                    shot.get('visual_type') == 'micro_principle' and shot.get('mechanical_role') == 'core'):
+                mechanism_run.append(direction)
+                if len(mechanism_run) >= 3 and not nonempty(mechanism_run[0].get('continuous_mechanism_reason')):
+                    raise ValueError('Explain why this uninterrupted chain of mechanism shots is needed')
+            else:
+                mechanism_run.clear()
         if facts is not None:
             for identity in shot['knowledge_ids']:
                 if identity not in facts or facts[identity]['status'] != 'VERIFIED':
                     raise ValueError('Unsupported fact restricts its dependent shot: ' + identity)
+
+
+def validate_creative_review(report, film_hashes, *, acceptance, whole_edit=False):
+    """Record the review of a real moving edit. Capability UNKNOWN stays UNKNOWN."""
+    review = report.get('creative_review', {})
+    if not isinstance(review, dict) or set(review) != CREATIVE_CHECKS:
+        raise ValueError('Independent creative review must address all six film questions')
+    for key, item in review.items():
+        if not isinstance(item, dict):
+            raise ValueError(f'Creative observation must be an object: {key}')
+        status = item.get('status')
+        interval = item.get('time_range')
+        if (status not in {'PASS', 'FAIL', 'UNKNOWN'}
+                or item.get('media_sha256') not in film_hashes
+                or not isinstance(interval, list) or len(interval) != 2
+                or not all(isinstance(t, (int, float)) and not isinstance(t, bool) and math.isfinite(t) for t in interval)
+                or not 0 <= interval[0] < interval[1] <= film_hashes[item['media_sha256']] + .001
+                or not nonempty(item.get('observation')) or not nonempty(item.get('capability_boundary'))):
+            raise ValueError(f'Creative review needs a concrete observation bound to film and time: {key}')
+        methods = ({'continuous_audio', 'continuous_audiovisual'} if key == 'voice_and_sound'
+                   else {'continuous_video', 'continuous_audiovisual'})
+        if status == 'PASS' and item.get('method') not in methods:
+            raise ValueError(f'Creative PASS requires appropriate continuous viewing/listening: {key}')
+        if (whole_edit and status == 'PASS' and key in {'pace', 'visual_tasks', 'voice_and_sound'}
+                and (interval[0] > .001 or interval[1] < film_hashes[item['media_sha256']] - .001)):
+            raise ValueError(f'Creative review must cover the whole edit: {key}')
+        if status == 'FAIL' and not nonempty(item.get('alternative')):
+            raise ValueError(f'A creative defect needs a concrete alternative: {key}')
+        if acceptance and status != 'PASS':
+            raise ValueError(f'Creative review remains {status}: {key}')
 
 
 def validate_qa(report, media, *, acceptance, blueprint=None):

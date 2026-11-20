@@ -41,7 +41,7 @@ def prepare(task, script, env_file=None):
     sys.path.insert(0,str(ROOT/'scripts'))
     from narration import effective_profile, load_env, sentence, synthesize_shot
     from .workflow import load
-    from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
+    from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy, creative_first
     data=load(task)
     script=Path(script)
     content=json.loads(script.read_text())
@@ -53,7 +53,7 @@ def prepare(task, script, env_file=None):
             raise ValueError('The task requires a joint Blueprint timeline')
         plan = joint_timeline.validate(content['timeline'], content.get('shots'))
         for segment in plan['narration']:
-            validate_audience_copy({'narration': [segment['text']]})
+            validate_audience_copy({'narration': [segment['text']]}, creative=True)
         load_env(env_file)
         profile = effective_profile({'narration_profile': 'config/narration-neil.json'})
         if profile['voice'] != 'Neil' or profile['target_speed'] != 1:
@@ -69,7 +69,7 @@ def prepare(task, script, env_file=None):
         raise ValueError('Unique original script chapters required')
     if data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
         for chapter in chapters:
-            validate_audience_copy(chapter)
+            validate_audience_copy(chapter, creative=creative_first(data))
     load_env(env_file)
     profile=effective_profile({'narration_profile':'config/narration-neil.json'})
     rows=[]; cursor=0

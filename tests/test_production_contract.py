@@ -9,6 +9,20 @@ from mechanical_video_next.workflow import create_task, load, producer_prompt
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_science_story_checks_the_whole_edit_and_preserves_v2_review(self):
+        report = {'creative_review': {key: dict(status='PASS', media_sha256='cut', time_range=[0, 4],
+                           method='continuous_audiovisual', observation='Observed visual and audio progression',
+                           capability_boundary='Exact animatic') for key in c.CREATIVE_CHECKS}}
+        c.validate_creative_review(report, {'cut': 24}, acceptance=True)
+        with self.assertRaisesRegex(ValueError, 'whole edit'):
+            c.validate_creative_review(report, {'cut': 24}, acceptance=True, whole_edit=True)
+        for key in ('pace', 'visual_tasks', 'voice_and_sound'):
+            report['creative_review'][key]['time_range'] = [0, 24]
+        c.validate_creative_review(report, {'cut': 24}, acceptance=True, whole_edit=True)
+        report['creative_review']['payoff']['status'] = 'UNKNOWN'
+        with self.assertRaisesRegex(ValueError, 'remains UNKNOWN'):
+            c.validate_creative_review(report, {'cut': 24}, acceptance=True, whole_edit=True)
+
     def test_compose_filters_only_natural_fullframe_labels_and_preserves_credits(self):
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
@@ -88,7 +102,8 @@ class ProductionContractTests(unittest.TestCase):
 
     def test_new_hybrid_pins_contract_and_legacy_keeps_original(self):
         with tempfile.TemporaryDirectory() as folder:
-            task = create_task('Why?', root=folder, task_id='mixed', visual_policy_version=2, media_policy_version=1)
+            task = create_task('Why?', root=folder, task_id='mixed', visual_policy_version=2,
+                               media_policy_version=1, contract_version=1)
             data = load(task)
             self.assertTrue(c.enabled(data))
             self.assertIn('mixed-original-v1', producer_prompt(data,task))
@@ -96,6 +111,56 @@ class ProductionContractTests(unittest.TestCase):
             self.assertFalse(c.enabled(legacy))
             data['media_policy_version']=0
             with self.assertRaises(ValueError): c.enabled(data)
+
+    def test_creative_first_duration_and_blueprint_cannot_migrate_v1(self):
+        from mechanical_video_next.growth import duration_bounds
+        from mechanical_video_next.visual_narrative import match_policy
+        with tempfile.TemporaryDirectory() as folder:
+            options = dict(root=folder, visual_policy_version=2, media_policy_version=1)
+            path = create_task('Why?', 64, task_id='creative', **options)
+            current = load(path)
+            historic = load(create_task('Why?', 120, task_id='historic', contract_version=1, **options))
+            self.assertTrue(c.creative_first(current))
+            self.assertEqual(duration_bounds(current), (1 / 30, float('inf')))
+            self.assertIsNone(current['duration_policy']['maximum'])
+            self.assertEqual(duration_bounds(historic), (120, 300))
+            self.assertIn('visual story', producer_prompt(current, path))
+            with self.assertRaisesRegex(ValueError, 'creation policy'):
+                match_policy(historic, current)
+            with self.assertRaises(ValueError):
+                create_task('Why?', 64, task_id='short-v1', contract_version=1, **options)
+
+    def test_creative_direction_requires_daily_question_and_long_mechanism_run_reason(self):
+        question = 'Why does the liquid rise?'
+        decision = {key: 'Specific choice' for key in c.CREATIVE_DECISION}
+        decision.update(question=question, opening_shot_id='sink', payoff_shot_id='return')
+        shots = [dict(shot_id=key, visual_type=kind, direction={field: 'Concrete' for field in c.DIRECTION})
+                 for key, kind in [('sink', 'product_exterior'), ('reveal', 'mechanical_cutaway'),
+                                   ('valve', 'annotated_detail'), ('exit', 'mechanical_cutaway'),
+                                   ('return', 'everyday_return')]]
+        plan = dict(production_contract_version=2, production_contract=c.CREATIVE_FIRST_NAME,
+                    media_policy_version=1, visual_policy_version=2, shots=shots,
+                    narrative=dict(question=question, tension='Opposite directions', answer='Two phases',
+                                   arc_reason='Same bottle', audience_decision=decision))
+        with self.assertRaisesRegex(ValueError, 'uninterrupted'):
+            c.validate_direction(plan)
+        shots[1]['direction']['continuous_mechanism_reason'] = 'Follow one liquid path through both valves'
+        c.validate_direction(plan)
+        decision['opening_visual'] = ''
+        with self.assertRaisesRegex(ValueError, 'Audience decision'):
+            c.validate_direction(plan)
+
+    def test_sampled_creative_review_can_record_unknown_only(self):
+        sample = dict(status='UNKNOWN', method='sampled_frames', media_sha256='film',
+                      time_range=[0, 2], observation='Opening action appears in one sample',
+                      capability_boundary='No continuous video or audio')
+        report = {'creative_review': {key: dict(sample) for key in c.CREATIVE_CHECKS}}
+        c.validate_creative_review(report, {'film': 3}, acceptance=False)
+        with self.assertRaisesRegex(ValueError, 'UNKNOWN'):
+            c.validate_creative_review(report, {'film': 3}, acceptance=True)
+        report['creative_review']['opening']['status'] = 'PASS'
+        with self.assertRaisesRegex(ValueError, 'continuous'):
+            c.validate_creative_review(report, {'film': 3}, acceptance=False)
 
     def test_unknown_fact_is_local_and_cannot_enter_dependent_shot(self):
         with tempfile.TemporaryDirectory() as folder:

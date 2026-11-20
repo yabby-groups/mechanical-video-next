@@ -109,6 +109,9 @@ def duration_bounds(data):
     from .joint_timeline import enabled as joint
     if joint(data):
         return 1 / 30, math.inf
+    from .production_contract import creative_first, CREATIVE_DURATION
+    if creative_first(data):
+        return CREATIVE_DURATION
     override = data.get('duration_policy_override')
     if override is None:
         return 120, 300

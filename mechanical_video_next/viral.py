@@ -242,16 +242,20 @@ def validate_reference_recreation(blueprint, research):
 
 
 def validate_creative_blueprint(payload):
+    from .production_contract import science_story
+    fields = BLUEPRINT_FIELDS
+    if science_story(payload):
+        fields = fields - {'disassembly_order', 'reference_principles'}
     if payload.get('content_policy_version') == 1 or payload.get('growth_policy_version') == 2:
         from .growth import validate_contract
         validate_contract(payload)
-    if payload.get('status') != 'FROZEN' or not BLUEPRINT_FIELDS <= payload.keys():
+    if payload.get('status') != 'FROZEN' or not fields <= payload.keys():
         raise ValueError('Complete FROZEN blueprint required')
-    if any(payload.get(k) in (None, '', [], {}) for k in BLUEPRINT_FIELDS):
+    if any(payload.get(k) in (None, '', [], {}) for k in fields):
         raise ValueError('Blueprint field lacks an executable decision')
     first = payload['first_motion_seconds']
     if isinstance(first, bool) or not isinstance(first, (int, float)) or not math.isfinite(first) or first < 0:
-        raise ValueError('First mechanical motion needs a finite time')
+        raise ValueError('First visible motion needs a finite time')
     end = 0
     shot_ids = set()
     for s in payload['shots']:
@@ -276,7 +280,7 @@ def validate_creative_blueprint(payload):
         raise ValueError('Blueprint duration must match actual shot timeline')
     mapped = {'production_requirement', 'shot_ids', 'expected_observable_effect',
               'verification_method', 'minimal_repair', 'decision_basis', 'implementation_cost'}
-    for p in payload['reference_principles']:
+    for p in payload.get('reference_principles', []):
         if not p.get('reference_id') or not p.get('principle') or not evidence_exists(p.get('evidence')):
             raise ValueError('Observed transferable principle evidence required')
         if not mapped <= p.keys() or any(p[k] in (None, '', [], {}) for k in mapped):
@@ -290,11 +294,14 @@ def validate_creative_blueprint(payload):
             raise ValueError('QA requirement refers to nonexistent shot')
 
 
-def plan(topic, observed_at=None):
+def plan(topic, observed_at=None, *, creative=False):
     stamp = date(observed_at) if observed_at else datetime.now(timezone.utc)
-    terms = [('A', term) for term in [topic, topic+' 工作原理', topic+' 拆解',
+    terms = [('A', term) for term in ([topic, topic+' 日常使用', topic+' 使用时的现象',
+                                     topic+' 常见误解', topic+' 对比实验', topic+' 微距',
+                                     topic+' 工作原理', topic+' 剖面图'] if creative else
+                                    [topic, topic+' 工作原理', topic+' 拆解',
                                      topic+' 实物演示', topic+' 厂家演示', topic+' 原理动画',
-                                     topic+' 结构图', topic+' 剖面图']]
+                                     topic+' 结构图', topic+' 剖面图'])]
     if '拉链' in topic or 'zipper' in topic.lower():
         terms += [('A', '拉链链牙啮合'), ('A', 'zipper mechanism animation'),
                   ('B', '啮合 锁止 导向 机构 微距 原理')]
@@ -317,7 +324,7 @@ def plan(topic, observed_at=None):
             'source_policy': 'Inspect actual product use and teardown first; verify product/model identity and exact observed intervals or regions. Prefer licensed correct media, then verified assemblies, then evidence-based teaching models. Patents do not prove all market products share one mechanism.',
             'growth_policy_version': 2,
             'growth_objectives': ['retention', 'like', 'save', 'comment', 'follow'],
-            'cache_key': hashlib.sha256(json.dumps(['v4-real-product-five-growth-goals', topic, stamp.date().isoformat(), WEIGHTS, REFERENCE_MIX, 30, 10], sort_keys=True).encode()).hexdigest(),
+            'cache_key': hashlib.sha256(json.dumps(['v5-creative-first' if creative else 'v4-real-product-five-growth-goals', topic, stamp.date().isoformat(), WEIGHTS, REFERENCE_MIX, 30, 10], sort_keys=True).encode()).hexdigest(),
             'cache_policy': 'Reuse dated evidence; refresh live metrics before new qualification. No automatic network requests.'}
 
 
@@ -325,10 +332,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest='command', required=True)
     p = sub.add_parser('plan'); p.add_argument('--topic', required=True); p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--production-contract', type=int, choices=(1, 2), default=2)
     p = sub.add_parser('analyze'); p.add_argument('--input', type=Path, required=True); p.add_argument('--output', type=Path, required=True)
     a = ap.parse_args()
     if a.command == 'plan':
-        data = plan(a.topic); save(a.output/'search-plan.json', data)
+        data = plan(a.topic, creative=a.production_contract == 2); save(a.output/'search-plan.json', data)
     else:
         data = analyze(json.loads(a.input.read_text()))
         save(a.output/'viral-analysis.json', data)

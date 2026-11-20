@@ -19,9 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
          'MechanicalResearch': {'research', 'reference-to-model'}, 'CAD': {'cad-model', 'asset-plan'},
          'ViralResearch': {'viral-analysis', 'creative-blueprint'},
-         'Producer': {'feasibility', 'diagnostic-animatic'},
+         'Producer': {'feasibility', 'diagnostic-animatic', 'creative-blueprint'},
          'Animation': {'animation-manifest', 'animatic-manifest', 'mechanical-diagnostics'},
-         'Editor': {'timeline', 'audio-preparation'},
+         'Editor': {'timeline', 'audio-preparation', 'animatic-manifest'},
          'QA': {'preview-qa', 'final-qa', 'content-qa', 'reference-model-qa', 'animatic-qa', 'diagnostic-qa', 'mechanical-qa', 'hd-workprint-qa'}}
 NEXT = {'CREATED': 'RESEARCHING', 'RESEARCHING': 'ASSET_READY',
         'ASSET_READY': 'ANIMATING', 'ANIMATING': 'PREVIEW_READY',
@@ -51,6 +51,12 @@ def active_media_repair(data, *, final=False):
             and data.get('repair_return_state') in ({'EDITING', 'FINAL_CHECKING'} if final else NEXT)
             and any(row.get('issue_ids') and not row.get('stopped', False)
                     for row in data.get('repairs', {}).values()))
+
+
+def reference_model_required(data):
+    from .comprehension import phenomenon
+    from .production_contract import science_story
+    return data.get('reference_model_policy_version') == 1 and not (science_story(data) and phenomenon(data))
 
 
 AUTONOMY_POLICY = {
@@ -203,6 +209,9 @@ def require_source_supported_render(task, config=None):
         raise ValueError('Scoped mechanical evidence gates do not authorize editorial media')
     scoped_film = (cfg.get('production_scope') == 'source-supported-film'
                    and cfg.get('shot_evidence_version') == 1 and data.get('shot_production'))
+    from .production_contract import science_story
+    if cfg.get('production_scope') == 'source-supported-film' and science_story(data):
+        raise ValueError('A full science-story render requires the regular dynamic animatic gate')
     if cfg.get('production_scope') == 'verified-shots' or scoped_film:
         require_current_scheme(data)
         from .three_d import validate_config
@@ -353,7 +362,9 @@ def complete_media(data, media, final=True):
     audio = [row for row in info['streams'] if row.get('codec_type') == 'audio']
     duration = float(video.get('duration', info.get('format', {}).get('duration', 0)))
     policy = data.get('duration_policy') or {'minimum': 30, 'maximum': 45}
-    if not math.isfinite(duration) or not policy['minimum'] - 1 / 30 <= duration <= policy['maximum'] + 1 / 30:
+    maximum = policy['maximum']
+    if (not math.isfinite(duration) or duration < policy['minimum'] - 1 / 30
+            or (maximum is not None and duration > maximum + 1 / 30)):
         raise ValueError('Full media duration outside task policy: ' + str(duration))
     if not audio or float(audio[0].get('duration', info.get('format', {}).get('duration', 0))) < duration - 0.1:
         raise ValueError('Complete narration audio stream required')
@@ -651,10 +662,19 @@ def continuation(task, persist=True):
         sequence[2:2] = [('cad-model', 'CAD', 'Register the reference-matched model and dimensional approximations'),
                          ('mechanical-diagnostics', 'Animation', 'Validate input, transmission, output and return motion'),
                          ('mechanical-qa', 'QA', 'Independently compare reference, CAD, motion and visible mechanism')]
+    from .production_contract import science_story
+    if science_story(data):
+        sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
+        sequence.insert(1, ('diagnostic-animatic', 'Producer', 'Draft and play the complete low-cost visual story before committing to assets'))
+        sequence = [(name, 'Producer', 'Own the visual story and lock picture/action before measured dialogue')
+                    if name == 'creative-blueprint' else
+                    (name, 'Editor', 'Shape the complete picture, timing, dialogue, music and effects')
+                    if name == 'animatic-manifest' else (name, owner, action)
+                    for name, owner, action in sequence]
     if data.get('reference_policy_version') == 1:
         index = next(i for i, row in enumerate(sequence) if row[0] == 'feasibility')
         sequence.insert(index, ('content-qa', 'QA', 'Verify complete evidence-to-model-to-shot mapping before expensive rendering'))
-    if data.get('reference_model_policy_version') == 1:
+    if reference_model_required(data):
         index = next((i for i, row in enumerate(sequence) if row[0] == 'content-qa'), 2)
         sequence.insert(index, ('reference-model-qa', 'QA', 'Verify part-level references, model, constraints and depicted motion'))
     missing = [dict(handoff=name, owner=owner, action=action)
@@ -916,14 +936,61 @@ def record_delivery(task, files, reason):
 
 def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
-    from .production_contract import enabled as science_contract
+    from .production_contract import enabled as science_contract, creative_first, science_story
     if science_contract(data):
+        creative = creative_first(data)
+        approach = (
+            'Start with a recognizable daily event, a real question and a visible discovery. '
+            'Research tests the question and exact mechanism while exploring ways to show the answer. '
+            'Put the audience decision in research before choosing assets or authoring CAD. '
+            'Develop the original visual story and then write the dialogue. Prioritize lawfully owned '
+            'real use or product exterior, matching licensed supporting footage, and targeted original 3D or '
+            'information animation according to the scene. Record missing materials and credible substitutes. '
+            'Require independent opening, visual-task, pace, everyday-link, voice/sound and payoff '
+            'review on the entire measured dynamic animatic before HD. Reviewer findings need timecodes '
+            'and a specific replacement for each defect.'
+            if creative else 'Execute research -> original script -> visual direction -> lawful assets.')
+        from .joint_timeline import enabled as joint_timing
+        if science_story(data):
+            return f'''You are the sole native Codex Producer for {identity}: {topic}.
+Task: {task}. Read docs/production-contract.md and the current ledger. Your series
+is about life and science, including phenomena, nature, materials and inventions.
+Own the creative decision yourself. Start with a familiar event, a surprising
+observable change and a specific discovery the viewer can take away. Choose the
+visual language by what best reveals the cause. Compare an alternative in the
+audience decision. Use the research-bound diagnostic-animatic for an inexpensive
+moving edit of the complete story before committing to a production method.
+Research owns facts and content value. Asset owns matching and rights. Use CAD
+and Animation where the picture needs spatial geometry or verified mechanism
+motion. Editor co-authors the picture/action/sound rhythm with you, including
+silence, speech across cuts and a visual payoff. Use measured Neil for authored
+speech on the joint timeline. Let the story set the duration.
+Build the audience copy intentionally from the story. Keep model provenance,
+identifiers, engineering details and QA in internal evidence. Explain material
+limits in plain language and preserve required credits. Validate each science
+claim and exact implementation where relevant. Core mechanical actions need
+inspectable 3D or exact continuously observed footage with verified rights.
+Third-party research media defaults to REFERENCE_ONLY. Check actual reuse rights.
+Use the existing roles, handoffs, cache, stage lock and media provenance. The 3d
+route name is compatibility only. Independent QA evaluates the full moving edit
+and judges creative quality separately from science and technical correctness.
+Keep formal rendering pending until the exact animatic passes creative review.
+Revise the visual story when the evidence warrants it. Final acceptance still
+requires the exact full film and sound, science, rights, both covers and existing
+delivery reports. Preserve historical assets and tasks. No platform writes.
+'''
+        duration_instruction = ('Author picture cuts and source-bound action windows first. Place measured Neil '
+                                'utterances on one continuous track independent of the cuts. Revise overflowing speech '
+                                'or explicitly re-edit the picture; keep meaningful observation time. '
+                                'Freeze the joint timeline after the dynamic animatic review.'
+                                if joint_timing(data) else 'Use measured Neil audio and the story to set duration.'
+                                if creative else 'Use measured Neil audio to determine knowledge-supported 120–300 s.')
         return f'''You are the sole native Codex Producer for {identity}: {topic}.
 Task: {task}. Read docs/production-contract.md as the effective contract, then only
-the applicable role/tool details. This task explicitly uses mixed-original-v1;
+the applicable role/tool details. This task explicitly uses {data['production_contract']};
 the compatible route remains 3d, but do not claim mixed media is 3D-only.
-Execute research -> original script -> visual direction -> lawful assets -> measured
-Neil audio/full dynamic animatic -> supported shots -> full composition -> independent
+{approach}
+Use measured Neil audio/full dynamic animatic -> supported shots -> full composition -> independent
 six-dimension exact-media QA -> scoped repair -> complete delivery. Use the current
 native agents and role TOML routing with compact hash-bound assignments. No second
 Producer, scheduler, extra agents or platform writes. Native reasoning remains your
@@ -945,7 +1012,7 @@ Other creators default to REFERENCE_ONLY and cannot be composited without verifi
 Use real 3D or independently verified licensed actual mechanism footage for core actions,
 and original scientific/information animation for explanation. Keep native 3D provenance
 and separate complete mixed-media provenance. Bind the compiled config and all handoffs.
-Use measured Neil audio to determine knowledge-supported 120–300 s; no padding, repeated
+{duration_instruction} No padding, repeated
 shots, forced speed changes or static cards standing in for motion. Gray/metal brand,
 phone-readable single-line subtitles, 1920x1080/30 and both covers remain required.
 Keep Blender serial under existing stage lock, work <=2 GiB/free disk >=3 GiB, per-shot
@@ -980,9 +1047,10 @@ cache and failure evidence; no upload/publication. Token/cost without telemetry 
     if data.get('presentation_style') == 'natural_science':
         visual_guidance += (
             ' Author presentation_style=natural_science in the Blueprint before binding QA. '
-            'Turn research claims into observable questions and direct causal narration. '
-            'Keep source scope and model assumptions in internal records. Explain consequential limitations '
-            'in ordinary language, and reserve screen text for parts, quantities, conditions and credits. '
+            'Open with an everyday question and use visible motion to explain its cause. Introduce terms '
+            'after explaining the relationship in ordinary language. Keep source scope and model assumptions '
+            'in internal records. Speak consequential limitations plainly. Use subtitles for narration, and '
+            'show part names, quantities, conditions and credits only when they serve the scene. '
             'Independent final QA checks actual visible titles, Blender marks, labels and subtitles, then '
             'listens for classroom phrasing, subtitle alignment and accurate model boundaries. Record UNKNOWN '
             'when actual viewing or listening is unavailable.'
@@ -1108,8 +1176,9 @@ def sync_producer_prompt(task, data):
 
 def create_task(topic, duration=None, voice=None, config=None, task_id=None, root=ROOT,
                 protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1,
-                media_policy_version=0, presentation_style='natural_science'):
-    from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE
+                media_policy_version=0, presentation_style='natural_science', contract_version=None):
+    from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
+                                      CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION, CREATIVE_DURATION)
     if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
         raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
@@ -1120,6 +1189,12 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     hybrid = asset_first({FIELD: visual_policy_version, MEDIA_FIELD: media_policy_version})
     if hybrid and protocol_version != 2:
         raise ValueError('Asset-first media is only available for new protocol 2 tasks')
+    if contract_version is not None and (not hybrid or config or type(contract_version) is not int
+                                         or contract_version not in CONTRACT_NAMES):
+        raise ValueError('Explicit mixed production contract requires a new topic-only hybrid task')
+    if hybrid and not config and contract_version is None:
+        contract_version = STORY_VERSION
+    creative = contract_version in (CREATIVE_FIRST_VERSION, STORY_VERSION)
     if asset_strategy == 'illustrated':
         raise ValueError('3D-only production rejects illustrated assets')
     progression = visual_policy_version == VERSION
@@ -1138,10 +1213,15 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if version({FIELD: visual_policy_version}) == VERSION and protocol_version != 2:
         raise ValueError('Visual production needs protocol 2')
     minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else (120, 300)
+    if creative:
+        minimum_duration, maximum_duration = CREATIVE_DURATION[0], None
     if duration is None:
         duration = 45 if protocol_version == 1 else None
-    if not topic.strip() or (duration is not None and (isinstance(duration, bool) or not isinstance(duration, (int, float)) or not minimum_duration <= duration <= maximum_duration)):
-        raise ValueError(f'Nonempty topic and duration {minimum_duration}–{maximum_duration} required for protocol {protocol_version}')
+    if not topic.strip() or (duration is not None and (
+            isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration)
+            or duration < minimum_duration or (maximum_duration is not None and duration > maximum_duration))):
+        limits = f'{minimum_duration}–{maximum_duration}' if maximum_duration is not None else f'>={minimum_duration}'
+        raise ValueError(f'Nonempty topic and duration {limits} required for protocol {protocol_version}')
     if protocol_version == 1:
         asset_strategy = None  # Explicit historical tasks retain their original asset contract.
     elif asset_strategy not in {'reference-first', 'existing-media', 'autonomous-cad', 'verified-existing', 'illustrated'}:
@@ -1166,10 +1246,13 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value[MEDIA_FIELD] = media_policy_version
         value['media_contract'] = 'asset-first-hybrid-v1'
         if config is None:
-            from .production_contract import FIELD as CONTRACT_FIELD, NAME
-            value.update({CONTRACT_FIELD: 1, 'production_contract': NAME})
+            value.update({CONTRACT_FIELD: contract_version or 1,
+                          'production_contract': CONTRACT_NAMES[contract_version]})
     if progression:
         value[PROGRESSION_FIELD] = PROGRESSION_VERSION
+    if creative:
+        from .joint_timeline import FIELD as TIMELINE_FIELD, VERSION as TIMELINE_VERSION
+        value[TIMELINE_FIELD] = TIMELINE_VERSION
     if protocol_version == 2:
         value[PRESENTATION_STYLE] = presentation_style
         value['reference_policy_version'] = 1
@@ -1177,11 +1260,16 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value['product_policy_version'] = 1
         value['growth_policy_version'] = 2
         value['content_policy_version'] = 1
-        value['duration_policy'] = {'minimum': 120, 'maximum': 300, 'mode': 'knowledge-driven' if duration is None else 'requested', 'requested_seconds': duration}
+        value['duration_policy'] = {'minimum': minimum_duration, 'maximum': maximum_duration,
+                                    'mode': 'knowledge-driven' if duration is None else 'requested',
+                                    'requested_seconds': duration}
         value['production_method'] = 'reference-grounded-3d'
         if hybrid:
             value['production_method'] = 'asset-first-hybrid'
         value['autonomy_policy'] = dict(AUTONOMY_POLICY)
+        if contract_version == STORY_VERSION:
+            value['production_method'] = 'science-story'
+            value['autonomy_policy'].update(reference_first=False, physical_reference_to_cad=False)
         value['requested_routes'] = requested_routes
         value['route_runs'] = {route: {'status': 'PENDING', 'outputs': {}} for route in requested_routes}
         value['shared_production'] = {
@@ -1210,7 +1298,15 @@ def artifact(task, name):
         if data['handoffs'].get(dep, {}).get('sha256') != expected:
             raise ValueError('Stale dependency: ' + dep)
         artifact(task, dep)
-    return envelope['payload']
+    payload = envelope['payload']
+    if name == 'diagnostic-animatic':
+        from .production_contract import science_story
+        if science_story(data):
+            check_media(payload['media'])
+            evidence = payload['blueprint_evidence']
+            if not Path(evidence['path']).is_file() or filehash(evidence['path']) != evidence['sha256']:
+                raise ValueError('Creative draft edit plan missing or changed')
+    return payload
 
 
 def put_handoff(task, role, name, payload, dependencies=None):
@@ -1225,19 +1321,35 @@ def put_handoff(task, role, name, payload, dependencies=None):
             artifact(task, dep)
             deps[dep] = data['handoffs'][dep]['sha256']
         v2 = protocol_version(data) == 2
-        from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy
+        from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy,
+                                          creative_first, science_story, validate_audience_decision)
+        story = science_story(data)
+        if name == 'creative-blueprint' and role == 'Producer' and not story:
+            raise ValueError('Producer Blueprint ownership requires the science-story contract')
+        if name == 'animatic-manifest' and role == 'Editor' and not story:
+            raise ValueError('Editor animatic ownership requires the science-story contract')
         if name == 'creative-blueprint' and data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
             for shot in payload.get('shots', []):
-                validate_audience_copy(shot)
+                validate_audience_copy(shot, creative=creative_first(data))
         from .production_contract import enabled as science_contract, validate_research as validate_science
         if science_contract(data):
             if name == 'research':
+                if creative_first(data):
+                    validate_audience_decision(payload.get('audience_decision'), creative=True, story=story)
                 validate_science(payload)
                 data['subject_kind']=payload['science']['subject_kind']
             if name == 'creative-blueprint':
                 from .production_contract import validate_direction
+                from . import joint_timeline as joint
+                if joint.enabled(data):
+                    joint.validate(payload['timeline'], payload.get('shots'))
+                    joint.receipt(payload['timeline'], payload['measured_timeline'])
                 validate_direction(payload, artifact(task, 'research'))
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
+        if story and name == 'creative-blueprint':
+            required = {'diagnostic-animatic'}
+        if story and name in {'diagnostic-animatic', 'asset-plan'}:
+            required = {'research'} if name == 'diagnostic-animatic' else {'research', 'diagnostic-animatic'}
         technical_handoff = v2 and name in {'animation-manifest', 'timeline'} and require_source_supported_render(task)
         if technical_handoff:
             # These are technical-media handoffs, not fabricated perceptual QA.
@@ -1252,7 +1364,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 required = required | {'research', 'asset-plan'}
             elif name == 'content-qa':
                 required = {'creative-blueprint', 'research', 'asset-plan'}
-                if data.get('reference_model_policy_version') == 1:
+                if reference_model_required(data):
                     required.add('reference-model-qa')
         if not v2 and name in {'viral-analysis', 'creative-blueprint', 'feasibility',
                                'animatic-manifest', 'animatic-qa',
@@ -1282,10 +1394,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     if payload.get('duration_policy_override') != data.get('duration_policy_override'):
                         raise ValueError('Blueprint duration override differs from task authorization')
                     validate_contract(payload, data.get('duration'))
-                selected = set(artifact(task, 'viral-analysis').get('selected_ids', []))
-                used = {item.get('reference_id') for item in payload.get('reference_principles', [])}
-                if not used or not used <= selected:
-                    raise ValueError('Blueprint principles must bind selected observed references')
+                if not story:
+                    selected = set(artifact(task, 'viral-analysis').get('selected_ids', []))
+                    used = {item.get('reference_id') for item in payload.get('reference_principles', [])}
+                    if not used or not used <= selected:
+                        raise ValueError('Blueprint principles must bind selected observed references')
                 if data.get('production_method') == 'reference-recreation':
                     check_recreation(task, payload)
         if data.get("reference_policy_version") == 1:
@@ -1295,6 +1408,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 from .media_policy import enabled as asset_first
                 if asset_first(data) != asset_first(payload):
                     raise ValueError('Asset plan media policy differs from task creation policy')
+                if story and not science_story(payload):
+                    raise ValueError('Science-story asset plan must declare the current contract')
             if visual.version(data) == visual.VERSION:
                 if name == 'research':
                     visual.validate_research(payload)
@@ -1345,7 +1460,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
             elif name == "content-qa":
                 blueprint = artifact(task, 'creative-blueprint')
                 rp.validate_preproduction(blueprint, artifact(task, "research"), artifact(task, "asset-plan"), payload)
-                if data.get('reference_model_policy_version') == 1:
+                if reference_model_required(data):
                     rp.validate_reference_model(artifact(task, 'reference-model-qa'), artifact(task, 'research')['mechanism_id'])
                 reviewer = payload.get("reviewer_thread_id")
                 if not reviewer or reviewer in {r["thread_id"] for r in data["agent_runs"] if r["role"] != "QA"}:
@@ -1376,6 +1491,12 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 raise ValueError('Diagnostic blueprint JSON evidence missing or changed')
             if not isinstance(json.loads(blueprint_path.read_text()), dict):
                 raise ValueError('Diagnostic blueprint JSON must be an object')
+            if story:
+                from scripts.common import probe
+                for item in payload['media']:
+                    if Path(item['path']).suffix.lower() == '.mp4' and not any(
+                            stream['codec_type'] == 'video' for stream in probe(item['path'])['streams']):
+                        raise ValueError('Creative draft MP4 needs a picture track')
         if v2 and name == 'diagnostic-qa':
             check_media(payload.get('media'))
             diagnostic = artifact(task, 'diagnostic-animatic')
@@ -1470,6 +1591,12 @@ def check_qa(task, name, *, acceptance=True):
                 if Path(m['path']).suffix.lower() == '.mp4'}
     if not expected or not expected <= reviewed:
         raise ValueError('QA must review the exact production MP4')
+    from .production_contract import creative_first, science_story, validate_creative_review
+    if name in {'animatic-qa', 'final-qa'} and creative_first(load(task)):
+        from scripts.common import probe
+        durations = {digest: float(probe(path)['format']['duration']) for path, digest in expected}
+        story_gate = science_story(load(task)) and name == 'animatic-qa'
+        validate_creative_review(qa, durations, acceptance=acceptance or story_gate, whole_edit=story_gate)
     from .production_contract import enabled as science_contract, validate_qa as science_qa
     if science_contract(load(task)) and name == 'final-qa':
         science_qa(qa, production['media'], acceptance=acceptance,
@@ -1638,7 +1765,7 @@ def require_reference_content(task):
     if data.get("reference_policy_version") != 1:
         return
     from .reference_policy import validate_preproduction, validate_reference_model
-    if data.get('reference_model_policy_version') == 1:
+    if reference_model_required(data):
         report = artifact(task, 'reference-model-qa')
         if report.get('reviewer_thread_id') in {row['thread_id'] for row in data['agent_runs'] if row['role'] != 'QA'}:
             raise ValueError('Reference-model QA reviewer must be independent of production')
@@ -1650,10 +1777,12 @@ def require_reference_content(task):
 
 def require_animatic(task):
     """Fail closed for full renders; a v1 ledger is an explicit legacy path."""
-    require_current_scheme(load(task))
-    if require_source_supported_render(task):
+    from .production_contract import science_story
+    data = load(task)
+    require_current_scheme(data)
+    if not science_story(data) and require_source_supported_render(task):
         return
-    if protocol_version(load(task)) == 1:
+    if protocol_version(data) == 1:
         return
     require_mechanical(task)
     check_production_config(task)
@@ -1922,6 +2051,9 @@ def adopt_autonomy(task, reason):
     with lock(Path(task) / '.ledger.lock'):
         data = load(task)
         data['autonomy_policy'] = dict(AUTONOMY_POLICY)
+        from .production_contract import science_story
+        if science_story(data):
+            data['autonomy_policy'].update(reference_first=False, physical_reference_to_cad=False)
         write(Path(task) / 'task.json', data)
         event(task, 'autonomy_policy_adopted', reason=reason, policy=data['autonomy_policy'])
     return data['autonomy_policy']
@@ -2230,7 +2362,8 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                 raise ValueError('Asset generation requires evidence-based CAD selection; reuse approved assets directly')
         elif phase in {'preview', 'final'}:
             require_reference_content(task)
-        if data.get('asset_strategy') == 'existing-media' and not (
+        from .production_contract import science_story
+        if data.get('asset_strategy') == 'existing-media' and not science_story(data) and not (
                 phase != 'asset' and json.loads(Path(config).read_text()).get('render_route') in {'2d', '2.5d'}):
             raise ValueError('Existing media requires an authored editing route plan; do not invoke CAD rendering')
     if data.get('asset_strategy') == 'autonomous-cad' and phase != 'asset':
@@ -2449,7 +2582,7 @@ def main():
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['reference-first','existing-media','autonomous-cad','verified-existing','illustrated'], default='reference-first')
-    p.add_argument('--duration', type=int, default=None, help='Target seconds: protocol 2 knowledge-driven (120–300); protocol 1 defaults to 45 (30–45)')
+    p.add_argument('--duration', type=int, default=None, help='Optional target seconds. New creative-first tasks use measured story length by default.')
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')
@@ -2458,6 +2591,8 @@ def main():
     p.add_argument('--media-policy', type=int, choices=(0, 1),
                    help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
     p.add_argument('--presentation-style', choices=('natural_science', 'legacy'), default='natural_science')
+    p.add_argument('--production-contract', type=int, choices=(1, 2, 3),
+                   help='Topic-only mixed tasks default to science-story version 3.')
     p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
@@ -2532,8 +2667,8 @@ def main():
         return
     if args.command == 'produce':
         if args.resume:
-            if args.visual_policy is not None or args.media_policy is not None:
-                raise ValueError('Resume preserves the existing visual policy')
+            if any(value is not None for value in (args.visual_policy, args.media_policy, args.production_contract)):
+                raise ValueError('Resume preserves the existing production policies')
             if args.codex:
                 raise ValueError('Resume uses current Producer; do not start another Producer')
             data = load(args.resume)
@@ -2546,13 +2681,12 @@ def main():
             return
         if not args.topic:
             parser.error('--topic is required unless --resume is supplied')
+        visual_policy = args.visual_policy if args.visual_policy is not None else (1 if args.config else 2)
+        media_policy = args.media_policy if args.media_policy is not None else (0 if args.config or visual_policy == 1 else 1)
         task = create_task(args.topic, args.duration, args.voice, args.config, args.task_id,
                            asset_strategy=args.asset_strategy, routes=args.routes or '3d',
-                           visual_policy_version=args.visual_policy if args.visual_policy is not None
-                           else (1 if args.config else 2),
-                           media_policy_version=args.media_policy if args.media_policy is not None
-                           else (0 if args.config or args.visual_policy == 1 else 1),
-                           presentation_style=args.presentation_style)
+                           visual_policy_version=visual_policy, media_policy_version=media_policy,
+                           presentation_style=args.presentation_style, contract_version=args.production_contract)
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')

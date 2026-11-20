@@ -12,6 +12,11 @@ photographs cannot establish hidden transmission. Each shot binds its input,
 transmission and output claims to located observations, explains new knowledge
 and necessity, and preserves the product-to-mechanism-to-function relationship.
 The opening identifies the product/action/question/payoff within five seconds.
+Creative-first v2 establishes the familiar observation and question through the
+opening action and shows the scientific payoff in a distinct shot. Acceptable
+product/source correspondence still depends on the actual depicted implementation.
+The v2 running time follows the measured story; earlier policy versions retain
+their original duration rules.
 
 Blueprint compilation preserves these decisions. Producer checks them at
 handoff and before production; current exact-media QA checks all three of product

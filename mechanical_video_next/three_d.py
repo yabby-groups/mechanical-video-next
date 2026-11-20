@@ -15,6 +15,7 @@ def validate_config(config):
     from .science_shots import validate as validate_science_shot
     from .visual_narrative import VERSION, validate_execution, validate_plan, version
     from .knowledge_progression import FIELD, enabled
+    from .production_contract import FIELD as CONTRACT_FIELD
     from .joint_timeline import FIELD as TIMELINE_FIELD
     visual_version = version(config)
     from .media_policy import enabled as asset_first, validate_document
@@ -56,7 +57,7 @@ def validate_config(config):
         if not rows or {row['shot'] for row in rows} != set(shots):
             raise ValueError('Visual execution requires complete storyboard coverage')
         validate_plan({**({'visual_policy_version': 2, 'media_policy_version': 1} if hybrid else {}),
-            **{key: config[key] for key in (TIMELINE_FIELD,)
+            **{key: config[key] for key in (CONTRACT_FIELD, 'production_contract', 'subject_kind', TIMELINE_FIELD)
                if key in config},
             **({FIELD: config[FIELD]} if progression else {}), 'shots': [
             dict(shots[row['shot']]['visual'], shot_id=row['id'], narration=row['narration'],
