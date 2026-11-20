@@ -17,6 +17,8 @@ DISCOVERY_VERSION = 4
 DISCOVERY_NAME = 'science-discovery-v4'
 MECHANICAL_STORY_VERSION = 5
 MECHANICAL_STORY_NAME = 'mechanical-story-v5'
+CREATIVE_SELECTION_VERSION = 6
+CREATIVE_SELECTION_NAME = 'mechanical-story-v6'
 CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME,
                   DISCOVERY_VERSION: DISCOVERY_NAME, MECHANICAL_STORY_VERSION: MECHANICAL_STORY_NAME}
 CREATIVE_DURATION = (1 / 30, 300)
@@ -122,15 +124,16 @@ def nonmechanical_subject(document):
             or (discovery(document) and kind == 'documented_technology'))
 
 
-def selected_story(research):
+def selected_story(research, *, allow_unselected=False):
     exploration = research.get('story_exploration', {})
     if not isinstance(exploration, dict):
         raise ValueError('Story exploration must be an object')
     candidates = exploration.get('candidates')
-    if not isinstance(candidates, list) or not 1 <= len(candidates) <= 4:
-        raise ValueError('Explore a bounded shortlist of one to four defensible story candidates')
+    if (not isinstance(candidates, list) or not candidates
+            or (version(research) < CREATIVE_SELECTION_VERSION and len(candidates) > 4)):
+        raise ValueError('Explore a bounded shortlist of distinct, defensible story candidates')
     seen, questions, winner = set(), set(), None
-    facts = {fact['id']: fact for fact in research['science']['facts']}
+    facts = {fact['id']: fact for fact in research.get('science', {}).get('facts', [])}
     angles = exploration.get('angles')
     if not isinstance(angles, dict) or not angles or not all(
             nonempty(name) and nonempty(finding) for name, finding in angles.items()):
@@ -153,10 +156,13 @@ def selected_story(research):
             if not ids or any(facts[key]['status'] != 'VERIFIED' for key in ids):
                 raise ValueError('The selected story must be grounded in verified facts')
             winner = candidate
-    if winner is None or winner['question'] != research.get('audience_decision', {}).get('question'):
-        raise ValueError('The audience question must come from the selected research story')
     if len(candidates) == 1 and not nonempty(exploration.get('shortlist_limit')):
         raise ValueError('Explain why no second candidate warranted development')
+    if (allow_unselected and version(research) >= CREATIVE_SELECTION_VERSION
+            and exploration.get('selected_id') is None):
+        return None
+    if winner is None or winner['question'] != research.get('audience_decision', {}).get('question'):
+        raise ValueError('The audience question must come from the selected research story')
     return winner
 
 
@@ -171,6 +177,10 @@ def validate_audience_decision(decision, *, creative=False, story=False):
 
 
 def validate_research(research):
+    if (version(research) >= CREATIVE_SELECTION_VERSION
+            and research.get('story_exploration', {}).get('phase') == 'EDITORIAL'):
+        selected_story(research, allow_unselected=True)
+        return {}
     science = research.get('science', {})
     kind = science.get('subject_kind')
     technology = kind == 'documented_technology' and discovery(research)
@@ -211,7 +221,7 @@ def validate_research(research):
         elif not nonempty(fact.get('limitation')):
             raise ValueError('Unknown facts need a specific limitation')
     if discovery(research):
-        selected_story(research)
+        selected_story(research, allow_unselected=True)
     return {fact['id']: fact for fact in facts}
 
 
