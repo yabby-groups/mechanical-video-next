@@ -100,3 +100,56 @@ class FilmIntegrityTests(unittest.TestCase):
         moments['causal_reveal'].pop('mechanical_event_id')
         with self.assertRaisesRegex(ValueError, 'causal_reveal'):
             story.validate_story_moments(blueprint, narrative)
+
+    def wav(self, name, duration):
+        path = self.root / (name + '.wav')
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                        f'sine=f=440:r=48000:d={duration}', str(path)], check=True)
+        return path
+
+    def encode(self, name, audio, *, duration=1, extra=()):
+        path = self.root / (name + '.mp4')
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                        f'testsrc2=s=160x90:r=30:d={duration}', '-i', str(audio),
+                        '-c:v', 'libx264', '-c:a', 'aac', *extra, str(path)], check=True)
+        return path
+
+    def test_overlong_measured_speech_does_not_change_approved_cut(self):
+        utterance = self.wav('overrun', .41)
+        with self.assertRaisesRegex(ValueError, 'Revise the dialogue'):
+            joint.measure(self.plan, lambda text: (utterance, {}), self.root / 'master.wav')
+        self.assertFalse((self.root / 'master.wav').exists())
+
+    def test_last_line_truncation_fails_even_with_a_full_duration_aac_track(self):
+        utterance = self.wav('line', .32)
+        master = self.root / 'master.wav'
+        measured = joint.measure(self.plan, lambda text: (utterance, {}), master)
+        intact = self.encode('intact', master)
+        joint.validate_rendered_audio(intact, self.plan, measured)
+        clipped = self.encode('clipped', master, extra=('-af', "volume=0:enable='gte(t,0.65)'"))
+        joint.validate_rendered_film(clipped, self.plan)
+        with self.assertRaisesRegex(ValueError, 'differs from the bound audio'):
+            joint.validate_rendered_audio(clipped, self.plan, measured)
+
+    def test_shortest_output_and_missing_actual_payoff_fail(self):
+        short = self.wav('short', .4)
+        full = self.wav('full', 1)
+        for video in (self.encode('shortest', short, extra=('-shortest',)),
+                      self.encode('payoff-missing', full, duration=.7)):
+            with self.subTest(video=video.name), self.assertRaisesRegex(ValueError, 'picture clock'):
+                joint.validate_rendered_film(video, self.plan)
+
+    def test_nominal_runtime_and_frame_count_can_hide_shifted_picture_times(self):
+        full = self.wav('full', 1)
+        video = self.encode('shifted', full, extra=(
+            '-vf', "settb=1/90000,setpts=PTS+if(eq(N\\,10)\\,40\\,0)",
+            '-fps_mode', 'passthrough', '-enc_time_base', '1:90000',
+        ))
+        with self.assertRaisesRegex(ValueError, 'Decoded picture timestamps'):
+            joint.validate_rendered_film(video, self.plan)
+
+    def test_remotion_rejects_disagreeing_composition_duration_before_render(self):
+        props = self.root / 'props.json'
+        props.write_text(json.dumps(dict(frameCount=30, fps=30, duration=.5, shots=[dict(seconds=1)])))
+        with self.assertRaisesRegex(ValueError, 'composition duration'):
+            remotion_build.render(props, self.root / 'out.mp4', self.root / 'render.log')

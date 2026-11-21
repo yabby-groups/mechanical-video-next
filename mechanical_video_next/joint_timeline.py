@@ -4,6 +4,7 @@ import json
 import math
 from fractions import Fraction
 from pathlib import Path
+import subprocess
 import wave
 
 from scripts.common import ROOT, filehash, probe
@@ -127,6 +128,50 @@ def validate(plan, blueprint_shots=None):
                 and not (isinstance(shot.get('silence_reason'), str) and shot['silence_reason'].strip())):
             raise ValueError('A silent shot requires a concrete visual purpose: ' + shot['id'])
     return plan
+
+
+def validate_rendered_film(path, plan):
+    """Check the actual video clock and decode both streams through the last beat."""
+    streams = probe(path)['streams']
+    videos = [stream for stream in streams if stream['codec_type'] == 'video']
+    if len(videos) != 1:
+        raise ValueError('The complete film needs exactly one picture track')
+    video = videos[0]
+    duration = plan['frame_count'] / FPS
+    if (video.get('avg_frame_rate') != '30/1'
+            or video.get('r_frame_rate') != '30/1'
+            or video.get('nb_frames') != str(plan['frame_count'])
+            or abs(float(video.get('start_time', 'inf'))) > 1e-6
+            or abs(float(video.get('duration', 'inf')) - duration) > 1e-6):
+        raise ValueError('Actual MP4 picture clock differs from the complete joint timeline')
+    progress = subprocess.check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path),
+                                        '-map', '0:v:0', '-map', '0:a:0', '-fps_mode', 'passthrough',
+                                        '-nostats', '-progress', 'pipe:1', '-f', 'null', '-'], text=True)
+    frames = [int(line.split('=', 1)[1]) for line in progress.splitlines() if line.startswith('frame=')]
+    if not frames or frames[-1] != plan['frame_count']:
+        raise ValueError('Decoded frames differ from the complete joint picture track')
+    timestamps = json.loads(subprocess.check_output([
+        'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames',
+        '-show_entries', 'frame=pts', '-of', 'json', str(path),
+    ]))['frames']
+    ticks_per_frame = 1 / (FPS * Fraction(video['time_base']))
+    if len(timestamps) != plan['frame_count'] or any(
+            abs(frame.get('pts', math.inf) - index * ticks_per_frame) > Fraction(1, 2)
+            for index, frame in enumerate(timestamps)):
+        raise ValueError('Decoded picture timestamps leave the joint 30 fps clock')
+    return video
+
+
+def validate_rendered_audio(path, plan, measured, playback=None, *, mix=False):
+    from .audio_acceptance import compare_waveforms, decode_aac
+
+    expected_samples = plan['frame_count'] * SAMPLES_PER_FRAME
+    samples, identity = decode_aac(path, expected_samples)
+    if playback is None:
+        playback = bound(measured['narration_audio'])
+    comparison = compare_waveforms(playback, samples, identity['audio_pcm_format']['channels'],
+                                   measured, expected_samples, mix=mix)
+    return {'pcm': identity, 'waveform': comparison}
 
 
 def validate_source_clip(path, source_start, frame_count):

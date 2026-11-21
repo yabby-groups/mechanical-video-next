@@ -92,7 +92,7 @@ def panel_spec(render, quality):
     landscape = render['width'] > render['height']
     width, height = ((render['width'],render['height']) if render.get('framing')=='fullframe'
                      else (1120, 720) if landscape else (1080, 1250))
-    return ((width//2, height//2, 15)
+    return ((width//2, height//2, 30 if render.get('full_rate_preview') else 15)
             if quality!='final' and not render.get('preview_native', False)
             else (width,height,30))
 
@@ -384,6 +384,7 @@ def compose(cfg, quality, media, metrics):
             validate_audience_copy(cfg['shots'][row['shot']])
     visual = version(cfg) == VERSION
     shared = joint.enabled(cfg)
+    locked = shared and joint.integrity(cfg['timeline'])
     if shared:
         plan = joint.validate(cfg['timeline'])
         measured = joint.receipt(plan, cfg['measured_timeline'])
@@ -419,6 +420,10 @@ def compose(cfg, quality, media, metrics):
                 if spec.get('footage') and trim != spec['footage']['start_frame']:
                     raise ValueError('Joint picture offset differs from licensed footage interval')
                 joint.validate_source_clip(path, trim, count)
+                if locked and cut.get('action_views') and not spec.get('footage'):
+                    source = next(row for row in probe(path)['streams'] if row['codec_type'] == 'video')
+                    if source['avg_frame_rate'] != '30/1' or source['r_frame_rate'] != '30/1':
+                        raise ValueError('Mechanical event needs native 30 fps source frames: ' + s['id'])
                 row['mediaStartFrame'] = trim
             elif kind == 'image' or cut.get('source_start_frame'):
                 raise ValueError('Joint dynamic storyboard needs moving media or an original graphic')
@@ -461,6 +466,8 @@ def compose(cfg, quality, media, metrics):
             playback, _ = verify_mix(cfg['audio_mix'], master, plan['frame_count'] * joint.SAMPLES_PER_FRAME,
                                      check_masking=False)
         props['narrationTrack'] = expose(playback, filehash(playback))
+    if locked:
+        props['frameCount'] = plan['frame_count']
     props[PRESENTATION_STYLE] = NATURAL_SCIENCE if natural else 'legacy'
     if visual:
         props['visual_policy_version'] = VERSION
@@ -521,12 +528,20 @@ def compose(cfg, quality, media, metrics):
     if not hit:
         writejson(cachedir/'props.json',props)
         cached_media = target if external else cachedir/'video.mp4'
-        render(cachedir/'props.json', cached_media, cachedir/'render.log',
+        candidate = cached_media.with_suffix('.unverified.mp4') if locked else cached_media
+        render(cachedir/'props.json', candidate, cachedir/'render.log',
                preview=quality=='preview', encode_profile=encode_profile, visual=visual, progression=enabled(cfg))
+        if locked:
+            joint.validate_rendered_film(candidate, plan)
+            joint.validate_rendered_audio(candidate, plan, measured, playback, mix='audio_mix' in cfg)
+            candidate.replace(cached_media)
         if quality=='final': validate_video(cached_media,cfg,cues)
         else: run(['ffmpeg','-v','error','-i',cached_media,'-f','null','-'],cachedir/'decode.log')
         if not external:
             complete(cachedir,['video.mp4'])
+    if locked and hit:
+        joint.validate_rendered_film(cached_media, plan)
+        joint.validate_rendered_audio(cached_media, plan, measured, playback, mix='audio_mix' in cfg)
     if cached_media.resolve() != target.resolve():
         shutil.copy2(cached_media,target)
     if external:
@@ -671,7 +686,12 @@ def main():
     else:
         validate_stage_duration(cfg, args.phase)
     assert len({s['id'] for s in cfg['storyboard']})==len(cfg['storyboard'])
-    for s in cfg['storyboard']: assert s['seconds']==cfg['shots'][s['shot']]['seconds']
+    from mechanical_video_next import joint_timeline as joint
+    if not joint.enabled(cfg):
+        for s in cfg['storyboard']:
+            assert s['seconds'] == cfg['shots'][s['shot']]['seconds']
+    elif joint.integrity(cfg['timeline']):
+        cfg['render']['full_rate_preview'] = True
     metrics=Metrics(cfg['id']+'-'+args.phase)
     # Sample temporary use during rendering, including PNG sequences (not merely at stage end).
     stopped=threading.Event()

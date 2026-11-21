@@ -1,6 +1,7 @@
 """The fixed Remotion invocation shared by production and 3D replay."""
 
 from pathlib import Path
+import json
 import math
 
 from scripts.common import ROOT, run
@@ -35,6 +36,14 @@ def sources_for(document):
 
 
 def render(props, output, log, *, preview=False, encode_profile=None, visual=False, progression=False, frame_range=None):
+    document = json.loads(Path(props).read_text())
+    if 'frameCount' in document:
+        from .joint_timeline import FPS, frame_number
+        count = document['frameCount']
+        if (document['fps'] != FPS or type(count) is not int or count < 1
+                or frame_number(document['duration']) != count
+                or sum(frame_number(shot['seconds']) for shot in document['shots']) != count):
+            raise ValueError('Remotion composition duration differs from the complete picture track')
     chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
     entry = 'progressionEntry' if progression else 'visualEntry' if visual else 'index'
     concurrency = '1' if encode_profile == 'progression-witness-v1' else '2'
