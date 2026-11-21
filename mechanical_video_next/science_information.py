@@ -67,7 +67,8 @@ def observation_overlay_findings(props, windows):
             for index in range(count):
                 if not start <= index / max(1, count - 1) <= end:
                     continue
-                sample = min(track['frame_count']-1, index*track['fps']//fps)
+                source_frame = index + shot.get('mediaStartFrame', 0)
+                sample = min(track['frame_count']-1, source_frame*track['fps']//fps)
                 time = (offset+index)/fps
                 for name in window['anchors']:
                     point = track['samples'][name][sample]
