@@ -251,11 +251,15 @@ def validate_research(research):
 
 
 def validate_story_moments(blueprint, narrative):
-    from .joint_timeline import interval
+    from .joint_timeline import integrity, interval
     shots = blueprint['shots']
     picture = {row['id']: row for row in blueprint['timeline']['shots']}
     moments = narrative.get('moments')
-    if not isinstance(moments, dict) or set(moments) != set(STORY_MOMENTS):
+    locked = integrity(blueprint['timeline'])
+    required = set(STORY_MOMENTS)
+    if locked:
+        required.update(('scientific_explanation', 'action_result'))
+    if not isinstance(moments, dict) or set(moments) != required:
         raise ValueError('Bind opening, first discovery, causal reveal and payoff to picture')
     starts = {}
     for key, moment in moments.items():
@@ -271,12 +275,58 @@ def validate_story_moments(blueprint, narrative):
             or starts['first_discovery'] < starts['opening']
             or starts['payoff'] < max(starts['first_discovery'], starts['causal_reveal'])):
         raise ValueError('Bind the opening to the first shot and deliver the discovery by the payoff')
+    if locked and (starts['causal_reveal'] < starts['first_discovery']
+                   or not starts['causal_reveal'] <= starts['action_result'] <= starts['payoff']
+                   or not starts['opening'] <= starts['scientific_explanation'] <= starts['payoff']):
+        raise ValueError('The explanation and mechanical result must lead to the payoff')
     if narrative['question'] != blueprint.get('core_question'):
         raise ValueError('Use the same audience question in the narrative and Blueprint')
     for shot in shots:
         direction = shot.get('direction')
         if not isinstance(direction, dict) or not all(nonempty(direction.get(key)) for key in DIRECTION):
             raise ValueError(f'{shot["shot_id"]} needs visual purpose, composition, light, continuity and sound intent')
+    if locked:
+        validate_story_coverage(blueprint, moments)
+
+
+def validate_story_coverage(blueprint, moments):
+    from .joint_timeline import SAMPLES_PER_FRAME, receipt
+
+    plan = blueprint['timeline']
+    actions = {row['id']: row for row in plan['actions']}
+    speech = {row['id']: row for row in plan['narration']}
+    shots = {row['shot_id']: row for row in blueprint['shots']}
+    measured = (receipt(plan, blueprint['measured_timeline']) if blueprint.get('measured_timeline') else None)
+    clips = {row['id']: row for row in measured['speech']} if measured else {}
+    for cut in plan['shots']:
+        sid = cut['id']
+        shot = shots[sid]
+        events = cut.get('action_views', {})
+        if shot.get('mechanical_role') == 'core' and not events:
+            raise ValueError('Core mechanical shot lacks a verified event: ' + sid)
+        if any(actions[key]['knowledge_id'] not in shot.get('knowledge_ids', []) for key in events):
+            raise ValueError('Mechanical event knowledge differs from its shot: ' + sid)
+    for name, moment in moments.items():
+        sid = moment['shot_id']
+        shot = shots[sid]
+        first, last = moment['start_frame'], moment['end_frame']
+        fact = moment.get('knowledge_id')
+        if fact not in shot.get('knowledge_ids', []):
+            raise ValueError('Story moment requires knowledge carried by its shot: ' + name)
+        event = actions.get(moment.get('mechanical_event_id'))
+        line = speech.get(moment.get('narration_segment_id'))
+        if event and (event['knowledge_id'] != fact or not event['start_frame'] <= first < last <= event['end_frame']):
+            raise ValueError('Story moment falls outside its mechanical evidence: ' + name)
+        if line:
+            clip = clips.get(line['id'])
+            start = clip['start_sample'] if clip else line['start_frame'] * SAMPLES_PER_FRAME
+            end = clip['end_sample'] if clip else line['deadline_frame'] * SAMPLES_PER_FRAME
+            if fact not in line['knowledge_ids'] or first * SAMPLES_PER_FRAME >= end or last * SAMPLES_PER_FRAME <= start:
+                raise ValueError('Story moment falls outside its measured narration: ' + name)
+        if (moment.get('mechanical_event_id') and event is None or moment.get('narration_segment_id') and line is None
+                or (name in {'causal_reveal', 'action_result'} and not event and not nonmechanical_subject(blueprint))
+                or (not event and not line and not nonempty(moment.get('visual_evidence')))):
+            raise ValueError('Story moment lacks observable evidence: ' + name)
 
 
 def validate_direction(blueprint, research=None):

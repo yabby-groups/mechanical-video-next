@@ -122,6 +122,7 @@ def compile_config(blueprint, base, output, draft=False):
     from . import director
     shared = joint.enabled(data)
     picture = {s['id']: s for s in data['timeline']['shots']} if shared else {}
+    locked = shared and joint.integrity(data['timeline'])
     visual = version(data) == VERSION
     if FIELD in cfg:
         match_policy(data, cfg)
@@ -164,8 +165,9 @@ def compile_config(blueprint, base, output, draft=False):
             source_seconds = original.get('seconds', 0)
             if joint.frame_number(source_seconds) >= offset + joint.frame_number(seconds):
                 shot['seconds'] = source_seconds
-            elif directed and source_seconds and (shot.get('tracks') or shot.get('mesh_tracks') or
-                    shot.get('science', {}).get('driver') in {'data_tracks', 'asset_motion'}):
+            elif (locked and picture[s['shot_id']].get('action_views')) or (
+                    directed and source_seconds and (shot.get('tracks') or shot.get('mesh_tracks') or
+                    shot.get('science', {}).get('driver') in {'data_tracks', 'asset_motion'})):
                 raise ValueError('Extend the authored motion or re-edit the picture interval: ' + s['shot_id'])
             elif offset:
                 raise ValueError('Source render cannot cover the joint picture interval')
@@ -269,6 +271,8 @@ def compile_config(blueprint, base, output, draft=False):
             result['render'].setdefault('encode_profile', 'progression-witness-v1')
         else:
             result['render'].setdefault('encode_profile', 'witness-v1')
+        validate_config(result)
+    elif locked:
         validate_config(result)
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),

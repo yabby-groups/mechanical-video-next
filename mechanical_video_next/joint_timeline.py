@@ -13,6 +13,14 @@ VERSION = 1
 FPS = 30
 SAMPLE_RATE = 48000
 SAMPLES_PER_FRAME = SAMPLE_RATE // FPS
+INTEGRITY = 'film_integrity_version'
+
+
+def integrity(plan):
+    value = plan.get(INTEGRITY, 0)
+    if type(value) is not int or value not in (0, 1):
+        raise ValueError('Unsupported film integrity policy')
+    return bool(value)
 
 
 def enabled(data):
@@ -50,6 +58,7 @@ def interval(row, limit, end='end_frame'):
 
 
 def validate(plan, blueprint_shots=None):
+    locked = integrity(plan)
     count = plan.get('frame_count')
     if type(count) is not int or count < 1:
         raise ValueError('Joint timeline needs positive output frames')
@@ -92,6 +101,17 @@ def validate(plan, blueprint_shots=None):
                 or not all(action.get(key) for key in ('start_state', 'end_state', 'curve', 'constraints'))):
             raise ValueError('Action needs its own source clock, endpoint states, curve and constraints')
         bound(action['source'])
+        if locked:
+            if (type(action.get('source_end_frame')) is not int
+                    or action['source_end_frame'] - source_start != stop - start):
+                raise ValueError('Mechanical event is compressed, extended or truncated: ' + action['id'])
+            for field in ('input', 'direction', 'transmission', 'intermediate_state', 'contact', 'knowledge_id'):
+                if not isinstance(action.get(field), str) or not action[field].strip():
+                    raise ValueError(f'Mechanical event {action["id"]} requires {field}')
+            from .science_shots import source_binding
+            source_binding(action.get('evidence'))
+            if action_intervals and start < next(reversed(action_intervals.values()))[0]:
+                raise ValueError('Mechanical events must be in output order')
         action_intervals[action['id']] = (start, stop, source_start)
     for shot in shots:
         start, stop = interval(shot, count)

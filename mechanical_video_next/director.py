@@ -208,10 +208,54 @@ def mechanical_digest(shot):
     science = shot.get('science', {})
     return digest({
         'template': shot.get('template'), 'tracks': shot.get('tracks'),
-        'mesh_tracks': shot.get('mesh_tracks'), 'science': {
-            key: science.get(key) for key in ('driver', 'basis', 'constraints', 'motion_bodies', 'motion_source', 'mode')
+        'mesh_tracks': shot.get('mesh_tracks'), 'rotation_interpolation': shot.get('rotation_interpolation'),
+        'distance': shot.get('distance'),
+        'science': {
+            key: science.get(key) for key in ('driver', 'basis', 'constraints', 'motion_bodies', 'motion_source', 'mode', 'control')
         },
     })
+
+
+def validate_action_programs(config):
+    """Keep verified action frames on their source clock through compilation."""
+    from .science_shots import source_progress
+
+    plan = config['timeline']
+    actions = {row['id']: row for row in plan['actions']}
+    native_clocks = {}
+    for cut, row in zip(plan['shots'], config['storyboard'], strict=True):
+        shot = config['shots'][row['shot']]
+        for event_id in cut.get('action_views', {}):
+            action = actions[event_id]
+            if shot['template'] == 'editorial':
+                if (not shot.get('footage') or shot.get('graphic') or shot.get('split_screen')
+                        or shot['footage'] != action.get('footage')):
+                    raise ValueError('Mechanical event requires the verified source footage: ' + event_id)
+                if any(shot['footage'].get(key) != action['source'].get(key) for key in ('path', 'sha256')):
+                    raise ValueError('Mechanical event footage differs from the bound source: ' + event_id)
+                continue
+            program = action_program_digest(shot)
+            if program != action.get('shot_programs', {}).get(row['id']):
+                raise ValueError('Mechanical program changed for ' + event_id + '/' + row['id'])
+            clock = (program, cut.get('source_clock_origin', 0))
+            if native_clocks.setdefault(event_id, clock) != clock:
+                raise ValueError('Mechanical event must retain its native program and clock across cuts: ' + event_id)
+            count = joint.frame_number(shot['seconds'])
+            source_start = cut.get('source_start_frame', 0)
+            first = source_start + max(0, action['start_frame'] - cut['start_frame'])
+            last = source_start + min(action['end_frame'], cut['end_frame']) - cut['start_frame'] - 1
+            if last >= count:
+                raise ValueError('Mechanical event exceeds the native render: ' + event_id)
+            mapping = shot.get('science', {}).get('time_map')
+            if mapping and count > 1:
+                left, right = first / (count - 1), last / (count - 1)
+                points = [left, right, *(key[0] for key in mapping if left < key[0] < right)]
+                if any(abs(source_progress(mapping, point) - point) > 1e-9 for point in points):
+                    raise ValueError('Time map changes the verified mechanical event: ' + event_id)
+
+
+def action_program_digest(shot):
+    return digest({'mechanical': mechanical_digest(shot), 'source_frames': joint.frame_number(shot['seconds'])})
 
 
 def apply_strategy(shot, direction, engine, *, source=None):

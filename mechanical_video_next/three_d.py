@@ -71,6 +71,15 @@ def validate_config(config):
         ] != [1920, 1080, 30, 'fullframe']:
             raise ValueError('Visual production requires the native 1920x1080/30 fullframe format')
     validate_document(config)
+    if picture:
+        from . import director, joint_timeline as joint
+        if joint.integrity(config['timeline']):
+            plan = joint.validate(config['timeline'])
+            expected = [(row['id'], row['end_frame'] - row['start_frame']) for row in plan['shots']]
+            actual = [(row['id'], joint.frame_number(row['seconds'])) for row in config['storyboard']]
+            if expected != actual:
+                raise ValueError('Compiled storyboard differs from the complete joint picture track')
+            director.validate_action_programs(config)
 
 
 def migrate(task, reason):
