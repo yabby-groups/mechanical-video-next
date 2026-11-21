@@ -9,6 +9,7 @@ import fcntl
 import hashlib
 import json
 from pathlib import Path
+from . import video_review
 import re
 import math
 import subprocess
@@ -619,13 +620,20 @@ def continuation(task, persist=True):
             milestone = 'PREVIEW_READY'
         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, StopIteration, ZeroDivisionError) as error:
             invalid['complete-preview'] = str(error)
+    video_reviews = {
+        name: valid[name]['video_review'] for name in ('animation-manifest', 'timeline')
+        if name in valid and 'video_review' in valid[name]
+    }
+    review_gap = next(((name, report) for name, report in reversed(video_reviews.items())
+                       if report['technical_status'] != 'PASS'), None)
     if routes and len(rendered) == len(routes):
         milestone = 'FINAL_RENDERED'
     accepted = False
     unresolved_content = [row for row in data.get('content_repairs', []) if row.get('status') != 'RESOLVED']
     failed_qa = {name: report for name, report in valid.items()
                  if name.endswith('-qa') and
-                 ('FAIL' in report.get('checks', {}).values() or report.get('audio_technical_status') == 'FAIL' or any(
+                 ('FAIL' in report.get('checks', {}).values() or report.get('audio_technical_status') == 'FAIL'
+                  or any(row.get('status') == 'FAIL' for row in report.get('creative_review', {}).values()) or any(
                      (issue.get('requires_audio_review') is True or
                       str(issue.get('severity', '')).lower() in {'critical', 'major', 'error'})
                      and issue.get('status') != 'RESOLVED' for issue in report.get('issues', [])))}
@@ -781,6 +789,11 @@ def continuation(task, persist=True):
     elif execution_needs_repair:
         action = dict(owner='Producer', action='Diagnose the preserved command failure; repair inputs, bind a changed plan or record an evidenced resolution before execution',
                       evidence=execution_failure, command=None)
+    elif review_gap:
+        name, report = review_gap
+        action = dict(owner='Producer', handoff=name, command=None,
+                      action='Investigate the timecoded Video Review findings, repair the affected edit or source and register the new complete MP4',
+                      evidence=report['findings'])
     elif failed_qa:
         name, report = next(iter(failed_qa.items()))
         issues = [issue for issue in report.get('issues', []) if issue.get('status') != 'RESOLVED']
@@ -837,7 +850,7 @@ def continuation(task, persist=True):
                 and row.get('remaining_executable_work') is False]
     lifecycle = ('DELIVERED' if milestone == 'DELIVERED' else
                  'BLOCKED' if blockers and not action.get('command') else
-                 'REPAIRING' if unresolved_content or failed_qa or execution_needs_repair or data['state'] in {'FAILED', 'REPAIRING'}
+                 'REPAIRING' if unresolved_content or failed_qa or review_gap or execution_needs_repair or data['state'] in {'FAILED', 'REPAIRING'}
                  or any(row.get('status') == 'REPAIRING' for row in data.get('candidate_failures', [])) else 'WORKING')
     action['kind'] = ('DELIVERED' if milestone == 'DELIVERED' else
                       'EXECUTABLE_COMMAND' if action.get('command') else
@@ -1048,6 +1061,14 @@ exact film. Identify mechanical_event_ids and source_comparison for mechanical_m
 story_moment_ids for narrative_comprehension. Cover the full film and the entire bound interval
 of each event and moment. A technical check cannot establish these observations.
 Follow the film integrity fields and acceptance checks in docs/production-contract.md.
+'''
+        if data.get(video_review.FIELD):
+            story_direction += '''
+Use the project $video-review Skill for the existing independent preview-qa and final-qa.
+Before the edit, record the essential verified facts in research.science.required_knowledge_ids.
+When the animation-manifest and timeline are registered, read their generated video_review.
+Return timecoded failures to the Producer. After the targeted repair, register the new complete
+media and obtain independent QA on that exact MP4 before advancing.
 '''
         audio_review = ('Use the verified Neil technical audio gate for the exact final MP4. '
                         'Record actual listening only when it happened. Register any known audio concern '
@@ -1488,6 +1509,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         from .joint_timeline import INTEGRITY
         value[PRODUCER_DIRECTION] = 1
         value[INTEGRITY] = 1
+        value[video_review.FIELD] = video_review.VERSION
         value[CREATIVE_DIRECTION] = CREATIVE_DIRECTION_VERSION
         value['audio_acceptance_policy'] = MODE
         value['reference_search_plan'] = 'research/search-plan.json'
@@ -1967,6 +1989,17 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     payload.update(audio_technical_status='FAIL', audio_technical_evidence={'reason': str(error)})
                 else:
                     payload.update(audio_technical_status='PASS', audio_technical_evidence=evidence)
+        if data.get(video_review.FIELD) and name in {'animation-manifest', 'timeline'}:
+            if 'video_review' in payload:
+                raise ValueError('Video Review evidence is generated by the workflow')
+            films = [row for row in payload.get('media', []) if Path(row['path']).suffix.lower() == '.mp4']
+            if len(films) != 1:
+                raise ValueError('Video Review requires one complete production MP4')
+            config_path = Path(data['config'])
+            report = video_review.for_composition(
+                films[0], artifact(task, 'creative-blueprint'), artifact(task, 'research'),
+                json.loads(config_path.read_text()), ROOT / 'remotion/public')
+            payload = dict(payload, video_review=report)
         from .qa_images import handoff_visuals
         visual_evidence = handoff_visuals(payload)
         versions = data.setdefault('creative_handoff_versions', {}) if competition else {}
@@ -2036,6 +2069,10 @@ def check_qa(task, name, *, acceptance=True):
     if name not in {'preview-qa', 'animatic-qa', 'final-qa'}:
         raise ValueError('Diagnostic reports cannot grant production acceptance')
     data = load(task)
+    if data.get(video_review.FIELD) and name in {'preview-qa', 'final-qa'}:
+        production_name = 'animation-manifest' if name == 'preview-qa' else 'timeline'
+        production = artifact(task, production_name)
+        video_review.require_current(production)
     directed = producer_directed(data)
     # A Producer preview is a working edit. Final QA reviews the complete film.
     workprint_review = name == 'preview-qa' and directed_story(data)
@@ -2073,19 +2110,19 @@ def check_qa(task, name, *, acceptance=True):
     from . import joint_timeline as joint
     if joint.integrity(data) and name in {'preview-qa', 'final-qa'}:
         blueprint = artifact(task, 'creative-blueprint')
-        plan = blueprint['timeline']
-        measured = joint.receipt(plan, blueprint['measured_timeline'])
-        config = json.loads(Path(data['config']).read_text())
-        mix = config.get('audio_mix')
-        if mix:
-            from .audio_acceptance import verify_mix
-            playback, _ = verify_mix(mix, joint.bound(measured['narration_audio']),
-                                     plan['frame_count'] * joint.SAMPLES_PER_FRAME, check_masking=False)
-        else:
+        if not data.get(video_review.FIELD):
+            plan = blueprint['timeline']
+            measured = joint.receipt(plan, blueprint['measured_timeline'])
+            config = json.loads(Path(data['config']).read_text())
+            mix = config.get('audio_mix')
             playback = None
-        for path, _ in expected:
-            joint.validate_rendered_film(path, plan)
-            joint.validate_rendered_audio(path, plan, measured, playback, mix=bool(mix))
+            if mix:
+                from .audio_acceptance import verify_mix
+                playback, _ = verify_mix(mix, joint.bound(measured['narration_audio']),
+                                         plan['frame_count'] * joint.SAMPLES_PER_FRAME, check_masking=False)
+            for path, _ in expected:
+                joint.validate_rendered_film(path, plan)
+                joint.validate_rendered_audio(path, plan, measured, playback, mix=bool(mix))
     from .production_contract import creative_first, science_story, validate_creative_review
     if workprint_review:
         if len(expected) != 1:
@@ -2456,6 +2493,8 @@ def advance(task, target):
         if target == 'FINAL_CHECKING':
             timeline = artifact(task, 'timeline')
             check_media(timeline.get('media'))
+            if data.get(video_review.FIELD):
+                video_review.require_current(timeline)
             if timeline.get('technical_pass') is not True:
                 raise ValueError('Technical validation missing')
         if target == 'COMPLETED':
@@ -2974,6 +3013,8 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     if phase in {'preview', 'final'}:
         require_animatic(task)
         check_production_config(task, config)
+    if phase == 'final' and data.get(video_review.FIELD):
+        check_qa(task, 'preview-qa', acceptance=False)
     if phase == 'final' and not technical_render and not (workprint and data['state'] == 'PREVIEW_CHECKING'):
         check_qa(task, 'preview-qa', acceptance=False)
     # Existing cleanup only removes old completed content-addressed entries,

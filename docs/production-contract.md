@@ -60,6 +60,37 @@ checks establish technical coverage. Motion, contact visibility and the clarity
 of the final explanation require actual review. Record unavailable sensory
 observations as UNKNOWN.
 
+### Video Review on new Producer-directed tasks
+
+New tasks also pin `video_review_version: 1`. Use the project
+[$video-review](../.agents/skills/video-review/SKILL.md) in the existing
+independent `preview-qa` and `final-qa` assignments. Registering the exact
+moving edit as `animation-manifest` or `timeline` automatically generates
+`video_review` inside that immutable handoff. It binds the MP4, the Remotion
+props and the source render receipt, compares the decoded mechanical views with
+their selected source frames, and checks the joint timeline, Neil waveform
+and caption schedule. An essential fact list can be recorded before editing in
+`research.science.required_knowledge_ids`. In its absence the technical
+review checks all verified research facts for presence in the edit.
+
+Use the existing Blender numerical constraints for state measurements. An
+action can add `state_checks`, keyed by shot ID. Each check names its `id`
+and zero-based `constraint_index` in that shot's render receipt. The review
+can verify signed `direction`, `max_step`, `min_motion_frames` and a
+chronological list of `events` with `id` and numeric `range`. Use
+`continue_from` and `max_cut_step` to compare an adjoining cut's last
+evaluated sample with the first sample in this cut. Measurements use the units
+of the referenced Blender constraint and the original 30 fps source window.
+QA still checks visible contact, source correspondence and story comprehension.
+
+Technical FAIL or UNKNOWN on required checks returns the exact interval and
+evidence to the Producer. Register the revised full MP4 and run the existing
+independent QA on it. The preview's technical result and independent QA gate
+full-resolution rendering. The final technical result and independent final QA
+gate completion and delivery. Historical tasks retain their pinned workflow.
+The standalone media diagnostic can review historical media with the preserved
+edit, waveform and native render data.
+
 | Task | Effective rules |
 | --- | --- |
 | `production_contract_version=6`, `production_method=producer-directed`, `producer_direction_version=1` | Default for new topic-only mixed production. Use the audience premise, shot direction and moving workprint review below |

@@ -89,9 +89,9 @@ class ProductionContractTests(unittest.TestCase):
             self.assertFalse({'diagnostic-animatic', 'diagnostic-qa', 'animatic-qa'} & remaining)
             with self.assertRaisesRegex(ValueError, 'Missing handoff: creative-blueprint'):
                 w.require_animatic(task)
-            with self.assertRaisesRegex(ValueError, 'Missing handoff: preview-qa'):
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: animation-manifest'):
                 w.check_qa(task, 'preview-qa')
-            with self.assertRaisesRegex(ValueError, 'Missing handoff: final-qa'):
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: timeline'):
                 w.check_qa(task, 'final-qa')
 
             base = Path('tests/fixtures/production/science-demo.json')
@@ -231,9 +231,33 @@ class ProductionContractTests(unittest.TestCase):
                 '-c:v', 'libx264', '-c:a', 'aac', str(preview),
             ], check=True)
             preview_media = dict(joint.binding(preview), chapter_ids=['trace'])
+            media_dependencies = ['research', 'asset-plan', 'creative-blueprint', 'feasibility']
             put_handoff(task, 'Animation', 'animation-manifest',
                         dict(media=[preview_media], keyframes_verified=True),
-                        ['research', 'asset-plan', 'creative-blueprint', 'feasibility'])
+                        media_dependencies)
+            with self.assertRaisesRegex(ValueError, 'Video Review UNKNOWN'):
+                w.check_qa(task, 'preview-qa', acceptance=False)
+            self.assertEqual(continuation(task, persist=False)['next_action']['owner'], 'Producer')
+
+            public = task.parents[2] / 'remotion/public'
+            public.mkdir(parents=True)
+            plate = public / 'source.mp4'
+            plate.write_bytes(preview.read_bytes())
+            measured = joint.receipt(timeline, plan['measured_timeline'])
+
+            def bind_review_sources(movie):
+                props_path = movie.with_suffix('.props.json')
+                w.write(props_path, dict(cues=joint.cues(measured),
+                                         shots=[dict(id='trace', seconds=7, media=plate.name)]))
+                w.write(movie.with_suffix('.review-sources.json'),
+                        dict(media=joint.binding(movie), props=joint.binding(props_path),
+                             shots={'trace': {'video': joint.binding(plate)}}))
+
+            bind_review_sources(preview)
+            with patch.object(w, 'ROOT', task.parents[2]):
+                approved = put_handoff(task, 'Animation', 'animation-manifest',
+                                       dict(media=[preview_media], keyframes_verified=True), media_dependencies)
+                self.assertEqual(approved['payload']['video_review']['technical_status'], 'PASS')
             probe = dict(streams=[
                 dict(codec_type='video', avg_frame_rate='30/1', duration='7', width=1920, height=1080),
                 dict(codec_type='audio', duration='7')])
@@ -265,18 +289,19 @@ class ProductionContractTests(unittest.TestCase):
                 put_handoff(task, 'QA', 'preview-qa', preview_report, ['animation-manifest'])
                 w.advance(task, 'EDITING')
             self.assertEqual(load(task)['state'], 'EDITING')
-            # Exercise the stage and ledger with test bytes in place of the renderer.
+            # Exercise the stage and ledger with actual fixture media in place of a fresh render.
             compiled = json.loads(config_path.read_text())
             final = task.parents[1] / (compiled['id'] + '-final.mp4')
             with (patch.object(w, 'ROOT', task.parents[2]),
                   patch.object(w, 'subprocess', SimpleNamespace(
-                      run=lambda *a, **kw: final.write_bytes(b'fixture final'),
+                      run=lambda *a, **kw: final.write_bytes(preview.read_bytes()),
                       STDOUT=subprocess.STDOUT, CalledProcessError=subprocess.CalledProcessError)),
                   patch.dict(sys.modules, {'clean': SimpleNamespace(cleanup=lambda **kw: None)}),
                   patch('mechanical_video_next.multiroute.probe', return_value=probe)):
                 w.run_stage(task, 'final', config_path)
                 media = load(task)['route_runs']['3d']['outputs']
                 self.assertEqual(media, dict(joint.binding(final), chapter_ids=['trace']))
+                bind_review_sources(final)
                 put_handoff(task, 'Editor', 'timeline', dict(media=[media], technical_pass=True),
                             ['script', 'animation-manifest'])
                 w.advance(task, 'FINAL_CHECKING')
