@@ -2,6 +2,8 @@
 
 新建的默认 Producer-directed 混合任务固定 `creative_direction_version=1`。现有实验和历史任务按创建时的版本继续。原生 Producer 负责创意取舍，原有角色按实际需要提供证据、资产、动画、剪辑和独立审查。没有新增调度器。
 
+使用项目级 [`$director`](../.agents/skills/director/SKILL.md) 设计镜头并复核实际动稿，执行字段沿用下列 Blueprint 和时间轴结构。
+
 ## 从取舍到执行
 
 1. 在研究 handoff 的 `director.treatments` 写 `mystery`、`failure_inference`、`direct_experiment` 三种本片构思。每个方案提供 `question`、`watch_reason`、`hook`、`tension`、`reveal`、`explanation`、`payoff`、`dropoff_risk`、`rhythm` 和 `evaluation`。作者在 `selected` 和 `selection_reason` 说明取舍。无真实故障来源时只用明确标注的反事实条件。

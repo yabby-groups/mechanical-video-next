@@ -1026,6 +1026,7 @@ Fix structural problems in the cut and render only affected shot inputs.
             from .director import enabled as creative_direction
             if creative_direction(data):
                 story_direction += '''
+Use the project $director Skill (.agents/skills/director/SKILL.md) to direct the shots and review the actual cut.
 Write three treatments in the research director record: mystery, failure_inference and
 direct_experiment. Choose one for this subject before matching assets. For each shot name
 its new information in the Blueprint, assess visual routes, and bind the strategy to executable

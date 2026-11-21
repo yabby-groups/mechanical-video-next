@@ -3,9 +3,14 @@ import {AbsoluteFill, Audio, Composition, OffthreadVideo, Sequence, registerRoot
 import {TextOverlay, defaultTextStyle, TextStyle, Annotation, TextLayer, assertOverlayRegions, audienceCopy, openingTitle} from './TextOverlay';
 import {ShotInfo, ShotInformation, informationRegions, scienceBadge} from './ShotInformation';
 import {ChapterTransition, SplitScreen, VisualGraphic, VisualProps} from './VisualNarrative';
+import {EvidenceGraphic, type EvidenceGraphicSpec} from './EvidenceGraphic';
 
 type Cue = {start: number; end: number; text: string};
-type Shot = ShotInfo & VisualProps & {id: string; seconds: number; audio?: string; mediaStartFrame?: number};
+type AngularComparison = Extract<EvidenceGraphicSpec, {type: 'angular_comparison'}>;
+type Shot = ShotInfo & Omit<VisualProps, 'graphic'> & {
+  id: string; seconds: number; audio?: string; mediaStartFrame?: number;
+  graphic?: VisualProps['graphic'] | AngularComparison;
+};
 type Props = {
   title: string; shots: Shot[]; cues: Cue[]; duration: number; fps: number; width: number; height: number;
   text_style?: TextStyle; annotations?: Annotation[]; critical_boxes?: number[][];
@@ -24,15 +29,19 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
   const title = openingTitle(p.title, frame+start, p.fps, legacy);
   const auxiliary = shot.footage?.credit ?? (!scienceBadge(shot,legacy) ? (last && p.fullframe_credit) || audienceCopy(p.fullframe_caption,legacy) : undefined);
   const annotations = (p.annotations??[]).filter(a=>time>=a.start && time<a.end);
+  const {graphic} = shot;
+  const angular = graphic?.type === 'angular_comparison';
   const regions: {layer: TextLayer; box?: number[]}[] = [...informationRegions(shot,frame,p.fps,legacy), ...annotations];
   if(title) regions.push({layer:'chapter'});
   if(auxiliary) regions.push({layer:'auxiliary'});
   if(cues.length) regions.push({layer:'subtitle'});
   assertOverlayRegions(regions,profile,p.width,p.height,p.critical_boxes);
   return <AbsoluteFill style={{background:'#223139',color:'white',fontFamily:'PingFang SC, sans-serif'}}>
-    {shot.graphic ? <VisualGraphic graphic={shot.graphic} seconds={shot.seconds}/> : shot.splitScreen ? <SplitScreen spec={shot.splitScreen}/> :
+    {graphic?.type === 'angular_comparison' ? <EvidenceGraphic graphic={graphic} seconds={shot.seconds}/> :
+      graphic ? <VisualGraphic graphic={graphic} seconds={shot.seconds}/> : shot.splitScreen ? <SplitScreen spec={shot.splitScreen}/> :
       <OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.mediaStartFrame ?? shot.footage?.startFrame} muted
         style={{width:'100%',height:'100%',objectFit:'contain'}}/>}
+    {angular && <div style={{position:'absolute',left:0,right:0,top:profile.subtitle.safe_box[1],bottom:0,background:'#223139'}}/>}
     {shot.audio && <Audio src={staticFile(shot.audio)}/>}
     <ShotInformation shot={shot} frame={frame} fps={p.fps} width={p.width} height={p.height} profile={profile} legacy={legacy}/>
     {title && <>

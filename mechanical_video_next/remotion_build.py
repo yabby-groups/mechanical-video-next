@@ -8,7 +8,8 @@ from scripts.common import ROOT, run
 
 SOURCES = ('remotion/src/index.tsx', 'remotion/src/TextOverlay.tsx',
            'remotion/src/ShotInformation.tsx', 'remotion/package-lock.json', 'config/text-style.json')
-VISUAL_SOURCES = SOURCES[1:] + ('remotion/src/visualEntry.tsx', 'remotion/src/VisualNarrative.tsx')
+VISUAL_SOURCES = SOURCES[1:] + (
+    'remotion/src/visualEntry.tsx', 'remotion/src/VisualNarrative.tsx', 'remotion/src/EvidenceGraphic.tsx')
 PROGRESSION_SOURCES = SOURCES[1:] + (
     'remotion/src/progressionEntry.tsx', 'remotion/src/EvidenceGraphic.tsx', 'remotion/src/VisualNarrative.tsx')
 

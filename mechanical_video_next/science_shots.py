@@ -316,6 +316,10 @@ def validate_editorial_geometry(spec):
             a, b = start['direction'], end['direction']
             if sum(x*y for x,y in zip(a,b))/(math.hypot(*a)*math.hypot(*b)) < -.95:
                 raise ValueError('Add an intermediate camera key for oppositely directed views')
+            if start.get('easing_to_next', 'smoothstep') not in ('smoothstep', 'ease_out_cubic'):
+                raise ValueError('Unknown camera segment easing')
+        if 'easing_to_next' in path[-1]:
+            raise ValueError('Camera easing requires a following pose')
         for pose in path:
             if 'camera_framing' in spec and (
                     pose['width'] < 1 or any(abs(v) > .4 for v in pose['target'][:2])

@@ -326,7 +326,7 @@ def validate_footage(source, *, seconds=None):
 
 def validate_graphic(graphic, *, progression=False):
     kind = graphic.get('type')
-    if kind == 'angular_comparison' and progression:
+    if kind == 'angular_comparison':
         from .knowledge_progression import validate_angular_graphic
         validate_angular_graphic(graphic)
         return

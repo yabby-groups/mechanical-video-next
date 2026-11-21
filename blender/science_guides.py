@@ -17,6 +17,14 @@ def stage(scene, parts, spec):
     root.rotation_euler = Euler(spec['stage_rotation'])
 
 
+def camera_segment_progress(start, end, progress):
+    mix = (progress - start['progress']) / (end['progress'] - start['progress'])
+    if start.get('easing_to_next') == 'ease_out_cubic':
+        # Adapted from video-shotcraft's PullBackIsolation camera timing.
+        return 1 - (1 - mix) ** 3
+    return mix * mix * (3 - 2 * mix)
+
+
 def camera_motion(scene, camera, poses, count, linear_action, followed=None, framing=(), rig_spec=None,
                   parts=(), lock_scale=False):
     if rig_spec:
@@ -31,8 +39,7 @@ def camera_motion(scene, camera, poses, count, linear_action, followed=None, fra
         while progress > poses[index+1]['progress']:
             index += 1
         start, end = poses[index:index+2]
-        mix = (progress - start['progress']) / (end['progress'] - start['progress'])
-        mix = mix * mix * (3 - 2 * mix)
+        mix = camera_segment_progress(start, end, progress)
         center = Vector(start['target']).lerp(Vector(end['target']), mix)
         if followed is not None:
             scene.frame_set(frame)
@@ -112,8 +119,7 @@ def camera_rig_motion(scene, previous, poses, count, linear_action, spec, parts)
         while index < len(poses)-2 and progress > poses[index+1]['progress']:
             index += 1
         start, end = poses[index:index+2]
-        blend = (progress-start['progress']) / (end['progress']-start['progress'])
-        blend = blend*blend*(3-2*blend)
+        blend = camera_segment_progress(start, end, progress)
         center = Vector(start['target']).lerp(Vector(end['target']), blend)
         if followed:
             center += (marker_center(followed)-initial)*spec['follow']['weight']

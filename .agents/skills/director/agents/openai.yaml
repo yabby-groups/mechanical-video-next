@@ -1,0 +1,4 @@
+interface:
+  display_name: "机械视频导演"
+  short_description: "设计可执行的机械分镜、运镜和剪辑，并核对实际成片"
+  default_prompt: "使用 $director 为当前机械视频设计或修订分镜，并把决定写入现有 Blueprint。"

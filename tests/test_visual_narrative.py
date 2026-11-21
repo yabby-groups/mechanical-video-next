@@ -114,10 +114,12 @@ class VisualNarrativeTests(unittest.TestCase):
     def test_phone_graphic_rejects_unreadable_copy_and_validates_equal_arc_model(self):
         angular = dict(type='angular_comparison', title='Equal length', travel=3,
                        items=[{'label':'Small', 'radius':1}, {'label':'Large', 'radius':2}])
+        validate_graphic(angular)
         validate_graphic(angular, progression=True)
         angular['items'][0]['label'] = 'Overlong label ' * 12
-        with self.assertRaisesRegex(ValueError, 'minimum phone text size'):
-            validate_graphic(angular, progression=True)
+        for progression in (False, True):
+            with self.subTest(progression=progression), self.assertRaisesRegex(ValueError, 'minimum phone text size'):
+                validate_graphic(angular, progression=progression)
 
     def test_dynamic_qa_requires_continuity_and_exact_frame_range(self):
         blueprint = {'shots': [

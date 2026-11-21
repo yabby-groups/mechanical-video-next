@@ -60,6 +60,29 @@ def owner(curves, *, layered=False):
 
 
 class ScienceMotion(unittest.TestCase):
+    def test_camera_easing_is_segment_specific(self):
+        first = dict(progress=0, target=[0, 0, 0], direction=[0, -1, 1], width=17)
+        last = dict(first, progress=1, width=3.35)
+        eased = dict(first, easing_to_next='ease_out_cubic')
+        science_shots.validate_editorial_geometry({'camera_path': [eased, last]})
+        for path in ([dict(first, easing_to_next='unknown'), last],
+                     [first, dict(last, easing_to_next='ease_out_cubic')]):
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, 'easing'):
+                science_shots.validate_editorial_geometry({'camera_path': path})
+
+        spec = importlib.util.spec_from_file_location('camera_adapter_test', ROOT/'blender/science_guides.py')
+        module = importlib.util.module_from_spec(spec)
+        with patch.dict('sys.modules', {
+            'bpy': SimpleNamespace(),
+            'mathutils': SimpleNamespace(Euler=None, Vector=None),
+            'science_scene': SimpleNamespace(marker_center=None, target=None),
+        }):
+            spec.loader.exec_module(module)
+        self.assertEqual([module.camera_segment_progress(eased, last, t) for t in (0, .5, 1)],
+                         [0, .875, 1])
+        self.assertEqual(module.camera_segment_progress(first, last, .5), .5)
+        self.assertEqual(module.camera_segment_progress(first, last, .25), .15625)
+
     def test_camera_depth_range_rejects_nonfinite_reversed_or_zero_planes(self):
         science_shots.validate_editorial_geometry({'camera_clip': [29, 31]})
         for clip in ([0, 31], [31, 29], [29, 29], [True, 31], [29, float('inf')], [29]):

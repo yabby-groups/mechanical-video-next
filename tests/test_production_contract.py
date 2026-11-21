@@ -27,7 +27,9 @@ class ProductionContractTests(unittest.TestCase):
             search = json.loads(Path(first['search_plan']).read_text())
             self.assertEqual([query['platform'] for query in search['queries']],
                              ['douyin', 'xiaohongshu', 'bilibili', 'youtube'])
-            self.assertNotIn('EDITORIAL', (task / 'producer-prompt.md').read_text())
+            prompt = (task / 'producer-prompt.md').read_text()
+            self.assertNotIn('EDITORIAL', prompt)
+            self.assertIn('.agents/skills/director/SKILL.md', prompt)
             self.assertEqual(load(task)['timeline_policy_version'], 1)
             w.advance(task, 'RESEARCHING')
             source = task / 'manual.txt'
