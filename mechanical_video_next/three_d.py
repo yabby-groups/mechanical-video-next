@@ -16,7 +16,7 @@ def validate_config(config):
     from .visual_narrative import VERSION, validate_execution, validate_plan, version
     from .knowledge_progression import FIELD, enabled
     from .production_contract import FIELD as CONTRACT_FIELD
-    from .joint_timeline import FIELD as TIMELINE_FIELD
+    from .joint_timeline import FIELD as TIMELINE_FIELD, enabled as joint_timeline
     visual_version = version(config)
     from .media_policy import enabled as asset_first, validate_document
     hybrid = asset_first(config)
@@ -29,14 +29,16 @@ def validate_config(config):
     if config.get('asset_strategy') == 'illustrated':
         raise ValueError('Illustrated mechanical subjects are not 3D')
     shots = config.get('shots', {})
-    for shot in shots.values() if isinstance(shots, dict) else shots:
+    picture = ({row['id']: row for row in config['timeline']['shots']}
+               if isinstance(shots, dict) and joint_timeline(config) else {})
+    for name, shot in shots.items() if isinstance(shots, dict) else enumerate(shots):
         if not isinstance(shot, dict):
             raise ValueError('Executable 3D shots must be structured objects')
         require_route(shot.get('render_route', '3d'))
         if shot.get('template') == 'layered' or shot.get('layers'):
             raise ValueError('Layered mechanical imagery cannot replace a real 3D scene')
         if isinstance(shots, dict) and visual_version == VERSION and shots:
-            validate_execution(shot, progression=progression, hybrid=hybrid)
+            validate_execution(shot, progression=progression, hybrid=hybrid, picture=picture.get(name))
         elif visual_version != VERSION and (shot.get('template') == 'editorial' or {'visual', 'graphic', 'footage'} & shot.keys()):
             raise ValueError('Editorial shots require the versioned visual production policy')
         # Blueprint rows are declarative mappings. Their complete executable

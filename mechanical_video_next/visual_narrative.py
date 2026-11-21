@@ -383,11 +383,17 @@ def validate_graphic(graphic, *, progression=False):
         validate_graphic_text(graphic)
 
 
-def validate_execution(shot, *, progression=False, hybrid=False):
+def validate_execution(shot, *, progression=False, hybrid=False, picture=None):
     visual = shot['visual']
     validate_design(visual, hybrid=hybrid)
     engine = visual['render_engine']
-    if shot.get('seconds') != visual['duration']:
+    if picture is not None and engine == 'blender':
+        from .joint_timeline import frame_number
+        frames = picture['end_frame'] - picture['start_frame']
+        if (frames != frame_number(visual['duration'])
+                or picture.get('source_start_frame', 0) + frames > frame_number(shot['seconds'])):
+            raise ValueError('Joint picture window does not fit the native source')
+    elif shot.get('seconds') != visual['duration']:
         raise ValueError('Executable and planned visual durations differ')
     if engine == 'blender':
         if shot.get('template') == 'editorial' or 'graphic' in shot or 'footage' in shot:
