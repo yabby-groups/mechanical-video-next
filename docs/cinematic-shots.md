@@ -6,6 +6,21 @@ to the existing shot producer, scene builder, provenance saver and chunk encoder
 No new director schema, renderer or scheduler is introduced. Without `camera_rig`,
 the original orthographic camera implementation runs unchanged.
 
+`science.camera_framing.scale_mode: "locked"` fits a fixed orthographic
+envelope over the rendered frames while following the named parts. Aim offsets
+stay in normalized screen coordinates and path width is padding against that
+envelope. Use a wide opening key and smaller padding for a timed move, then
+hold the padding through the action. For a deforming surface mark,
+`science.anchors.<id>.evaluated_center: true` projects the evaluated mesh
+centroid. A fixed mechanical datum continues to use a local XYZ anchor.
+
+Choose stable framing for a complete action, following for a moving input
+or output, macro for contact, and EAS separation or native sectioning where
+geometry hides a relation. Use a shared part or action state across a cut to
+recover whole-product context. Replay and matched comparisons use existing
+source windows and the data-track time map. The registry requires independent
+dynamic review.
+
 The pinned official Add Camera Rigs 1.9.2 extension is unmodified and licensed
 GPL-3.0-or-later. `blender/vendor/add_camera_rigs/SOURCE.json` binds its official
 archive. Actual background Dolly and Crane probes are in

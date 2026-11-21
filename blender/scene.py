@@ -897,13 +897,16 @@ def render_shot(args):
         if camera_path:
             follow_name = science.get('camera_path_follow')
             followed = science_scene.target(visible, follow_name) if follow_name else None
-            framing_parts = [science_scene.target(visible, name)
-                             for name in science.get('camera_framing', {}).get('parts', [])]
-            rig_report = camera_motion(scene, cam, camera_path, count, linear_action, followed, framing_parts,
-                                       science.get('camera_rig'), visible)
-            if rig_report:
+            framing = science.get('camera_framing', {})
+            framing_parts = [science_scene.target(visible, name) for name in framing.get('parts', [])]
+            camera_report = camera_motion(
+                scene, cam, camera_path, count, linear_action, followed, framing_parts,
+                science.get('camera_rig'), visible, lock_scale=framing.get('scale_mode') == 'locked')
+            if science.get('camera_rig'):
                 cam = scene.camera
-                report['checks']['camera_rig'] = rig_report
+                report['checks']['camera_rig'] = camera_report
+            elif camera_report:
+                report['checks']['camera_locked_scale'] = camera_report
             report['checks']['editorial_camera'] = {'poses': len(camera_path), 'scope': 'Authored moving 3D frame; surrounding parts may crop'}
             if followed is not None:
                 report['checks']['editorial_camera']['followed_part'] = followed.name

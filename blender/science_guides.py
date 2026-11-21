@@ -3,7 +3,7 @@
 import bpy
 from mathutils import Euler, Vector
 
-from science_scene import target
+from science_scene import marker_center, target
 
 
 def stage(scene, parts, spec):
@@ -17,13 +17,15 @@ def stage(scene, parts, spec):
     root.rotation_euler = Euler(spec['stage_rotation'])
 
 
-def camera_motion(scene, camera, poses, count, linear_action, followed=None, framing=(), rig_spec=None, parts=()):
+def camera_motion(scene, camera, poses, count, linear_action, followed=None, framing=(), rig_spec=None,
+                  parts=(), lock_scale=False):
     if rig_spec:
         return camera_rig_motion(scene, camera, poses, count, linear_action, rig_spec, parts)
     if followed is not None:
         scene.frame_set(1)
         origin = followed.matrix_world.translation.copy()
     index = 0
+    fitted = []
     for frame in range(1, count + 1):
         progress = (frame - 1) / max(1, count - 1)
         while progress > poses[index+1]['progress']:
@@ -42,6 +44,9 @@ def camera_motion(scene, camera, poses, count, linear_action, followed=None, fra
         distance = 30
         if framing:
             scene.frame_set(frame)
+            if lock_scale:
+                fitted.append((rotation, center, *camera_bounds(rotation, framing), width))
+                continue
             center, width, distance = fit_camera(scene, rotation, framing, center, width)
         camera.location = center + direction * distance
         camera.rotation_euler = rotation.to_euler('XYZ', camera.rotation_euler)
@@ -49,9 +54,23 @@ def camera_motion(scene, camera, poses, count, linear_action, followed=None, fra
         camera.keyframe_insert('location', frame=frame)
         camera.keyframe_insert('rotation_euler', frame=frame)
         camera.data.keyframe_insert('ortho_scale', frame=frame)
+    if lock_scale:
+        aspect = scene.render.resolution_x / scene.render.resolution_y
+        envelope = max(framing_width(high - low, offset, aspect)
+                       for _, offset, low, high, _ in fitted)
+        for frame, (rotation, offset, low, high, padding) in enumerate(fitted, 1):
+            center, scale, distance = framing_pose(scene, rotation, offset, envelope * padding, low, high)
+            camera.location = center + rotation @ Vector((0, 0, distance))
+            camera.rotation_euler = rotation.to_euler('XYZ', camera.rotation_euler)
+            camera.data.ortho_scale = scale
+            camera.keyframe_insert('location', frame=frame)
+            camera.keyframe_insert('rotation_euler', frame=frame)
+            camera.data.keyframe_insert('ortho_scale', frame=frame)
     linear_action(camera.animation_data)
     linear_action(camera.data.animation_data)
     scene.frame_set(1)
+    return {'frame_envelope_width': envelope, 'frames_evaluated': count,
+            'scope': 'Authored padding changes scale against a fixed evaluated envelope'} if lock_scale else None
 
 
 def camera_rig_motion(scene, previous, poses, count, linear_action, spec, parts):
@@ -153,12 +172,6 @@ def camera_rig_motion(scene, previous, poses, count, linear_action, spec, parts)
             'frames': rows, 'scope': 'Every-frame evaluated camera and marker projection; ray candidates do not establish visual clarity, transparent occlusion or continuous viewing'}
 
 
-def marker_center(obj):
-    """Centroid of the evaluated native mesh, including animated shape keys."""
-    evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
-    return evaluated.matrix_world @ (sum((v.co for v in evaluated.data.vertices), Vector()) / len(evaluated.data.vertices))
-
-
 def evaluated_bounds(objects):
     graph = bpy.context.evaluated_depsgraph_get()
     for obj in objects:
@@ -167,19 +180,32 @@ def evaluated_bounds(objects):
             yield evaluated.matrix_world @ Vector(corner)
 
 
-def fit_camera(scene, rotation, objects, offset, padding):
+def camera_bounds(rotation, objects):
     inverse = rotation.inverted()
     points = [inverse @ point for point in evaluated_bounds(objects)]
     low = Vector(tuple(min(point[i] for point in points) for i in range(3)))
     high = Vector(tuple(max(point[i] for point in points) for i in range(3)))
-    span = high - low
+    return low, high
+
+
+def framing_width(span, offset, aspect):
+    return max(span.x / (.97 - 2 * abs(offset.x)),
+               span.y * aspect / (.97 - 2 * abs(offset.y)), 1e-6)
+
+
+def framing_pose(scene, rotation, offset, width, low, high):
     aspect = scene.render.resolution_x / scene.render.resolution_y
-    width = max(span.x / (.97 - 2 * abs(offset.x)),
-                span.y * aspect / (.97 - 2 * abs(offset.y)), 1e-6) * padding
     center = (low + high) / 2
     center -= Vector((offset.x * width, offset.y * width / aspect, 0))
-    distance = max(scene.camera.data.clip_start * 2, span.z / 2 + width * 2)
+    distance = max(scene.camera.data.clip_start * 2, (high.z - low.z) / 2 + width * 2)
     return rotation @ center, width / min(1, aspect), distance
+
+
+def fit_camera(scene, rotation, objects, offset, padding):
+    low, high = camera_bounds(rotation, objects)
+    aspect = scene.render.resolution_x / scene.render.resolution_y
+    width = framing_width(high - low, offset, aspect) * padding
+    return framing_pose(scene, rotation, offset, width, low, high)
 
 
 def point(ref, objects, depsgraph):

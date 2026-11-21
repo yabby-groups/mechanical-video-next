@@ -13,7 +13,18 @@ def target(parts, name):
 
 
 def anchor_world(obj, anchor):
+    if anchor.get('evaluated_center') is True:
+        return marker_center(obj)
     return obj.matrix_world @ Vector(anchor['local'])
+
+
+def marker_center(obj):
+    """Centroid of the evaluated native mesh, including animated shape keys."""
+    mesh = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    if mesh.type != 'MESH' or not mesh.data.vertices:
+        raise ValueError(f'Evaluated center requires a nonempty mesh: {obj.name}')
+    center = sum((vertex.co for vertex in mesh.data.vertices), Vector()) / len(mesh.data.vertices)
+    return mesh.matrix_world @ center
 
 
 def curve(scene, points, radius, material, label):

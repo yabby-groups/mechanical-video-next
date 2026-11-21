@@ -9,6 +9,13 @@
       "sample": "output/camera-study/B.mp4",
       "visual_effectiveness": "UNKNOWN"
     },
+    "locked-contact-framing": {
+      "status": "EXPERIMENTAL",
+      "study": "output/producer-direction-validation/contact-v2-render.json",
+      "sample": "output/producer-direction-validation/correction-tape-contact-v2.mp4",
+      "scope": "Sanford correction tape. Same prescribed 7.5 mm contact interval. Two evaluated marks in frame.",
+      "visual_effectiveness": "UNKNOWN"
+    },
     "tracking-contact-data": {
       "status": "EXPERIMENTAL",
       "study": "output/camera-study/experiment.json",

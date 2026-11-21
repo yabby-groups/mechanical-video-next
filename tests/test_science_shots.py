@@ -48,15 +48,29 @@ class ScienceShots(unittest.TestCase):
     def test_relative_camera_path_binds_visible_geometry_and_screen_offsets(self):
         shot = copy.deepcopy(self.trace)
         spec = shot['science']
-        spec['camera_framing'] = {'version': 1, 'parts': ['Carrier']}
+        spec['camera_framing'] = {'version': 1, 'parts': ['Carrier'], 'scale_mode': 'locked'}
         spec['camera_path'] = [
             dict(progress=0, target=[-.15, 0, 0], direction=[0, -1, 1], width=1.3),
             dict(progress=1, target=[-.10, 0, 0], direction=[1, -1, 1], width=1.1),
         ]
         science_shots.validate(shot)
         self.assertIn('Carrier', science_shots.referenced_parts(shot))
+        spec['camera_framing']['scale_mode'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'Camera framing'):
+            science_shots.validate(shot)
+        spec['camera_framing']['scale_mode'] = 'locked'
         spec['camera_path'][1]['target'][0] = .5
         with self.assertRaisesRegex(ValueError, 'normalized XY'):
+            science_shots.validate(shot)
+
+    def test_mesh_center_anchor_has_one_evaluated_definition(self):
+        shot = copy.deepcopy(self.trace)
+        anchors = shot['science']['anchors']
+        key = next(iter(anchors))
+        anchors[key] = dict(object='Carrier', evaluated_center=True)
+        science_shots.validate(shot)
+        anchors[key]['local'] = [0, 0, 0]
+        with self.assertRaisesRegex(ValueError, 'either an evaluated mesh center'):
             science_shots.validate(shot)
 
     def test_authored_camera_path_can_blend_tracking_of_an_assembly_part(self):

@@ -88,8 +88,13 @@ def validate(shot, *, files=False):
     if not isinstance(anchors, dict) or len(anchors) > 16:
         raise ValueError('At most sixteen screen anchors per shot')
     for anchor_id, anchor in anchors.items():
-        if not name(anchor_id) or not isinstance(anchor, dict) or not name(anchor.get('object')) or not vector(anchor.get('local'), 3):
-            raise ValueError('Anchor requires an object and a local XYZ triple')
+        if not name(anchor_id) or not isinstance(anchor, dict) or not name(anchor.get('object')):
+            raise ValueError('Anchor requires a named object')
+        if 'evaluated_center' in anchor:
+            if anchor['evaluated_center'] is not True or 'local' in anchor:
+                raise ValueError('Choose either an evaluated mesh center or a local XYZ anchor')
+        elif not vector(anchor.get('local'), 3):
+            raise ValueError('Anchor requires a local XYZ triple or evaluated mesh center')
     if 'observation_window' in spec:
         validate_observation_window(spec['observation_window'])
         if not set(spec['observation_window']['anchors']) <= anchors.keys():
@@ -286,6 +291,7 @@ def validate_editorial_geometry(spec):
                 or framing['version'] != 1 or not isinstance(framing.get('parts'), list)
                 or not framing['parts'] or not all(map(name, framing['parts']))
                 or len(set(framing['parts'])) != len(framing['parts'])
+                or framing.get('scale_mode', 'per_frame') not in ('per_frame', 'locked')
                 or not spec.get('camera_path') or 'camera_path_follow' in spec):
             raise ValueError('Camera framing v1 requires unique parts and an unblended camera path')
     if 'camera_clip' in spec:
