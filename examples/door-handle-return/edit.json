@@ -1,0 +1,13 @@
+{
+  "title": "门把手为什么会自己回正？",
+  "shots": [
+    {"id":"use", "start":0, "end":5.3, "narration":[[0.25,"下压门把手。松手，它又自己抬起来。","handle-return"]]},
+    {"id":"explode", "start":5.3, "end":14, "label":"门把手复位组件｜据 US 7,900,978 图 1–5 建模",
+     "narration":[[0.25,"拆开底座。把手带着方轴转。","square-spindle"],[4.35,"旁边有两片拨片，还有一根弯着放的压簧。","driver-and-spring"]]},
+    {"id":"load", "start":14, "end":23.6, "label":"下压｜方轴带动一侧拨片",
+     "narration":[[0.45,"按下把手，方轴的棱带动金色拨片。","driver-and-spring"],[4.7,"金色拨片压一端，蓝色拨片挡在另一端。","one-end-load"]]},
+    {"id":"release", "start":23.6, "end":33, "label":"松手｜弹簧沿原路推回",
+     "narration":[[0.20,"松手，弹簧伸长，把拨片推回去。","spring-return"],[4.1,"推力偏离转轴，形成回转力矩。把手跟着方轴抬起。","spring-return"]]},
+    {"id":"return", "start":33, "end":40.5, "narration":[[0.6,"再按一次。你的手压下去，弹簧把它抬起来。","handle-return"],[4.65,"松手，把手就回到水平。","handle-return"]]}
+  ]
+}
