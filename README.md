@@ -36,6 +36,9 @@ uv run python -m mechanical_video_next continue output/tasks/TASK
 Blueprint 保存原创叙事、镜头、知识和素材决策。编译配置是
 有哈希绑定的派生数据；Handoff 保存不可变版本和依赖。没有第二个调度系统。
 
+默认 Producer-directed 任务的创意选案、逐镜视觉规划、动作和声音时点沿用同一
+Blueprint 与时间轴。字段、视觉策略和预演检查见 [创意导演与视觉规划](docs/creative-direction.md)。
+
 ```sh
 uv run python -m mechanical_video_next.reference_library search --query '选题'
 uv run python -m mechanical_video_next.blueprint compile --blueprint BLUEPRINT --base BASE --output CONFIG

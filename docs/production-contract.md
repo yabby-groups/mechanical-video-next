@@ -137,8 +137,11 @@ Use `advance` and `stage`, verify key actions and watch the low-cost full
 preview before composing the final MP4. `animation-manifest` binds the preview
 and `timeline` binds the final edit.
 
-Candidate tables and pre-voice picture approvals are optional. For direction
-version 1, the Producer reviews the whole moving workprint with Neil audio.
+New tasks with `creative_direction_version=1` record three editorial treatments in
+the research handoff and carry the chosen treatment into the Blueprint. Shot
+strategy and audio decisions compile into the existing renderer and joint timeline.
+See [Creative direction](creative-direction.md). The Producer reviews the whole
+moving workprint with Neil audio before final rendering.
 Use the existing `preview-qa` handoff for independent timecoded
 `creative_review` before the final stage. Report opening, visual tasks, pace,
 everyday connection, voice and sound, and payoff. For each applied reference
