@@ -3255,7 +3255,7 @@ def main():
         elif name == 'agent-run':
             p.add_argument('--role', required=True, choices=ROLES)
             p.add_argument('--thread-id', required=True)
-            p.add_argument('--seconds', type=float, required=True)
+            p.add_argument('--seconds', type=float)
             p.add_argument('--tokens', type=int)
             p.add_argument('--model')
             p.add_argument('--reasoning-effort')
