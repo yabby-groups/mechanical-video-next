@@ -5,6 +5,14 @@ description: 为「君哥拆机器」制作原创机械设计故事，使用三�
 
 # mechanical-video
 
+## 默认创作流程
+
+「拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。」Producer 锁定用户指定的机械对象和问题，核实一个实施例。把实际使用、内部三维结构、关键零件、输入、传动、输出、复位和科学因果写入整片 Treatment。按题材安排顺序。生活、历史、实拍和图形辅助三维解释。已有独立 QA 审查源模型及完整动态预演，通过后进入正式制作。见 [制作契约](../../../docs/production-contract.md)。
+
+On a `skill-driven` task, use [story development and editing](references/story-development.md)
+to find the film and make its moving test. Apply the directions below to tasks
+that pin the corresponding earlier workflow.
+
 For Producer direction version 1, choose the audience premise from real use
 and a visible test before matching assets. Put observations on the joint
 timeline. Review the full moving workprint with the measured Neil speech and

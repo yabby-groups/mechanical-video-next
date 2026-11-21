@@ -5,6 +5,10 @@ description: 在独立 preview-qa 和 final-qa 中审核真实机械视频，定
 
 # 自动生产审片
 
+## 独立机械与视觉审查
+
+用现有 QA 核对用户指定对象和核心问题、内部三维几何、可观察的连续运动、输入到复位的科学因果、辅助内容的作用，以及是否兑现「拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。」确认换题、偏离定位或以二维替代核心三维机构时判 REJECT。用实际 MP4 和原生几何查接触、穿模、自交、掉帧与中途跳转。局部问题位于具体镜头时判 REVISE，整片缺失连续证据时记录 UNKNOWN。独立机械和视觉均 PASS 后可进正式制作。见 [制作契约](../../../docs/production-contract.md)。
+
 由现有 QA 执行。读取 [制作契约](../../../docs/production-contract.md)、当前任务及对应的 `animation-manifest` 或 `timeline`。从同一交接的 `video_review` 读取实际 MP4 哈希、技术结果、时间码和证据。历史媒体可用 `uv run python -m mechanical_video_next.video_review MP4 INPUTS --output REPORT` 以实物单独诊断。
 
 1. 先记录当前工具能连续看到和听到的区间。实际连续播放时按原速审全片，复核关键动作的连续片段。静帧走 `qa_images`，每轮最多四帧和一张联系表。在报告中标记时序帧、技术测量及 UNKNOWN。

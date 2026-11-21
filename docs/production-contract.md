@@ -3,7 +3,12 @@
 Mechanical Video Next is the production system for the single Douyin account
 「君哥拆机器」.
 
-> 从生活中有意思的机械问题出发，用真实运动、三维拆解和有设计感的镜头，让观众亲眼看到机械原理是怎样发生的。
+> 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
+
+节目围绕身边的机械、工具和机器，通过三维动画解释内部结构、关键零件与运动。
+实际外观和用途、输入、传动、输出、复位、科学原理和回到使用共同服务于理解。
+导演按题材编排顺序。发明历史、生活情境、实拍及图形用来辅助观众理解机械。
+用户指定的机械对象、核心问题及节目定位由用户授权变更。
 
 This contract governs future production. Explicit user instructions take precedence.
 Task creation pins the policy versions and resume retains the historical policy.
@@ -19,6 +24,41 @@ Explain consequential model boundaries in plain language. Keep the evidence,
 scope and simulation status in the existing internal records. Independent QA
 checks the actual rendered words, obstructions, continuity and narration.
 Use explicit `presentation_style: legacy` to reproduce older display conventions.
+
+## 默认机械解释与独立审查
+
+新建只给选题的混合任务固定 `story_development_version: 2`，沿用 Producer、Treatment、
+Blueprint、工具、QA 和既有交接。用 `produce --topic` 立项。题目是完整 brief 时，
+`--mechanical-object` 和 `--core-question` 记录用户指定的对象和问题。问句作为题目
+会按原文锁定为核心问题。Research、Treatment、Blueprint 保留同一机械对象和核心问题。
+Research 可以据证据选择该对象的具体实施例，记录型号、来源范围和动作。优先核实几何、
+关键零件、接触和输入到复位的科学因果。发明背景按本集需要查证。
+
+| 交接 | 责任和输入 | 通过后 |
+| --- | --- | --- |
+| `research` | Producer 或现有研究角色。保留 `mechanical_object`，用 `science.question`、事实和来源记录机构依据。 | 开发整片 Treatment 与分镜 |
+| `story-treatment` | Producer。延续对象和问题，记录 `positioning`、`context`、`mechanism`、`science`、`resolution`、`takeaway`、`user_requirements`。场景按题材安排。 | 提请独立文字审查 |
+| `story-qa` | 现有独立 QA。核对作用、连贯运动、科学因果与分镜。 | 制作完整低成本动态预演 |
+| `diagnostic-animatic` | Producer。依赖 research、story-treatment 和 story-qa。提供 `DRAFT_UNAPPROVED`、完整 MP4、`blueprint_evidence` 与 Treatment 的 `story_treatment_sha256`。草案 `core_3d` 逐项记录 `scene_id`、`shot_id`、Blend 文件的 `source` 哈希绑定。 | 进入独立机械与视觉审查 |
+| `diagnostic-qa` | 现有独立 QA。核对精确 MP4、源模型、连续机构运动和观众可见的机械因果。 | 通过后开始正式资产、CAD 与渲染 |
+
+每场用 `id`、`visual_form`、`visible_change`、`story_purpose`、`causal_link`、
+`fact_ids` 和 `mechanical_role` 写明需要看见什么。核心场景使用来源可核对的
+Blender 三维几何和运动，标记 `render_engine: blender`。按需用 OpenCascade 及既有机械约束。
+Director 根据同一机构的可见性改进爆炸拆解、剖切、接触微距、相机跟随、灯光、剪辑和声音。
+动作可用性与实际接触优先于外观。历史、实拍和图形可呈现情境或提供参考。
+
+现有独立 QA 用 `creative_decision` 复核八项。分别记录 `positioning` 节目定位、
+`mechanical_object` 机械对象、`core_question` 问题、`internal_3d` 内部三维与替代情况、
+`continuous_motion` 连续完整机构运动、`scientific_causality` 科学因果、
+`supporting_story` 辅助叙事和 `discovery_payoff` 实际使用回报。每项有 `status`、
+`observation` 和 `location`。文字审查可带供审阅的 `document` 哈希，报告用
+`reviewed_input` 绑定同一文档。预演及正式审片对同一 MP4 正常速度连续观看，PASS
+记录覆盖时长。审查员及报告记入现有 QA 台账。音画测量、代码测试、静帧与实听分开记录。
+
+确定偏离对象、核心问题、定位或用二维画面替代核心机构时判 REJECT。整体缺陷退回 Treatment，
+局部缺陷用 REVISE 与具体位置描述，缺少必要观察时判 UNKNOWN。保留当前与历次证据。
+既有 Film Integrity、Video Review、来源、版权、Neil、Preview QA 和 Final QA 继续执行。
 
 ### Film integrity on new Producer-directed tasks
 
@@ -43,8 +83,9 @@ visible. Explicitly cue any replay or change of example in the actual film.
 
 In `narrative.moments` also bind `scientific_explanation` and `action_result`.
 Each moment carries `knowledge_id` and one or more of `mechanical_event_id`,
-`narration_segment_id` or `visual_evidence`. The causal reveal and action result
-of a mechanical film use a mechanical event. The same beat or shot may carry
+`narration_segment_id` or `visual_evidence`. In new Story Development tasks,
+the Director authors the observation IDs and structure. A core mechanical shot
+still uses a source-bound action. Historical policies use the pinned moment IDs. The same beat or shot may carry
 several moments. Measure Neil PCM, then revise the timing until all utterances
 fit. Author the required action and story before deciding the film's duration.
 
@@ -93,7 +134,10 @@ edit, waveform and native render data.
 
 | Task | Effective rules |
 | --- | --- |
-| `production_contract_version=6`, `production_method=producer-directed`, `producer_direction_version=1` | Default for new topic-only mixed production. Use the audience premise, shot direction and moving workprint review below |
+| `story_development_version=2` | Current scoped mechanical production with native 3D and independent mechanical and visual QA. |
+| `story_development_version=1` | Historical experiment. Existing handoffs and the Yale study retain their original rules. |
+| `production_method=skill-driven` without the new field | Historical opt-in pilot on the v6 mixed-media execution contract. |
+| `production_contract_version=6`, `production_method=producer-directed`, `producer_direction_version=1` without the new field | Historical Producer-directed workflow. Use the audience premise, shot direction and moving workprint review below. |
 | Earlier `production_method=producer-directed` tasks | Resume from the recorded preview and reference workflow |
 | Other `production_contract_version=6` tasks | Original `mechanical-story-v6` candidate workflow. `--production-contract 6` explicitly selects this path |
 | `production_contract_version=5` | `mechanical-story-v5` applies Science Discovery to the account's mechanical stories and retains v4's timeline, media, visual and evidence capabilities |
@@ -107,8 +151,8 @@ edit, waveform and native render data.
 
 The literal route `3d` remains the compatible tool entry point. It does not label
 a mixed film as 3D-only. Each native 3D shot keeps inspectable geometry, spatial
-motion, camera, scene and render provenance. Licensed real mechanism footage may
-support a core action only with independent exact-source continuous observation.
+motion, camera, scene and render provenance. Current production depicts core motion in inspectable native 3D. Historical pinned
+contracts can use authorized footage according to their own policy.
 Information graphics, AI imagery and prescribed trajectories cannot prove a real
 mechanism or a physical simulation.
 
@@ -119,9 +163,39 @@ passing dynamic QA; one identical studio composition for every shot. Historic
 records and original policies remain available for their tasks. The 10–15 s
 mechanism diagnostic is an internal checkpoint, never project acceptance.
 
-## Producer-directed production
+## Historical Skill-driven pilot
 
-New topic-only tasks start with `research/search-plan.json` and the
+Use this section when resuming `production_method=skill-driven` tasks without
+`story_development_version`. The [pilot and 40-second baseline](skill-driven-production.md)
+document that workflow before the new creative gates.
+
+The Producer chooses the Skills and production order. Use the existing
+mechanical-research, mechanical-video, director, mechanical-asset,
+mechanical-animation and video-review Skills as the creative problem requires.
+Explore distinct evidence-backed directions and seek independent editorial
+judgment. Author a low-cost moving story with a concrete visual discovery and
+a payoff. The treatment, chapters, media and observation IDs are authored by
+the Producer. Reference viewing and a visual route comparison are available
+when relevant. A fixed case list or scoring rule does not select the film.
+
+Bind the complete draft with `diagnostic-animatic`, depending on `research`.
+Supply the draft Blueprint with a Joint Timeline picture clock and, when
+measured Neil is present, its narration receipt. Record independent findings
+as `diagnostic-qa` tied to that exact moving edit. Continuous complete picture
+review is required for a story PASS before HD. Review gaps do not invalidate
+the draft or restrict unrelated evidence-supported work.
+
+A formal Blueprint still binds verified science, geometry, picture, motion
+and measured speech. Give the chosen observations meaningful IDs in
+`narrative.moments`. Pure visual shots may carry no fact when they make no
+scientific claim. Core mechanical views still require a source-bound action
+in the existing Joint Timeline. Film integrity, Video Review, lawful asset
+provenance, independent preview and final QA and existing formal delivery
+conditions apply to the formal version.
+
+## Historical Producer-directed production
+
+Producer-directed tasks pinned before Story Development start with `research/search-plan.json` and the
 `viral-analysis` continuation action. Check the existing library for matching
 viewing evidence first. Reuse sufficient, relevant observations with current
 hashes. Cached engagement is historical. When there are gaps, look for the
@@ -208,7 +282,7 @@ Use `advance` and `stage`, verify key actions and watch the low-cost full
 preview before composing the final MP4. `animation-manifest` binds the preview
 and `timeline` binds the final edit.
 
-New tasks with `creative_direction_version=1` record three editorial treatments in
+Tasks pinned with `creative_direction_version=1` record three editorial treatments in
 the research handoff and carry the chosen treatment into the Blueprint. Shot
 strategy and audio decisions compile into the existing renderer and joint timeline.
 See [Creative direction](creative-direction.md). The Producer reviews the whole
@@ -233,7 +307,7 @@ provenance and the existing QA and production reports.
 ## Historical story discovery and creative review
 
 Use the original pinned workflows for the discovery and preproduction approval
-steps below. Producer-directed tasks use the section above.
+steps below. Producer-directed tasks use the section of their pinned workflow above.
 
 For v6, compare distinct stories on the same everyday object before investigating
 specific production paths. Describe who would care in actual use, which effect

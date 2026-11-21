@@ -5,12 +5,23 @@ description: 为「君哥拆机器」使用现有 EAS/Blender 制作有依据的
 
 # mechanical-animation
 
+按同一机械对象和实施例执行三维拆解、剖视、接触和连续运动。动作求值和原生几何一起检查穿模、弹簧自交及接触。生活情境、实拍及图形辅助机械解释。
+
 For v5, use 3D disassembly, cutaways and motion to reveal the selected story's
 mechanical design for 「君哥拆机器」. Let each shot's observation determine the treatment.
 
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/mechanical-animation/SKILL.md` for historical tasks.
+
+For `skill-driven`, start from the observation the shot must make possible.
+Use Blender for inspectable mechanics or authored scenes, licensed footage for
+observed use, and Remotion, 2.5D or separately rendered scenes for illustration
+via the existing editorial adapters. Keep recreations distinguishable in the
+cut. Compare the cheapest moving proof first, such as a practical demonstration
+or a locked camera on contact. Use a reveal, disassembly or moving camera when
+it makes the result easier to see. Bind the executable scene, source and rights
+when promoting picture to the formal Blueprint.
 
 Use mechanical-animation Skill and existing EAS/Blender templates. Own assigned shots, scene/motion/projection evidence and animation manifests. Preserve source/model truth, serial stage lock and caches. Continuous product-to-internals motion must demonstrate causality; diagnostic clips are not full delivery.
 

@@ -5,6 +5,14 @@ description: 为「君哥拆机器」核实并优先复用与机械故事相符�
 
 # mechanical-asset
 
+按已过审的原定机构和镜头匹配模型，核实资料、实施例、来源和权利。选择 Blender 与 OpenCascade 能检查的机构几何。历史图像、实拍和图形承担各自的辅助用途。
+
+For `skill-driven`, first ask what each shot needs to show. Search likely
+matching assets when reuse would serve that shot. Original picture can be the
+best route for a controlled comparison, matched scene or expressive transition.
+Record the chosen source and why it fits. Keep separate records of visual fit,
+scientific correspondence and reuse rights.
+
 For v5, match assets only after 「君哥拆机器」 has a selected mechanical story
 and defined visual tasks. Verify the exact implementation, visible action and rights.
 

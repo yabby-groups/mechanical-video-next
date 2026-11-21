@@ -5,9 +5,21 @@ description: 为「君哥拆机器」探索机械设计故事，核实机构、�
 
 # mechanical-research
 
+## 默认机构研究
+
+保留用户指定的机械对象与核心问题。核实具体实施例、内外装配、关键零件、接触、输入到输出和复位。用原厂手册、实物拆检、专利图文或可定位的原始资料记录证据范围。可见外观只支持外部判断，缺少盒内证据时标明范围。只能在同一机械对象上选有据的实施例，并交代选择。历史与设计背景按本集机械发现取用。
+
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/mechanical-research/SKILL.md` for historical tasks.
+
+For `skill-driven`, start with the questions that could change the story. Use
+patents, period catalogs or museum records for invention and attribution,
+installation instructions for the exact implementation, and direct observation
+or a bounded derivation for causal motion. For an evolution story, look for
+evidence of adoption or lineage between designs. An older and a newer artifact
+alone establish a comparison. Locate each claim to its source, state its scope
+and carry unresolved conflicts back to the Producer before writing narration.
 
 For 「君哥拆机器」 v5 topics, start with the machine or design problem. Use
 Science Discovery to compare invention needs, clever choices, alternatives,

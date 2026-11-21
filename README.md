@@ -4,16 +4,14 @@ Mechanical Video Next 是「君哥拆机器」抖音账号的专属视频生产�
 
 > 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
 
-当前 Codex 主会话是唯一 Producer。从机器、工具、机械装置、结构和生活用品发掘
-设计故事，追问它为何被发明、为何如此设计、有哪些取舍，以及怎样演变和改进。
-科学原理通过具体机械设计、测量仪器或实际应用进入叙事。默认独立选题聚焦机械。
+当前 Codex 主会话是唯一 Producer，研究并导演整片。锁定用户指定的机械对象和问题，
+核实一个具体实施例。通过真实外观与使用、三维拆解、关键零件、连续输入到输出与复位，
+解释科学因果，再回到实际使用。Director 按题材安排叙事顺序和镜头。
 
-**有效规则从 [生产契约](docs/production-contract.md) 开始。** 新建 topic-only
-混合任务默认由 Producer 负责研究和整片导演，沿用 v6 的技术能力。先决定有依据
-的完整故事，再定实施例、画面、素材和旁白。三维拆解、剖视和运动是核心视觉能力。
-实际使用、历史上下文和比较可用合规实拍或原创信息动画。核心机械证据使用可核验
-原生 3D，或获许可且经独立连续观察的真实机构影像。混合成片保留完整媒体来源链，
-历史任务继续适用其立项版本。
+**有效规则从 [生产契约](docs/production-contract.md) 开始。** 核心机构使用有事实
+依据的原生三维几何和运动。历史背景、实拍、生活情境和动态图形用于辅助解释。沿用
+Story Treatment、Blueprint、低成本预演和现有独立机械与视觉审查。审查通过后进入
+正式制作。历史任务按各自立项版本恢复。
 
 本仓库提供可恢复的确定性工具和原生 Agent 指令。主题入口建账并生成派工，
 由当前 Producer 完成研究取舍和后续制作。实际三级验收结果见
@@ -23,6 +21,7 @@ Mechanical Video Next 是「君哥拆机器」抖音账号的专属视频生产�
 uv sync --locked
 npm ci --prefix remotion --cache work/npm-cache --no-audit --no-fund
 uv run python -m mechanical_video_next produce --topic '雨伞'
+uv run python -m mechanical_video_next produce --topic '门把手回正' --core-question '为什么按下门把手后，松手它就能够自动回正？'
 uv run python -m mechanical_video_next produce --resume output/tasks/TASK
 uv run python -m mechanical_video_next continue output/tasks/TASK
 ```
@@ -36,8 +35,9 @@ uv run python -m mechanical_video_next continue output/tasks/TASK
 Blueprint 保存原创叙事、镜头、知识和素材决策。编译配置是
 有哈希绑定的派生数据；Handoff 保存不可变版本和依赖。没有第二个调度系统。
 
-默认 Producer-directed 任务的创意选案、逐镜视觉规划、动作和声音时点沿用同一
-Blueprint 与时间轴。字段、视觉策略和预演检查见 [创意导演与视觉规划](docs/creative-direction.md)。
+故事审查、动稿审查、Blueprint 和正式 Video Review 使用同一任务台账。
+故事结构随题材决定。用户可以通过 [门把手回正预演](docs/productions/door-handle-return-restored.md)
+查看处理稿、两版动稿和独立判断。
 
 ```sh
 uv run python -m mechanical_video_next.reference_library search --query '选题'

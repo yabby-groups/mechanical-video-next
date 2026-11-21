@@ -29,16 +29,19 @@ QA is independent and only writes reports. Record actual native identity and
 available telemetry; unknown tokens, costs and interventions are null.
 
 For new topic-only mixed tasks the Producer researches and directs the complete
-film. Choose the story before matching an implementation and assets. Let each
-subject determine how history, use, design and mechanics enter the film.
-Use 3D disassembly, cutaways and motion where they reveal the design. Apply the
-pinned workflow to existing tasks, including the original v6 creative process.
+film. Keep the mechanical object and core question requested by the user.
+Verify the specific implementation, key parts, contacts and continuous cycle
+from input through transmission, output and reset. Use native 3D disassembly,
+cutaways, close-ups and motion to show how it works. History, footage, everyday
+scenes and graphics support that explanation. Direct the complete Treatment
+before formal asset work. Existing independent QA reviews scope and the evidence
+for the mechanical cause. Only exact-media mechanical and visual PASS authorizes
+formal production. Follow the pinned workflow for existing tasks.
 The effective contract also governs role Skills and their historical examples.
 Verify the concrete implementation, never mix models or guess hidden mechanics.
 Unknown evidence blocks only dependent shots. Keep original narration/visual design,
 prefer matching owned assets, verify external rights; other creators default to
-REFERENCE_ONLY. Core motion requires inspectable native 3D or independently
-observed lawful real-mechanism footage. Mixed output has complete independent media
+REFERENCE_ONLY. Core motion in new tasks requires inspectable native 3D. Mixed output has complete independent media
 provenance and cannot claim historical 3D-only acceptance.
 
 Keep measured Neil speech where authored, 1920×1080/30 and phone-readable

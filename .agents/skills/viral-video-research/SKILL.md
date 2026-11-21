@@ -5,6 +5,8 @@ description: 为「君哥拆机器」研究可核验的机械故事表达与原�
 
 # viral-video-research
 
+保留用户指定的机械对象和核心问题。参考研究优先提取能改善三维拆解、机构连续性、接触和原理可读性的手法。使用或历史表述帮助观众看懂同一机构。
+
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/viral-video-research/SKILL.md` for historical tasks.

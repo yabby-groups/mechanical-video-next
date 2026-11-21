@@ -21,8 +21,9 @@ selected story. CAD and Animation solve evidence-supported shots. Editor
 develops picture, speech and sound together. QA records scientific findings
 and creative observations independently for the exact moving edit.
 
-For new Producer-directed work, the Producer first reads the task's local-first
-reference search plan and checks the current `viral-analysis` handoff. Use
+For current Producer-directed work, preserve the requested mechanical object and
+question, and verify the specific mechanism first. On historical tasks with a
+local-first reference plan, check the current `viral-analysis` handoff. Use
 ViralResearch for a specific public search or viewing gap when delegation helps.
 Its output is the assigned viewing evidence and transferable techniques in
 `viral-analysis`. The Producer selects and implements techniques in the Blueprint.
