@@ -2,7 +2,9 @@
 from pathlib import Path
 import unicodedata
 
-from .production_contract import CREATIVE_SELECTION_VERSION, producer_directed, version
+from .production_contract import (
+    CREATIVE_SELECTION_VERSION, POSITIONING, mechanism_first, producer_directed, version,
+)
 from .visual_narrative import located, nonempty, number
 
 
@@ -20,6 +22,79 @@ OUTCOMES = {'PASS', 'LOCAL_REPAIR', 'REVISE_STORY', 'RESELECT_STORY', 'UNKNOWN'}
 STORY_FAILURE = {'REVISE_STORY', 'RESELECT_STORY'}
 EDITORIAL_FIELDS = ('use_context', 'tension', 'visible_discovery', 'viewer_takeaway',
                     'standalone_case')
+
+TREATMENT_FIELDS = ('context', 'design_need', 'conflict', 'alternatives', 'mechanism',
+                    'science', 'resolution', 'takeaway')
+CREATIVE_CRITERIA = ('positioning', 'design_story', 'integrated_science', 'visual_story',
+                     'causal_progression', 'visual_repetition', 'discovery_payoff',
+                     'user_requirements')
+CREATIVE_VERDICTS = {'PASS', 'REVISE', 'REJECT', 'UNKNOWN'}
+MECHANICAL_CRITERIA = ('positioning', 'mechanical_object', 'core_question', 'internal_3d',
+                       'continuous_motion', 'scientific_causality', 'supporting_story',
+                       'discovery_payoff')
+
+
+def validate_treatment(treatment, facts, *, mechanics=False):
+    from .director import validate_storyboard
+
+    positioning = POSITIONING if mechanics else '拆开机器，看见发明背后的智慧。'
+    if treatment.get('positioning') != positioning:
+        raise ValueError('Treatment must use the project positioning')
+    required = ('context', 'mechanism', 'science', 'resolution', 'takeaway') if mechanics else TREATMENT_FIELDS
+    for key in ('question', *required):
+        if not nonempty(treatment.get(key)):
+            raise ValueError('Story Treatment needs ' + key)
+    requirements = treatment.get('user_requirements')
+    if not isinstance(requirements, list) or not all(map(nonempty, requirements)):
+        raise ValueError('Record applicable user creative requirements')
+    validate_storyboard(treatment.get('scenes'), facts, mechanics=mechanics)
+
+
+def validate_creative_gate(task, report, *, duration=None):
+    reviewer = report.get('reviewer_thread_id')
+    if (not nonempty(reviewer) or report.get('independent_reviewer') is not True
+            or not any(row['role'] == 'QA' and row['thread_id'] == reviewer
+                       for row in task['agent_runs'])
+            or any(row['role'] != 'QA' and row['thread_id'] == reviewer
+                   for row in task['agent_runs'])):
+        raise ValueError('Creative QA needs a recorded independent QA reviewer')
+    decision = report.get('creative_decision', {})
+    if not isinstance(decision, dict):
+        raise ValueError('Creative QA requires a structured decision')
+    status = decision.get('status')
+    findings = decision.get('findings', {})
+    criteria = MECHANICAL_CRITERIA if mechanism_first(task) else CREATIVE_CRITERIA
+    if (not isinstance(status, str) or status not in CREATIVE_VERDICTS
+            or not isinstance(findings, dict) or set(findings) != set(criteria)):
+        raise ValueError('Creative QA requires a verdict and all applicable findings')
+    for finding in findings.values():
+        if (not isinstance(finding, dict) or finding.get('status') not in CREATIVE_VERDICTS
+                or not nonempty(finding.get('observation'))
+                or not nonempty(finding.get('location'))):
+            raise ValueError('Each creative finding needs a status and located observation')
+    if mechanism_first(task) and any(findings[key]['status'] == 'REVISE' for key in (
+            'positioning', 'mechanical_object', 'core_question', 'internal_3d')):
+        raise ValueError('Confirmed loss of positioning, scope or core 3D requires REJECT')
+    outcomes = {finding['status'] for finding in findings.values()}
+    expected = next(value for value in ('REJECT', 'REVISE', 'UNKNOWN', 'PASS') if value in outcomes)
+    if status != expected:
+        raise ValueError('Creative verdict must reflect the strongest finding')
+    if status in {'REVISE', 'REJECT'} and not nonempty(decision.get('revision')):
+        raise ValueError('Creative veto requires a concrete revision')
+    method = decision.get('method')
+    if duration is None:
+        if method != 'document_review':
+            raise ValueError('Story QA reviews the written Treatment and storyboard')
+    else:
+        if method not in {'continuous_video', 'continuous_audiovisual', 'sampled_frames',
+                          'document_review', 'unavailable'}:
+            raise ValueError('Record the actual method used for visual narrative QA')
+        if status == 'PASS':
+            coverage = decision.get('covered_seconds')
+            if (method not in {'continuous_video', 'continuous_audiovisual'}
+                    or not number(coverage) or abs(coverage - duration) > 0.001):
+                raise ValueError('Creative PASS requires viewing the complete current moving edit')
+    return status
 
 
 def enabled(document):

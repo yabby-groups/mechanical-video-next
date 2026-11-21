@@ -117,7 +117,7 @@ class VideoReviewTests(unittest.TestCase):
             self.assertEqual(data[video_review.FIELD], video_review.VERSION)
             self.assertIn('$video-review', (task / 'producer-prompt.md').read_text())
             # A rendered file without the required review cannot advance to QA.
-            with self.assertRaisesRegex(ValueError, 'Missing handoff: animation-manifest'):
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: diagnostic-qa'):
                 workflow.check_qa(task, 'preview-qa', acceptance=False)
 
     def test_exact_render_source_and_props_are_used_for_composition_review(self):

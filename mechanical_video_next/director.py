@@ -54,6 +54,29 @@ def text_fields(row, fields):
     return isinstance(row, dict) and all(isinstance(row.get(key), str) and row[key].strip() for key in fields)
 
 
+def validate_storyboard(scenes, facts, *, mechanics=False):
+    """Validate the Director's story decisions before choosing rendering inputs."""
+    fields = ('id', 'visual_form', 'visible_change', 'story_purpose', 'causal_link')
+    if not isinstance(scenes, list) or not scenes:
+        raise ValueError('Direct the complete story as an ordered sequence of scenes')
+    seen = set()
+    for scene in scenes:
+        if not text_fields(scene, fields) or scene['id'] in seen:
+            raise ValueError('Each scene needs a distinct ID, visible change and causal role')
+        ids = scene.get('fact_ids')
+        if not isinstance(ids, list) or any(
+                not isinstance(key, str) or facts.get(key, {}).get('status') != 'VERIFIED'
+                for key in ids):
+            raise ValueError('Storyboard claims must link to verified research')
+        seen.add(scene['id'])
+    if mechanics:
+        if any(scene.get('mechanical_role') not in {'support', 'core'} for scene in scenes):
+            raise ValueError('Identify which scenes explain the core mechanism')
+        core = [scene for scene in scenes if scene['mechanical_role'] == 'core']
+        if not core or any(scene.get('render_engine') != 'blender' or not scene['fact_ids'] for scene in core):
+            raise ValueError('The storyboard needs source-supported Blender scenes for the core mechanism')
+
+
 def select_route(candidates, core):
     """Use scientific eligibility first, then compare presentation and production cost."""
     if not isinstance(candidates, list) or not candidates:

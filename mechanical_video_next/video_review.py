@@ -289,6 +289,19 @@ def inspect(media, plan, *, measured=None, playback=None, mix=False, blueprint=N
             'checks': metrics, 'findings': findings}
 
 
+def require_mechanical_positioning(task, review, production):
+    """Require the existing independent QA to evaluate the mechanical brief."""
+    from .creative_selection import validate_creative_gate
+
+    films = [row['path'] for row in production['media'] if Path(row['path']).suffix.lower() == '.mp4']
+    if len(films) != 1:
+        raise ValueError('Mechanical positioning review needs the exact complete moving edit')
+    duration = float(probe(films[0])['format']['duration'])
+    status = validate_creative_gate(task, review, duration=duration)
+    if status != 'PASS':
+        raise ValueError('Independent mechanical positioning review is ' + status)
+
+
 def for_composition(media, blueprint, research, config, public):
     """Read the actual Remotion inputs and compare them with the frozen edit."""
     from .director import validate_action_programs

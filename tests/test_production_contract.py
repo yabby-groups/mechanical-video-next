@@ -9,7 +9,7 @@ from mechanical_video_next.workflow import continuation, create_task, load, prod
 
 
 class ProductionContractTests(unittest.TestCase):
-    def test_default_director_registers_one_evidenced_story_and_resumes(self):
+    def test_pinned_director_registers_one_evidenced_story_and_resumes(self):
         import json
         from array import array
         import math
@@ -21,7 +21,8 @@ class ProductionContractTests(unittest.TestCase):
         from mechanical_video_next import workflow as w
 
         with tempfile.TemporaryDirectory() as folder:
-            task = create_task('行星齿轮', root=folder, visual_policy_version=2, media_policy_version=1)
+            task = create_task('行星齿轮', root=folder, visual_policy_version=2, media_policy_version=1,
+                               story_development_version=0)
             data = load(task)
             self.assertTrue(c.producer_directed(data))
             first = continuation(task, persist=False)['next_action']
@@ -189,6 +190,37 @@ class ProductionContractTests(unittest.TestCase):
             self.assertTrue(lighting['preserve_materials'])
             self.assertEqual(lighting['world_color'], [.08, .10, .15])
             self.assertEqual(lighting['floor_color'], [.34, .38, .42])
+            pilot = create_task('Same science, different edit', root=folder, visual_policy_version=2,
+                                media_policy_version=1, skill_driven_pilot=True,
+                                story_development_version=0)
+            pilot_research = dict(research, production_method=c.SKILL_DRIVEN)
+            del pilot_research['audience_decision'], pilot_research['director']
+            put_handoff(pilot, 'Producer', 'research', pilot_research)
+            pilot_asset = dict(asset, production_method=c.SKILL_DRIVEN, candidates=[candidate])
+            put_handoff(pilot, 'Asset', 'asset-plan', pilot_asset, ['research'])
+            flexible = copy.deepcopy(plan)
+            flexible.update(production_method=c.SKILL_DRIVEN, chapters=[
+                dict(title='Cold open', shot_ids=['trace']),
+                dict(title='Return to the same image', shot_ids=['trace']),
+            ])
+            del flexible[director.FIELD], flexible['director'], flexible['reference_principles']
+            del flexible['content_timing']['chapters']
+            moment = flexible['narrative']['moments']['causal_reveal']
+            flexible['narrative']['moments'] = {'watch-the-output': moment}
+            new_shot = flexible['shots'][0]
+            for key in ('director', 'progression', 'transition'):
+                del new_shot[key]
+            new_shot['visual_type'] = 'single-take observer experiment'
+            pilot_plan, pilot_config = pilot / 'plan.json', pilot / 'compiled.json'
+            w.write(pilot_plan, flexible)
+            blueprint.compile_config(pilot_plan, base, pilot_config)
+            compiled = json.loads(pilot_config.read_text())
+            self.assertEqual(compiled['chapters'], flexible['chapters'])
+            self.assertEqual(director.action_program_digest(compiled['shots']['trace']),
+                             director.action_program_digest(native))
+            flexible['production_config'] = joint.binding(pilot_config)
+            put_handoff(pilot, 'Producer', 'creative-blueprint', flexible, ['research', 'asset-plan'])
+            self.assertEqual(load(pilot)['config'], str(pilot_config.resolve()))
             plan['production_config'] = joint.binding(config_path)
             handoff = put_handoff(task, 'Producer', 'creative-blueprint', plan, dependencies)
             self.assertEqual(handoff['dependencies']['viral-analysis'], load(task)['handoffs']['viral-analysis']['sha256'])
@@ -314,7 +346,8 @@ class ProductionContractTests(unittest.TestCase):
 
     def test_reference_access_limit_continues_and_existing_policies_resume(self):
         with tempfile.TemporaryDirectory() as folder:
-            task = create_task('棘轮扳手', root=folder, visual_policy_version=2, media_policy_version=1)
+            task = create_task('棘轮扳手', root=folder, visual_policy_version=2, media_policy_version=1,
+                               story_development_version=0)
             observed = '2026-11-20T08:00:00+08:00'
             put_handoff(task, 'Producer', 'viral-analysis', dict(
                 task_id=task.name, topic='棘轮扳手', observed_at=observed, candidates=[], selected_ids=[],
@@ -489,7 +522,7 @@ class ProductionContractTests(unittest.TestCase):
             self.assertEqual(duration_bounds(current), (1 / 30, float('inf')))
             self.assertIsNone(current['duration_policy']['maximum'])
             self.assertEqual(duration_bounds(historic), (120, 300))
-            self.assertIn('visual story', producer_prompt(current, path))
+            self.assertIn('native Blender 3D', producer_prompt(current, path))
             with self.assertRaisesRegex(ValueError, 'creation policy'):
                 match_policy(historic, current)
             with self.assertRaises(ValueError):
