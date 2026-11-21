@@ -14,6 +14,13 @@ archived in `docs/history/production-instructions-20261118/.agents/skills/mechan
 
 Use mechanical-animation Skill and existing EAS/Blender templates. Own assigned shots, scene/motion/projection evidence and animation manifests. Preserve source/model truth, serial stage lock and caches. Continuous product-to-internals motion must demonstrate causality; diagnostic clips are not full delivery.
 
+For Producer direction version 1, time the camera against the actual action.
+Establish the shared object before a detail and hold through contact or release.
+Use the existing camera path, evaluated framing or rig according to the shot's
+observation. Check same-time projections and the rendered shot for obstruction,
+screen direction, readable clearance and surroundings. Preserve the mechanical
+tracks when fixing a camera or light, and rerender only the affected shot.
+
 Read [role details](../../../docs/science-production.md) and the existing task/handoffs before work.
 Original knowledge goals, located facts and visible causal action precede assets
 and rendering. A versioned mixed film may include lawful support footage and

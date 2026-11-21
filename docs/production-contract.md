@@ -3,7 +3,7 @@
 Mechanical Video Next is the production system for the single Douyin account
 「君哥拆机器」.
 
-> 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
+> 从生活中有意思的机械问题出发，用真实运动、三维拆解和有设计感的镜头，让观众亲眼看到机械原理是怎样发生的。
 
 This contract governs future production. Explicit user instructions take precedence.
 Task creation pins the policy versions and resume retains the historical policy.
@@ -22,7 +22,8 @@ Use explicit `presentation_style: legacy` to reproduce older display conventions
 
 | Task | Effective rules |
 | --- | --- |
-| `production_contract_version=6`, `production_method=producer-directed` | Default for new topic-only mixed production. The Producer directs the whole film using the existing technical checks and independent final QA |
+| `production_contract_version=6`, `production_method=producer-directed`, `producer_direction_version=1` | Default for new topic-only mixed production. Use the audience premise, shot direction and moving workprint review below |
+| Earlier `production_method=producer-directed` tasks | Resume from the recorded preview and reference workflow |
 | Other `production_contract_version=6` tasks | Original `mechanical-story-v6` candidate workflow. `--production-contract 6` explicitly selects this path |
 | `production_contract_version=5` | `mechanical-story-v5` applies Science Discovery to the account's mechanical stories and retains v4's timeline, media, visual and evidence capabilities |
 | `production_contract_version=4` | `science-discovery-v4` preserves the original story exploration and documented technology subject scope, with media 1, visual 2, knowledge progression 1 and joint timeline 1 |
@@ -98,6 +99,12 @@ library with `uv run python -m mechanical_video_next.reference_library ingest`.
   as immutable handoff dependencies. The principles may be empty when the
   research records a limitation. Existing tasks without a search plan resume
   with their recorded dependencies.
+- For direction version 1, observed candidates may add `techniques`. Each row has
+  `id`, `source_range` in seconds inside one actually viewed span, `visual_method`,
+  `use_condition`, `viewer_effect` and `implementation`. Applied
+  `reference_principles` add `technique_id` and `expected_observable_effect`.
+  The existing library preserves these records and the handoff verifies the
+  source-to-shot link. Choose methods that serve a concrete observation.
 
 Research the real machine and choose a complete story before matching assets.
 Follow the history, use, people and design choices that matter to that story.
@@ -107,6 +114,18 @@ Build the recognizable 君哥拆机器 identity around teardown and mechanical d
 Connect episodes when the machines share a question or design choice. Give viewers
 a reason to return through what each episode reveals. Keep actual viewing,
 likes and follows as separate measures in later post-publication review.
+
+For direction version 1, use `research.audience_decision` to record
+`question`, `daily_context`, `design_tension`, `visible_test`,
+`viewer_takeaway` and `selection_rationale`. Consider the apparently simpler
+design and make a separate feasibility judgment. In `narrative.moments` bind
+`opening`, `first_discovery`, `causal_reveal` and `payoff` to a `shot_id`,
+absolute 30 fps half-open `start_frame` and `end_frame`, and a concrete
+`observable`. A shot may carry several moments. Choose the story structure
+and length for the subject. Each shot's `direction` states `why_visual`,
+`composition`, `lighting`, `continuity` and `sound_intent`. Merge repetition,
+leave inspection time for mechanical changes, and cue narration and lawful
+sound to observed action. Use the existing visual direction and camera notes.
 
 Include the task's `production_method` and contract in research and Blueprint.
 Use `science.facts` and the reference records for evidence. Where the machine
@@ -118,8 +137,19 @@ Use `advance` and `stage`, verify key actions and watch the low-cost full
 preview before composing the final MP4. `animation-manifest` binds the preview
 and `timeline` binds the final edit.
 
-Candidate tables, pre-voice picture approvals and independent animatic/preview
-approval are optional. Independent `final-qa` reviews the exact film. New
+Candidate tables and pre-voice picture approvals are optional. For direction
+version 1, the Producer reviews the whole moving workprint with Neil audio.
+Use the existing `preview-qa` handoff for independent timecoded
+`creative_review` before the final stage. Report opening, visual tasks, pace,
+everyday connection, voice and sound, and payoff. For each applied reference
+and shot, add `reference_effects` with `reference_id`, `technique_id`,
+`shot_id`, `time_range` in the edited shot, `media_sha256`, `status`,
+`method` and `observation`. Explain UNKNOWN in `limitation`. Reserve PASS
+for the corresponding continuous observation. Use existing defects for
+actionable issues and limit renders to affected shots. Creative
+UNKNOWN can accompany a technically and scientifically sound workprint.
+`audience-review` remains a manual review of a finished film.
+Independent `final-qa` reviews the exact film. New
 Producer-directed tasks pin the verified Neil audio policy at creation.
 The existing quality dimensions cover advice on the story as well as science,
 motion and audiovisual quality. Preserve separate rights checks and record
@@ -338,8 +368,10 @@ from measured speech and can continue across a cut.
 
 Use the existing audio_timeline entry with the topic's joint Blueprint to
 prepare the continuous narration WAV and timing receipt. Bind its SHA-256 as
-`measured_timeline` for compilation. Render the full dynamic animatic, review it,
-then freeze the timing. The Remotion build binds the complete WAV once and each
+`measured_timeline` for compilation. Producer direction version 1 compiles the
+measured edit and reviews the full moving preview before HD. Historical
+workflows review the dynamic animatic at their pinned stage. The Remotion build
+binds the complete WAV once and each
 visual source range separately. A change to words or subtitle layout invalidates
 composition while keeping matching source render keys. A cut within an existing
 render range may reuse its frames. A changed source clock, authored action or

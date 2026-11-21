@@ -20,6 +20,10 @@ MECHANICAL_STORY_NAME = 'mechanical-story-v5'
 CREATIVE_SELECTION_VERSION = 6
 CREATIVE_SELECTION_NAME = 'mechanical-story-v6'
 PRODUCER_DIRECTED = 'producer-directed'
+PRODUCER_DIRECTION = 'producer_direction_version'
+AUDIENCE_PREMISE = ('question', 'daily_context', 'design_tension', 'visible_test',
+                    'viewer_takeaway', 'selection_rationale')
+STORY_MOMENTS = ('opening', 'first_discovery', 'causal_reveal', 'payoff')
 CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VERSION: STORY_NAME,
                   DISCOVERY_VERSION: DISCOVERY_NAME, MECHANICAL_STORY_VERSION: MECHANICAL_STORY_NAME,
                   CREATIVE_SELECTION_VERSION: CREATIVE_SELECTION_NAME}
@@ -119,6 +123,13 @@ def mechanical_story(document):
 def producer_directed(document):
     return (document.get('production_method') == PRODUCER_DIRECTED
             and version(document) == CREATIVE_SELECTION_VERSION)
+
+
+def directed_story(document):
+    value = document.get(PRODUCER_DIRECTION, 0)
+    if type(value) is not int or value not in {0, 1} or (value and not producer_directed(document)):
+        raise ValueError('Unsupported Producer direction version')
+    return value == 1
 
 
 def subject_kind(document):
@@ -230,9 +241,42 @@ def validate_research(research):
             raise ValueError('Unknown facts need a specific limitation')
     if directed and not any(fact['status'] == 'VERIFIED' for fact in facts):
         raise ValueError('The story needs verified facts')
+    if directed_story(research):
+        premise = research.get('audience_decision')
+        if not isinstance(premise, dict) or not all(nonempty(premise.get(key)) for key in AUDIENCE_PREMISE):
+            raise ValueError('Describe the audience question, daily use, design tradeoff, visible test and payoff')
     if discovery(research) and not directed:
         selected_story(research, allow_unselected=True)
     return {fact['id']: fact for fact in facts}
+
+
+def validate_story_moments(blueprint, narrative):
+    from .joint_timeline import interval
+    shots = blueprint['shots']
+    picture = {row['id']: row for row in blueprint['timeline']['shots']}
+    moments = narrative.get('moments')
+    if not isinstance(moments, dict) or set(moments) != set(STORY_MOMENTS):
+        raise ValueError('Bind opening, first discovery, causal reveal and payoff to picture')
+    starts = {}
+    for key, moment in moments.items():
+        if (not isinstance(moment, dict) or not nonempty(moment.get('shot_id'))
+                or moment['shot_id'] not in picture or not nonempty(moment.get('observable'))):
+            raise ValueError(f'{key} requires a shot and observable action or state')
+        shot = picture[moment['shot_id']]
+        start, stop = interval(moment, blueprint['timeline']['frame_count'])
+        if not shot['start_frame'] <= start < stop <= shot['end_frame']:
+            raise ValueError(f'{key} falls outside its picture shot')
+        starts[key] = start
+    if (moments['opening']['shot_id'] != shots[0]['shot_id']
+            or starts['first_discovery'] < starts['opening']
+            or starts['payoff'] < max(starts['first_discovery'], starts['causal_reveal'])):
+        raise ValueError('Bind the opening to the first shot and deliver the discovery by the payoff')
+    if narrative['question'] != blueprint.get('core_question'):
+        raise ValueError('Use the same audience question in the narrative and Blueprint')
+    for shot in shots:
+        direction = shot.get('direction')
+        if not isinstance(direction, dict) or not all(nonempty(direction.get(key)) for key in DIRECTION):
+            raise ValueError(f'{shot["shot_id"]} needs visual purpose, composition, light, continuity and sound intent')
 
 
 def validate_direction(blueprint, research=None):
@@ -242,8 +286,12 @@ def validate_direction(blueprint, research=None):
     if producer_directed(blueprint):
         if not all(nonempty(narrative.get(k)) for k in ('question', 'answer')):
             raise ValueError('Blueprint needs the story question and supported answer')
+        if directed_story(blueprint):
+            validate_story_moments(blueprint, narrative)
         if research is not None:
             facts = validate_research(research)
+            if directed_story(blueprint) and narrative['question'] != research['audience_decision']['question']:
+                raise ValueError('Audience question differs from the selected research premise')
             for row in [*blueprint['shots'], *blueprint['timeline']['narration']]:
                 for identity in row['knowledge_ids']:
                     if identity not in facts or facts[identity]['status'] != 'VERIFIED':

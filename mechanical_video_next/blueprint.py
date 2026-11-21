@@ -125,8 +125,9 @@ def compile_config(blueprint, base, output, draft=False):
     if not draft:
         validate_creative_blueprint(data)
     result, shots, storyboard, mappings = copy.deepcopy(cfg), {}, [], []
-    from .production_contract import PRESENTATION_STYLE, science_story
+    from .production_contract import PRESENTATION_STYLE, PRODUCER_DIRECTION, directed_story, science_story
     story = science_story(data)
+    directed = directed_story(data)
     if PRESENTATION_STYLE in data:
         result[PRESENTATION_STYLE] = data[PRESENTATION_STYLE]
     for s in data['shots']:
@@ -149,17 +150,17 @@ def compile_config(blueprint, base, output, draft=False):
             if settings['science'].get('camera_rig'):
                 shot['science'].pop('camera_clip', None)  # Rig has its own bounded perspective clip.
         seconds = s['duration'] if visual else s['time_range'][1] - s['time_range'][0]
-        if shared:
+        shot['seconds'] = seconds
+        if shared and not editorial:
             offset = picture[s['shot_id']].get('source_start_frame', 0)
-            if (not editorial and 'seconds' in original and joint.frame_number(original['seconds']) >=
-                    offset + joint.frame_number(seconds)):
-                shot['seconds'] = original['seconds']
-            elif offset and not editorial:
+            source_seconds = original.get('seconds', 0)
+            if joint.frame_number(source_seconds) >= offset + joint.frame_number(seconds):
+                shot['seconds'] = source_seconds
+            elif directed and source_seconds and (shot.get('tracks') or shot.get('mesh_tracks') or
+                    shot.get('science', {}).get('driver') in {'data_tracks', 'asset_motion'}):
+                raise ValueError('Extend the authored motion or re-edit the picture interval: ' + s['shot_id'])
+            elif offset:
                 raise ValueError('Source render cannot cover the joint picture interval')
-            else:
-                shot['seconds'] = seconds
-        else:
-            shot['seconds'] = seconds
         if visual:
             shot['visual'] = copy.deepcopy(design_fields(s))
             if not editorial:
@@ -200,6 +201,11 @@ def compile_config(blueprint, base, output, draft=False):
             result[key] = copy.deepcopy(data[key])
         if producer_directed(data):
             result['subject_kind'] = data.get('subject_kind', 'mechanical_implementation')
+            result['production_method'] = data['production_method']
+            if directed:
+                result[PRODUCER_DIRECTION] = data[PRODUCER_DIRECTION]
+                result['reference_principles'] = copy.deepcopy(data.get('reference_principles', []))
+                result['render']['preview_native'] = False
     if data.get('content_policy_version') == 1:
         from .growth import shot_requirements
         result.update(content_policy_version=1, growth_goals=copy.deepcopy(data['growth_goals']))

@@ -177,6 +177,9 @@ def ingest(data, topic, mechanisms=(), root=Path('references'), source_path=None
     for candidate in document['candidates']:
         if not isinstance(candidate, dict):
             raise ValueError('Candidate must be an object')
+        if 'techniques' in candidate:
+            from .viral import validate_techniques
+            validate_techniques(candidate)
         identity = canonical_video_id(candidate.get('url'))
         capture = candidate.get('observed_at') or document.get('observed_at')
         date(capture)

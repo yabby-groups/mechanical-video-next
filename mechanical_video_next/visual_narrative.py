@@ -51,9 +51,11 @@ def match_policy(task, document):
     from .joint_timeline import enabled as joint
     if joint(task) != joint(document):
         raise ValueError('Joint timeline policy differs from task creation policy')
-    from .production_contract import version as science_contract
+    from .production_contract import directed_story, version as science_contract
     if science_contract(task) != science_contract(document):
         raise ValueError('Production contract differs from task creation policy')
+    if directed_story(task) != directed_story(document):
+        raise ValueError('Producer direction differs from task creation policy')
     if science_contract(task) and task.get('subject_kind') is not None and task['subject_kind'] != document.get('subject_kind','mechanical_implementation'):
         raise ValueError('Scientific subject kind differs from task creation policy')
     if version(task) != version(document):
@@ -74,6 +76,11 @@ def design_fields(shot):
 
 def match_blueprint(blueprint, config):
     """Check the executable timeline against the frozen visual decisions."""
+    from .production_contract import directed_story
+    directed = directed_story(blueprint)
+    if directed and (config.get('render', {}).get('preview_native') is not False
+                     or config.get('reference_principles') != blueprint.get('reference_principles', [])):
+        raise ValueError('Executable config must retain the low-cost preview and applied reference decisions')
     if len(config['storyboard']) != len(blueprint['shots']):
         raise ValueError('Visual config differs from the frozen shot list')
     from . import joint_timeline as joint

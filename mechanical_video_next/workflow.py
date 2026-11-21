@@ -17,7 +17,7 @@ import time
 import wave
 
 from . import creative_selection as editorial_policy
-from .production_contract import PRODUCER_DIRECTED, producer_directed
+from .production_contract import PRODUCER_DIRECTED, PRODUCER_DIRECTION, directed_story, producer_directed
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
@@ -673,6 +673,8 @@ def continuation(task, persist=True):
     directed = producer_directed(data)
     if directed:
         optional = {'animatic-manifest', 'animatic-qa', 'preview-qa'}
+        if directed_story(data):
+            optional.remove('preview-qa')
         sequence = [row for row in sequence if row[0] not in optional]
         sequence[0] = ('research', 'Producer', 'Research the real machine and develop a complete story grounded in located facts')
         blueprint_action = ('Direct the original shots using the observed reference techniques, located facts and measured narration'
@@ -692,6 +694,9 @@ def continuation(task, persist=True):
         if data.get('reference_search_plan'):
             sequence.insert(0, ('viral-analysis', 'Producer',
                 'Review cached observations first. Search accessible public works for gaps, play and analyze useful references, then record what was actually observed or why it was unavailable.'))
+        if directed_story(data):
+            sequence = [(name, owner, 'Review the exact workprint and record creative observations and reference effects'
+                         if name == 'preview-qa' else action) for name, owner, action in sequence]
     elif science_story(data):
         sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
         if mechanical_story(data):
@@ -1001,6 +1006,23 @@ def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
     if producer_directed(data):
         from .audio_acceptance import MODE
+        story_direction = ''
+        if directed_story(data):
+            story_direction = '''
+Start from an everyday question viewers can test with their eyes. In research.audience_decision,
+record the question, use, design tension, visible test, viewer takeaway and reason to choose it.
+Consider why a simpler-looking design may fail and choose the question before matching assets.
+Bind opening, first discovery, causal reveal and payoff to observable frame intervals in
+narrative.moments. Let the subject determine the structure. Cut repeated explanation or views
+when they add no new relation, evidence or needed observation time.
+For each shot, direct the visible target, composition, light, transition and sound. Choose when
+to move the camera and when to hold through contact. Keep an anchor across wide and macro views
+and protect the action window from cuts and captions. Choose different settings when the story
+needs them. For sound, leave room to see the result and sync rights-verified effects to visible events.
+Personally review the complete cheap moving edit. Have QA record creative_review and applied
+reference_effects in the existing preview-qa before the final stage. Keep perceptual gaps UNKNOWN.
+Fix structural problems in the cut and render only affected shot inputs.
+'''
         audio_review = ('Use the verified Neil technical audio gate for the exact final MP4. '
                         'Record actual listening only when it happened. Register any known audio concern '
                         'as a timecoded QA issue for targeted review.'
@@ -1030,6 +1052,10 @@ shots. Learn general methods and keep the script, shots, music and distinctive e
 public footage as REFERENCE_ONLY unless its reuse rights are verified independently.
 
 '''
+            if directed_story(data):
+                reference_work += ('For reusable techniques record source_range, visual_method, use_condition, '
+                                   'viewer_effect and implementation. Bind each adopted technique_id and expected '
+                                   'observable effect to the original Blueprint shots.\n\n')
         return f'''You are the sole native Codex Producer for {identity} ({topic}).
 Task directory {task}. Read its ledger and the Producer-directed section of docs/production-contract.md.
 You make the complete film for 君哥拆机器. 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
@@ -1043,6 +1069,7 @@ Editor as needed. Own the decisions about the picture, narration, pacing and sou
 Use the recognizable 君哥拆机器 teardown identity and meaningful links between episodes. Give viewers a
 reason to return through the mechanical discoveries. Keep actual viewing, likes and follows as separate
 observations in the existing production/growth reporting when post-publication data is available.
+{story_direction}
 
 Record located facts and verify the exact implementation, constraints and depicted motion. Scope
 unknowns to affected shots. Use inspectable native 3D or rights-verified, independently observed
@@ -1431,6 +1458,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if directed:
         from .viral import directed_plan
         from .audio_acceptance import MODE
+        value[PRODUCER_DIRECTION] = 1
         value['audio_acceptance_policy'] = MODE
         value['reference_search_plan'] = 'research/search-plan.json'
         write(task / value['reference_search_plan'], directed_plan(topic, Path(root) / 'references'))
@@ -1608,6 +1636,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if science_contract(data):
             if name in {'research', 'creative-blueprint'} and producer_directed(payload) != directed:
                 raise ValueError('Handoff production method differs from task creation policy')
+            if name in {'research', 'creative-blueprint'} and directed_story(data) != directed_story(payload):
+                raise ValueError('Handoff Producer direction differs from task creation policy')
             if name == 'research':
                 if discovery(data) and contract_version(payload) != contract_version(data):
                     raise ValueError('Research must use the task discovery policy')
@@ -1672,7 +1702,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if directed_references and name == 'viral-analysis':
             from .viral import validate_directed_analysis
             check_research_binding(data, payload)
-            validate_directed_analysis(payload)
+            validate_directed_analysis(payload, require_techniques=directed_story(data))
         elif v2 and name in {'viral-analysis', 'creative-blueprint'}:
             from .viral import validate_viral_analysis, validate_creative_blueprint
             (validate_viral_analysis if name == 'viral-analysis'
@@ -1681,10 +1711,14 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 check_research_binding(data, payload)
             if name == 'creative-blueprint':
                 if directed_references:
-                    selected = set(artifact(task, 'viral-analysis')['selected_ids'])
+                    analysis = artifact(task, 'viral-analysis')
+                    selected = set(analysis['selected_ids'])
                     used = {item['reference_id'] for item in payload.get('reference_principles', [])}
                     if used - selected or (selected and not used):
                         raise ValueError('Blueprint must adapt the selected observations in its shots')
+                    if directed_story(data):
+                        from .viral import match_reference_techniques
+                        match_reference_techniques(payload, analysis)
                 if data.get('content_policy_version') == 1:
                     from .growth import validate_contract
                     if payload.get('content_policy_version') != 1:
@@ -1960,8 +1994,11 @@ def check_qa(task, name, *, acceptance=True):
     data = load(task)
     directed = producer_directed(data)
     # A Producer preview is a working edit. Final QA reviews the complete film.
-    if directed and name == 'preview-qa' and name not in data['handoffs']:
+    workprint_review = name == 'preview-qa' and directed_story(data)
+    if directed and name == 'preview-qa' and not workprint_review and name not in data['handoffs']:
         return None
+    if workprint_review:
+        acceptance = False
     qa = artifact(task, name)
     technical_audio = name == 'final-qa' and technical_audio_review(data, qa)
     if name == 'final-qa' and acceptance and any(
@@ -1990,6 +2027,16 @@ def check_qa(task, name, *, acceptance=True):
     if not expected or not expected <= reviewed:
         raise ValueError('QA must review the exact production MP4')
     from .production_contract import creative_first, science_story, validate_creative_review
+    if workprint_review:
+        if len(expected) != 1:
+            raise ValueError('Workprint review requires the complete edited MP4')
+        path, sha = next(iter(expected))
+        preview = next(row for row in production['media'] if row['sha256'] == sha
+                       and str(Path(row['path']).resolve()) == path)
+        durations = {sha: complete_media(data, preview, final=False)['duration']}
+        validate_creative_review(qa, durations, acceptance=False, whole_edit=True)
+        from .viral import validate_reference_effects
+        validate_reference_effects(artifact(task, 'creative-blueprint'), qa, sha)
     if not directed and name in {'animatic-qa', 'final-qa'} and creative_first(data):
         from scripts.common import probe
         durations = {digest: float(probe(path)['format']['duration']) for path, digest in expected}
@@ -2838,7 +2885,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         check_media(qa.get('media'))
         if any(value == 'FAIL' for value in qa.get('checks', {}).values()):
             raise ValueError('Known failed QA cannot be bypassed for workprint')
-        if editorial_policy.enabled(data):
+        if editorial_policy.enabled(data) or directed_story(data):
             check_qa(task, 'preview-qa', acceptance=False)
     elif not (technical_render or diagnostic or animatic_diagnostic or remake_candidate or
               (phase == 'final' and active_media_repair(data, final=True)) or
@@ -2862,7 +2909,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         # then queue on that same lock; never fail or delete its live frames.
         event(task, 'cleanup_deferred', reason=str(error))
     with lock(ROOT / 'work/production.lock', wait=True):
-        if editorial_policy.enabled(data) and phase in {'preview', 'final'}:
+        if (editorial_policy.enabled(data) or directed_story(data)) and phase in {'preview', 'final'}:
             require_animatic(task)
             check_production_config(task, config)
             if phase == 'final':

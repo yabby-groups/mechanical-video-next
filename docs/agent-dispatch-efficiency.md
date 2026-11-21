@@ -27,6 +27,9 @@ ViralResearch for a specific public search or viewing gap when delegation helps.
 Its output is the assigned viewing evidence and transferable techniques in
 `viral-analysis`. The Producer selects and implements techniques in the Blueprint.
 Reuse a sufficient current handoff or matching cached observations directly.
+For direction version 1, assign QA one bounded review of the complete moving
+workprint with any applied reference techniques. Reuse the same reviewer for a
+localized follow-up. The Producer resolves edit and render choices.
 
 ## Before each spawn
 

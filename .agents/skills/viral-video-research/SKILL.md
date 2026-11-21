@@ -17,6 +17,13 @@ Explain which techniques can transfer to original Blender/EAS shots, and record
 playback and rights limits. Return the assigned `viral-analysis` evidence using
 the effective contract's payload. The Producer chooses the story and owns the Blueprint.
 
+For `producer_direction_version=1`, add reusable `techniques` to useful
+observed candidates. Give each a stable ID, a range inside actual viewing, the
+visible method, when it works, the effect on understanding and an existing
+Blender/EAS or Remotion implementation. Point to the action that earns the cut
+or move. The Producer records the original execution and affected shot IDs.
+Keep screenshot-only observations at their sampled timecodes.
+
 For v5, compare curiosity, everyday relevance, design insight and visible payoff
 across distinct mechanical stories for 「君哥拆机器」. Use audience and expression
 evidence to help the Producer choose a story before model or footage matching.

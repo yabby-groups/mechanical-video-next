@@ -1,5 +1,8 @@
 # Reference-First 新任务契约
 
+Producer 导演任务的故事和镜头选择遵循 [生效契约](production-contract.md)。
+下文的参考、机构和素材来源核验继续适用。时长、多路线及锁定摄影棚要求按任务历史版本执行。
+
 2026-11-15 用户要求。只对新建 `reference_policy_version=1` 任务启用；旧任务不迁移、不重制、不自动修复。回力车已完成，保持原样。复用现有 protocol-v2、不可变 handoff、三路线、QA、缓存及渲染入口，不增加 Agent、服务或 CAD 内核。
 
 ## 研究先于素材与建模

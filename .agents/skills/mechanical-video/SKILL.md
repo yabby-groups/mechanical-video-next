@@ -5,6 +5,13 @@ description: 为「君哥拆机器」制作原创机械设计故事，使用三�
 
 # mechanical-video
 
+For Producer direction version 1, choose the audience premise from real use
+and a visible test before matching assets. Put observations on the joint
+timeline. Review the full moving workprint with the measured Neil speech and
+use the existing preview QA to find repetitions, missing action and sound
+problems before HD. Keep intentional silence where viewers need time to see
+the action, and sync any licensed mechanical effect to that event.
+
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/mechanical-video/SKILL.md` for historical tasks.

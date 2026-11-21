@@ -38,6 +38,9 @@ class ProductionContractTests(unittest.TestCase):
             candidate = dict(id='ref', url='https://youtu.be/fixture', observed_at=observed,
                              observations=['2–4s: Go from whole tool to the output'],
                              transfer_rationale='Reframe around the slow carrier',
+                             techniques=[dict(id='reveal', source_range=[2, 4], visual_method='Hold the input in view',
+                                              use_condition='Input and output share the frame',
+                                              viewer_effect='See both speeds', implementation='Existing overview camera')],
                              viewing=dict(status='PARTIAL_VIDEO_VIEWED', time_ranges=[[2, 4]],
                                           limitation='Only the transition was observed',
                                           evidence=[joint.binding(viewing_note)]))
@@ -45,7 +48,7 @@ class ProductionContractTests(unittest.TestCase):
                         dict(task_id=data['id'], topic=data['topic'], observed_at=observed,
                              candidates=[candidate], selected_ids=['ref']))
             self.assertEqual(continuation(task, persist=False)['next_action']['handoff'], 'research')
-            research = {key: data[key] for key in (c.FIELD, 'production_contract', 'production_method',
+            research = {key: data[key] for key in (c.FIELD, c.PRODUCER_DIRECTION, 'production_contract', 'production_method',
                                                   'visual_policy_version', 'media_policy_version')}
             fact = dict(id='reduction', status='VERIFIED', kind='observed', claim=source.read_text(),
                         scope='One mechanism', assumptions=[], sources=[evidence])
@@ -57,6 +60,11 @@ class ProductionContractTests(unittest.TestCase):
                      motion_evidence='Reduction', license='REFERENCE_ONLY', usable_content='Description',
                      mechanism_id='fixture', unresolved_core_conflict=False, unknowns=[], conflicts=[],
                      viewed_scope=dict(status='DOCUMENT_READ', evidence=evidence))])
+            research['audience_decision'] = dict(
+                question=research['science']['question'], daily_context='Turn a geared handle',
+                design_tension='Fit a speed reduction around one axis',
+                visible_test='Compare marked travel', viewer_takeaway='The fixed ring changes the output speed',
+                selection_rationale='One input and output make the reduction visible')
             with self.assertRaisesRegex(ValueError, 'production method'):
                 put_handoff(task, 'Producer', 'research', research | {'production_method': 'science-story'})
             with self.assertRaisesRegex(ValueError, 'Located visual evidence'):
@@ -66,11 +74,12 @@ class ProductionContractTests(unittest.TestCase):
             resumed = continuation(task, persist=False)
             self.assertEqual(resumed['next_action']['handoff'], 'asset-plan')
             remaining = {row['handoff'] for row in resumed['remaining_work']}
-            self.assertTrue({'reference-model-qa', 'content-qa', 'final-qa'} <= remaining)
-            self.assertFalse({'diagnostic-animatic', 'diagnostic-qa', 'animatic-qa', 'preview-qa'} & remaining)
+            self.assertTrue({'reference-model-qa', 'content-qa', 'preview-qa', 'final-qa'} <= remaining)
+            self.assertFalse({'diagnostic-animatic', 'diagnostic-qa', 'animatic-qa'} & remaining)
             with self.assertRaisesRegex(ValueError, 'Missing handoff: creative-blueprint'):
                 w.require_animatic(task)
-            self.assertIsNone(w.check_qa(task, 'preview-qa'))
+            with self.assertRaisesRegex(ValueError, 'Missing handoff: preview-qa'):
+                w.check_qa(task, 'preview-qa')
             with self.assertRaisesRegex(ValueError, 'Missing handoff: final-qa'):
                 w.check_qa(task, 'final-qa')
 
@@ -91,6 +100,10 @@ class ProductionContractTests(unittest.TestCase):
                         visual_type='state_change', render_engine='blender', mechanical_role='core',
                         camera=dict(scale='wide', angle='oblique', preset='establish'),
                         visual_focus='Carrier', visual_action='Rotation', assets=[cfg['asset']],
+                        direction=dict(why_visual='See the two speeds', composition='Both centers in frame',
+                                       lighting='Keep the carrier legible', continuity='Hold through one turn',
+                                       sound_intent='Leave time to inspect the comparison',
+                                       studio_lighting=dict(world_color=[.08, .10, .15], preserve_materials=True)),
                         evidence=cfg['shots']['trace']['science']['basis'], knowledge_ids=['reduction'],
                         transition=dict(kind='cut', link='Carrier'), progression=dict(kind='new', reason='Output'),
                         feasibility_evidence=[evidence], source_type='GENERATED', source_url=None,
@@ -102,11 +115,14 @@ class ProductionContractTests(unittest.TestCase):
                         matching=dict(attempts=[dict(priority=i, status='NONE') for i in range(1, 6)],
                                       generation_reason='Use matching native model'))
             question = research['science']['question']
-            policy = {key: research[key] for key in (c.FIELD, 'production_contract', 'production_method',
+            policy = {key: research[key] for key in (c.FIELD, c.PRODUCER_DIRECTION, 'production_contract', 'production_method',
                                                       'visual_policy_version', 'media_policy_version')}
             plan = dict(policy, timeline_policy_version=1, reference_policy_version=1, status='FROZEN',
                         timeline=timeline, measured_timeline=joint.binding(task / 'timing.json'),
-                        narrative=dict(question=question, answer=fact['claim']), core_question=question,
+                        narrative=dict(question=question, answer=fact['claim'], moments={
+                            key: dict(shot_id='trace', start_frame=i * 30, end_frame=(i + 1) * 30,
+                                      observable='Watch the carrier against the rings')
+                            for i, key in enumerate(c.STORY_MOMENTS)}), core_question=question,
                         original_topic=data['topic'], duration_seconds=7, sources=[evidence], shots=[shot],
                         evidence_map=[dict(knowledge_id='reduction', conclusion=fact['claim'], source_ids=['manual'],
                                            reference_locations=[dict(source_id='manual', position='Instructions')],
@@ -130,11 +146,17 @@ class ProductionContractTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'adapt the selected observations'):
                 put_handoff(task, 'Producer', 'creative-blueprint', plan, dependencies)
             plan['reference_principles'] = [dict(reference_id='ref', principle='Reveal output after establishing scale',
+                                                 technique_id='reveal', expected_observable_effect='See the speed contrast',
                                                  production_requirement='Hold the full view with the carrier visible',
                                                  shot_ids=['trace'])]
             plan_path, config_path = task / 'plan.json', task / 'compiled.json'
             w.write(plan_path, plan)
             blueprint.compile_config(plan_path, base, config_path)
+            lighting = json.loads(config_path.read_text())['shots']['trace']['studio_lighting']
+            self.assertFalse(lighting['camera_push'])
+            self.assertTrue(lighting['preserve_materials'])
+            self.assertEqual(lighting['world_color'], [.08, .10, .15])
+            self.assertEqual(lighting['floor_color'], [.34, .38, .42])
             plan['production_config'] = joint.binding(config_path)
             handoff = put_handoff(task, 'Producer', 'creative-blueprint', plan, dependencies)
             self.assertEqual(handoff['dependencies']['viral-analysis'], load(task)['handoffs']['viral-analysis']['sha256'])
@@ -179,8 +201,21 @@ class ProductionContractTests(unittest.TestCase):
                 dict(codec_type='video', avg_frame_rate='30/1', duration='7', width=1920, height=1080),
                 dict(codec_type='audio', duration='7')])
             with patch('mechanical_video_next.multiroute.probe', return_value=probe):
-                for state in ('PREVIEW_READY', 'PREVIEW_CHECKING', 'EDITING'):
+                for state in ('PREVIEW_READY', 'PREVIEW_CHECKING'):
                     w.advance(task, state)
+                with self.assertRaisesRegex(ValueError, 'Missing handoff: preview-qa'):
+                    w.advance(task, 'EDITING')
+                observation = dict(media_sha256=preview_media['sha256'], time_range=[0, 7],
+                                   status='UNKNOWN', observation='Fixture cannot establish perception',
+                                   capability_boundary='Technical fixture')
+                put_handoff(task, 'QA', 'preview-qa', dict(
+                    media=[preview_media], independent_reviewer=True, reviewer_thread_id='qa',
+                    checks=dict.fromkeys(w.QA_CHECKS, 'PASS') | {'listening': 'UNKNOWN'},
+                    creative_review={key: observation for key in c.CREATIVE_CHECKS},
+                    reference_effects=[observation | dict(reference_id='ref', technique_id='reveal',
+                                                          shot_id='trace', limitation='Fixture')]),
+                    ['animation-manifest'])
+                w.advance(task, 'EDITING')
             self.assertEqual(load(task)['state'], 'EDITING')
             # Exercise the stage and ledger with test bytes in place of the renderer.
             compiled = json.loads(config_path.read_text())

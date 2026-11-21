@@ -249,7 +249,65 @@ def reusable_expression(candidate):
             and _text(candidate.get('transfer_rationale')) and _viewed_video(candidate))
 
 
-def validate_directed_analysis(payload):
+def validate_techniques(candidate):
+    techniques = candidate.get('techniques', [])
+    if not isinstance(techniques, list):
+        raise ValueError('Reference techniques must be a list')
+    if not techniques:
+        return
+    if not reusable_expression(candidate):
+        raise ValueError('Reference techniques require observed video and located evidence')
+    viewing = candidate['viewing']
+    coverage = ([[0, viewing['covered_seconds']]] if viewing['status'] == 'FULL_VIDEO_VIEWED'
+                else viewing['time_ranges'])
+    ids = set()
+    for row in techniques:
+        if (not isinstance(row, dict) or not all(_text(row.get(key)) for key in
+                ('id', 'visual_method', 'use_condition', 'viewer_effect', 'implementation'))
+                or row['id'] in ids):
+            raise ValueError('Reference technique needs a unique ID, method, conditions, effect and implementation')
+        ids.add(row['id'])
+        span = row.get('source_range')
+        if (not isinstance(span, list) or len(span) != 2 or not all(map(_seconds, span))
+                or not any(left <= span[0] < span[1] <= right for left, right in coverage)):
+            raise ValueError('Technique timecode must be inside an actually viewed segment')
+
+
+def match_reference_techniques(blueprint, analysis):
+    selected = set(analysis['selected_ids'])
+    techniques = {(candidate['id'], technique['id'])
+                  for candidate in analysis['candidates'] if candidate['id'] in selected
+                  for technique in candidate.get('techniques', [])}
+    for row in blueprint.get('reference_principles', []):
+        if (row['reference_id'], row['technique_id']) not in techniques:
+            raise ValueError('Blueprint technique must refer to a timecoded selected observation')
+
+
+def validate_reference_effects(blueprint, report, media_sha):
+    """Each applied method gets a finding on the rendered original shot."""
+    expected = {(row['reference_id'], row['technique_id'], shot_id)
+                for row in blueprint.get('reference_principles', []) for shot_id in row['shot_ids']}
+    shots = {row['shot_id']: row['time_range'] for row in blueprint['shots']}
+    seen = set()
+    for row in report.get('reference_effects', []):
+        fields = ('reference_id', 'technique_id', 'shot_id')
+        if not isinstance(row, dict) or not all(_text(row.get(key)) for key in fields):
+            raise ValueError('Reference effect needs its reference, technique and shot IDs')
+        key = tuple(row[field] for field in fields)
+        span, status = row.get('time_range'), row.get('status')
+        if (key not in expected or key in seen or not isinstance(span, list) or len(span) != 2
+                or not all(map(_seconds, span)) or not shots[key[2]][0] <= span[0] < span[1] <= shots[key[2]][1]
+                or row.get('media_sha256') != media_sha or not _text(row.get('observation'))
+                or status not in ('PASS', 'FAIL', 'UNKNOWN')
+                or (status == 'PASS' and row.get('method') not in ('continuous_video', 'continuous_audiovisual'))
+                or (status == 'UNKNOWN' and not _text(row.get('limitation')))):
+            raise ValueError('Reference effect needs an exact-media, timecoded observation and honest status')
+        seen.add(key)
+    if seen != expected:
+        raise ValueError('Workprint review must cover the effects of applied reference techniques')
+
+
+def validate_directed_analysis(payload, *, require_techniques=False):
     """Record a bounded research pass, including a pass without applicable viewing."""
     date(payload.get('observed_at'))
     candidates, selected = payload.get('candidates'), payload.get('selected_ids')
@@ -285,14 +343,18 @@ def validate_directed_analysis(payload):
             raise ValueError('Record the limits of incomplete viewing')
         if status in {'FULL_VIDEO_VIEWED', 'PARTIAL_VIDEO_VIEWED'} and not _viewed_video(candidate):
             raise ValueError('Viewing claim requires matching time coverage and hashed observation evidence')
+        validate_techniques(candidate)
         metrics = [key for key in METRICS if candidate.get(key) is not None]
         if metrics and (not all(_seconds(candidate[key]) for key in metrics)
                         or not all(_text((candidate.get('metrics_evidence') or {}).get(key)) for key in metrics)
                         or not evidence_exists(candidate.get('evidence'))):
             raise ValueError('Public metrics require located evidence or null values')
-        if candidate_id in selected and reusable_expression(candidate):
+        if (candidate_id in selected and reusable_expression(candidate)
+                and (not require_techniques or candidate.get('techniques'))):
             usable.add(candidate_id)
     if len(selected) != len(set(selected)) or not set(selected) <= usable:
+        if require_techniques:
+            raise ValueError('Selected references require observed video and a timecoded technique')
         raise ValueError('Selected references require observed video and a transferable analysis')
 
 
@@ -354,7 +416,7 @@ def validate_reference_recreation(blueprint, research):
 
 
 def validate_creative_blueprint(payload):
-    from .production_contract import producer_directed, science_story
+    from .production_contract import directed_story, producer_directed, science_story
     fields = BLUEPRINT_FIELDS
     if producer_directed(payload):
         fields = {'core_question', 'original_topic', 'shots', 'duration_seconds', 'sources'}
@@ -402,6 +464,9 @@ def validate_creative_blueprint(payload):
                     or not isinstance(p.get('shot_ids'), list) or not p['shot_ids']
                     or not all(_text(s) and s in shot_ids for s in p['shot_ids'])):
                 raise ValueError('Reference technique needs an original production decision and existing shot IDs')
+            if directed_story(payload) and not all(_text(p.get(key)) for key in
+                    ('technique_id', 'expected_observable_effect')):
+                raise ValueError('Bind the located technique and its expected observable effect')
             continue
         if not p.get('reference_id') or not p.get('principle') or not evidence_exists(p.get('evidence')):
             raise ValueError('Observed transferable principle evidence required')
