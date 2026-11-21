@@ -20,7 +20,12 @@ MECHANICAL_STORY_NAME = 'mechanical-story-v5'
 CREATIVE_SELECTION_VERSION = 6
 CREATIVE_SELECTION_NAME = 'mechanical-story-v6'
 PRODUCER_DIRECTED = 'producer-directed'
+SKILL_DRIVEN = 'skill-driven'
 PRODUCER_DIRECTION = 'producer_direction_version'
+STORY_DEVELOPMENT = 'story_development_version'
+POSITIONING = '拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。'
+DESIGN_RESEARCH = ('origin', 'use_problem', 'historical_context', 'early_limits',
+                   'design_changes', 'scientific_principle')
 AUDIENCE_PREMISE = ('question', 'daily_context', 'design_tension', 'visible_test',
                     'viewer_takeaway', 'selection_rationale')
 STORY_MOMENTS = ('opening', 'first_discovery', 'causal_reveal', 'payoff')
@@ -93,6 +98,14 @@ def version(document):
     names = CONTRACT_NAMES
     if type(version) is not int or version not in {0, *names}:
         raise ValueError('Unsupported production contract version')
+    if skill_driven(document) and (
+            version != CREATIVE_SELECTION_VERSION or document.get(PRODUCER_DIRECTION) != 1):
+        raise ValueError('Skill-driven production requires the pinned mixed-media execution contract')
+    if story_development(document) and (
+            version != CREATIVE_SELECTION_VERSION
+            or document.get('production_method') not in {PRODUCER_DIRECTED, SKILL_DRIVEN}
+            or document.get(PRODUCER_DIRECTION) != 1):
+        raise ValueError('Story development requires the pinned Producer mixed-media contract')
     if version and (document.get('production_contract') != names[version]
             or document.get('media_policy_version') != 1
             or document.get('visual_policy_version') != 2):
@@ -121,8 +134,37 @@ def mechanical_story(document):
 
 
 def producer_directed(document):
-    return (document.get('production_method') == PRODUCER_DIRECTED
+    return (document.get('production_method') in (PRODUCER_DIRECTED, SKILL_DRIVEN)
             and version(document) == CREATIVE_SELECTION_VERSION)
+
+
+def skill_driven(document):
+    return document.get('production_method') == SKILL_DRIVEN
+
+
+def story_development(document):
+    version = document.get(STORY_DEVELOPMENT, 0)
+    if type(version) is not int or version not in {0, 1, 2}:
+        raise ValueError('Unsupported story development version')
+    return version != 0
+
+
+def mechanism_first(document):
+    return document.get(STORY_DEVELOPMENT) == 2
+
+
+def match_mechanical_scope(task, document, question):
+    """Keep user scope distinct from the Producer's framing and chosen implementation."""
+    if 'mechanical_object' not in task:
+        return
+    if (document.get('mechanical_object') != task['mechanical_object']
+            or not nonempty(question)
+            or (task.get('core_question') and task['core_question'] != question)):
+        raise ValueError('Keep the requested mechanical object and core question')
+
+
+def flexible_story(document):
+    return skill_driven(document) or story_development(document)
 
 
 def directed_story(document):
@@ -202,6 +244,10 @@ def validate_research(research):
         return {}
     science = research.get('science', {})
     kind = science.get('subject_kind')
+    if mechanism_first(research) and not nonempty(research.get('mechanical_object')):
+        raise ValueError('Research must identify the requested mechanical object')
+    if mechanism_first(research) and kind != 'mechanical_implementation':
+        raise ValueError('Research must verify a specific implementation of the requested machine')
     technology = kind == 'documented_technology' and discovery(research)
     if kind not in {'mechanical_implementation', 'physical_phenomenon'} and not technology:
         raise ValueError('Identify a supported subject and its concrete scope')
@@ -241,7 +287,22 @@ def validate_research(research):
             raise ValueError('Unknown facts need a specific limitation')
     if directed and not any(fact['status'] == 'VERIFIED' for fact in facts):
         raise ValueError('The story needs verified facts')
-    if directed_story(research):
+    if story_development(research) and not mechanism_first(research):
+        exploration = research.get('design_research', {})
+        if not isinstance(exploration, dict):
+            raise ValueError('Design research requires a structured set of findings')
+        facts_by_id = {fact['id']: fact for fact in facts}
+        for question in DESIGN_RESEARCH:
+            finding = exploration.get(question)
+            ids = finding.get('fact_ids') if isinstance(finding, dict) else None
+            if (not isinstance(ids, list) or not ids
+                    or not all(nonempty(key) and key in facts_by_id for key in ids)
+                    or not nonempty(finding.get('finding'))):
+                raise ValueError('Locate the research finding or evidence gap for ' + question)
+        if not any(facts_by_id[key]['status'] == 'VERIFIED'
+                   for key in exploration['scientific_principle']['fact_ids']):
+            raise ValueError('Ground the scientific principle in verified evidence')
+    if directed_story(research) and not flexible_story(research):
         premise = research.get('audience_decision')
         if not isinstance(premise, dict) or not all(nonempty(premise.get(key)) for key in AUDIENCE_PREMISE):
             raise ValueError('Describe the audience question, daily use, design tradeoff, visible test and payoff')
@@ -255,11 +316,15 @@ def validate_story_moments(blueprint, narrative):
     shots = blueprint['shots']
     picture = {row['id']: row for row in blueprint['timeline']['shots']}
     moments = narrative.get('moments')
+    flexible = flexible_story(blueprint)
     locked = integrity(blueprint['timeline'])
     required = set(STORY_MOMENTS)
     if locked:
         required.update(('scientific_explanation', 'action_result'))
-    if not isinstance(moments, dict) or set(moments) != required:
+    if flexible:
+        if not isinstance(moments, dict) or not moments or not all(map(nonempty, moments)):
+            raise ValueError('Bind the authored story observations to picture using unique IDs')
+    elif not isinstance(moments, dict) or set(moments) != required:
         raise ValueError('Bind opening, first discovery, causal reveal and payoff to picture')
     starts = {}
     for key, moment in moments.items():
@@ -271,20 +336,21 @@ def validate_story_moments(blueprint, narrative):
         if not shot['start_frame'] <= start < stop <= shot['end_frame']:
             raise ValueError(f'{key} falls outside its picture shot')
         starts[key] = start
-    if (moments['opening']['shot_id'] != shots[0]['shot_id']
+    if not flexible and (moments['opening']['shot_id'] != shots[0]['shot_id']
             or starts['first_discovery'] < starts['opening']
             or starts['payoff'] < max(starts['first_discovery'], starts['causal_reveal'])):
         raise ValueError('Bind the opening to the first shot and deliver the discovery by the payoff')
-    if locked and (starts['causal_reveal'] < starts['first_discovery']
+    if locked and not flexible and (starts['causal_reveal'] < starts['first_discovery']
                    or not starts['causal_reveal'] <= starts['action_result'] <= starts['payoff']
                    or not starts['opening'] <= starts['scientific_explanation'] <= starts['payoff']):
         raise ValueError('The explanation and mechanical result must lead to the payoff')
     if narrative['question'] != blueprint.get('core_question'):
         raise ValueError('Use the same audience question in the narrative and Blueprint')
-    for shot in shots:
-        direction = shot.get('direction')
-        if not isinstance(direction, dict) or not all(nonempty(direction.get(key)) for key in DIRECTION):
-            raise ValueError(f'{shot["shot_id"]} needs visual purpose, composition, light, continuity and sound intent')
+    if not flexible:
+        for shot in shots:
+            direction = shot.get('direction')
+            if not isinstance(direction, dict) or not all(nonempty(direction.get(key)) for key in DIRECTION):
+                raise ValueError(f'{shot["shot_id"]} needs visual purpose, composition, light, continuity and sound intent')
     if locked:
         validate_story_coverage(blueprint, moments)
 
@@ -296,6 +362,10 @@ def validate_story_coverage(blueprint, moments):
     actions = {row['id']: row for row in plan['actions']}
     speech = {row['id']: row for row in plan['narration']}
     shots = {row['shot_id']: row for row in blueprint['shots']}
+    if mechanism_first(blueprint):
+        core = [shot for shot in shots.values() if shot.get('mechanical_role') == 'core']
+        if not core or any(shot.get('render_engine') != 'blender' for shot in core):
+            raise ValueError('Core explanation requires inspectable native Blender mechanics')
     measured = (receipt(plan, blueprint['measured_timeline']) if blueprint.get('measured_timeline') else None)
     clips = {row['id']: row for row in measured['speech']} if measured else {}
     for cut in plan['shots']:
@@ -324,7 +394,8 @@ def validate_story_coverage(blueprint, moments):
             if fact not in line['knowledge_ids'] or first * SAMPLES_PER_FRAME >= end or last * SAMPLES_PER_FRAME <= start:
                 raise ValueError('Story moment falls outside its measured narration: ' + name)
         if (moment.get('mechanical_event_id') and event is None or moment.get('narration_segment_id') and line is None
-                or (name in {'causal_reveal', 'action_result'} and not event and not nonmechanical_subject(blueprint))
+                or (not flexible_story(blueprint) and name in {'causal_reveal', 'action_result'}
+                    and not event and not nonmechanical_subject(blueprint))
                 or (not event and not line and not nonempty(moment.get('visual_evidence')))):
             raise ValueError('Story moment lacks observable evidence: ' + name)
 
@@ -334,13 +405,16 @@ def validate_direction(blueprint, research=None):
         return
     narrative = blueprint.get('narrative', {})
     if producer_directed(blueprint):
+        if mechanism_first(blueprint) and not nonempty(blueprint.get('mechanical_object')):
+            raise ValueError('Blueprint must preserve the requested mechanical object')
         if not all(nonempty(narrative.get(k)) for k in ('question', 'answer')):
             raise ValueError('Blueprint needs the story question and supported answer')
         if directed_story(blueprint):
             validate_story_moments(blueprint, narrative)
         if research is not None:
             facts = validate_research(research)
-            if directed_story(blueprint) and narrative['question'] != research['audience_decision']['question']:
+            if (directed_story(blueprint) and not flexible_story(blueprint)
+                    and narrative['question'] != research['audience_decision']['question']):
                 raise ValueError('Audience question differs from the selected research premise')
             for row in [*blueprint['shots'], *blueprint['timeline']['narration']]:
                 for identity in row['knowledge_ids']:

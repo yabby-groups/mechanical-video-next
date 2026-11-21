@@ -167,6 +167,15 @@ def validate_research(research):
     return refs
 
 
+def validate_asset_candidate(row, strategy, research, refs):
+    _required(row, ('id', 'source_ids', 'mechanism_id', 'validation_evidence'), 'Qualified candidate')
+    if (row['mechanism_id'] != research['mechanism_id'] or not set(row['source_ids']) <= refs.keys()
+            or row.get('legal_use') is not True or row.get('content_match') is not True):
+        raise ValueError('Qualified asset must match mechanism, evidence and permitted use')
+    if strategy != 'autonomous-cad' and not row.get('source_files'):
+        raise ValueError('Existing asset requires actual source files')
+
+
 def select_asset_strategy(research, candidates):
     """Select the highest qualified and legally usable available candidate.
 
@@ -184,25 +193,34 @@ def select_asset_strategy(research, candidates):
             _required(row, ('reason',), 'Asset candidate')
             if row.get('qualified') is not True:
                 continue
-            _required(row, ('id', 'source_ids', 'mechanism_id', 'validation_evidence'), 'Qualified candidate')
-            if (row['mechanism_id'] != research['mechanism_id'] or not set(row['source_ids']) <= refs.keys()
-                    or row.get('legal_use') is not True or row.get('content_match') is not True):
-                raise ValueError('Qualified asset must match mechanism, evidence and permitted use')
-            if strategy != 'autonomous-cad' and not row.get('source_files'):
-                raise ValueError('Existing asset requires actual source files')
+            validate_asset_candidate(row, strategy, research, refs)
             return strategy, row['id']
     raise ValueError('Insufficient evidence: retain research, narrow scope; never invent internal structure')
 
 
 def validate_asset(research, asset):
+    from .production_contract import flexible_story
     from .three_d import require_route
     require_route(asset.get('render_route', '3d'))
     if asset.get('strategy') == 'illustrated':
         raise ValueError('3D-only asset required')
-    selected = select_asset_strategy(research, asset.get('candidates'))
-    if (asset.get('strategy'), asset.get('selected_candidate_id')) != selected:
-        raise ValueError('Asset must prefer qualified legal reuse before new CAD')
-    candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
+    if flexible_story(research):
+        selected = asset.get('strategy'), asset.get('selected_candidate_id')
+        candidates = asset.get('candidates')
+        if selected[0] not in STRATEGIES or not selected[1] or not isinstance(candidates, list):
+            raise ValueError('Bind the chosen asset and its execution strategy')
+        matches = [row for row in candidates if row.get('id') == selected[1]]
+        if (len(matches) != 1 or matches[0].get('strategy') != selected[0]
+                or matches[0].get('qualified') is not True):
+            raise ValueError('The chosen asset needs a unique qualified candidate')
+        candidate = matches[0]
+        _required(candidate, ('reason',), 'Asset candidate')
+        validate_asset_candidate(candidate, selected[0], research, validate_research(research))
+    else:
+        selected = select_asset_strategy(research, asset.get('candidates'))
+        if (asset.get('strategy'), asset.get('selected_candidate_id')) != selected:
+            raise ValueError('Asset must prefer qualified legal reuse before new CAD')
+        candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
     if selected[0] == 'existing-media':
         from .media_policy import enabled as asset_first, validate_shot
         from .production_contract import nonmechanical_subject, science_story
@@ -245,6 +263,8 @@ def validate_asset(research, asset):
 
 
 def validate_plan(blueprint, research, asset):
+    from .production_contract import creative_first, flexible_story
+    flexible = flexible_story(blueprint)
     refs = validate_research(research)
     validate_asset(research, asset)
     _required(blueprint, ('core_question', 'evidence_map', 'shots', 'content_timing'), 'Blueprint')
@@ -268,7 +288,8 @@ def validate_plan(blueprint, research, asset):
         claims[row['knowledge_id']] = row
     for shot in shots.values():
         ids = shot.get('knowledge_ids', [])
-        if not ids or not set(ids) <= claims.keys() or any(shot['shot_id'] not in claims[k]['shot_ids'] for k in ids):
+        if ((not ids and (not flexible or shot.get('mechanical_role') == 'core'))
+                or not set(ids) <= claims.keys() or any(shot['shot_id'] not in claims[k]['shot_ids'] for k in ids)):
             raise ValueError('Every narrated shot must bind verified knowledge')
     end = 0
     for shot in blueprint['shots']:
@@ -280,25 +301,25 @@ def validate_plan(blueprint, research, asset):
     if end != blueprint.get('duration_seconds') or len(shots) != len(blueprint['shots']):
         raise ValueError('Evidence timeline must match duration and unique shot IDs')
     timing = blueprint['content_timing']
-    _required(timing, ('basis', 'chapters'), 'Content timing')
+    _required(timing, ('basis',) if flexible else ('basis', 'chapters'), 'Content timing')
     if timing.get('status') != 'PASS' or timing.get('measured_narration_seconds') is None:
         raise ValueError('Content insufficient or narration not measured; do not lock duration')
     duration = blueprint.get('duration_seconds')
-    from .production_contract import creative_first
     from .growth import duration_bounds
     minimum, maximum = duration_bounds(blueprint) if creative_first(blueprint) else (120, 300)
     if (not finite(duration) or not minimum <= duration <= maximum
             or not finite(timing['measured_narration_seconds'])
             or not 0 < timing['measured_narration_seconds'] <= duration):
         raise ValueError('Measured narration and film must fit the versioned duration policy')
-    covered = set()
-    for chapter in timing['chapters']:
-        _required(chapter, ('id', 'knowledge_ids', 'new_information', 'duration_reason'), 'Chapter')
-        if not set(chapter['knowledge_ids']) <= claims.keys() or covered.intersection(chapter['knowledge_ids']):
-            raise ValueError('Repeated or unsupported chapter knowledge cannot fill duration')
-        covered.update(chapter['knowledge_ids'])
-    if covered != claims.keys():
-        raise ValueError('Content timing must cover verified knowledge')
+    if not flexible:
+        covered = set()
+        for chapter in timing['chapters']:
+            _required(chapter, ('id', 'knowledge_ids', 'new_information', 'duration_reason'), 'Chapter')
+            if not set(chapter['knowledge_ids']) <= claims.keys() or covered.intersection(chapter['knowledge_ids']):
+                raise ValueError('Repeated or unsupported chapter knowledge cannot fill duration')
+            covered.update(chapter['knowledge_ids'])
+        if covered != claims.keys():
+            raise ValueError('Content timing must cover verified knowledge')
     return {'knowledge_points': len(claims), 'duration_seconds': duration,
             'asset_strategy': asset['strategy']}
 

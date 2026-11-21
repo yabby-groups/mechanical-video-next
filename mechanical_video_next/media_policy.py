@@ -75,18 +75,22 @@ def validate_rights(row):
         raise ValueError('License evidence needs an inspected location')
 
 
-def validate_shot(row, seconds, *, footage=None, graphic=None):
+def validate_shot(row, seconds, *, footage=None, graphic=None, flexible=False):
     if not REQUIRED <= row.keys():
         raise ValueError('Incomplete asset-first shot decision: ' + ', '.join(sorted(REQUIRED - row.keys())))
     if not row.get('knowledge_goal') or not row.get('visual_type') or row['content_verified'] is not True:
         raise ValueError('Selected media must serve a verified knowledge goal')
     validate_rights(row)
     match = row['matching']
-    if not isinstance(match, dict) or not isinstance(match.get('attempts'), list) or not match['attempts']:
-        raise ValueError('Record ordered local-first asset matching before generation')
-    ranks = [a.get('priority') for a in match['attempts']]
-    if any(type(x) is not int or not 1 <= x <= 5 for x in ranks) or ranks != sorted(ranks):
-        raise ValueError('Asset matching must follow the five local-first source tiers')
+    if not isinstance(match, dict):
+        raise ValueError('Record the asset decision')
+    ranks = []
+    if not flexible:
+        if not isinstance(match.get('attempts'), list) or not match['attempts']:
+            raise ValueError('Record ordered local-first asset matching before generation')
+        ranks = [a.get('priority') for a in match['attempts']]
+        if any(type(x) is not int or not 1 <= x <= 5 for x in ranks) or ranks != sorted(ranks):
+            raise ValueError('Asset matching must follow the five local-first source tiers')
     generate = row['generation_required']
     reuse_model = row['reuse_decision'] == 'REUSE_MODEL'
     reuse_template = row['reuse_decision'] == 'REUSE_TEMPLATE'
@@ -113,9 +117,12 @@ def validate_shot(row, seconds, *, footage=None, graphic=None):
     if generate:
         if row['source_type'] != 'GENERATED' or row['selected_asset'] is not None or row['source_time_range'] is not None:
             raise ValueError('Generated shots cannot pretend to reuse an existing video')
-        if set(ranks) != {1, 2, 3, 4, 5} or not match.get('generation_reason'):
+        reason = match.get('generation_reason')
+        if flexible and (not isinstance(reason, str) or not reason.strip()):
+            raise ValueError('Explain why this shot calls for original production')
+        if not flexible and (set(ranks) != {1, 2, 3, 4, 5} or not reason):
             raise ValueError('Generation requires recorded gaps in all existing material tiers')
-        if any(a.get('status') == 'NOT_SEARCHED' or 'not searched' in str(a.get('result', '')).lower()
+        if not flexible and any(a.get('status') == 'NOT_SEARCHED' or 'not searched' in str(a.get('result', '')).lower()
                for a in match['attempts']):
             raise ValueError('Unsearched source tiers cannot automatically authorize generation')
     else:
@@ -166,6 +173,8 @@ def validate_shot(row, seconds, *, footage=None, graphic=None):
 def validate_document(document):
     if not enabled(document):
         return
+    from .production_contract import flexible_story
+    flexible = flexible_story(document)
     shots = document.get('shots', {})
     if isinstance(shots, dict):
         rows = [(dict(shots[r['shot']]['visual'], shot_id=r['id']), shots[r['shot']])
@@ -174,11 +183,12 @@ def validate_document(document):
         rows = [(s, s) for s in shots]
     used = set()
     for row, execution in rows:
-        validate_shot(row, row['duration'], footage=execution.get('footage'), graphic=execution.get('graphic'))
+        validate_shot(row, row['duration'], footage=execution.get('footage'),
+                      graphic=execution.get('graphic'), flexible=flexible)
         supplemental_sources(execution, row['duration'])
         if not row['generation_required']:
             key = (row['selected_asset']['sha256'], tuple(row['source_time_range'] or []))
-            if key in used:
+            if key in used and not flexible:
                 raise ValueError('Repeated source interval cannot fill the timeline')
             used.add(key)
 

@@ -15,7 +15,7 @@ def validate_config(config):
     from .science_shots import validate as validate_science_shot
     from .visual_narrative import VERSION, validate_execution, validate_plan, version
     from .knowledge_progression import FIELD, enabled
-    from .production_contract import FIELD as CONTRACT_FIELD
+    from .production_contract import FIELD as CONTRACT_FIELD, flexible_story
     from .joint_timeline import FIELD as TIMELINE_FIELD, enabled as joint_timeline
     visual_version = version(config)
     from .media_policy import enabled as asset_first, validate_document
@@ -38,7 +38,8 @@ def validate_config(config):
         if shot.get('template') == 'layered' or shot.get('layers'):
             raise ValueError('Layered mechanical imagery cannot replace a real 3D scene')
         if isinstance(shots, dict) and visual_version == VERSION and shots:
-            validate_execution(shot, progression=progression, hybrid=hybrid, picture=picture.get(name))
+            validate_execution(shot, progression=progression, hybrid=hybrid,
+                               flexible=flexible_story(config), picture=picture.get(name))
         elif visual_version != VERSION and (shot.get('template') == 'editorial' or {'visual', 'graphic', 'footage'} & shot.keys()):
             raise ValueError('Editorial shots require the versioned visual production policy')
         # Blueprint rows are declarative mappings. Their complete executable
@@ -59,7 +60,8 @@ def validate_config(config):
         if not rows or {row['shot'] for row in rows} != set(shots):
             raise ValueError('Visual execution requires complete storyboard coverage')
         validate_plan({**({'visual_policy_version': 2, 'media_policy_version': 1} if hybrid else {}),
-            **{key: config[key] for key in (CONTRACT_FIELD, 'production_contract', 'subject_kind', TIMELINE_FIELD)
+            **{key: config[key] for key in (CONTRACT_FIELD, 'production_contract', 'production_method',
+                                           'producer_direction_version', 'subject_kind', TIMELINE_FIELD)
                if key in config},
             **({FIELD: config[FIELD]} if progression else {}), 'shots': [
             dict(shots[row['shot']]['visual'], shot_id=row['id'], narration=row['narration'],

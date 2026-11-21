@@ -51,10 +51,12 @@ def match_policy(task, document):
     from .joint_timeline import enabled as joint
     if joint(task) != joint(document):
         raise ValueError('Joint timeline policy differs from task creation policy')
-    from .production_contract import directed_story, version as science_contract
+    from .production_contract import STORY_DEVELOPMENT, directed_story, skill_driven, version as science_contract
     if science_contract(task) != science_contract(document):
         raise ValueError('Production contract differs from task creation policy')
-    if directed_story(task) != directed_story(document):
+    if (directed_story(task) != directed_story(document)
+            or skill_driven(task) != skill_driven(document)
+            or task.get(STORY_DEVELOPMENT, 0) != document.get(STORY_DEVELOPMENT, 0)):
         raise ValueError('Producer direction differs from task creation policy')
     if science_contract(task) and task.get('subject_kind') is not None and task['subject_kind'] != document.get('subject_kind','mechanical_implementation'):
         raise ValueError('Scientific subject kind differs from task creation policy')
@@ -199,24 +201,26 @@ def validate_research(research):
             raise ValueError(f'Visual research needs a supported finding or a recorded limitation: {key}')
 
 
-def validate_design(plan, *, hybrid=False):
-    if not isinstance(plan, dict) or not SHOT_FIELDS <= plan.keys():
+def validate_design(plan, *, hybrid=False, flexible=False):
+    required = SHOT_FIELDS - {'progression', 'transition'} if flexible else SHOT_FIELDS
+    if not isinstance(plan, dict) or not required <= plan.keys():
         raise ValueError('Incomplete visual narrative shot')
     if any(not nonempty(plan[k]) for k in ('knowledge_goal', 'visual_focus', 'visual_action')):
         raise ValueError('Visual goal, focus and observable action are required')
     kind, engine, role = (plan[k] for k in ('visual_type', 'render_engine', 'mechanical_role'))
-    allowed = ENGINES.get(kind, set()) | ({'footage'} if hybrid and kind in {'mechanical_cutaway', 'annotated_detail'} else set())
-    if engine not in allowed or role not in {'core', 'support'}:
+    allowed = ({'blender', 'remotion', 'footage'} if flexible else
+               ENGINES.get(kind, set()) | ({'footage'} if hybrid and kind in {'mechanical_cutaway', 'annotated_detail'} else set()))
+    if not nonempty(kind) or engine not in allowed or role not in {'core', 'support'}:
         raise ValueError('Unsupported visual type, renderer or mechanical role')
     if role == 'core' and engine != 'blender' and not (hybrid and engine == 'footage'):
         raise ValueError('Core mechanical action requires real Blender 3D')
-    if kind in {'exploded_view', 'mechanical_cutaway', 'annotated_detail'} and engine != 'blender' and not (hybrid and engine == 'footage'):
+    if not flexible and kind in {'exploded_view', 'mechanical_cutaway', 'annotated_detail'} and engine != 'blender' and not (hybrid and engine == 'footage'):
         raise ValueError('Mechanical structure needs its verified 3D assembly')
     for field in ('assets', 'knowledge_ids'):
         values = plan[field]
         if not isinstance(values, list) or any(not nonempty(x) for x in values):
             raise ValueError(f'Visual {field} must list named bindings')
-    if not plan['knowledge_ids'] or (engine != 'remotion' and not plan['assets']):
+    if (not plan['knowledge_ids'] and (not flexible or role == 'core')) or (engine != 'remotion' and not plan['assets']):
         raise ValueError('Knowledge and referenced production assets are required')
     located(plan['evidence'])
     if not number(plan['duration']) or round(plan['duration'] * 30) < 3 or abs(plan['duration'] * 30 - round(plan['duration'] * 30)) > 1e-6:
@@ -228,15 +232,21 @@ def validate_design(plan, *, hybrid=False):
         planned_camera(plan)
     if engine != 'blender' and 'preset' in camera:
         raise ValueError('Blender presets apply only to Blender shots')
-    transition = plan['transition']
-    if (not isinstance(transition, dict) or transition.get('kind') not in {'cut', 'match_cut', 'chapter'}
-            or not nonempty(transition.get('link'))):
-        raise ValueError('Visual transition needs an explanation of the editorial link')
-    if transition['kind'] == 'chapter' and not nonempty(transition.get('text')):
-        raise ValueError('Chapter transition needs a visible section title')
-    progression = plan['progression']
-    if not isinstance(progression, dict) or progression.get('kind') not in {'new', 'develop', 'recap'} or not nonempty(progression.get('reason')):
-        raise ValueError('Explain how the shot advances or recalls the knowledge')
+    if not flexible:
+        transition = plan['transition']
+        if (not isinstance(transition, dict) or transition.get('kind') not in {'cut', 'match_cut', 'chapter'}
+                or not nonempty(transition.get('link'))):
+            raise ValueError('Visual transition needs an explanation of the editorial link')
+        if transition['kind'] == 'chapter' and not nonempty(transition.get('text')):
+            raise ValueError('Chapter transition needs a visible section title')
+        progression = plan['progression']
+        if not isinstance(progression, dict) or progression.get('kind') not in {'new', 'develop', 'recap'} or not nonempty(progression.get('reason')):
+            raise ValueError('Explain how the shot advances or recalls the knowledge')
+    elif 'transition' in plan:
+        transition = plan['transition']
+        if not isinstance(transition, dict) or (
+                transition.get('kind') == 'chapter' and not nonempty(transition.get('text'))):
+            raise ValueError('A rendered chapter title needs visible text')
     if 'material_limit' in plan and not nonempty(plan['material_limit']):
         raise ValueError('Record the unavailable asset and the chosen substitution')
 
@@ -262,15 +272,16 @@ def validate_plan(document):
     """Check the plan before committing to CAD or native rendering."""
     from .media_policy import enabled as asset_first, validate_document
     from . import joint_timeline as joint
-    from .production_contract import nonmechanical_subject, science_story
+    from .production_contract import nonmechanical_subject, science_story, flexible_story
     hybrid = asset_first(document)
+    flexible = flexible_story(document)
     shots = document['shots']
     if not isinstance(shots, list) or not shots:
         raise ValueError('Visual Blueprint needs ordered shots')
     shared = joint.enabled(document)
     seen, shot_ids, findings, previous = set(), set(), [], None
     for shot in shots:
-        validate_design(shot, hybrid=hybrid)
+        validate_design(shot, hybrid=hybrid, flexible=flexible)
         ids = set(shot['knowledge_ids'])
         sid = shot.get('shot_id')
         narration = shot.get('narration')
@@ -278,6 +289,8 @@ def validate_plan(document):
                 (not isinstance(narration, list) or not narration or not all(nonempty(x) for x in narration)))):
             raise ValueError('Visual plan requires shot ID and narration')
         shot_ids.add(sid)
+        if flexible:
+            continue
         if not ids - seen and shot['progression']['kind'] == 'new':
             raise ValueError(f'{sid} repeats known facts declared as new')
         if ids - seen and shot['progression']['kind'] == 'recap':
@@ -383,9 +396,9 @@ def validate_graphic(graphic, *, progression=False):
         validate_graphic_text(graphic)
 
 
-def validate_execution(shot, *, progression=False, hybrid=False, picture=None):
+def validate_execution(shot, *, progression=False, hybrid=False, flexible=False, picture=None):
     visual = shot['visual']
-    validate_design(visual, hybrid=hybrid)
+    validate_design(visual, hybrid=hybrid, flexible=flexible)
     engine = visual['render_engine']
     if picture is not None and engine == 'blender':
         from .joint_timeline import frame_number
@@ -509,8 +522,8 @@ def editorial_props(shot):
         result['graphic'] = shot['graphic']
     if 'footage' in shot:
         result['footage'] = {'credit': shot['footage']['credit'], 'startFrame': shot['footage']['start_frame']}
-    transition = shot['visual']['transition']
-    if transition['kind'] == 'chapter':
+    transition = shot['visual'].get('transition', {})
+    if transition.get('kind') == 'chapter':
         result['chapter'] = transition['text']
     return result
 

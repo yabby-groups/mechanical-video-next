@@ -248,10 +248,23 @@ def compile_config(blueprint, base, output, draft=False):
             sound_path = output.parent / f'director-mix-{sound_key}.wav'
             result['audio_mix'] = mix(data['timeline'], data['sound_events'],
                                       joint.bound(measured['narration_audio']), sound_path)
-    from .production_contract import FIELD as CONTRACT_FIELD, enabled as science_contract, producer_directed
+    from .production_contract import (
+        FIELD as CONTRACT_FIELD, STORY_DEVELOPMENT, enabled as science_contract, mechanism_first,
+        flexible_story, producer_directed,
+    )
     if science_contract(data):
         for key in (CONTRACT_FIELD, 'production_contract', 'narrative'):
             result[key] = copy.deepcopy(data[key])
+        if STORY_DEVELOPMENT in data:
+            result[STORY_DEVELOPMENT] = data[STORY_DEVELOPMENT]
+        if mechanism_first(data):
+            result['mechanical_object'] = data['mechanical_object']
+        if flexible_story(data):
+            # Chapters are authored navigation or editorial notes. The joint
+            # picture track remains the executable clock.
+            result.pop('chapters', None)
+            if 'chapters' in data:
+                result['chapters'] = copy.deepcopy(data['chapters'])
         if producer_directed(data):
             result['subject_kind'] = data.get('subject_kind', 'mechanical_implementation')
             result['production_method'] = data['production_method']
