@@ -1,0 +1,35 @@
+{
+  "title": "门合上以后",
+  "question": "同一扇门，为什么一推就能关上，直接拉却打不开？",
+  "answer": "关门时扣板把斜面推回，斜舌入孔后，扣板挡住它背面的直边。正常压把手会收回斜舌。",
+  "chapters": [
+    {"id":"hands-full","span":[0,210],"expression":"公寓情境重建","shots":["hall-close"]},
+    {"id":"one-door-two-directions","span":[210,330],"expression":"连续情境与试拉","shots":["hall-test"]},
+    {"id":"test-rig","span":[330,960],"expression":"俯视剖面与对手实验","shots":["bevel","face","release"]},
+    {"id":"through-the-door","span":[960,1200],"expression":"同一人回到同一动作","shots":["hall-return"]}
+  ],
+  "shots": [
+    {"id":"hall-close","start":0,"end":210,"label":"情境重建","knowledge":"situation"},
+    {"id":"hall-test","start":210,"end":330,"label":"","knowledge":"situation"},
+    {"id":"bevel","start":330,"end":570,"label":"关门　·　斜面先碰扣板","knowledge":"bevel"},
+    {"id":"face","start":570,"end":770,"label":"拉门　·　直边被挡住","knowledge":"retain"},
+    {"id":"release","start":770,"end":960,"label":"压下把手　·　斜舌缩回","knowledge":"release"},
+    {"id":"hall-return","start":960,"end":1200,"label":"","knowledge":"result"}
+  ],
+  "narration": [
+    {"id":"nudge","start_frame":14,"deadline_frame":172,"text":"双手抱着东西，胳膊还能把门轻轻推上。","knowledge_ids":["situation"]},
+    {"id":"pull","start_frame":214,"deadline_frame":329,"text":"可反过来一拉，门怎么不动？","knowledge_ids":["situation"]},
+    {"id":"ramp","start_frame":344,"deadline_frame":466,"text":"关门时，扣板先碰到斜舌的斜面。","knowledge_ids":["bevel"]},
+    {"id":"catch","start_frame":470,"deadline_frame":570,"text":"斜舌先缩回，对准孔才弹出。","knowledge_ids":["bevel"]},
+    {"id":"stop","start_frame":594,"deadline_frame":750,"text":"再往回拉，碰到的是直边。扣板把它挡住了。","knowledge_ids":["retain"]},
+    {"id":"handle","start_frame":787,"deadline_frame":942,"text":"把手一压，斜舌主动缩回，门才拉得开。","knowledge_ids":["release"]},
+    {"id":"answer","start_frame":1001,"deadline_frame":1184,"text":"原来同一枚斜舌，一面让路，一面留住门。","knowledge_ids":["result"]}
+  ],
+  "observations": [
+    {"id":"close-without-turning","shot":"hall-close","frames":[50,161],"intent":"胳膊推门，把手保持在原位"},
+    {"id":"visible-catch","shot":"bevel","frames":[383,563],"intent":"斜面接触后缩回，再对孔伸出"},
+    {"id":"retaining-edge","shot":"face","frames":[621,749],"intent":"相反方向遇到直边，斜舌维持伸出"},
+    {"id":"normal-release","shot":"release","frames":[812,919],"intent":"退舌以后，两边才分开"},
+    {"id":"repeat-in-the-room","shot":"hall-return","frames":[986,1170],"intent":"回到门边，压把手把门拉开"}
+  ]
+}
