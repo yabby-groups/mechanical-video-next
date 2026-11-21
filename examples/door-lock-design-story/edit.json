@@ -1,0 +1,174 @@
+{
+  "title": "把钥匙放进口袋",
+  "shots": [
+    {
+      "id": "wrong-door-key",
+      "scene": "hall_fail",
+      "seconds": 6.5,
+      "narration": [
+        [
+          0.5,
+          "同一串钥匙，同一扇门。"
+        ],
+        [
+          3.0,
+          "蓝色这把插得进去，为什么拧不动？"
+        ]
+      ],
+      "knowledge_ids": [
+        "composite-use"
+      ]
+    },
+    {
+      "id": "safe-work",
+      "scene": "safe",
+      "seconds": 6,
+      "label": "19 世纪的用途变化｜场景重构",
+      "narration": [
+        [
+          0.25,
+          "十九世纪，莱纳斯·耶鲁先改良银行保险锁。"
+        ]
+      ],
+      "knowledge_ids": [
+        "history-use"
+      ]
+    },
+    {
+      "id": "small-key",
+      "scene": "transition",
+      "seconds": 7,
+      "label": "1861 年专利｜抽屉、壁橱、橱柜",
+      "narration": [
+        [
+          0.3,
+          "后来他转向日常用锁。"
+        ],
+        [
+          2.5,
+          "在父亲的设计上，他改进了扁平小钥匙的弹子锁。"
+        ]
+      ],
+      "knowledge_ids": [
+        "small-key"
+      ]
+    },
+    {
+      "id": "door-adaptation",
+      "scene": "door_adaptation",
+      "seconds": 7,
+      "label": "1865 年专利｜适配不同厚度的门",
+      "narration": [
+        [
+          0.3,
+          "从柜门到房门，安装条件也在变。"
+        ],
+        [
+          3.45,
+          "新专利考虑了不同厚度的门。"
+        ]
+      ],
+      "knowledge_ids": [
+        "installation-change"
+      ]
+    },
+    {
+      "id": "same-blank",
+      "scene": "blank",
+      "seconds": 5,
+      "label": "桌面实验｜只比较边缘高度",
+      "narration": [
+        [
+          0.2,
+          "两片平边薄片。"
+        ],
+        [
+          2.55,
+          "触点读到一样的高度。"
+        ]
+      ],
+      "knowledge_ids": [
+        "comparison"
+      ]
+    },
+    {
+      "id": "keys-as-patterns",
+      "scene": "pattern",
+      "seconds": 6.5,
+      "label": "蓝钥匙和黄钥匙的高度排列",
+      "narration": [
+        [
+          0.2,
+          "把两把钥匙的高齿错开。"
+        ],
+        [
+          2.95,
+          "个头相近，高度排列却不同。"
+        ]
+      ],
+      "knowledge_ids": [
+        "comparison"
+      ]
+    },
+    {
+      "id": "mismatch",
+      "scene": "mismatch",
+      "seconds": 5,
+      "label": "两组弹子的通用剖面",
+      "narration": [
+        [
+          0.2,
+          "蓝钥匙顶起弹子，还有弹子跨着锁芯和外壳。"
+        ]
+      ],
+      "knowledge_ids": [
+        "shared-seam"
+      ]
+    },
+    {
+      "id": "match",
+      "scene": "match",
+      "seconds": 7,
+      "label": "两组弹子的通用剖面",
+      "narration": [
+        [
+          0.1,
+          "再换黄钥匙。"
+        ],
+        [
+          1.63,
+          "接缝同时对齐。"
+        ],
+        [
+          4.23,
+          "这一次，锁芯转过去了。"
+        ]
+      ],
+      "knowledge_ids": [
+        "shared-seam"
+      ]
+    },
+    {
+      "id": "payoff",
+      "scene": "hall_pass",
+      "seconds": 8,
+      "narration": [
+        [
+          3.15,
+          "这次门开了。"
+        ],
+        [
+          4.6,
+          "钥匙放回口袋。"
+        ],
+        [
+          6.1,
+          "这把锁读的是高度。"
+        ]
+      ],
+      "knowledge_ids": [
+        "composite-use"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "reviewer_thread_id": "01a1fe86-ffc8-7ad2-a78f-c15484782817",
+  "independent_reviewer": true,
+  "media": [
+    {"path": "output/story-development-door-lock/v3/door-lock-story-preview.mp4", "sha256": "d4b426f2b7a3dc7ad8a5acef96b0874e23cdf2b2618cb864953b41c2e11497a6"},
+    {"path": "output/story-development-door-lock/v3/neil.wav", "sha256": "4c827aa288658d51bd022158f2f9b37da13387bb94ad5ffde6cac8b4217e790c"},
+    {"path": "output/story-development-door-lock/v3/diagnostic-handoff.json", "sha256": "a8a3551fcfa23716add62d73f1d44a8bcf9251e7e185690eacfc61415a41b409"}
+  ],
+  "creative_decision": {
+    "status": "UNKNOWN",
+    "method": "sampled_frames",
+    "findings": {
+      "positioning": {"status": "UNKNOWN", "observation": "局部样本展示钥匙和锁芯，整片定位需要连续观看。", "location": "2、4、39.8、44.9 秒"},
+      "design_story": {"status": "UNKNOWN", "observation": "本次未重看历史设计场景，整体用途与设计故事需连续复核。", "location": "6.5–26.5 秒"},
+      "integrated_science": {"status": "UNKNOWN", "observation": "44.9 和 46.3 秒两组接缝位于可见边界；连续接触及无穿插未验证。", "location": "38–50 秒"},
+      "visual_story": {"status": "UNKNOWN", "observation": "关键局部有画面证据，未连续观看全片或确认视觉接力。", "location": "0–58 秒"},
+      "causal_progression": {"status": "UNKNOWN", "observation": "对齐静帧后有旋转静帧，插入、受挡、对齐和旋转的连续因果未观察。", "location": "39.8、44.9、46.3、48.9 秒"},
+      "visual_repetition": {"status": "UNKNOWN", "observation": "本次未重看桌面实验与历史场景，无法判定动态重复及节奏。", "location": "6.5–38 秒"},
+      "discovery_payoff": {"status": "UNKNOWN", "observation": "54.7 秒手与钥匙状细物靠近口袋，55.2 和 57 秒不再可见；钥匙身份及连续入袋未确认。", "location": "50–58 秒"},
+      "user_requirements": {"status": "UNKNOWN", "observation": "完整影片未连续观看或实听，不能判定创意及音画要求是否兑现。", "location": "0–58 秒"}
+    }
+  },
+  "sampled_seconds": [2, 4, 6, 39.8, 44.9, 46.3, 48.9, 51, 52.5, 54.7, 55.2, 57],
+  "limitations": {"continuous_visual": "UNKNOWN", "listening": "UNKNOWN", "mechanical_motion": "UNKNOWN", "original_expression": "UNKNOWN", "copyright": "UNKNOWN", "audience_metrics": null, "tokens": null, "cost": null}
+}
