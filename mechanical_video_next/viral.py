@@ -271,6 +271,37 @@ def validate_techniques(candidate):
         if (not isinstance(span, list) or len(span) != 2 or not all(map(_seconds, span))
                 or not any(left <= span[0] < span[1] <= right for left, right in coverage)):
             raise ValueError('Technique timecode must be inside an actually viewed segment')
+        if row.get('shot_id') is not None and not any(
+                shot['id'] == row['shot_id'] and shot['time_range'][0] <= span[0]
+                and span[1] <= shot['time_range'][1] for shot in candidate.get('shot_analysis', [])):
+            raise ValueError('Technique does not fit its observed source shot')
+
+
+def validate_shot_analysis(candidate):
+    """Store only properties observed within the covered excerpt."""
+    if 'shot_analysis' not in candidate:
+        return
+    rows = candidate['shot_analysis']
+    if not isinstance(rows, list) or not rows or not _viewed_video(candidate):
+        raise ValueError('Reference shot analysis needs observed video')
+    viewing = candidate['viewing']
+    coverage = ([[0, viewing['covered_seconds']]] if viewing['status'] == 'FULL_VIDEO_VIEWED'
+                else viewing['time_ranges'])
+    previous, seen = 0, set()
+    for row in rows:
+        if not isinstance(row, dict) or not all(_text(row.get(key)) for key in (
+                'id', 'composition', 'subject_motion', 'camera_motion', 'reveal', 'edit', 'style')):
+            raise ValueError('Reference shot needs timecoded visual observations')
+        span = row.get('time_range')
+        if (row['id'] in seen or not isinstance(span, list) or len(span) != 2
+                or not all(map(_seconds, span)) or not previous <= span[0] < span[1]
+                or not any(left <= span[0] < span[1] <= right for left, right in coverage)):
+            raise ValueError('Reference shot lies outside the observed sequence')
+        if row.get('sound') is not None and (
+                not _text(row['sound']) or not evidence_exists(row.get('listening_evidence'))):
+            raise ValueError('Reference sound needs listening evidence for that shot')
+        previous = span[1]
+        seen.add(row['id'])
 
 
 def match_reference_techniques(blueprint, analysis):
@@ -343,6 +374,7 @@ def validate_directed_analysis(payload, *, require_techniques=False):
             raise ValueError('Record the limits of incomplete viewing')
         if status in {'FULL_VIDEO_VIEWED', 'PARTIAL_VIDEO_VIEWED'} and not _viewed_video(candidate):
             raise ValueError('Viewing claim requires matching time coverage and hashed observation evidence')
+        validate_shot_analysis(candidate)
         validate_techniques(candidate)
         metrics = [key for key in METRICS if candidate.get(key) is not None]
         if metrics and (not all(_seconds(candidate[key]) for key in metrics)
