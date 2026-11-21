@@ -11,7 +11,7 @@ import math
 import subprocess
 import tempfile
 import time
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / 'work/qa-images'
@@ -103,20 +103,26 @@ def prepare_cover_preview(source, **kwargs):
     return prepare_image(source, max_size=1200, **kwargs)
 
 
-def prepare_contact_sheet(sources, *, cache_dir=CACHE):
+def prepare_contact_sheet(sources, *, labels=None, cache_dir=CACHE):
     if not sources or len(sources) > 16:
         raise ValueError('Contact sheet requires 1..16 representative frames')
     refs = [prepare_image(p, cache_dir=cache_dir) for p in sources]
+    if labels is not None and len(labels) != len(refs):
+        raise ValueError('One label is required per tile')
     folder = Path(cache_dir)
-    sheet_key = key({'version':VERSION, 'code':sha(__file__), 'inputs':[r['qa_sha256'] for r in refs]})
+    sheet_key = key({'version':VERSION, 'code':sha(__file__), 'inputs':[r['qa_sha256'] for r in refs],
+                     'labels': labels})
     sheet = folder / (sheet_key + '.png')
     if not sheet.exists():
         cols = min(4, len(refs)); rows = math.ceil(len(refs)/cols)
         canvas = Image.new('RGB', (cols*320, rows*200), '#333333')
+        draw = ImageDraw.Draw(canvas)
         for i, ref in enumerate(refs):
             with Image.open(ref['qa_path']) as im:
                 im.thumbnail((320, 180))
                 canvas.paste(im, ((i%cols)*320, (i//cols)*200))
+            if labels is not None:
+                draw.text(((i % cols) * 320 + 6, (i // cols) * 200 + 183), labels[i], fill='white')
         canvas.save(sheet)
     result = prepare_image(sheet, max_size=1280, cache_dir=cache_dir)
     result['sources'] = refs

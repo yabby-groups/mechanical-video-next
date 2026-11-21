@@ -262,7 +262,7 @@ def check_constraints(scene, parts, constraints, count):
             if 'vertex' in ref and objects[ref['object']].modifiers:
                 raise ValueError('Vertex constraints require stable topology without modifiers')
         values = []
-        joint_angles, joint_positions = [], []
+        joint_angles, joint_positions, driver_angles = [], [], []
         tolerance = item.get('tolerance', 0)
         previous = None
         initial_angles = None
@@ -290,6 +290,7 @@ def check_constraints(scene, parts, constraints, count):
                     angles.append(angle)
                 if initial_angles is None:
                     initial_angles = angles
+                driver_angles.append(angles[0])
                 driver_excursion = max(driver_excursion, abs(angles[0] - initial_angles[0]))
                 follower_excursion = max(follower_excursion, abs(angles[1] - initial_angles[1]))
                 if previous is not None:
@@ -323,6 +324,17 @@ def check_constraints(scene, parts, constraints, count):
             values.append(value)
         receipt = {'kind': kind, 'points': item['points'], 'tolerance': tolerance,
                    'minimum': min(values), 'maximum': max(values)}
+        # Existing numerical measurements, in native render-frame order.
+        # Retain signed joint or driver movement for edit review.
+        if kind == 'rotation_ratio':
+            receipt['review_unit'] = 'radians'
+            receipt['review_samples'] = driver_angles
+        elif kind in {'hinge', 'slider'}:
+            receipt['review_unit'] = 'scene units'
+            receipt['review_samples'] = joint_positions
+        else:
+            receipt['review_unit'] = 'scene units'
+            receipt['review_samples'] = values
         if kind == 'rotation_ratio':
             if driver_travel < item['minimum_driver_travel']:
                 raise ValueError('Rotation ratio driver is static or has insufficient travel')

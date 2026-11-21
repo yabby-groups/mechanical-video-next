@@ -549,6 +549,26 @@ def compose(cfg, quality, media, metrics):
         retain_composition_export(cachedir, target,
                                   remove_duplicate=cached_media == cachedir/'video.mp4')
     writejson(target.with_suffix('.props.json'),props)
+    if locked:
+        from mechanical_video_next import video_review
+        bindings = {}
+        for shot in cfg['storyboard']:
+            cut = picture[shot['id']]
+            if not cut.get('action_views'):
+                continue
+            path, kind, _ = media[shot['shot']]
+            if kind != 'video':
+                raise ValueError('A mechanical event requires actual source video')
+            entry = {'video': joint.binding(path)}
+            checks = path.parent / 'checks.json'
+            if checks.is_file() and not cfg['shots'][shot['shot']].get('footage'):
+                entry['blender_checks'] = joint.binding(checks)
+            bindings[shot['id']] = entry
+        video_review.write_report(target.with_suffix('.review-sources.json'), {
+            'media': joint.binding(target),
+            'props': joint.binding(target.with_suffix('.props.json')),
+            'shots': bindings,
+        })
     observation_windows = {row['id']: window for row in cfg['storyboard']
                            if (window := cfg['shots'][row['shot']].get('science', {}).get('observation_window'))}
     if observation_windows:

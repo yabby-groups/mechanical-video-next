@@ -155,10 +155,11 @@ def validate_rendered_film(path, plan):
         '-show_entries', 'frame=pts', '-of', 'json', str(path),
     ]))['frames']
     ticks_per_frame = 1 / (FPS * Fraction(video['time_base']))
-    if len(timestamps) != plan['frame_count'] or any(
-            abs(frame.get('pts', math.inf) - index * ticks_per_frame) > Fraction(1, 2)
-            for index, frame in enumerate(timestamps)):
-        raise ValueError('Decoded picture timestamps leave the joint 30 fps clock')
+    if len(timestamps) != plan['frame_count']:
+        raise ValueError('Decoded picture timestamps differ in count from the joint track')
+    for index, frame in enumerate(timestamps):
+        if abs(frame.get('pts', math.inf) - index * ticks_per_frame) > Fraction(1, 2):
+            raise ValueError(f'Decoded picture timestamps leave the joint 30 fps clock at frame {index}')
     return video
 
 
