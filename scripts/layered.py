@@ -57,6 +57,12 @@ def frame(shot, size, t):
 
 def render(shot, folder, width, height, fps, quality):
     raise ValueError('3D-only production: layered mechanical video generation is permanently retired')
+
+
+def render_supporting_clip(shot, folder, width, height, fps, quality):
+    """Render an illustrative source for a mixed task's existing video adapter."""
+    if shot.get('render_route') != '2.5d' or shot.get('mechanical_role') != 'support':
+        raise ValueError('Layer compositing is available for supporting illustrative clips')
     sources(shot)
     budget()
     count = round(shot['seconds'] * fps)
@@ -89,3 +95,21 @@ def render(shot, folder, width, height, fps, quality):
     writejson(folder/'checks.json', {'render_route': shot['render_route'],
         'source_hashes': sources(shot), 'frames': count, 'mechanics': 'UNKNOWN',
         'description': 'Illustrated prescribed motion; not contact simulation'})
+
+
+if __name__ == '__main__':
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description='Render a 2.5D supporting media source')
+    parser.add_argument('program', type=Path)
+    parser.add_argument('output', type=Path)
+    args = parser.parse_args()
+    shot = json.loads(args.program.read_text())
+    args.output.mkdir(parents=True, exist_ok=False)
+    render_supporting_clip(shot, args.output, 1920, 1080, 30, 'final')
+    def bind(path):
+        return dict(path=str(path.resolve()), sha256=filehash(path))
+    writejson(args.output/'layered-receipt.json', dict(render_route='2.5d',
+              program=bind(args.program), media=bind(args.output/'media.mp4'),
+              checks=bind(args.output/'checks.json')))
