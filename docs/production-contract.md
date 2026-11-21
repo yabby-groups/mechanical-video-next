@@ -20,6 +20,46 @@ scope and simulation status in the existing internal records. Independent QA
 checks the actual rendered words, obstructions, continuity and narration.
 Use explicit `presentation_style: legacy` to reproduce older display conventions.
 
+### Film integrity on new Producer-directed tasks
+
+The task pins `film_integrity_version: 1` and requires that version in the
+Blueprint's existing `timeline`. Historical task ledgers retain their pinned
+rules. Keep source and output ranges in half-open 30 fps frames. Each necessary
+mechanical event uses an existing `timeline.actions` ID and output window.
+Add `source_end_frame` alongside `source_start_frame`. Record `input`,
+`direction`, `transmission`, `intermediate_state` and `contact` alongside the
+existing endpoints, curve and constraints. Bind `evidence` with path, SHA-256
+and source position. Use `knowledge_id` to connect the event to the shot and its
+verified explanation. A core mechanical shot carries one or more `action_views`.
+
+For Blender views, record `director.action_program_digest(base_shot)` in the
+event's `shot_programs` keyed by shot ID. It binds the driver, tracks, contact
+constraints, rotation interpolation and native frame count. Use a single action
+ID and the same native program and source clock for cuts that continue one motion. For an observed footage
+event, bind the exact `footage` record and the matching source bytes. A locked
+action preserves its source span at 1:1 in the edit. Use camera and visual
+changes that preserve the action and keep decisive contact and state changes
+visible. Explicitly cue any replay or change of example in the actual film.
+
+In `narrative.moments` also bind `scientific_explanation` and `action_result`.
+Each moment carries `knowledge_id` and one or more of `mechanical_event_id`,
+`narration_segment_id` or `visual_evidence`. The causal reveal and action result
+of a mechanical film use a mechanical event. The same beat or shot may carry
+several moments. Measure Neil PCM, then revise the timing until all utterances
+fit. Author the required action and story before deciding the film's duration.
+
+The existing composition and QA gate check the full decoded frame count, picture timestamps and
+compare the encoded audio with the measured PCM or verified mix, including the
+last utterance. Low-resolution mechanical previews preserve 30 fps. Existing
+continuous final QA observations use `mechanical_event_ids` with a concrete
+`source_comparison`, and `story_moment_ids` for narrative observations. Together
+they cover each bound event and moment on the exact MP4. The independent workprint
+review uses those same event and story observation fields before full-resolution rendering.
+Timecode and waveform
+checks establish technical coverage. Motion, contact visibility and the clarity
+of the final explanation require actual review. Record unavailable sensory
+observations as UNKNOWN.
+
 | Task | Effective rules |
 | --- | --- |
 | `production_contract_version=6`, `production_method=producer-directed`, `producer_direction_version=1` | Default for new topic-only mixed production. Use the audience premise, shot direction and moving workprint review below |

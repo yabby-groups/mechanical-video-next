@@ -90,6 +90,20 @@ class ReviewObservationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'complete actual'):
             self.validate(report)
 
+    def test_full_duration_film_requires_an_observed_payoff(self):
+        blueprint = dict(self.blueprint, timeline=dict(film_integrity_version=1, frame_count=12, actions=[]),
+                         narrative=dict(moments={'payoff': dict(shot_id='s1', start_frame=9, end_frame=12)}))
+        report = self.report()
+        joint.validate_rendered_film(self.media, blueprint['timeline'])
+        with self.assertRaisesRegex(ValueError, 'story moment payoff'):
+            contract.validate_review_observations(report, [self.binding], blueprint)
+        with self.assertRaisesRegex(ValueError, 'story moment payoff'):
+            contract.validate_review_observations(report, [self.binding], blueprint, workprint=True)
+        for observation in report['review_observations']:
+            if observation['dimension'] == 'narrative_comprehension':
+                observation['story_moment_ids'] = ['payoff']
+        contract.validate_review_observations(report, [self.binding], blueprint)
+
     def test_stale_audio_missing_boundaries_self_review_and_unbound_conclusions_fail(self):
         for key, value in (
             ('audio_pcm_sha256', '0'*64), ('audio_pcm_format', {}),

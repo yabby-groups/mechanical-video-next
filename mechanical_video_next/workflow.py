@@ -695,7 +695,11 @@ def continuation(task, persist=True):
             sequence.insert(0, ('viral-analysis', 'Producer',
                 'Review cached observations first. Search accessible public works for gaps, play and analyze useful references, then record what was actually observed or why it was unavailable.'))
         if directed_story(data):
-            sequence = [(name, owner, 'Review the exact workprint and record creative observations and reference effects'
+            from .joint_timeline import integrity
+            preview_action = 'Review the exact workprint and record creative observations and reference effects'
+            if integrity(data):
+                preview_action += '. Cover the full moving edit and each bound event and story moment in review_observations.'
+            sequence = [(name, owner, preview_action
                          if name == 'preview-qa' else action) for name, owner, action in sequence]
     elif science_story(data):
         sequence[0] = ('research', 'Research', 'Verify the science and identify the most revealing audience question')
@@ -1032,6 +1036,18 @@ direct_experiment. Choose one for this subject before matching assets. For each 
 its new information in the Blueprint, assess visual routes, and bind the strategy to executable
 fields. Use the shared picture/speech/action clock for editorial decisions and optional
 sound events. See docs/creative-direction.md for the fields and execution.
+'''
+            from .joint_timeline import integrity
+            if integrity(data):
+                story_direction += '''
+Use film_integrity_version=1 in the Joint Timeline. Bind each necessary event to its verified source,
+source frames, output frames and knowledge. Preserve that clock through the camera edit. Bind the
+scientific explanation and action result in narrative.moments alongside the opening, discovery,
+causal reveal and payoff. In preview-qa and final-qa, use continuous review_observations of the
+exact film. Identify mechanical_event_ids and source_comparison for mechanical_motion, and
+story_moment_ids for narrative_comprehension. Cover the full film and the entire bound interval
+of each event and moment. A technical check cannot establish these observations.
+Follow the film integrity fields and acceptance checks in docs/production-contract.md.
 '''
         audio_review = ('Use the verified Neil technical audio gate for the exact final MP4. '
                         'Record actual listening only when it happened. Register any known audio concern '
@@ -1469,7 +1485,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         from .viral import directed_plan
         from .audio_acceptance import MODE
         from .director import FIELD as CREATIVE_DIRECTION, VERSION as CREATIVE_DIRECTION_VERSION
+        from .joint_timeline import INTEGRITY
         value[PRODUCER_DIRECTION] = 1
+        value[INTEGRITY] = 1
         value[CREATIVE_DIRECTION] = CREATIVE_DIRECTION_VERSION
         value['audio_acceptance_policy'] = MODE
         value['reference_search_plan'] = 'research/search-plan.json'
@@ -1678,6 +1696,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 if director.enabled(data) and payload['director'] != artifact(task, 'research')['director']:
                     raise ValueError('Update the research handoff before changing the selected treatment')
                 if joint.enabled(data):
+                    if joint.integrity(data) != joint.integrity(payload['timeline']):
+                        raise ValueError('Blueprint joint timeline differs from the task film integrity policy')
                     joint.validate(payload['timeline'], payload.get('shots'))
                     measured = joint.receipt(payload['timeline'], payload['measured_timeline'])
                     director.validate_measured_edit(payload, measured)
@@ -2050,6 +2070,22 @@ def check_qa(task, name, *, acceptance=True):
                 if Path(m['path']).suffix.lower() == '.mp4'}
     if not expected or not expected <= reviewed:
         raise ValueError('QA must review the exact production MP4')
+    from . import joint_timeline as joint
+    if joint.integrity(data) and name in {'preview-qa', 'final-qa'}:
+        blueprint = artifact(task, 'creative-blueprint')
+        plan = blueprint['timeline']
+        measured = joint.receipt(plan, blueprint['measured_timeline'])
+        config = json.loads(Path(data['config']).read_text())
+        mix = config.get('audio_mix')
+        if mix:
+            from .audio_acceptance import verify_mix
+            playback, _ = verify_mix(mix, joint.bound(measured['narration_audio']),
+                                     plan['frame_count'] * joint.SAMPLES_PER_FRAME, check_masking=False)
+        else:
+            playback = None
+        for path, _ in expected:
+            joint.validate_rendered_film(path, plan)
+            joint.validate_rendered_audio(path, plan, measured, playback, mix=bool(mix))
     from .production_contract import creative_first, science_story, validate_creative_review
     if workprint_review:
         if len(expected) != 1:
@@ -2068,6 +2104,13 @@ def check_qa(task, name, *, acceptance=True):
                 shot['shot_id'] for shot in blueprint['shots'] if shot['mechanical_role'] == 'core'])
             if any(row['status'] == 'FAIL' for row in qa['creative_review'].values()):
                 raise ValueError('Repair the failed creative workprint before final rendering')
+        if joint.integrity(data):
+            from .audio_acceptance import MODE
+            from .production_contract import validate_review_observations
+            review = dict(qa, production_thread_ids=[r['thread_id'] for r in data['agent_runs'] if r['role'] != 'QA'])
+            preview_technical = (data.get('audio_acceptance_policy') == MODE
+                                 and qa.get('checks', {}).get('listening') in (None, 'UNKNOWN'))
+            validate_review_observations(review, [preview], blueprint, technical_audio=preview_technical, workprint=True)
     if not directed and name in {'animatic-qa', 'final-qa'} and creative_first(data):
         from scripts.common import probe
         durations = {digest: float(probe(path)['format']['duration']) for path, digest in expected}
@@ -2340,9 +2383,12 @@ def check_production_config(task, config=None):
     if not expected.is_file() or filehash(expected) != binding['sha256']:
         raise ValueError('Production config missing or changed after blueprint freeze')
     compiled = json.loads(expected.read_text())
-    from . import director
+    from . import director, joint_timeline as joint
     if not director.enabled(data) == director.enabled(blueprint) == director.enabled(compiled):
         raise ValueError('Executable config differs from the task creative direction policy')
+    if joint.integrity(data) and (not joint.enabled(compiled) or any(
+            compiled.get(field) != blueprint[field] for field in ('timeline', 'measured_timeline', 'narrative'))):
+        raise ValueError('Executable config lost the frozen picture, speech or story coverage')
     from .visual_narrative import VERSION, match_blueprint, match_policy, version
     match_policy(data, blueprint)
     match_policy(data, compiled)

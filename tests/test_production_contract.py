@@ -11,6 +11,8 @@ from mechanical_video_next.workflow import continuation, create_task, load, prod
 class ProductionContractTests(unittest.TestCase):
     def test_default_director_registers_one_evidenced_story_and_resumes(self):
         import json
+        from array import array
+        import math
         import subprocess
         import sys
         import wave
@@ -94,13 +96,23 @@ class ProductionContractTests(unittest.TestCase):
 
             base = Path('tests/fixtures/production/science-demo.json')
             cfg = json.loads(base.read_text())
-            timeline = dict(frame_count=210, shots=[dict(id='trace', start_frame=0, end_frame=210)],
-                            actions=[], narration=[dict(id='line', text='看行星架', knowledge_ids=['reduction'],
+            native = cfg['shots']['trace']
+            action = dict(id='rotate', start_frame=0, end_frame=180, source_start_frame=0, source_end_frame=180,
+                          start_state='At rest', end_state='Slow carrier', input='Sun gear turns',
+                          direction='Carrier follows the input', transmission='Planet gears on the fixed ring',
+                          intermediate_state='Both marked datums rotate', contact='Planet and ring mesh',
+                          knowledge_id='reduction', curve='Native gear track', constraints=['Fixed ring'],
+                          source=joint.binding(base), evidence=evidence,
+                          shot_programs={'trace': director.action_program_digest(native)})
+            timeline = dict(film_integrity_version=1, frame_count=210,
+                            shots=[dict(id='trace', start_frame=0, end_frame=210, action_views={'rotate': 0})],
+                            actions=[action], narration=[dict(id='line', text='看行星架', knowledge_ids=['reduction'],
                                                         start_frame=0, deadline_frame=30)])
             sample = task / 'speech.wav'
             with wave.open(str(sample), 'wb') as wav:
                 wav.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
-                wav.writeframes(b'\x01\x00' * 24000)
+                wav.writeframes(array('h', (int(7000 * math.sin(2 * math.pi * 440 * sample / 48000))
+                                           for sample in range(24000))).tobytes())
             measured = joint.measure(timeline, lambda line: (sample, {}), task / 'narration.wav')
             w.write(task / 'timing.json', measured)
             shot = dict(shot_id='trace', time_range=[0, 7], duration=7, asset=cfg['asset'],
@@ -137,8 +149,10 @@ class ProductionContractTests(unittest.TestCase):
                         timeline=timeline, measured_timeline=joint.binding(task / 'timing.json'),
                         narrative=dict(question=question, answer=fact['claim'], moments={
                             key: dict(shot_id='trace', start_frame=i * 30, end_frame=(i + 1) * 30,
-                                      observable='Watch the carrier against the rings')
-                            for i, key in enumerate(c.STORY_MOMENTS)}), core_question=question,
+                                      observable='Watch the carrier against the rings', knowledge_id='reduction',
+                                      mechanical_event_id='rotate')
+                            for i, key in enumerate(('opening', 'first_discovery', 'causal_reveal',
+                                                     'scientific_explanation', 'action_result', 'payoff'))}), core_question=question,
                         original_topic=data['topic'], duration_seconds=7, sources=[evidence], shots=[shot],
                         evidence_map=[dict(knowledge_id='reduction', conclusion=fact['claim'], source_ids=['manual'],
                                            reference_locations=[dict(source_id='manual', position='Instructions')],
@@ -213,7 +227,7 @@ class ProductionContractTests(unittest.TestCase):
             subprocess.run([
                 'ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
                 'testsrc2=size=320x180:rate=30:duration=7',
-                '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '7',
+                '-i', str(task / 'narration.wav'),
                 '-c:v', 'libx264', '-c:a', 'aac', str(preview),
             ], check=True)
             preview_media = dict(joint.binding(preview), chapter_ids=['trace'])
@@ -231,13 +245,24 @@ class ProductionContractTests(unittest.TestCase):
                 observation = dict(media_sha256=preview_media['sha256'], time_range=[0, 7],
                                    status='UNKNOWN', observation='Fixture cannot establish perception',
                                    capability_boundary='Technical fixture')
-                put_handoff(task, 'QA', 'preview-qa', dict(
+                preview_report = dict(
                     media=[preview_media], independent_reviewer=True, reviewer_thread_id='qa',
                     checks=dict.fromkeys(w.QA_CHECKS, 'PASS') | {'listening': 'UNKNOWN'},
                     creative_review={key: observation for key in c.CREATIVE_CHECKS},
                     reference_effects=[observation | dict(reference_id='ref', technique_id='reveal',
-                                                          shot_id='trace', limitation='Fixture')]),
-                    ['animation-manifest'])
+                                                          shot_id='trace', limitation='Fixture')])
+                put_handoff(task, 'QA', 'preview-qa', preview_report, ['animation-manifest'])
+                with self.assertRaisesRegex(ValueError, 'time-covered review observations'):
+                    w.advance(task, 'EDITING')
+                detail = observation | dict(status='PASS', method='continuous_video', shot_id='trace',
+                                            reviewer_thread_id='qa', knowledge_ids=shot['knowledge_ids'])
+                preview_report['review_observations'] = [
+                    detail | dict(id='motion', dimension='mechanical_motion', source_comparison='Test fixture',
+                                  mechanical_event_ids=[event['id'] for event in timeline['actions']]),
+                    detail | dict(id='story', dimension='narrative_comprehension',
+                                  story_moment_ids=list(plan['narrative']['moments'])),
+                ]
+                put_handoff(task, 'QA', 'preview-qa', preview_report, ['animation-manifest'])
                 w.advance(task, 'EDITING')
             self.assertEqual(load(task)['state'], 'EDITING')
             # Exercise the stage and ledger with test bytes in place of the renderer.

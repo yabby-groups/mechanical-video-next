@@ -487,7 +487,7 @@ def review_media_identity(binding):
                                  'channels': int(audio['channels'])}}
 
 
-def validate_review_observations(report, media, blueprint, *, technical_audio=False):
+def validate_review_observations(report, media, blueprint, *, technical_audio=False, workprint=False):
     """Validate traceable attestations in the existing QA handoff, not senses.
 
     These records are hash-bound by the same immutable QA envelope as the six
@@ -499,6 +499,12 @@ def validate_review_observations(report, media, blueprint, *, technical_audio=Fa
         raise ValueError('Full acceptance requires time-covered review observations')
     if not isinstance(blueprint, dict) or not isinstance(blueprint.get('shots'), list) or not blueprint['shots']:
         raise ValueError('Review observations require the current bound Blueprint shots')
+    from . import joint_timeline as joint
+    plan = blueprint.get('timeline', {})
+    locked = joint.integrity(plan)
+    if locked:
+        for item in media:
+            joint.validate_rendered_film(item['path'], plan)
     shots = {shot['shot_id']: shot for shot in blueprint['shots']}
     if len(shots) != len(blueprint['shots']):
         raise ValueError('Review Blueprint shot identities must be unique')
@@ -551,16 +557,37 @@ def validate_review_observations(report, media, blueprint, *, technical_audio=Fa
         observations[identity] = row
     def require_coverage(intervals, duration, label, start=0.):
         end = start
-        for start, stop in sorted(intervals):
-            if start > end+.001:
+        for left, right in sorted(intervals):
+            if end >= duration-.001:
+                return
+            if left > end+.001:
                 raise ValueError('Continuous review has an unobserved interval: ' + label)
-            end = max(end, stop)
+            end = max(end, right)
         if end < duration-.001:
             raise ValueError('Continuous review does not cover the complete actual ' + label)
 
     for sha, modalities in coverage.items():
         for modality, intervals in modalities.items():
             require_coverage(intervals, identities[sha]['durations'][modality], modality)
+    if locked:
+        for sha in identities:
+            for event in plan['actions']:
+                intervals = [row['time_range'] for row in observations.values()
+                             if row['media_sha256'] == sha and row['dimension'] == 'mechanical_motion'
+                             and 'video' in REVIEW_METHODS[row['method']]
+                             and event['id'] in row.get('mechanical_event_ids', [])
+                             and nonempty(row.get('source_comparison'))]
+                require_coverage(intervals, event['end_frame'] / joint.FPS,
+                                 'mechanical event ' + event['id'], start=event['start_frame'] / joint.FPS)
+            for key, moment in blueprint['narrative']['moments'].items():
+                intervals = [row['time_range'] for row in observations.values()
+                             if row['media_sha256'] == sha and row['dimension'] == 'narrative_comprehension'
+                             and row['shot_id'] == moment['shot_id'] and key in row.get('story_moment_ids', [])
+                             and 'video' in REVIEW_METHODS[row['method']]]
+                require_coverage(intervals, moment['end_frame'] / joint.FPS,
+                                 'story moment ' + key, start=moment['start_frame'] / joint.FPS)
+    if workprint:
+        return
     for name, conclusion in report['quality_dimensions'].items():
         refs = conclusion.get('observation_ids')
         if (not isinstance(refs, list) or not refs or any(not nonempty(ref) for ref in refs)
