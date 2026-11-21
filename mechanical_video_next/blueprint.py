@@ -23,6 +23,38 @@ def number(v):
     return not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v)
 
 
+def validate_story_preview(data, media, *, treatment=None):
+    """Validate the executable clock of an authored moving draft."""
+    from . import joint_timeline as joint
+
+    films = [Path(row['path']) for row in media if Path(row['path']).suffix.lower() == '.mp4']
+    if len(films) != 1:
+        raise ValueError('Story preview needs one complete MP4')
+    plan = data.get('timeline')
+    if not isinstance(plan, dict):
+        raise ValueError('Story preview needs a joint picture clock')
+    joint.validate(plan)
+    if treatment is not None:
+        core = {scene['id'] for scene in treatment['scenes'] if scene['mechanical_role'] == 'core'}
+        picture = {shot['id'] for shot in plan['shots']}
+        bindings = data.get('core_3d')
+        if not isinstance(bindings, list) or not bindings:
+            raise ValueError('Bind the core preview shots to inspectable native Blender scenes')
+        seen = set()
+        for row in bindings:
+            if row.get('scene_id') not in core or row.get('shot_id') not in picture:
+                raise ValueError('The core native scene must map to the Treatment and picture clock')
+            if joint.bound(row['source']).suffix.lower() != '.blend':
+                raise ValueError('The core preview source must be a Blender scene')
+            seen.add(row['scene_id'])
+        if seen != core:
+            raise ValueError('Core preview bindings must cover the approved mechanism scenes')
+    joint.validate_rendered_film(films[0], plan, require_audio=bool(data.get('measured_timeline')))
+    if data.get('measured_timeline'):
+        measured = joint.receipt(plan, data['measured_timeline'])
+        joint.validate_rendered_audio(films[0], plan, measured)
+
+
 def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
     from .three_d import validate_config

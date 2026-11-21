@@ -130,7 +130,7 @@ def validate(plan, blueprint_shots=None):
     return plan
 
 
-def validate_rendered_film(path, plan):
+def validate_rendered_film(path, plan, *, require_audio=True):
     """Check the actual video clock and decode both streams through the last beat."""
     streams = probe(path)['streams']
     videos = [stream for stream in streams if stream['codec_type'] == 'video']
@@ -144,8 +144,9 @@ def validate_rendered_film(path, plan):
             or abs(float(video.get('start_time', 'inf'))) > 1e-6
             or abs(float(video.get('duration', 'inf')) - duration) > 1e-6):
         raise ValueError('Actual MP4 picture clock differs from the complete joint timeline')
+    audio_stream = '0:a:0' if require_audio else '0:a:0?'
     progress = subprocess.check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path),
-                                        '-map', '0:v:0', '-map', '0:a:0', '-fps_mode', 'passthrough',
+                                        '-map', '0:v:0', '-map', audio_stream, '-fps_mode', 'passthrough',
                                         '-nostats', '-progress', 'pipe:1', '-f', 'null', '-'], text=True)
     frames = [int(line.split('=', 1)[1]) for line in progress.splitlines() if line.startswith('frame=')]
     if not frames or frames[-1] != plan['frame_count']:
