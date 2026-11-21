@@ -165,7 +165,7 @@ def compile_config(blueprint, base, output, draft=False):
             shot['visual'] = copy.deepcopy(design_fields(s))
             if not editorial:
                 from .visual_narrative import configure_blender
-                configure_blender(shot)
+                configure_blender(shot, directed=directed)
         sid = s['shot_id']; shots[sid] = shot
         inherited = next((x for x in cfg.get('storyboard', []) if x['shot'] == key), {})
         editor_fields = dict(inherited)

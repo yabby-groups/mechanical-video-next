@@ -22,9 +22,11 @@ def apply(profile, objects, frames, camera, options=None):
     scene.view_settings.view_transform = 'AgX'
     scene.world.use_nodes = True
     background = scene.world.node_tree.nodes.get('Background')
-    background.inputs['Color'].default_value = (0.32, 0.37, 0.43, 1)
+    background.inputs['Color'].default_value = (*options.get('world_color', (0.32, 0.37, 0.43)), 1)
     background.inputs['Strength'].default_value = options.get('world_strength',0.55)
-    materials = {m for obj in objects for m in obj.data.materials if m}
+    materials = set() if options.get('preserve_materials') else {
+        m for obj in objects for m in obj.data.materials if m
+    }
     for mat in materials:
         shader = mat.node_tree.nodes.get('Principled BSDF') if mat.use_nodes else None
         if shader and not mat.get('studio_preserve_surface', False):

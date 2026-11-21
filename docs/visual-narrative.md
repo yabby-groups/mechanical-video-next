@@ -7,9 +7,14 @@
 利用同一零件、颜色或动作状态连接全景与剖面。用原有
 `source_start_frame` 选择关键动作区间。已知时长的原生科学运动若无法覆盖画面区间，编译会要求重新编辑或明确延长动作。
 
+使用既有摄影棚的镜头可在 `direction.studio_lighting` 选择 `floor_color`、
+`world_color`、灯光和环境强度，以及 `preserve_materials`。
+颜色用 0–1 的线性 RGB，强度用 0–3。此路径关闭隐式摄影棚推近，构图变化用相机配置明确表达。
+生活场景、产品外部和机构剖视可选不同的观察环境。涉及锁定历史风格的任务按原版本检查。
+
 ## 知识递进与可观察证据
 
-新立项的策略 2 任务默认执行 `knowledge_progression_version=1`，标记随任务、Blueprint、执行配置和来源回放清单绑定。已定版任务沿用立项时的策略。不要根据镜头数或字幕改动评估视觉增量。
+任务启用 `knowledge_progression_version=1` 时，标记随任务、Blueprint、执行配置和来源回放清单绑定。Producer 导演任务采用本页的镜头选择和生效契约中的完整工作片检查。已定版任务沿用立项时的策略。依据画面的新知识判断视觉增量。
 
 - 在 `progression.previous_ids` 列出上一镜解释的知识，在 `knowledge_ids` 声明本镜回答的问题。本镜应引入新事实，或用新的可观察证据加深原结论。把只复述已解释内容的画面合并或移除。
 - 每项 `progression.observable` 给出 `knowledge_id`、`kind`、`proof`、局部 30 fps 半开 `frames` 和可观察的 `states`。结构可以用可见几何。变化、因果和对比至少要展示两个不同状态及中间运动，核心机构仍须使用实际 3D。流程标题依次出现只适合作索引。动态对照可用 `angular_comparison` 的半径和等弧长参数，或有来源的数据图。

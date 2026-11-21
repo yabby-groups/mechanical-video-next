@@ -440,7 +440,7 @@ def validate_execution(shot, *, progression=False, hybrid=False):
                 raise ValueError('Dynamic knowledge requires animated data or geometry, not label reveals')
 
 
-def configure_blender(shot):
+def configure_blender(shot, *, directed=False):
     """Translate named camera choices into the existing Blender renderer inputs."""
     camera = shot['visual']['camera']
     visual = shot['visual']
@@ -463,6 +463,15 @@ def configure_blender(shot):
     if preset in {'closeup', 'macro'} and 'focus_region' in camera:
         shot['camera_focus_region'] = camera['focus_region']
     lighting = shot.get('studio_lighting', {}).copy()
+    if directed:
+        treatment = visual.get('direction', {}).get('studio_lighting')
+        if treatment is not None:
+            if shot.get('visual_profile') != 'printer-ep03-studio-v1':
+                raise ValueError('Studio lighting needs the existing studio profile on the base shot')
+            validate_studio_treatment(treatment)
+            lighting.update(treatment)
+        if shot.get('visual_profile') == 'printer-ep03-studio-v1':
+            lighting['camera_push'] = False
     if preset in {'establish', 'macro', 'follow', 'reveal', 'match_cut'}:
         lighting['camera_push'] = False
     if preset == 'isolate':
@@ -470,6 +479,22 @@ def configure_blender(shot):
             lighting.setdefault(key, value)
     if lighting:
         shot['studio_lighting'] = lighting
+
+
+def validate_studio_treatment(treatment):
+    strengths = {'key_strength', 'fill_strength', 'rim_strength', 'world_strength'}
+    colors = {'floor_color', 'world_color'}
+    if not isinstance(treatment, dict) or not set(treatment) <= strengths | colors | {'preserve_materials'}:
+        raise ValueError('Studio treatment supports light strength, backdrop colors and source materials')
+    for key, value in treatment.items():
+        if key in strengths:
+            valid = number(value) and 0 <= value <= 3
+        elif key in colors:
+            valid = isinstance(value, list) and len(value) == 3 and all(number(x) and 0 <= x <= 1 for x in value)
+        else:
+            valid = type(value) is bool
+        if not valid:
+            raise ValueError(f'Invalid studio treatment: {key}')
 
 
 def editorial_props(shot):
