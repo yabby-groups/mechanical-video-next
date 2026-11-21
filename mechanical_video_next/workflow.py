@@ -1023,6 +1023,15 @@ Personally review the complete cheap moving edit. Have QA record creative_review
 reference_effects in the existing preview-qa before the final stage. Keep perceptual gaps UNKNOWN.
 Fix structural problems in the cut and render only affected shot inputs.
 '''
+            from .director import enabled as creative_direction
+            if creative_direction(data):
+                story_direction += '''
+Write three treatments in the research director record: mystery, failure_inference and
+direct_experiment. Choose one for this subject before matching assets. For each shot name
+its new information in the Blueprint, assess visual routes, and bind the strategy to executable
+fields. Use the shared picture/speech/action clock for editorial decisions and optional
+sound events. See docs/creative-direction.md for the fields and execution.
+'''
         audio_review = ('Use the verified Neil technical audio gate for the exact final MP4. '
                         'Record actual listening only when it happened. Register any known audio concern '
                         'as a timecoded QA issue for targeted review.'
@@ -1458,7 +1467,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if directed:
         from .viral import directed_plan
         from .audio_acceptance import MODE
+        from .director import FIELD as CREATIVE_DIRECTION, VERSION as CREATIVE_DIRECTION_VERSION
         value[PRODUCER_DIRECTION] = 1
+        value[CREATIVE_DIRECTION] = CREATIVE_DIRECTION_VERSION
         value['audio_acceptance_policy'] = MODE
         value['reference_search_plan'] = 'research/search-plan.json'
         write(task / value['reference_search_plan'], directed_plan(topic, Path(root) / 'references'))
@@ -1645,6 +1656,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
                         payload.get('story_exploration', {}).get('selected_id') is None):
                     validate_audience_decision(payload.get('audience_decision'), creative=True, story=story)
                 validate_science(payload)
+                from . import director
+                if director.enabled(data):
+                    chosen = director.validate_treatments(payload.get('director'))
+                    if chosen['question'] != payload.get('audience_decision', {}).get('question'):
+                        raise ValueError('Creative treatment must use the chosen audience question')
                 if competition:
                     previous = artifact(task, 'research') if 'research' in data['handoffs'] else None
                     editorial_policy.validate_competition(payload, previous, history)
@@ -1654,9 +1670,16 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 require_visual_story_review(task)
                 from .production_contract import validate_direction
                 from . import joint_timeline as joint
+                from . import director
+                if director.enabled(data) != director.enabled(payload):
+                    raise ValueError('Blueprint creative direction differs from task creation policy')
+                director.validate(payload)
+                if director.enabled(data) and payload['director'] != artifact(task, 'research')['director']:
+                    raise ValueError('Update the research handoff before changing the selected treatment')
                 if joint.enabled(data):
                     joint.validate(payload['timeline'], payload.get('shots'))
                     measured = joint.receipt(payload['timeline'], payload['measured_timeline'])
+                    director.validate_measured_edit(payload, measured)
                 validate_direction(payload, artifact(task, 'research'))
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
         if story and name == 'creative-blueprint':
@@ -2037,6 +2060,13 @@ def check_qa(task, name, *, acceptance=True):
         validate_creative_review(qa, durations, acceptance=False, whole_edit=True)
         from .viral import validate_reference_effects
         validate_reference_effects(artifact(task, 'creative-blueprint'), qa, sha)
+        from . import director
+        if director.enabled(data):
+            blueprint = artifact(task, 'creative-blueprint')
+            director.preview_evidence(path, blueprint['timeline'], [
+                shot['shot_id'] for shot in blueprint['shots'] if shot['mechanical_role'] == 'core'])
+            if any(row['status'] == 'FAIL' for row in qa['creative_review'].values()):
+                raise ValueError('Repair the failed creative workprint before final rendering')
     if not directed and name in {'animatic-qa', 'final-qa'} and creative_first(data):
         from scripts.common import probe
         durations = {digest: float(probe(path)['format']['duration']) for path, digest in expected}
@@ -2309,6 +2339,9 @@ def check_production_config(task, config=None):
     if not expected.is_file() or filehash(expected) != binding['sha256']:
         raise ValueError('Production config missing or changed after blueprint freeze')
     compiled = json.loads(expected.read_text())
+    from . import director
+    if not director.enabled(data) == director.enabled(blueprint) == director.enabled(compiled):
+        raise ValueError('Executable config differs from the task creative direction policy')
     from .visual_narrative import VERSION, match_blueprint, match_policy, version
     match_policy(data, blueprint)
     match_policy(data, compiled)

@@ -11,10 +11,11 @@ from mechanical_video_next.workflow import continuation, create_task, load, prod
 class ProductionContractTests(unittest.TestCase):
     def test_default_director_registers_one_evidenced_story_and_resumes(self):
         import json
+        import subprocess
         import sys
         import wave
         from types import SimpleNamespace
-        from mechanical_video_next import blueprint, joint_timeline as joint, reference_policy as references
+        from mechanical_video_next import blueprint, director, joint_timeline as joint, reference_policy as references
         from mechanical_video_next import workflow as w
 
         with tempfile.TemporaryDirectory() as folder:
@@ -65,6 +66,12 @@ class ProductionContractTests(unittest.TestCase):
                 design_tension='Fit a speed reduction around one axis',
                 visible_test='Compare marked travel', viewer_takeaway='The fixed ring changes the output speed',
                 selection_rationale='One input and output make the reduction visible')
+            research['director'] = dict(
+                selected='direct_experiment', selection_reason='Marked rotation is directly observable',
+                treatments={
+                    name: dict({field: f'{field} for {name}' for field in director.TREATMENT},
+                               question=research['science']['question'])
+                    for name in director.APPROACHES})
             with self.assertRaisesRegex(ValueError, 'production method'):
                 put_handoff(task, 'Producer', 'research', research | {'production_method': 'science-story'})
             with self.assertRaisesRegex(ValueError, 'Located visual evidence'):
@@ -115,6 +122,13 @@ class ProductionContractTests(unittest.TestCase):
                         matching=dict(attempts=[dict(priority=i, status='NONE') for i in range(1, 6)],
                                       generation_reason='Use matching native model'))
             question = research['science']['question']
+            shot['director'] = dict(
+                {field: f'Observe {field}' for field in director.SHOT},
+                visual_focus='Carrier', strategy='source_observation',
+                edits=[dict(kind='cut', frame=0, purpose='Introduce both rotating parts')],
+                candidates=[dict(route='native_3d', basis='Verified output geometry',
+                                 accuracy=4, expression=4, intent=4, availability=4,
+                                 style=4, estimated_seconds=30, estimated_cost=0)])
             policy = {key: research[key] for key in (c.FIELD, c.PRODUCER_DIRECTION, 'production_contract', 'production_method',
                                                       'visual_policy_version', 'media_policy_version')}
             plan = dict(policy, timeline_policy_version=1, reference_policy_version=1, status='FROZEN',
@@ -131,6 +145,8 @@ class ProductionContractTests(unittest.TestCase):
                         content_timing=dict(basis='Measured timeline', status='PASS', measured_narration_seconds=.5,
                                             chapters=[dict(id='trace', knowledge_ids=['reduction'],
                                                            new_information='Output', duration_reason='Action')]))
+            plan[director.FIELD] = director.VERSION
+            plan['director'] = research['director']
             model = task / 'model.blend'
             model.write_bytes(b'fixture model')
             model_ref = joint.binding(model)
@@ -192,7 +208,12 @@ class ProductionContractTests(unittest.TestCase):
             self.assertIsNone(w.require_animatic(task))
             self.assertEqual(continuation(task, persist=False)['next_action']['handoff'], 'animation-manifest')
             preview = task / 'preview.mp4'
-            preview.write_bytes(b'fixture preview')
+            subprocess.run([
+                'ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                'testsrc2=size=320x180:rate=30:duration=7',
+                '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '7',
+                '-c:v', 'libx264', '-c:a', 'aac', str(preview),
+            ], check=True)
             preview_media = dict(joint.binding(preview), chapter_ids=['trace'])
             put_handoff(task, 'Animation', 'animation-manifest',
                         dict(media=[preview_media], keyframes_verified=True),
@@ -221,7 +242,9 @@ class ProductionContractTests(unittest.TestCase):
             compiled = json.loads(config_path.read_text())
             final = task.parents[1] / (compiled['id'] + '-final.mp4')
             with (patch.object(w, 'ROOT', task.parents[2]),
-                  patch.object(w.subprocess, 'run', side_effect=lambda *a, **kw: final.write_bytes(b'fixture final')),
+                  patch.object(w, 'subprocess', SimpleNamespace(
+                      run=lambda *a, **kw: final.write_bytes(b'fixture final'),
+                      STDOUT=subprocess.STDOUT, CalledProcessError=subprocess.CalledProcessError)),
                   patch.dict(sys.modules, {'clean': SimpleNamespace(cleanup=lambda **kw: None)}),
                   patch('mechanical_video_next.multiroute.probe', return_value=probe)):
                 w.run_stage(task, 'final', config_path)

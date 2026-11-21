@@ -29,12 +29,16 @@ def validate(data):
     validate_config(data)
     from .production_contract import validate_direction
     from . import joint_timeline as joint
+    from . import director
     shared = joint.enabled(data)
     if shared:
         joint.validate(data['timeline'], data.get('shots'))
         if data.get('status') == 'FROZEN':
             joint.receipt(data['timeline'], data['measured_timeline'])
     validate_direction(data)
+    director.validate(data)
+    if director.enabled(data) and data.get('status') == 'FROZEN':
+        director.validate_measured_edit(data, joint.receipt(data['timeline'], data['measured_timeline']))
     visual = version(data) == VERSION
     if visual:
         validate_plan(data)
@@ -115,6 +119,7 @@ def compile_config(blueprint, base, output, draft=False):
     validate_config(cfg)
     validate(data)
     from . import joint_timeline as joint
+    from . import director
     shared = joint.enabled(data)
     picture = {s['id']: s for s in data['timeline']['shots']} if shared else {}
     visual = version(data) == VERSION
@@ -128,6 +133,9 @@ def compile_config(blueprint, base, output, draft=False):
     from .production_contract import PRESENTATION_STYLE, PRODUCER_DIRECTION, directed_story, science_story
     story = science_story(data)
     directed = directed_story(data)
+    creative = director.enabled(data)
+    if creative and not visual:
+        raise ValueError('Creative direction requires the visual Blueprint renderer')
     if PRESENTATION_STYLE in data:
         result[PRESENTATION_STYLE] = data[PRESENTATION_STYLE]
     for s in data['shots']:
@@ -166,6 +174,8 @@ def compile_config(blueprint, base, output, draft=False):
             if not editorial:
                 from .visual_narrative import configure_blender
                 configure_blender(shot, directed=directed)
+        if creative:
+            shot = director.apply_strategy(shot, s['director'], s['render_engine'], source=original)
         sid = s['shot_id']; shots[sid] = shot
         inherited = next((x for x in cfg.get('storyboard', []) if x['shot'] == key), {})
         editor_fields = dict(inherited)
@@ -195,6 +205,15 @@ def compile_config(blueprint, base, output, draft=False):
     else:
         for key in (joint.FIELD, 'timeline', 'measured_timeline'):
             result.pop(key, None)
+    if creative:
+        result[director.FIELD] = director.VERSION
+        if data.get('sound_events') and data.get('measured_timeline'):
+            from .director_audio import mix
+            measured = joint.receipt(data['timeline'], data['measured_timeline'])
+            sound_key = digest([data['timeline'], data['sound_events'], measured['narration_audio']])
+            sound_path = output.parent / f'director-mix-{sound_key}.wav'
+            result['audio_mix'] = mix(data['timeline'], data['sound_events'],
+                                      joint.bound(measured['narration_audio']), sound_path)
     from .production_contract import FIELD as CONTRACT_FIELD, enabled as science_contract, producer_directed
     if science_contract(data):
         for key in (CONTRACT_FIELD, 'production_contract', 'narrative'):
