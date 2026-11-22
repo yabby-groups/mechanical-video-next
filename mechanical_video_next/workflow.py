@@ -20,6 +20,7 @@ import wave
 from . import creative_selection as editorial_policy
 from .production_contract import (
     POSITIONING, PRODUCER_DIRECTED, PRODUCER_DIRECTION, SKILL_DRIVEN, STORY_DEVELOPMENT,
+    FORMAL_DURATION_FIELD, formal_duration_enabled, validate_formal_duration,
     directed_story, flexible_story, match_mechanical_scope, mechanism_first, producer_directed,
     skill_driven, story_development,
 )
@@ -370,6 +371,10 @@ def complete_media(data, media, final=True):
     video = next(row for row in info['streams'] if row.get('codec_type') == 'video')
     audio = [row for row in info['streams'] if row.get('codec_type') == 'audio']
     duration = float(video.get('duration', info.get('format', {}).get('duration', 0)))
+    validate_formal_duration(data, duration)
+    if final and formal_duration_enabled(data) and (video.get('codec_name') != 'h264'
+            or not audio or audio[0].get('codec_name') != 'aac'):
+        raise ValueError('Formal film requires H.264 video and AAC audio')
     policy = data.get('duration_policy') or {'minimum': 30, 'maximum': 45}
     maximum = policy['maximum']
     if (not math.isfinite(duration) or duration < policy['minimum'] - 1 / 30
@@ -1048,10 +1053,17 @@ def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
     if mechanism_first(data):
         question = data.get('core_question') or 'Frame a question within the requested mechanical object.'
+        formal_instruction = '''Develop one 120–300 s Full Animatic and one 120–300 s Final Film.
+Reserve shot tests, mechanism previews and social cutdowns for their own purposes.
+Plan retention, like, save, comment and follow in the Treatment, and carry each
+decision into the Blueprint and package. Use the actual MP4 to review the design.
+Use the post-publication template only with real platform evidence.
+''' if formal_duration_enabled(data) else ''
         return f'''You are the sole native Producer for {identity} ({topic}).
 Read {task}/task.json and docs/production-contract.md. 君哥拆机器 is 「{POSITIONING}」
 Requested mechanical object: {data['mechanical_object']}
 Core question: {question}
+{formal_instruction}
 Keep the requested object and question throughout research, treatment and edit.
 Use mechanical-research to verify the exact source-backed implementation, appearance,
 key parts and contacts. Show a continuous cycle from input through transmission,
@@ -1519,7 +1531,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 mechanical_object=None, core_question=None):
     from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
                                       CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION,
-                                      DISCOVERY_VERSION, CREATIVE_SELECTION_VERSION, CREATIVE_DURATION)
+                                      DISCOVERY_VERSION, CREATIVE_SELECTION_VERSION, CREATIVE_DURATION,
+                                      FORMAL_DURATION, FORMAL_DURATION_VERSION)
     if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
         raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
@@ -1562,8 +1575,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         raise ValueError('Unsupported production protocol_version')
     if version({FIELD: visual_policy_version}) == VERSION and protocol_version != 2:
         raise ValueError('Visual production needs protocol 2')
-    minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else (120, 300)
-    if creative:
+    formal_duration = directed and story_development_version == 2 and not skill_driven_pilot
+    minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else FORMAL_DURATION
+    if creative and not formal_duration:
         minimum_duration, maximum_duration = CREATIVE_DURATION[0], None
     if duration is None:
         duration = 45 if protocol_version == 1 else None
@@ -1636,6 +1650,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value['duration_policy'] = {'minimum': minimum_duration, 'maximum': maximum_duration,
                                     'mode': 'knowledge-driven' if duration is None else 'requested',
                                     'requested_seconds': duration}
+        if formal_duration:
+            value[FORMAL_DURATION_FIELD] = FORMAL_DURATION_VERSION
+            value['growth_policy_version'] = 2
         value['production_method'] = 'reference-grounded-3d'
         if hybrid:
             value['production_method'] = 'asset-first-hybrid'
@@ -1758,7 +1775,7 @@ def previous_creative_input(task, ledger, review_name, input_name, statuses):
 
 
 def treatment_content(payload):
-    return {key: payload[key] for key in ('question', *editorial_policy.TREATMENT_FIELDS, 'scenes')
+    return {key: payload[key] for key in ('question', *editorial_policy.TREATMENT_FIELDS, 'scenes', 'growth_design')
             if key in payload}
 
 
@@ -1772,6 +1789,9 @@ def validate_development_handoff(task, data, name, payload):
         if mechanism_first(data) and payload.get('question') != research['science']['question']:
             raise ValueError('Treatment must preserve the researched core question')
         editorial_policy.validate_treatment(payload, validate_research(research), mechanics=mechanism_first(data))
+        if formal_duration_enabled(data):
+            from .growth import validate_growth_design
+            validate_growth_design(payload.get('growth_design'))
         if 'document' in payload:
             from .joint_timeline import bound
             bound(payload['document'])
@@ -1954,6 +1974,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     data['subject_kind'] = payload['science']['subject_kind']
             if name == 'creative-blueprint':
                 match_mechanical_scope(data, payload, payload.get('narrative', {}).get('question'))
+                if payload.get(FORMAL_DURATION_FIELD) != data.get(FORMAL_DURATION_FIELD):
+                    raise ValueError('Blueprint formal duration policy differs from task')
                 require_visual_story_review(task)
                 from .production_contract import validate_direction
                 from . import joint_timeline as joint
@@ -1967,11 +1989,16 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     if joint.integrity(data) != joint.integrity(payload['timeline']):
                         raise ValueError('Blueprint joint timeline differs from the task film integrity policy')
                     joint.validate(payload['timeline'], payload.get('shots'))
+                    validate_formal_duration(data, payload['timeline']['frame_count'] / joint.FPS)
                     measured = joint.receipt(payload['timeline'], payload['measured_timeline'])
                     director.validate_measured_edit(payload, measured)
                 validate_direction(payload, artifact(task, 'research'))
-                if development and payload['narrative']['question'] != artifact(task, 'story-treatment')['question']:
-                    raise ValueError('Formal Blueprint must follow the approved Treatment question')
+                if development:
+                    treatment = artifact(task, 'story-treatment')
+                    if payload['narrative']['question'] != treatment['question']:
+                        raise ValueError('Formal Blueprint must follow the approved Treatment question')
+                    if formal_duration_enabled(data) and payload.get('growth_design') != treatment['growth_design']:
+                        raise ValueError('Blueprint must carry the five approved growth decisions')
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
         if story and name == 'creative-blueprint':
             required = {'diagnostic-animatic'}
@@ -2178,7 +2205,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
             if flexible:
                 from .blueprint import validate_story_preview
                 treatment = artifact(task, 'story-treatment') if mechanism_first(data) else None
-                validate_story_preview(draft_plan, payload['media'], treatment=treatment)
+                validate_story_preview(draft_plan, payload['media'], treatment=treatment, task=data)
             if competition:
                 if any(row['outcome'] == 'RESELECT_STORY' and row['story_id'] == draft_plan['story_id']
                        for row in history):
@@ -3476,7 +3503,7 @@ def main():
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['reference-first','existing-media','autonomous-cad','verified-existing','illustrated'], default='reference-first')
-    p.add_argument('--duration', type=int, default=None, help='Optional target seconds. New creative-first tasks use measured story length by default.')
+    p.add_argument('--duration', type=int, default=None, help='Optional target seconds. New formal tasks use a measured story length of 120–300 seconds.')
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')

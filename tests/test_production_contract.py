@@ -515,12 +515,12 @@ class ProductionContractTests(unittest.TestCase):
         from mechanical_video_next.visual_narrative import match_policy
         with tempfile.TemporaryDirectory() as folder:
             options = dict(root=folder, visual_policy_version=2, media_policy_version=1)
-            path = create_task('Why?', 64, task_id='creative', **options)
+            path = create_task('Why?', 150, task_id='creative', **options)
             current = load(path)
             historic = load(create_task('Why?', 120, task_id='historic', contract_version=1, **options))
             self.assertTrue(c.creative_first(current))
-            self.assertEqual(duration_bounds(current), (1 / 30, float('inf')))
-            self.assertIsNone(current['duration_policy']['maximum'])
+            self.assertEqual(duration_bounds(current), (120, 300))
+            self.assertEqual(current['duration_policy']['maximum'], 300)
             self.assertEqual(duration_bounds(historic), (120, 300))
             self.assertIn('native Blender 3D', producer_prompt(current, path))
             with self.assertRaisesRegex(ValueError, 'creation policy'):

@@ -210,6 +210,8 @@ def inspect(media, plan, *, measured=None, playback=None, mix=False, blueprint=N
     metrics = {}
     actual = 0
     try:
+        from .production_contract import validate_formal_duration
+        validate_formal_duration(blueprint or {}, end / joint.FPS)
         picture = next(row for row in probe(path)['streams'] if row['codec_type'] == 'video')
         actual = int(picture.get('nb_frames', 0))
         joint.validate_rendered_film(path, plan)

@@ -23,7 +23,7 @@ def number(v):
     return not isinstance(v, bool) and isinstance(v, (int, float)) and math.isfinite(v)
 
 
-def validate_story_preview(data, media, *, treatment=None):
+def validate_story_preview(data, media, *, treatment=None, task=None):
     """Validate the executable clock of an authored moving draft."""
     from . import joint_timeline as joint
 
@@ -34,6 +34,8 @@ def validate_story_preview(data, media, *, treatment=None):
     if not isinstance(plan, dict):
         raise ValueError('Story preview needs a joint picture clock')
     joint.validate(plan)
+    from .production_contract import validate_formal_duration
+    validate_formal_duration(task if task is not None else data, plan['frame_count'] / joint.FPS)
     if treatment is not None:
         core = {scene['id'] for scene in treatment['scenes'] if scene['mechanical_role'] == 'core'}
         picture = {shot['id'] for shot in plan['shots']}
@@ -59,12 +61,18 @@ def validate(data):
     """Validate the executable subset; no claim of scientific/media acceptance."""
     from .three_d import validate_config
     validate_config(data)
-    from .production_contract import validate_direction
+    from .production_contract import validate_direction, formal_duration_enabled, validate_formal_duration
     from . import joint_timeline as joint
     from . import director
     shared = joint.enabled(data)
+    if formal_duration_enabled(data) and not shared:
+        raise ValueError('Formal Blueprint needs the Joint Timeline')
+    if formal_duration_enabled(data):
+        from .growth import validate_growth_design
+        validate_growth_design(data.get('growth_design'))
     if shared:
         joint.validate(data['timeline'], data.get('shots'))
+        validate_formal_duration(data, data['timeline']['frame_count'] / joint.FPS)
         if data.get('status') == 'FROZEN':
             joint.receipt(data['timeline'], data['measured_timeline'])
     validate_direction(data)
@@ -250,8 +258,13 @@ def compile_config(blueprint, base, output, draft=False):
                                       joint.bound(measured['narration_audio']), sound_path)
     from .production_contract import (
         FIELD as CONTRACT_FIELD, STORY_DEVELOPMENT, enabled as science_contract, mechanism_first,
-        flexible_story, producer_directed,
+        flexible_story, producer_directed, FORMAL_DURATION_FIELD,
     )
+    for key in (FORMAL_DURATION_FIELD, 'growth_design'):
+        if key in data:
+            result[key] = copy.deepcopy(data[key])
+        else:
+            result.pop(key, None)
     if science_contract(data):
         for key in (CONTRACT_FIELD, 'production_contract', 'narrative'):
             result[key] = copy.deepcopy(data[key])

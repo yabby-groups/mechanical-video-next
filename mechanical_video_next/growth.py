@@ -27,6 +27,13 @@ def goal_schema(data):
     return GOALS_V2 if data.get('growth_policy_version') == 2 else GOALS
 
 
+def validate_growth_design(design):
+    """The Producer's Treatment gives one concrete decision for each goal."""
+    if (not isinstance(design, dict) or design.keys() != GOALS_V2.keys()
+            or not all(isinstance(decision, str) and decision.strip() for decision in design.values())):
+        raise ValueError('Treatment requires retention, like, save, comment and follow decisions')
+
+
 def validate_goal_bindings(data):
     """Validate plans, not audience understanding or predicted platform results."""
     from .viral import evidence_exists
@@ -106,6 +113,9 @@ def shot_requirements(shot, document=None):
 
 def duration_bounds(data):
     """Keep the longform default; trace an explicitly requested concise recut."""
+    from .production_contract import FORMAL_DURATION, formal_duration_enabled
+    if formal_duration_enabled(data):
+        return FORMAL_DURATION
     from .joint_timeline import enabled as joint
     if joint(data):
         return 1 / 30, math.inf

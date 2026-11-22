@@ -33,6 +33,21 @@ CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VE
                   DISCOVERY_VERSION: DISCOVERY_NAME, MECHANICAL_STORY_VERSION: MECHANICAL_STORY_NAME,
                   CREATIVE_SELECTION_VERSION: CREATIVE_SELECTION_NAME}
 CREATIVE_DURATION = (1 / 30, 300)
+FORMAL_DURATION_FIELD = 'formal_duration_version'
+FORMAL_DURATION_VERSION = 1
+FORMAL_DURATION = (120, 300)
+
+
+def formal_duration_enabled(document):
+    version = document.get(FORMAL_DURATION_FIELD)
+    if version is not None and (type(version) is not int or version != FORMAL_DURATION_VERSION):
+        raise ValueError('Unsupported formal duration policy')
+    return version == FORMAL_DURATION_VERSION
+
+
+def validate_formal_duration(document, seconds):
+    if formal_duration_enabled(document) and not FORMAL_DURATION[0] <= seconds <= FORMAL_DURATION[1]:
+        raise ValueError('Formal film and full animatic require 120–300 seconds')
 PRESENTATION_STYLE = 'presentation_style'
 NATURAL_SCIENCE = 'natural_science'
 PRODUCTION_LABELS = frozenset({

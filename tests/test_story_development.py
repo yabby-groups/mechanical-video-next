@@ -72,14 +72,14 @@ class StoryDevelopmentTests(unittest.TestCase):
                     creative_decision=dict(status=status, method=method, findings=findings,
                                            revision='Change the design progression.'))
 
-    def draft(self, name):
+    def draft(self, name, frames=30):
         media = self.root / f'{name}.mp4'
         subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
-                        f'color=c={name}:size=160x90:rate=30', '-frames:v', '30',
+                        f'color=c={name}:size=160x90:rate=30', '-frames:v', str(frames),
                         '-c:v', 'libx264', str(media)], check=True)
         path = self.root / 'draft.json'
-        workflow.write(path, dict(timeline=dict(frame_count=30, narration=[], actions=[],
-                                               shots=[dict(id='test', start_frame=0, end_frame=30,
+        workflow.write(path, dict(timeline=dict(frame_count=frames, narration=[], actions=[],
+                                               shots=[dict(id='test', start_frame=0, end_frame=frames,
                                                            silence_reason='Isolate the picture test')])))
         return dict(status='DRAFT_UNAPPROVED', media=[joint.binding(media)],
                     blueprint_evidence=joint.binding(path), story_treatment_sha256=workflow.digest(
@@ -164,7 +164,9 @@ class StoryDevelopmentTests(unittest.TestCase):
         self.research.pop('design_research')
         self.put('Producer', 'research', self.research)
         self.treatment.update(question=approved, mechanical_object='Cabinet latch',
-                              positioning=contract.POSITIONING)
+                              positioning=contract.POSITIONING,
+                              growth_design={key: 'Watch the latch test' for key in
+                                             ('retention', 'like', 'save', 'comment', 'follow')})
         core = self.treatment['scenes'][0]
         core.update(mechanical_role='core', render_engine='remotion')
         with self.assertRaisesRegex(ValueError, 'source-supported Blender'):
@@ -188,5 +190,5 @@ class StoryDevelopmentTests(unittest.TestCase):
         review['creative_decision']['status'] = 'PASS'
         self.put('QA', 'story-qa', review, 'story-treatment')
         with self.assertRaisesRegex(ValueError, 'native Blender scenes'):
-            self.put('Producer', 'diagnostic-animatic', self.draft('red'),
+            self.put('Producer', 'diagnostic-animatic', self.draft('red', frames=3600),
                      'research', 'story-treatment', 'story-qa')
