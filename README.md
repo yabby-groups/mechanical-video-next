@@ -93,3 +93,7 @@ uv run python scripts/clean.py --older-hours 168
 本项目新 Python/TypeScript 为 GPL-3.0-or-later，原创教学内容为 CC0-1.0；
 上游及外部资产保持其自身许可证。EAS 固定来源见 blender/vendor/SOURCES.json，
 Remotion 许可见 remotion/UPSTREAM-LICENSE.md；使用资格需按实际组织核实。
+
+## 正式影片与抖音增长
+
+新立项的正式作品为 120–300 秒，Full Animatic 覆盖完整影片。1920×1080、30 fps、H.264/AAC 的最终影片保留同一机械问题和原生三维证据。Shot Test、Mechanism Preview 和 Social Cutdown 各自使用适合用途的时长。按 [正式生产契约](docs/production-contract.md) 开发留存与完播、点赞、收藏、评论和关注价值，发布后用 [实际数据复盘模板](docs/douyin-post-review.md) 回到选题、分镜和科学复查。

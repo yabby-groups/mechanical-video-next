@@ -702,3 +702,11 @@ The compiled config/build/manifest preserve the subject identity and policy.
 Source/model/motion and full sensory acceptance stay strict; a named conceptual
 subject is not evidence of a physical simulation. Legacy product tasks retain
 their original product checks. This adds no second scheduler or fact database.
+
+## 2–5 分钟正式影片
+
+新建常规 Producer 任务固定 `formal_duration_version: 1`。由实际 Neil PCM、动作观察时间和知识推进确定 120–300 秒的最终时长，首片通常以 150–210 秒为创作目标。Full Animatic 覆盖全部正式内容和 30 fps 联合播放轴。Final Film 使用 1920×1080、16:9、30 fps、H.264/AAC、Neil 原速中文和手机可读单行字幕。正式 Blueprint、完整预演与实际最终 MP4 都核验时长。Shot Test、Mechanism Preview、Social Cutdown 按各自目的定长。历史任务的固定版本与短预演保留各自的时钟。
+
+Producer 在 research 里按已核实的知识估计长度，Treatment 用 `growth_design` 记录 retention、like、save、comment、follow 五项具体创作决定，Blueprint 承接并由 Director 落到可定位内容。它们分别关心开场和新发现、真实精巧机构、可复习传动链、自然讨论及持续系列价值。可以用简介和可选置顶评论承接单一主问题。审查全片实际知识增量，局部复演标明用途和状态，删去空白、循环和无信息重复。机械正确性、技术音频和连续视听各用相应证据。真实首次理解及平台增长需要实际反馈。
+
+交付包含三个标题候选，两种使用本片画面的封面方案，简洁简介及手动评论素材。使用 [抖音发布后复盘模板](douyin-post-review.md) 记录实际数据与评论，Audience Review 保持手动，生产阶段记录设计证据。发布与平台交互由用户操作。

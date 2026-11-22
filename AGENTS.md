@@ -69,3 +69,8 @@ never prove continuous motion or listening. Preserve the protected style referen
 Use CodeGraph for structure/source before edits; literal searches use rg.
 Use ego-browser only after its Skill, with absolute /Users/lmj/.local/bin/ego-browser
 and nodejs -e. No heredoc, herestring, shell-login wrapper or sandbox changes.
+
+New formal Producer tasks pin the 120–300-second policy for a Full Animatic and
+Final Film. Apply the task's policy to the actual MP4 and Joint Timeline. Director
+uses the approved Treatment's five growth decisions, and manual Audience Review
+works from exact media. Use the Douyin post-review template for recorded platform data.
