@@ -15,12 +15,15 @@ import subprocess
 import sys
 import threading
 import time
-from common import ROOT, BLENDER, Metrics, budget, codehash, digest, filehash, probe, run, writejson, work_budget_limit
+from common import ROOT, Metrics, budget, codehash, digest, filehash, probe, run, writejson, work_budget_limit
 
 # Direct script execution otherwise exposes only scripts/, while diagnostic
 # stages also need the project's evidence helpers without a duration import.
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from mechanical_video_next.blender_runtime import BlenderFailure, run_blender
+from mechanical_video_next.render_diagnostics import render_engine_fallback
 
 CACHE = ROOT/'work/cache'
 PUBLIC = ROOT/'remotion/public/cache'
@@ -65,8 +68,8 @@ def asset_key(assembly_path=None, *, source_exact=False):
     for s in cfg.get('source_files', []):
         if sources[s['path']] != s['sha256']:
             raise ValueError('Assembly source hash mismatch: '+s['path'])
-    renderer = (codehash('blender/scene.py','blender/vendor',equivalents=False) if source_exact or cfg.get('reuse')
-                else codehash('blender/scene.py','blender/vendor'))
+    renderer = codehash('blender/scene.py', 'blender/vendor',
+                        equivalents=not (source_exact or cfg.get('reuse')), render_media=True)
     return digest({'config':cfg,'source':renderer,
                    'asset_sources':sources})
 
@@ -78,8 +81,8 @@ def asset(metrics, assembly_path=None):
     hit=cached(folder,files)
     if not hit:
         folder.mkdir(parents=True,exist_ok=True)
-        run([BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','asset','--out',target,
-             '--assembly-config',ROOT/(assembly_path or 'config/assembly.json')],folder/'build.log')
+        run_blender(['--factory-startup','--python-exit-code','1','--python',ROOT/'blender/scene.py','--','asset','--out',target,
+                     '--assembly-config',ROOT/(assembly_path or 'config/assembly.json')], log=folder/'build.log', name='asset')
         inv=json.loads(target.with_suffix('.inventory.json').read_text())
         cfg=assembly_spec(assembly_path)
         assert set(cfg['required_parts']) <= {p['name'] for p in inv['parts']}
@@ -134,7 +137,7 @@ def shot_key(shot, quality, render=None, assembly_path=None, *, model=None):
         science_files = ['blender/scene.py', 'blender/science_scene.py', 'mechanical_video_next/science_shots.py']
         if {'camera_path', 'stage_rotation', 'guides', 'print_marks', 'constraints'} & shot['science'].keys():
             science_files.append('blender/science_guides.py')
-        inputs['science_renderer'] = codehash(*science_files, equivalents=False)
+        inputs['science_renderer'] = codehash(*science_files, equivalents=False, render_media=True)
     return digest(inputs)
 
 def prepare_shot_evidence(folder):
@@ -157,6 +160,29 @@ def shot_input_file(folder, key, shot):
     else:
         target.write_text(text)
     return target
+
+
+def complete_frame_sequence(frames, template, science, needed, width, height):
+    from PIL import Image
+
+    if not (frames/'checks.json').is_file():
+        return False
+    selected = ([needed if template == 'exploded' else 1] if
+                template in {'overall', 'detail', 'exploded'} and not science else range(1, needed + 1))
+    paths = [frames/f'{f:05d}.png' for f in selected]
+    if set(paths) != set(frames.glob('*.png')):
+        return False
+    try:
+        for path in paths:
+            if path.is_symlink():
+                return False
+            with Image.open(path) as image:
+                if image.size != (width, height):
+                    return False
+                image.load()
+    except OSError:
+        return False
+    return True
 
 
 def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
@@ -195,28 +221,54 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
         folder.mkdir(parents=True,exist_ok=True)
         shot_path = shot_input_file(folder, key, shot)
         frames=folder/'frames'
-        args=[BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/render_with_provenance.py','--','shot','--asset',model,'--shot',shot_path,'--out',frames,'--width',width,'--height',height,'--fps',fps]
+        args=['--factory-startup','--python-exit-code','1','--python',ROOT/'blender/render_with_provenance.py','--','shot','--asset',model,'--shot',shot_path,'--out',frames,'--width',width,'--height',height,'--fps',fps]
         args += ['--assembly-config',ROOT/(assembly_path or 'config/assembly.json')]
         if quality=='keys': args+=['--keys']
         if quality=='checks': args+=['--checks-only']
-        # Resume encoding without rerendering an already complete local frame sequence.
-        expected = len(list((frames).glob('*.png')))
-        needed = 1 if kind=='image' else round(shot['seconds']*fps)
-        ready = quality not in {'keys','checks'} and (frames/'checks.json').exists() and expected==needed
-        chunk_frames = int(render.get('chunk_frames', 16)) if kind=='video' and quality not in {'keys','checks'} else 0
-        chunked = bool(chunk_frames and not ready)
-        if chunked:
+        count = max(2, round(shot['seconds']*fps))
+        needed = 1 if kind=='image' else count
+        regular = quality not in {'keys','checks'}
+        loose_frames = list(frames.glob('*.png')) if regular else []
+        ready = bool(loose_frames and complete_frame_sequence(
+            frames, shot['template'], shot.get('science'), count, width, height))
+        # A completed chunk export can survive a failure in host post-processing.
+        chunk_receipt = frames/'chunk-result.json'
+        resumed = False
+        if kind == 'video' and regular and chunk_receipt.is_file() and (folder/filename).is_file():
+            prior = json.loads(chunk_receipt.read_text())
+            resumed = (prior.get('status') == prior.get('final_decode') == 'PASS'
+                       and prior.get('requested_frames') == needed
+                       and prior.get('output_sha256') == filehash(folder/filename))
+        chunk_frames = int(render.get('chunk_frames', 16)) if kind=='video' and regular and not loose_frames else 0
+        chunked = bool(chunk_frames or resumed)
+        if chunked and not resumed:
             assert chunk_frames > 0
             chunk_frames = bounded_chunk_frames(chunk_frames, needed, width, height, budget())
             args += ['--chunk-frames', chunk_frames, '--video-output', folder/filename]
-        if not ready:
+        if not (ready or resumed):
             # Conservative upper bound for an uncompressed RGB frame sequence plus PNG overhead.
             projected_frames = (0 if quality=='checks' else min(needed, 3) if quality=='keys'
                                 else min(needed, chunk_frames) if chunked else needed)
             projected = budget() + width*height*3*projected_frames*1.12
             if projected > work_budget_limit():
                 raise RuntimeError('Projected temporary frame sequence exceeds work budget')
-            run(args,folder/'blender.log')
+            try:
+                run_blender(args, log=folder/'blender.log', name='shot')
+            except BlenderFailure as exc:
+                failure = exc.result
+                preflight = next((e for e in failure['events'] if e['phase'] == 'preflight_start'), {})
+                scene = frames/'scene.blend'
+                if (frames/'checks.json').is_file():
+                    ref = json.loads((frames/'checks.json').read_text()).get('scene_artifact')
+                    if ref:
+                        scene = Path(ref['path'])
+                        if not scene.is_file() or filehash(scene) != ref['sha256']:
+                            scene = None
+                if failure['classification'] == 'ENGINE_ERROR':
+                    report = render_engine_fallback(failure, scene, preflight.get('frame'), Path(failure['report']).parent)
+                    failure['fallback_report'] = str(report)
+                    writejson(failure['report'], failure)
+                raise
         shutil.copy2(frames/'checks.json',folder/'checks.json')
         if shot.get('scene_artifact_dir'):
             scene_ref = json.loads((folder/'checks.json').read_text())['scene_artifact']

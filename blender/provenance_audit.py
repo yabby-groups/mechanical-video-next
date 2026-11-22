@@ -66,11 +66,11 @@ def main():
     a=p.parse_args(sys.argv[sys.argv.index('--')+1:])
     report=inspect_scene(bpy.context.scene)
     if a.render_dir:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from render_preflight import render_frame
         a.render_dir.mkdir(parents=True,exist_ok=True)
-        for f in a.frames or report['frame_range']:
-            bpy.context.scene.frame_set(f)
-            bpy.context.scene.render.filepath=str(a.render_dir/f'{f:05d}.png')
-            bpy.ops.render.render(write_still=True)
+        for i, frame in enumerate(a.frames or report['frame_range']):
+            render_frame(bpy.context.scene, frame, a.render_dir/f'{frame:05d}.png', preflight=i == 0)
     a.output.write_text(json.dumps(report,indent=2)+'\n')
 
 

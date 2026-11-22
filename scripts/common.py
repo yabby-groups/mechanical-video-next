@@ -7,7 +7,6 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-BLENDER = os.environ.get('BLENDER', '/Applications/Blender.app/Contents/MacOS/Blender')
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
@@ -19,16 +18,19 @@ def filehash(path):
             h.update(chunk)
     return h.hexdigest()
 
-def codehash(*paths, equivalents=True):
+def codehash(*paths, equivalents=True, render_media=False):
     files = []
     for p in paths:
         p = ROOT / p
         files += sorted(p.rglob('*.py')) if p.is_dir() else [p]
     hashes = {str(p.relative_to(ROOT)): filehash(p) for p in files}
     equivalence = ROOT/'config/cache-code-equivalence.json'
-    if equivalents and equivalence.exists():
+    if (equivalents or render_media) and equivalence.exists():
         for name, item in json.loads(equivalence.read_text()).items():
-            if hashes.get(name) == item['current_sha256']:
+            runtime = item.get('render_orchestration')
+            if render_media and runtime and hashes.get(name) == runtime['current_sha256']:
+                hashes[name] = runtime['previous_sha256']
+            if equivalents and hashes.get(name) == item['current_sha256']:
                 hashes[name] = item['media_equivalent_sha256']
     return digest(hashes)
 

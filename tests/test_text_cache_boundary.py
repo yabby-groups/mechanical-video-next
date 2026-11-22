@@ -30,8 +30,8 @@ class TextCacheBoundary(unittest.TestCase):
         shot = next(iter(cfg['shots'].values()))
         baseline = produce.shot_key(shot, 'preview', cfg['render'], 'tests/fixtures/production/assembly.json')
         original = produce.codehash
-        def changed(*paths):
-            return 'changed' if 'config/text-style.json' in paths else original(*paths)
+        def changed(*paths, **kwargs):
+            return 'changed' if 'config/text-style.json' in paths else original(*paths, **kwargs)
         with patch.object(produce, 'codehash', side_effect=changed):
             self.assertEqual(baseline, produce.shot_key(shot, 'preview', cfg['render'], 'tests/fixtures/production/assembly.json'))
             self.assertNotEqual(produce.composition_key({}, 'preview'),

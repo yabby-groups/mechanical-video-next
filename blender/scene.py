@@ -63,7 +63,12 @@ def render_chunked(scene, selected, args):
                  'requested_frames': len(selected), 'generated_temp_bytes': 0, 'generated_temp_files': 0,
                  'chunks': [], 'signature': signature, 'scope': 'Technical encode/decode only'}
     state['status'] = 'RUNNING'
+    savejson(session/'report.json', state)
     chunks = []
+    managed = getattr(args, 'managed_render', False)
+    if managed:
+        from render_preflight import render_frame
+    preflight_pending = True
 
     def command(argv, log):
         with log.open('w') as stream:
@@ -86,10 +91,15 @@ def render_chunked(scene, selected, args):
                 continue
             owned = []
             for f in block:
-                scene.frame_set(f)
                 path = session / f'{f:05d}.png'
-                scene.render.filepath = str(path)
-                bpy.ops.render.render(write_still=True)
+                if managed:
+                    rendered = render_frame(scene, f, path, preflight=preflight_pending, recover=True)
+                    if rendered:
+                        preflight_pending = False
+                else:
+                    scene.frame_set(f)
+                    scene.render.filepath = str(path)
+                    bpy.ops.render.render(write_still=True)
                 owned.append(path)
                 state['generated_temp_bytes'] += path.stat().st_size
                 state['generated_temp_files'] += 1
@@ -141,6 +151,9 @@ def render_chunked(scene, selected, args):
         with args.video_output.open('rb') as saved:
             os.fsync(saved.fileno())
         state.update(status='PASS', output=str(args.video_output), probe=probe, final_decode='PASS')
+        if managed:
+            with args.video_output.open('rb') as saved:
+                state['output_sha256'] = hashlib.file_digest(saved, 'sha256').hexdigest()
         savejson(session/'report.json', state)
         savejson(args.out/'chunk-result.json', dict(state, evidence_directory=str(session)))
         # Only this session's individually decoded chunks, after final decode.
@@ -979,12 +992,14 @@ def render_shot(args):
     else:
         selected = range(1,count+1)
     if args.chunk_frames and not args.keys:
+        args.managed_render = True
         render_chunked(scene, selected, args)
         return
-    for f in selected:
-        scene.frame_set(f)
-        scene.render.filepath = str(args.out/f'{f:05d}.png')
-        bpy.ops.render.render(write_still=True)
+    from render_preflight import render_frame
+    preflight_pending = True
+    for frame in selected:
+        if render_frame(scene, frame, args.out/f'{frame:05d}.png', preflight=preflight_pending, recover=True):
+            preflight_pending = False
 
 
 def main():

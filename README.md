@@ -73,6 +73,8 @@ previous_range、current_range（秒）。工具逐帧比较解码画面，拒�
 Blender 保持全局串行锁、逐镜头内容缓存与 FFmpeg 分块编码。work ≤2 GiB，
 空闲磁盘 ≥3 GiB；仅经现有 clean 工具清理验证过的可再生数据，不删资产、
 历史成果或失败证据。配音/字幕修改不重建 CAD，标注/图表修改只重合成。
+Apple Silicon 的后台渲染预检、原生执行和故障取证见
+[Blender 后台渲染修复报告](docs/blender-background-render.md)。
 
 ```sh
 uv run python -m unittest discover -s tests -v

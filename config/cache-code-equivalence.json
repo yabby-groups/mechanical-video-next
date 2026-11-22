@@ -1,5 +1,10 @@
 {
   "blender/scene.py": {
+    "render_orchestration": {
+      "current_sha256": "6432e457305ca658cec12d6dac38667b56a93806be5dd7b6ee5957195840dd98",
+      "previous_sha256": "6621ed5960565a3d74e48162892aa87e6773bdf02a0fc6a2c2fbcd4841d20691",
+      "reason": "First-frame preflight, atomic frame recovery and chunk receipts preserve the same inputs, scene settings and media recipe. Only media cache keys use this equivalence."
+    },
     "current_sha256": "fe22c786c9fcb9c0cff38710117d45e1f2858fcc018010ef00a02f2b849ec9bd",
     "media_equivalent_sha256": "5cedf85ee1a03567b94ee2a18f8ac1836b16b9aeb6d40e39cc66421478603faa",
     "reason": "Reviewed legacy no-science/no-context paths against pinned 86bd9b6: only guarded opt-in branches, conditional report fields and new-template camera handling differ. The explicit science.camera_clip branch also leaves these legacy paths unchanged. Science shots still use actual source hashes, including camera clipping changes. Evidence: docs/productions/cache-equivalence-audit-20261118.md"
