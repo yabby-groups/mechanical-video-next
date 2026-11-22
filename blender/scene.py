@@ -879,7 +879,11 @@ def render_shot(args):
         report['checks']['surface_overlap_candidates']=overlaps
         report['checks']['surface_overlap_frame_count']=len(checked_frames)
         report['checks']['surface_overlap_scope']='Sampled source triangle overlaps; contact and force are not inferred'
-    if shot.get('visual_profile'):
+    if shot.get('visual_profile') == 'cinematic-native-v1':
+        sys.path.insert(0, str(ROOT / 'blender'))
+        from cinematic import apply_shot_lighting
+        report['visual_style'] = apply_shot_lighting(scene, visible, frames, shot.get('studio_lighting', {}))
+    elif shot.get('visual_profile'):
         sys.path.insert(0,str(ROOT/'blender'))
         import studio_style
         report['visual_style'] = studio_style.apply(shot['visual_profile'],visible,frames,cam,

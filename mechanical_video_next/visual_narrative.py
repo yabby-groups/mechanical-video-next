@@ -485,8 +485,10 @@ def configure_blender(shot, *, directed=False):
     if directed:
         treatment = visual.get('direction', {}).get('studio_lighting')
         if treatment is not None:
-            if shot.get('visual_profile') != 'printer-ep03-studio-v1':
-                raise ValueError('Studio lighting needs the existing studio profile on the base shot')
+            if shot.get('visual_profile') not in {'printer-ep03-studio-v1', 'cinematic-native-v1'}:
+                raise ValueError('Studio lighting needs an executable visual profile on the base shot')
+            if shot.get('visual_profile') == 'cinematic-native-v1' and 'floor_color' in treatment:
+                raise ValueError('Cinematic floor color belongs to the authored set material')
             validate_studio_treatment(treatment)
             lighting.update(treatment)
         if shot.get('visual_profile') == 'printer-ep03-studio-v1':

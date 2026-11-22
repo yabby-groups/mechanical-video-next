@@ -126,7 +126,9 @@ def shot_key(shot, quality, render=None, assembly_path=None, *, model=None):
                 or not cached(canonical, ['assembly.blend', 'assembly.inventory.json'])):
             inputs['external_model_sha256'] = filehash(model)
     inputs['provenance_renderer'] = codehash('blender/render_with_provenance.py')
-    if shot.get('visual_profile'):
+    if shot.get('visual_profile') == 'cinematic-native-v1':
+        inputs['visual_style_source'] = codehash('blender/cinematic.py', equivalents=False)
+    elif shot.get('visual_profile'):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
     if shot.get('science'):
         science_files = ['blender/scene.py', 'blender/science_scene.py', 'mechanical_video_next/science_shots.py']
