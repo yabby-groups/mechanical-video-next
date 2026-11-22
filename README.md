@@ -37,7 +37,8 @@ Blueprint 保存原创叙事、镜头、知识和素材决策。编译配置是
 
 故事审查、动稿审查、Blueprint 和正式 Video Review 使用同一任务台账。
 故事结构随题材决定。用户可以通过 [门把手回正预演](docs/productions/door-handle-return-restored.md)
-查看处理稿、两版动稿和独立判断。
+查看处理稿、两版动稿和独立判断。电影化摄影、照明和材质从
+[Blender 制作入口](docs/cinematic-production.md) 开始，已有门把手与皂液泵实渲样片。
 
 ```sh
 uv run python -m mechanical_video_next.reference_library search --query '选题'

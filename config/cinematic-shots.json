@@ -1,13 +1,37 @@
 {
   "version": 1,
-  "validated": {},
+  "validated": {
+    "fixed-lens-assembly-reveal": {
+      "status": "TECHNICALLY_VALIDATED",
+      "sample": "output/tasks/door-handle-return-20261121/cinematic/core-hd/door-handle-cinematic-reveal.mp4",
+      "technical": "output/tasks/door-handle-return-20261121/cinematic/core-hd/technical.json",
+      "review": "output/tasks/door-handle-return-20261121/cinematic/core-hd/independent-qa.md",
+      "entrypoint": "examples/door-handle-return/cinematic_scene.py",
+      "camera_and_lighting": "output/tasks/door-handle-return-20261121/cinematic/core-hd/photography.json",
+      "scope": "Reveal axial assembly around the installed housing. Use source-bound geometry and separately authored presentation transforms.",
+      "continuous_visual_effectiveness": "UNKNOWN"
+    },
+    "fixed-lens-continuous-refill": {
+      "status": "TECHNICALLY_VALIDATED",
+      "sample": "output/tasks/door-handle-return-20261121/cinematic/soap-pump-revised/soap-pump-refill.mp4",
+      "technical": "output/tasks/door-handle-return-20261121/cinematic/soap-pump-revised/chunk-result.json",
+      "review": "output/tasks/door-handle-return-20261121/cinematic/independent-recheck.md",
+      "entrypoint": "examples/soap-pump/cinematic_refill.py",
+      "camera_and_lighting": "output/tasks/door-handle-return-20261121/cinematic/soap-pump-revised/photography.json",
+      "scope": "Preserve the plunger and inlet context during the full authored refill stroke. Visible tracer is illustrative.",
+      "continuous_visual_effectiveness": "UNKNOWN"
+    }
+  },
   "experiments": {
     "dolly-contact-reveal": {
       "status": "EXPERIMENTAL",
       "study": "output/camera-study/experiment.json",
       "shot": "output/camera-study/B.shot.json",
       "sample": "output/camera-study/B.mp4",
-      "visual_effectiveness": "UNKNOWN"
+      "visual_effectiveness": "UNKNOWN",
+      "media_status": "MISSING_LOCAL_EXPORT_AND_CACHE",
+      "recreated_sample": "output/tasks/door-handle-return-20261121/cinematic/historical-B/camera.mp4",
+      "recreated_review": "output/tasks/door-handle-return-20261121/cinematic/historical-camera-review.md"
     },
     "locked-contact-framing": {
       "status": "EXPERIMENTAL",
@@ -21,7 +45,10 @@
       "study": "output/camera-study/experiment.json",
       "shot": "output/camera-study/C.shot.json",
       "sample": "output/camera-study/C.mp4",
-      "visual_effectiveness": "UNKNOWN"
+      "visual_effectiveness": "UNKNOWN",
+      "media_status": "MISSING_LOCAL_EXPORT_AND_CACHE",
+      "recreated_sample": "output/tasks/door-handle-return-20261121/cinematic/historical-C/camera.mp4",
+      "recreated_review": "output/tasks/door-handle-return-20261121/cinematic/historical-camera-review.md"
     }
   }
 }

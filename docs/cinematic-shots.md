@@ -35,7 +35,7 @@ The cover never receives an invented mechanical movement. The cut is editorial,
 not a claim that the retail shell opens or disappears that way. A tested noisy
 transparent-shell attempt is retained in `output/camera-study/b-opacity-failure`.
 
-`config/cinematic-shots.json` has **no validated entries**. Dolly Push-in/Macro
+`config/cinematic-shots.json` now includes technically verified shots from the [cinematic production examples](cinematic-production.md). The following camera study remains experimental. Dolly Push-in/Macro
 Reveal and Tracking Follow/Contact Focus are experiments. Exploded Reveal,
 Cutaway Reveal, and Orbit + Match Cut remain untested candidates with no defaults.
 Existing mechanical data tracks, native model, base light/materials and action clock
