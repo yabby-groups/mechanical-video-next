@@ -1,12 +1,12 @@
 """Render low-cost visual studies under the shared production lock."""
 import argparse
 from pathlib import Path
-import subprocess
 import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.common import BLENDER, ROOT, filehash, writejson
+from scripts.common import ROOT, filehash, writejson
+from mechanical_video_next.blender_runtime import run_blender
 from mechanical_video_next.workflow import lock
 
 
@@ -24,14 +24,13 @@ def main():
         for topic in options.topic or SAMPLES:
             folder = options.output.resolve()/topic
             folder.mkdir(parents=True, exist_ok=False)
-            command = [BLENDER, '-b', '--factory-startup', '--threads', '6', '--python-exit-code', '1',
+            command = ['--factory-startup', '--threads', '6', '--python-exit-code', '1',
                        '--python', str(source), '--', topic, str(folder)]
             if options.samples:
                 for t in SAMPLES[topic]:
                     command.extend(('--sample', str(t)))
             start = time.monotonic()
-            with (folder/'render.log').open('w') as log:
-                subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT)
+            run_blender(command, log=folder/'render.log', name='visual-study')
             seconds = time.monotonic()-start
             print(f'{topic}: {seconds:.3f} seconds', flush=True)
             writejson(folder/'render-receipt.json', {

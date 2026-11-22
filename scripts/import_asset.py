@@ -4,7 +4,11 @@ import argparse
 import json
 from pathlib import Path
 import shutil
-from common import BLENDER, ROOT, digest, filehash, run, writejson
+import sys
+from common import ROOT, digest, filehash, writejson
+
+sys.path.insert(0, str(ROOT))
+from mechanical_video_next.blender_runtime import run_blender
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
@@ -29,7 +33,8 @@ def main():
     # Validation happens in work first. Failed imports never become approved assets.
     folder=ROOT/'work/imports'/key
     folder.mkdir(parents=True,exist_ok=True)
-    run([BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',ROOT/'blender/import_asset.py','--',source,folder/'assembly.blend'],folder/'import.log')
+    run_blender(['--factory-startup','--python-exit-code','1','--python',ROOT/'blender/import_asset.py','--',source,folder/'assembly.blend'],
+                log=folder/'import.log', name='import')
     target.mkdir(parents=True,exist_ok=False)
     shutil.copy2(source,target/('source'+source.suffix.lower()))
     for name in ['assembly.blend','assembly.inventory.json']: shutil.copy2(folder/name,target/name)

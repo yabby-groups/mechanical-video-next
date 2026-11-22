@@ -14,7 +14,8 @@ import subprocess
 import tempfile
 import shutil
 
-from scripts.common import ROOT, BLENDER, filehash, probe, digest, writejson
+from scripts.common import ROOT, filehash, probe, digest, writejson
+from .blender_runtime import blender_version_output, run_blender
 
 
 def verification_key(doc, stage, replay):
@@ -30,7 +31,7 @@ def verification_key(doc, stage, replay):
     return digest(dict(document=doc, stage=stage, replay=replay,
         verifier=filehash(__file__), audit=filehash(ROOT/'blender/provenance_audit.py'),
         remotion_build=filehash(ROOT/'mechanical_video_next/remotion_build.py') if doc.get('build', {}).get('renderer') == 'remotion-v1' else None,
-        blender=subprocess.check_output([BLENDER, '--version'], text=True),
+        blender=blender_version_output(),
         ffmpeg=subprocess.check_output(['ffmpeg', '-version'], text=True)))
 
 
@@ -413,11 +414,10 @@ def _validate(path, media=None, *, replay=True, stage='final'):
             frames=shot['verification_frames']
             if len(set(frames))<3:raise ValueError('At least three distinct actual render witness frames required')
             output=temp/f'{i}.json';renders=temp/str(i)
-            cmd=[BLENDER,'-b',str(scene),'--python-exit-code','1','--python',str(ROOT/'blender/provenance_audit.py'),
+            cmd=[str(scene),'--python-exit-code','1','--python',str(ROOT/'blender/provenance_audit.py'),
                  '--','--output',str(output),'--frames',*[str(f) for f in frames]]
             if replay:cmd+=['--render-dir',str(renders)]
-            with (temp/f'{i}.log').open('w') as log:
-                subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT,check=True)
+            run_blender(cmd, name='provenance-audit')
             audit=json.loads(output.read_text())
             if min(frames)<audit['frame_range'][0] or max(frames)>audit['frame_range'][-1]:
                 raise ValueError('Render witness outside actual scene timeline')

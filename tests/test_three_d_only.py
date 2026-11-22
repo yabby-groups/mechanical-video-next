@@ -117,10 +117,11 @@ class ThreeDOnlyTests(unittest.TestCase):
     @unittest.skipUnless(os.environ.get('RUN_BLENDER_TESTS')=='1','Requires actual Blender runtime')
     def test_blender(self):
         """Reopen and rerender solid motion + subtitles; reject a plane and substituted film."""
-        from scripts.common import BLENDER,ROOT
+        from scripts.common import ROOT
+        from mechanical_video_next.blender_runtime import run_blender
         folder=Path(os.environ.get('MVN_BLENDER_FIXTURE_DIR',self.root))
-        subprocess.run([BLENDER,'-b','--factory-startup','--python-exit-code','1','--python',
-                        str(ROOT/'tests/fixtures/three_d_scenes.py'),'--',str(folder)],check=True)
+        run_blender(['--factory-startup','--python-exit-code','1','--python',
+                     str(ROOT/'tests/fixtures/three_d_scenes.py'),'--',str(folder)], name='three-d-fixture')
         good=folder/'good-provenance.json';bad=folder/'bad-provenance.json'
         accepted=validate(good)
         self.assertEqual(accepted['status'],'PASS')

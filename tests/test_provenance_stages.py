@@ -21,6 +21,7 @@ class ProvenanceStagesTests(unittest.TestCase):
             proof = root/'proof.json'
             proof.write_text(json.dumps(doc))
             with patch.object(p,'ROOT',root), patch.object(p,'filehash', wraps=p.filehash) as sha, \
+                 patch.object(p,'blender_version_output',return_value='tool-version'), \
                  patch.object(p.subprocess,'check_output',return_value='tool-version'), \
                  patch.object(p,'_validate',return_value={'status':'scene-only'}) as audit:
                 # The audit implementation itself participates in cache identity.

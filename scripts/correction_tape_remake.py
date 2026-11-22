@@ -17,6 +17,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
 from common import Metrics, filehash, run
 from clean import production_lock, retain_shot_export
 from produce import expose, make_shot
+from mechanical_video_next.blender_runtime import run_blender
 
 OUT = ROOT / 'output/correction-tape-remake'
 TASK = ROOT / 'output/tasks/workflow-acceptance-20261118'
@@ -319,8 +320,9 @@ def render_shots(phase, selected):
                 receipt['media'] = ref(target)
             writejson(OUT/directory/(sid+'.render.json'),receipt)
             if phase=='final' and sid=='slip':
-                run(['/Applications/Blender.app/Contents/MacOS/Blender','-b','--factory-startup','--python-exit-code','1',
-                     '--python',OUT/'audit_scenes.py','--',OUT/directory/(sid+'.render.json')],OUT/directory/'slip-every-frame-audit.log')
+                run_blender(['--factory-startup','--python-exit-code','1',
+                             '--python',OUT/'audit_scenes.py','--',OUT/directory/(sid+'.render.json')],
+                            log=OUT/directory/'slip-every-frame-audit.log', name='scene-audit')
             if phase=='final':
                 writejson(OUT/directory/(sid+'.cache-archive.json'),retain_shot_export(media.parent,target,apply=True))
             print(sid, phase, key, flush=True)
