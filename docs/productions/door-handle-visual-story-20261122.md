@@ -1,6 +1,8 @@
 # 门把手为什么松手就回到水平
 
-本次交付是 20.90 秒、768×432、30 fps 的完整低成本预演。外观完成一次短按压，把观察提前带到饰盖下方。接下来用同一套装配拍完下压、保持、释放和回正。开场遮住的弹簧在画面里完成回位，饰盖随后回到原处。 [完整预演](../../output/tasks/door-handle-return-20261121/visual-story/final-preview/door-handle-visual-story.mp4)
+本文记录历史双栏基线，视频 SHA-256 以 `2a7606a5` 开头。现行接点特写交付文件名为 `door-handle-return-contact-66d47353.mp4`，12.30–13.466667 秒含原生接触特写。 [现行完整预演](../../output/tasks/door-handle-return-20261121/visual-story/delivery-66d47353/door-handle-return-contact-66d47353.mp4) · [媒体一致性复核](../../output/tasks/door-handle-return-20261121/visual-story/delivery-66d47353/production-review.md)
+
+历史基线是 20.90 秒、768×432、30 fps 的完整低成本预演。外观完成一次短按压，把观察提前带到饰盖下方。接下来用同一套装配拍完下压、保持、释放和回正。开场遮住的弹簧在画面里完成回位，饰盖随后回到原处。 [历史双栏预演](../../output/tasks/door-handle-return-20261121/visual-story/final-preview/door-handle-visual-story.mp4)
 
 ## 旧版实际媒体的镜头级审查
 
