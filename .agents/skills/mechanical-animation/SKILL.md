@@ -7,6 +7,8 @@ description: 为「君哥拆机器」使用现有 EAS/Blender 制作有依据的
 
 按同一机械对象和实施例执行三维拆解、剖视、接触和连续运动。动作求值和原生几何一起检查穿模、弹簧自交及接触。生活情境、实拍及图形辅助机械解释。
 
+使用 [电影化 Blender 入口](../../../docs/cinematic-production.md) 时，把说明性移除写入呈现轨道。对同一源帧核对驱动、运动、支承和接触，保留完整动作时钟供独立核查。
+
 For v5, use 3D disassembly, cutaways and motion to reveal the selected story's
 mechanical design for 「君哥拆机器」. Let each shot's observation determine the treatment.
 
