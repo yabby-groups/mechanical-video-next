@@ -190,6 +190,11 @@ def compile_config(blueprint, base, output, draft=False):
     if not draft:
         validate_creative_blueprint(data)
     result, shots, storyboard, mappings = copy.deepcopy(cfg), {}, [], []
+    from . import source_policy
+    for source in (data, cfg):
+        source_policy.validate_sources(source, policy=data)
+    if source_policy.enabled(data):
+        result[source_policy.FIELD] = data[source_policy.FIELD]
     from .production_contract import PRESENTATION_STYLE, PRODUCER_DIRECTION, directed_story, science_story
     story = science_story(data)
     directed = directed_story(data)
@@ -367,6 +372,9 @@ def compile_config(blueprint, base, output, draft=False):
         validate_config(result)
     elif locked:
         validate_config(result)
+    if not draft and source_policy.enabled(data) and mechanism_first(data):
+        from .comprehension import validate_native_reveal
+        validate_native_reveal(result)
     writejson(output, result)
     binding = dict(schema_version=1, status=result['production_status'], blueprint_path=str(blueprint.resolve()),
                    blueprint_program_sha256=result['blueprint_program_sha256'],

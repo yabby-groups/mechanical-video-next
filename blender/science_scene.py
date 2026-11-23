@@ -167,6 +167,71 @@ def retime_data(shot, parts, count):
             fcurve.update()
 
 
+def disassembly(scene, parts, plan, count):
+    """Animate editorial offsets from the existing installed mesh transforms."""
+    from mechanical_video_next.science_shots import disassembly_frames
+
+    scene.frame_set(1)
+    anchor = target(parts, plan['anchor'])
+    moved = [target(parts, name) for name in plan['parts']]
+    for obj in [anchor, *moved]:
+        parent = obj
+        while parent is not None:
+            if parent.animation_data or parent.constraints or (parent is not obj and parent in moved):
+                raise ValueError('Disassembly needs a static assembly pose with independent moved parts')
+            parent = parent.parent
+    program = disassembly_frames(plan)
+    for obj in moved:
+        installed = obj.location.copy()
+        displacement = Vector(plan['parts'][obj.name])
+        for progress, amount in program:
+            frame = 1 + progress * (count - 1)
+            obj.location = installed + amount * displacement
+            obj.keyframe_insert('location', frame=frame)
+    frames = sorted({1, count, *(round(1 + t * (count - 1)) for t, _ in program)})
+    samples = []
+    for frame in frames:
+        scene.frame_set(frame)
+        samples.append({'frame': frame, 'anchor': list(anchor.matrix_world.translation),
+                        'relative_positions': {obj.name: list(obj.matrix_world.translation
+                                                             - anchor.matrix_world.translation)
+                                               for obj in moved}})
+    scene.frame_set(1)
+    return {'operation': plan['operation'], 'anchor': anchor.name,
+            'parts': [obj.name for obj in moved], 'frames': frames, 'samples': samples,
+            'scope': 'Editorial separation relative to the installed pose'}
+
+
+def check_disassembly_targets(scene, camera, parts, plan, frames):
+    """Check declared retained-part datums against evaluated render geometry."""
+    targets = plan.get('reveal_targets', {})
+    if not targets:
+        return []
+    reveal_frames = frames[-1:] if plan['operation'] == 'disassemble' else frames[1:-1]
+    if not reveal_frames:
+        return []
+    results = []
+    for frame in reveal_frames:
+        scene.frame_set(frame)
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        camera_pos = camera.matrix_world.translation
+        view_axis = camera.matrix_world.to_quaternion() @ Vector((0, 0, -1))
+        for name, local in targets.items():
+            obj = target(parts, name)
+            point = obj.matrix_world @ Vector(local)
+            screen = world_to_camera_view(scene, camera, point)
+            if not (screen.z > 0 and 0 <= screen.x <= 1 and 0 <= screen.y <= 1):
+                raise ValueError(f'Disassembly target {name} is outside the frame at {frame}')
+            origin = point - view_axis * screen.z if camera.data.type == 'ORTHO' else camera_pos
+            ray = point - origin
+            hit, _, _, _, blocker, _ = scene.ray_cast(depsgraph, origin, ray.normalized(),
+                                                       distance=max(0, ray.length - 1e-5))
+            if hit and blocker != obj and not blocker.hide_render:
+                raise ValueError(f'Disassembly target {name} is occluded by {blocker.name} at {frame}')
+            results.append({'frame': frame, 'part': name, 'projection': [screen.x, screen.y]})
+    return results
+
+
 def opacity_tracks(parts, tracks, count, linear_action):
     """Copy per-object shaders; preserve approved material shading underneath."""
     receipts = []

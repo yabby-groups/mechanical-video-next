@@ -827,6 +827,10 @@ def render_shot(args):
     elif template != 'overall':
         raise ValueError('Unknown shot template: '+template)
     visible = [o for o in parts if not o.hide_render]
+    disassembly = None
+    if science and science.get('disassembly'):
+        disassembly = science_scene.disassembly(scene, visible, science['disassembly'], count)
+        report['checks']['disassembly'] = disassembly
     if shot.get('section_plane'):
         # An explicit local teaching section, applied after deformation. It is
         # geometry removal, not transparency or an asserted disassembly path.
@@ -871,6 +875,8 @@ def render_shot(args):
             scene.frame_set(1)
         report['section'] = dict(plane, method='Boolean difference after prescribed deformation')
     frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] or science else [1]
+    if disassembly:
+        frames = disassembly['frames']
     cam = frame_camera(visible, [1] if template == 'camera_follow' else frames,
                        top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
                        direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0),
@@ -975,6 +981,9 @@ def render_shot(args):
         report['checks']['camera_framing'] = {'version': 1, 'frames': count,
                                              'parts': [part.name for part in framing_parts],
                                              'min_subject_extent': min_subject_extent}
+    if disassembly:
+        disassembly['reveal_targets'] = science_scene.check_disassembly_targets(
+            scene, cam, visible, science['disassembly'], frames)
     if shot.get('camera_focus_region'):
         report['camera_focus_region'] = shot['camera_focus_region']
     teaching_nail = add_teaching_nail(shot, count)

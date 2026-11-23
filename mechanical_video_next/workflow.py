@@ -9,7 +9,7 @@ import fcntl
 import hashlib
 import json
 from pathlib import Path
-from . import pacing, video_review
+from . import pacing, source_policy, video_review
 import re
 import math
 import subprocess
@@ -204,6 +204,8 @@ def require_source_supported_render(task, config=None):
     if not config.is_file():
         return False
     cfg = read_input_json(config)
+    if source_policy.enabled(data):
+        validate_production_sources(task, cfg, policy=data)
     from .visual_narrative import VERSION, match_policy, version
     match_policy(data, cfg)
     if version(cfg) == VERSION and any(
@@ -1147,6 +1149,9 @@ def record_delivery(task, files, reason):
         for media in delivery_files(task, data, report['rendered_routes']):
             if (str(Path(media['path']).resolve()), media['sha256']) not in provided:
                 raise ValueError('Every required delivery file must be provided to the user: ' + media['path'])
+        if source_policy.enabled(data):
+            require_source_supported_render(task)
+            source_policy.validate_sources(bindings, policy=data)
         data['delivery_receipt'] = dict(provided_to_user=True, routes=report['rendered_routes'],
                                        files=bindings, reason=reason, epoch=time.time())
         write(task / 'task.json', data)
@@ -1660,6 +1665,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     from .three_d import require_route, validate_config
     from .visual_narrative import DIRECTION_FIELD, DIRECTION_VERSION, FIELD, VERSION, match_policy, version
     from .knowledge_progression import FIELD as PROGRESSION_FIELD, VERSION as PROGRESSION_VERSION
+    source_rules = {source_policy.FIELD: source_policy.NO_PATENT_POLICY_VERSION}
     require_route(routes)
     from .media_policy import FIELD as MEDIA_FIELD, enabled as asset_first
     hybrid = asset_first({FIELD: visual_policy_version, MEDIA_FIELD: media_policy_version})
@@ -1685,6 +1691,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     progression = visual_policy_version == VERSION
     if config:
         cfg = read_input_json(config)
+        source_policy.validate_sources(cfg, policy=source_rules)
         validate_config(cfg)
         policy = {FIELD: visual_policy_version}
         if hybrid:
@@ -1733,6 +1740,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                  stages=[], repairs={}, human_interventions=None,
                  tokens=None, tokens_source='Not exposed to deterministic runner',
                  agent_runs=[], engineering_changes=None)
+    value.update(source_rules)
     value.update(three_d_policy_version=1, requested_routes=['3d'], render_route='3d')
     if visual_policy_version == VERSION:
         value[FIELD] = VERSION
@@ -1811,6 +1819,35 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     return task
 
 
+SOURCE_HANDOFFS = {'research', 'reference-to-model', 'asset-plan', 'cad-model', 'script', 'story-treatment',
+                   'creative-blueprint', 'diagnostic-animatic', 'animatic-manifest',
+                   'animation-manifest', 'mechanical-diagnostics', 'timeline'}
+
+
+def validate_production_sources(task, config, *, policy, require_reveal=False):
+    """Tie the assembly's declared source lineage to this task's inspected research."""
+    source_policy.validate_sources(config, policy=policy)
+    if not mechanism_first(policy):
+        return
+    if not config.get('assembly_config'):
+        raise ValueError('SOURCE_IDENTITY_UNKNOWN: native product render needs its source-bound assembly')
+    from .reference_policy import validate_research
+
+    research = artifact(task, 'research')
+    from .comprehension import validate_native_reveal, validate_product_research
+    validate_product_research(research, policy=policy)
+    refs = validate_research(research, policy=policy)
+    assembly = read_input_json(ROOT / config['assembly_config'])
+    if require_reveal:
+        validate_native_reveal(config)
+    source_ids = source_policy.require_source_ids(assembly, refs, 'render assembly')
+    if 'asset-plan' in policy['handoffs']:
+        asset = artifact(task, 'asset-plan')
+        candidate = next(row for row in asset['candidates'] if row['id'] == asset['selected_candidate_id'])
+        if source_ids != set(candidate['source_ids']):
+            raise ValueError('Render assembly source lineage differs from the selected asset')
+
+
 def artifact(task, name):
     data = load(task)
     entry = data['handoffs'].get(name)
@@ -1826,6 +1863,8 @@ def artifact(task, name):
             raise ValueError('Stale dependency: ' + dep)
         artifact(task, dep)
     payload = envelope['payload']
+    if name in SOURCE_HANDOFFS:
+        source_policy.validate_sources(payload, policy=data)
     if name == 'story-treatment' and 'document' in payload:
         from .joint_timeline import bound
         bound(payload['document'])
@@ -1839,7 +1878,9 @@ def artifact(task, name):
                 raise ValueError('Creative draft edit plan missing or changed')
             if mechanism_first(data):
                 from .joint_timeline import bound
-                for shot in read_input_json(plan_path)['core_3d']:
+                plan = read_input_json(plan_path)
+                source_policy.validate_sources(plan, policy=data)
+                for shot in plan['core_3d']:
                     bound(shot['source'])
     return payload
 
@@ -2100,6 +2141,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
         raise ValueError('Handoff payload must be an object')
     with lock(Path(task) / '.ledger.lock', wait=True):
         data = load(task)
+        if name in SOURCE_HANDOFFS:
+            source_policy.validate_sources(payload, policy=data)
         competition = editorial_policy.enabled(data)
         directed = producer_directed(data)
         development = story_development(data)
@@ -2333,23 +2376,30 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     visual.validate_plan(payload)
             if name == "research":
                 if not competition or selected_story(payload, allow_unselected=True) is not None:
-                    rp.validate_research(payload)
+                    rp.validate_research(payload, policy=data)
                     from .comprehension import enabled, validate_product_research
-                    if enabled(data):
-                        validate_product_research(payload)
+                    if enabled(data) or (source_policy.enabled(data) and mechanism_first(data)):
+                        validate_product_research(payload, policy=data)
             elif name == 'cad-model':
+                research = artifact(task, 'research')
                 from .comprehension import enabled, validate_product_research
-                if enabled(data):
-                    validate_product_research(artifact(task, 'research'))
+                if enabled(data) or (source_policy.enabled(data) and mechanism_first(data)):
+                    validate_product_research(research, policy=data)
                 chosen = artifact(task, 'asset-plan')
-                rp.validate_asset(artifact(task, 'research'), chosen)
+                rp.validate_asset(research, chosen, policy=data)
                 if chosen['strategy'] != 'autonomous-cad':
                     raise ValueError('New CAD requires prior evidence-based asset selection')
+                if source_policy.enabled(data):
+                    candidate = next(row for row in chosen['candidates']
+                                     if row['id'] == chosen['selected_candidate_id'])
+                    if source_policy.require_source_ids(payload, candidate['source_ids'], 'CAD inputs') != set(candidate['source_ids']):
+                        raise ValueError('CAD source lineage differs from the selected asset')
             elif name == "asset-plan":
+                research = artifact(task, 'research')
                 from .comprehension import enabled, validate_product_research
-                if enabled(data):
-                    validate_product_research(artifact(task, 'research'))
-                rp.validate_asset(artifact(task, "research"), payload)
+                if enabled(data) or (source_policy.enabled(data) and mechanism_first(data)):
+                    validate_product_research(research, policy=data)
+                rp.validate_asset(research, payload, policy=data)
             elif name == "creative-blueprint":
                 from .comprehension import enabled, validate_product_plan
                 if enabled(data):
@@ -2360,7 +2410,7 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     raise ValueError('Current blueprint requires growth_policy_version=2')
                 if payload.get('reference_policy_version') != 1:
                     raise ValueError('New blueprint requires reference_policy_version=1')
-                rp.validate_plan(payload, artifact(task, "research"), artifact(task, "asset-plan"))
+                rp.validate_plan(payload, artifact(task, "research"), artifact(task, "asset-plan"), policy=data)
                 if directed:
                     requested = data.get('duration')
                     if requested is not None and abs(payload['duration_seconds'] - requested) > 1 / 30:
@@ -2370,6 +2420,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     if not config_path.is_file() or filehash(config_path) != config_binding.get('sha256'):
                         raise ValueError('Blueprint must bind the compiled config')
                     cfg = json.loads(config_path.read_text())
+                    if source_policy.enabled(data):
+                        validate_production_sources(task, cfg, policy=data, require_reveal=True)
                     visual.match_policy(data, cfg)
                     visual.match_blueprint(payload, cfg)
                     if cfg.get('blueprint_program_sha256') != digest({
@@ -2798,7 +2850,7 @@ def check_asset(task):
     asset = artifact(task, 'asset-plan')
     if load(task).get('reference_policy_version') == 1:
         from .reference_policy import validate_asset
-        validate_asset(artifact(task, 'research'), asset)
+        validate_asset(artifact(task, 'research'), asset, policy=load(task))
         if asset['strategy'] == 'existing-media':
             candidate = next(c for c in asset['candidates'] if c.get('id') == asset['selected_candidate_id'])
             check_media(candidate['source_files'])
@@ -2987,6 +3039,8 @@ def check_production_config(task, config=None):
     if not expected.is_file() or filehash(expected) != binding['sha256']:
         raise ValueError('Production config missing or changed after blueprint freeze')
     compiled = read_input_json(expected)
+    if source_policy.enabled(data):
+        validate_production_sources(task, compiled, policy=data, require_reveal=True)
     from . import director, joint_timeline as joint
     from . import director_audio
     if not director_audio.policy(data) == director_audio.policy(blueprint) == director_audio.policy(compiled):
@@ -3486,6 +3540,8 @@ def validate_stage(task, phase, config, *, workprint=False, diagnostic=False,
         raise ValueError('Actual 3D production config file required')
     cfg = read_input_json(config)
     validate_config(cfg)
+    if source_policy.enabled(data) and animatic_diagnostic:
+        validate_production_sources(task, cfg, policy=data, require_reveal=True)
     technical_render = require_source_supported_render(task, config)
     scoped_render = cfg.get('production_scope') == 'verified-shots'
     if scoped_render and phase not in {'keys', 'checks', 'local'}:

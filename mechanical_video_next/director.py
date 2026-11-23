@@ -28,7 +28,7 @@ CAMERA = {'camera_path', 'camera_framing', 'camera_clip', 'camera_path_follow',
 STRATEGIES = {
     'macro_reveal': ('blender', ('camera_path',), 'A named physical detail in its assembly'),
     'transparent_cutaway': ('blender', ('opacity_tracks', 'section_plane'), 'Verified hidden geometry'),
-    'exploded_view': ('blender', ('exploded_view',), 'Part assembly and a conceptual explosion program'),
+    'exploded_view': ('blender', ('exploded_view', 'disassembly'), 'Part assembly and a conceptual explosion program'),
     'motion_tracking': ('blender', ('camera_path_follow', 'follow', 'camera_rig'), 'A named moving datum'),
     'force_visualization': ('remotion', ('graphic',), 'Sourced force or labeled qualitative representation'),
     'energy_flow': ('remotion', ('graphic',), 'Verified energy path with a declared representation'),
@@ -315,7 +315,7 @@ def apply_strategy(shot, direction, engine, *, source=None):
     for key, value in fields.items():
         if key in {'visible_parts', 'section_plane', 'graphic'}:
             result[key] = deepcopy(value)
-        elif key in CAMERA or key in {'time_map', 'opacity_tracks'}:
+        elif key in CAMERA or key in {'time_map', 'opacity_tracks', 'disassembly'}:
             science[key] = deepcopy(value)
             if key == 'camera_rig':
                 science.pop('camera_clip', None)

@@ -17,6 +17,32 @@ the account directly.
 
 ## Policy resolution
 
+New ledgers pin `no_patent_policy_version: 1`. Research, modeling, selected
+assets, the compiled Blueprint, render authorization and delivery use the
+ledger's policy. Keep located source metadata and hash-bound evidence. Patent
+office links, publication identifiers and the identification pages of PDFs are
+checked independently of the declared source type. An unidentified scanned PDF
+stays UNKNOWN. A historical ledger can be replayed under its recorded policy.
+A new production using historical material needs verified permitted sources for
+the adopted product and model.
+
+Current mechanism-first research binds a specific `product_identity` and
+`product_references`. At least one confirmed source must show the exterior
+(`observations.exterior_visible: true`). Keep exterior evidence separate from
+evidence of hidden parts and actions. Render assemblies and autonomous CAD
+handoffs identify their supporting research through `source_ids`.
+
+Use the native `exploded_view` shot with `science.disassembly` for a selective
+separation. Name a fixed `anchor`, local displacement vectors in `parts` and
+retained part datums in `reveal_targets`. The `operation` selects
+`disassemble`, `reassemble` or `cycle`. Keep that presentation shot separate
+from the timed transmission. The movie edit needs to carry the installed
+pose through the separation. Blender checks the target datums at separated
+poses. In the existing moving QA report, `product_disassembly` and
+`visible_transmission` record the observed result on the exact MP4.
+
+See [system regression evidence and visual references](productions/system-repair-20261123.md).
+
 New tasks default to `presentation_style: natural_science`. Let the subject
 determine the opening. Use ordinary language and tie labels to the relevant
 action. Reserve subtitles for narration and keep production notes in the ledger.

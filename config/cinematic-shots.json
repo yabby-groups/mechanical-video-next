@@ -23,6 +23,14 @@
     }
   },
   "experiments": {
+    "anchored-selective-disassembly": {
+      "status": "EXPERIMENTAL",
+      "entrypoint": "blender/scene.py",
+      "blueprint_fields": ["science.disassembly.anchor", "science.disassembly.parts", "science.disassembly.reveal_targets"],
+      "study": "docs/productions/system-repair-20261123.md",
+      "scope": "Separate selected parts around a fixed assembled reference and check the visibility of retained datums.",
+      "visual_effectiveness": "UNKNOWN"
+    },
     "dolly-contact-reveal": {
       "status": "EXPERIMENTAL",
       "study": "output/camera-study/experiment.json",

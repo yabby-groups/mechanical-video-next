@@ -142,7 +142,8 @@ def shot_key(shot, quality, render=None, assembly_path=None, *, model=None):
         science_files = ['blender/scene.py', 'blender/science_scene.py', 'mechanical_video_next/science_shots.py']
         if {'camera_path', 'stage_rotation', 'guides', 'print_marks', 'constraints'} & shot['science'].keys():
             science_files.append('blender/science_guides.py')
-        inputs['science_renderer'] = codehash(*science_files, equivalents=False, render_media=True)
+        inputs['science_renderer'] = codehash(
+            *science_files, equivalents=False, render_media=not shot['science'].get('disassembly'))
     return digest(inputs)
 
 def prepare_shot_evidence(folder):
@@ -800,7 +801,13 @@ def main():
     if args.task is not None:
         from mechanical_video_next.workflow import load
         from mechanical_video_next.production_contract import PRESENTATION_STYLE
-        task_style = (authorized_task if authorized_task is not None else load(args.task)).get(PRESENTATION_STYLE)
+        task_data = authorized_task if authorized_task is not None else load(args.task)
+        if authorized_task is None and args.phase not in {'preview', 'final', 'all'}:
+            from mechanical_video_next.source_policy import enabled
+            if enabled(task_data):
+                from mechanical_video_next.workflow import validate_production_sources
+                validate_production_sources(args.task, cfg, policy=task_data)
+        task_style = task_data.get(PRESENTATION_STYLE)
         if task_style is not None:
             cfg[PRESENTATION_STYLE] = task_style
     if cfg.get('production_scope') == 'verified-shots':

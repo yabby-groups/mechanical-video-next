@@ -59,10 +59,14 @@ def validate(shot, *, files=False):
     driver = spec.get('driver', 'static')
     if driver not in {'static', 'asset_motion', 'data_tracks'}:
         raise ValueError('Unknown science motion driver')
+    disassembly = spec.get('disassembly')
     if (template not in TEMPLATES and driver != 'static'
-            or template in {'exploded_view', 'state_transition'} and driver != 'data_tracks'
+            or template == 'state_transition' and driver != 'data_tracks'
+            or template == 'exploded_view' and not disassembly and driver != 'data_tracks'
             or template == 'motion_trace' and driver == 'static'):
         raise ValueError('Motion driver does not match the template')
+    if disassembly is not None:
+        validate_disassembly(shot, disassembly)
     if driver == 'data_tracks' and not (shot.get('tracks') or shot.get('mesh_tracks')):
         raise ValueError('Data tracks require prescribed poses')
     if template == 'exploded_view' and mode != 'conceptual':
@@ -356,6 +360,30 @@ def validate_editorial_geometry(spec):
                 raise ValueError('Guide requires evaluated object points, visible time and positive width')
 
 
+def validate_disassembly(shot, plan):
+    """Describe a selective assembly reveal in local axes at an assembled pose."""
+    if (shot['template'] != 'exploded_view' or shot['science'].get('driver', 'static') != 'static'
+            or not isinstance(plan, dict) or plan.get('operation') not in {'disassemble', 'reassemble', 'cycle'}
+            or not name(plan.get('anchor')) or not isinstance(plan.get('parts'), dict) or not plan['parts']
+            or plan['anchor'] in plan['parts']
+            or any(not name(key) or not vector(offset, 3) or not any(offset)
+                   for key, offset in plan['parts'].items())):
+        raise ValueError('Disassembly needs an unmoved assembly anchor and explicit nonzero part offsets')
+    if shot.get('tracks') or shot.get('mesh_tracks') or shot.get('section_plane'):
+        raise ValueError('Disassembly paths must be separate from the mechanical action and section tracks')
+    targets = plan.get('reveal_targets', {})
+    if (not isinstance(targets, dict) or len(targets) > 8
+            or any(not name(key) or key in plan['parts'] or not vector(point, 3)
+                   for key, point in targets.items())):
+        raise ValueError('Disassembly reveal targets need local XYZ datums on retained parts')
+    return plan
+
+
+def disassembly_frames(plan):
+    return {'disassemble': ((0, 0), (1, 1)), 'reassemble': ((0, 1), (1, 0)),
+            'cycle': ((0, 0), (.4, 1), (.6, 1), (1, 0))}[plan['operation']]
+
+
 def referenced_parts(shot):
     spec = shot.get('science', {})
     parts = {anchor['object'] for anchor in spec.get('anchors', {}).values()}
@@ -373,6 +401,8 @@ def referenced_parts(shot):
         parts.add(spec['camera_path_follow'])
     if shot.get('section_plane'):
         parts.update(shot['section_plane'].get('parts', []))
+    if plan := spec.get('disassembly'):
+        parts.update([plan['anchor'], *plan['parts'], *plan.get('reveal_targets', {})])
     return parts
 
 
@@ -420,6 +450,10 @@ def validate_assembly_shot(shot, assembly):
     if not spec:
         return
     validate(shot, files=True)
+    if plan := spec.get('disassembly'):
+        visible = set(shot.get('visible_parts') or assembly.get('required_parts', []))
+        if not {plan['anchor'], *plan['parts'], *plan.get('reveal_targets', {})} <= visible:
+            raise ValueError('Disassembly anchor and separated parts must remain in the visible assembly')
     if spec.get('camera_rig'):
         rig = spec['camera_rig']
         names = set(rig.get('inspect_markers', []))

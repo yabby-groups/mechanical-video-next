@@ -1,7 +1,7 @@
 {
   "blender/scene.py": {
     "render_orchestration": {
-      "current_sha256": "6432e457305ca658cec12d6dac38667b56a93806be5dd7b6ee5957195840dd98",
+      "current_sha256": "7bc1031ba195b6029c56b4847502449fb9c048cf2d6a7869f66cff984a18ef70",
       "previous_sha256": "6621ed5960565a3d74e48162892aa87e6773bdf02a0fc6a2c2fbcd4841d20691",
       "reason": "First-frame preflight, atomic frame recovery and chunk receipts preserve the same inputs, scene settings and media recipe. Only media cache keys use this equivalence."
     },
@@ -9,10 +9,28 @@
     "media_equivalent_sha256": "5cedf85ee1a03567b94ee2a18f8ac1836b16b9aeb6d40e39cc66421478603faa",
     "reason": "Reviewed legacy no-science/no-context paths against pinned 86bd9b6: only guarded opt-in branches, conditional report fields and new-template camera handling differ. The explicit science.camera_clip branch also leaves these legacy paths unchanged. Science shots still use actual source hashes, including camera clipping changes. Evidence: docs/productions/cache-equivalence-audit-20261118.md"
   },
+  "blender/science_scene.py": {
+    "render_orchestration": {
+      "current_sha256": "79a8418314ea414b330a744e5c7aff1a34f88cc48b362df6b8806c7429a240f1",
+      "previous_sha256": "e23211f4f933b90ac8ea1156f692dafa8bae276988ff3c9928f0766599bbd83c"
+    },
+    "current_sha256": "79a8418314ea414b330a744e5c7aff1a34f88cc48b362df6b8806c7429a240f1",
+    "media_equivalent_sha256": "e23211f4f933b90ac8ea1156f692dafa8bae276988ff3c9928f0766599bbd83c",
+    "reason": "Legacy science shots bypass the new disassembly helpers."
+  },
+  "mechanical_video_next/science_shots.py": {
+    "render_orchestration": {
+      "current_sha256": "90a4a0c8f4a77969d7d9baab78373e12a5f5948384381784c1b296de70e6b42e",
+      "previous_sha256": "7c9f97c110fd7b963c309c1b10a4b81f7f74e9176b34082191f4c8472a3f473b"
+    },
+    "current_sha256": "90a4a0c8f4a77969d7d9baab78373e12a5f5948384381784c1b296de70e6b42e",
+    "media_equivalent_sha256": "7c9f97c110fd7b963c309c1b10a4b81f7f74e9176b34082191f4c8472a3f473b",
+    "reason": "The new disassembly fields are opt-in and use exact renderer hashes."
+  },
   "scripts/produce.py": {
-    "current_sha256": "4dbca226c1709b9c68242357739d543b3d0e9e0729490e23967e52a0652504e7",
-    "media_equivalent_sha256": "cef6c56223c3ff59d19d6860d910321ccf59d8b603a50ce15ad399a9386554b9",
-    "reason": "Stage authorization, cancellation and metrics retain the same completed composition inputs, renderer invocation and media recipe."
+    "current_sha256": "8da2498b4d6036c508eaa7983298ef13a5112384f2954e2dd5216b2ce4e3ba76",
+    "media_equivalent_sha256": "6d0cf1dce531012c4a4ef8c3f77d89b2a5ce89104f9c539cdff6433ea66ea74e",
+    "reason": "Source authorization retains the existing media recipe. Disassembly selects exact source hashes through its shot cache key."
   },
   "scripts/narration.py": {
     "current_sha256": "0a0033357024e2438789262d09ce936e27f43287130ad652cb45245ecd03154c",

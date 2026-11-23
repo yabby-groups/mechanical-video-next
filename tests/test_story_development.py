@@ -163,6 +163,19 @@ class StoryDevelopmentTests(unittest.TestCase):
             self.put('Producer', 'research', self.research)
         science['question'] = approved
         self.research.pop('design_research')
+        source = science['facts'][0]['sources'][0]
+        self.research['product_identity'] = dict(
+            product_id='test-latch', mechanism_id='latch', name='Cabinet latch', type='catch',
+            model_scope='Fixture catch', appearance='Rectangular mounting plate', purpose='Hold cabinet door',
+            operation='Close the door', observable_action='Catch retracts against strike')
+        self.research['product_references'] = [dict(
+            reference_id='instructions', product_id='test-latch', mechanism_id='latch', type='manual',
+            location=source['path'], evidence_files=[source], relationship_status='CONFIRMED',
+            relationship_evidence='Fixture instructions cover this assembly', depicts_real_product=True,
+            supported_claims=[science['answer']], observations=dict(
+                observed_product='Fixture catch', identified_parts=['plate', 'catch'],
+                assembly_positions='Catch protrudes through the plate', exterior_visible=True,
+                unknowns=[], figure_or_region='Fixture installation section'))]
         self.put('Producer', 'research', self.research)
         self.treatment.update(question=approved, mechanical_object='Cabinet latch',
                               positioning=contract.POSITIONING,

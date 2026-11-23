@@ -12,6 +12,7 @@ def require_route(route):
 
 
 def validate_config(config):
+    from .source_policy import validate_sources
     from .science_shots import validate as validate_science_shot
     from .visual_narrative import VERSION, validate_execution, validate_plan, version
     from .knowledge_progression import FIELD, enabled
@@ -20,6 +21,7 @@ def validate_config(config):
     visual_version = version(config)
     from .media_policy import enabled as asset_first, validate_document
     hybrid = asset_first(config)
+    validate_sources(config, policy=config)
     progression = enabled(config)
     if progression and visual_version != VERSION:
         raise ValueError('Knowledge progression requires visual policy 2')

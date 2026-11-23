@@ -81,6 +81,15 @@ class PacingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'source-bound'):
             self.audit()
 
+    def test_native_motion_is_not_a_trim_candidate_without_a_redundant_annotation(self):
+        self.add_action(30, 150)
+        samples = [0] * 30 + list(range(120)) + [119] * 30
+        result = self.audit(states=[dict(shot_id='one', action_id='move', id='throw', samples=samples)])
+        for row in result['findings']:
+            if row['repair'] == 'trim_wait':
+                start, stop = row['frame_range']
+                self.assertTrue(stop <= 31 or start >= 150)
+
     def test_actual_qa_requires_full_picture_and_sound(self):
         report = self.audit()
         checks = {key: dict(observation='Located observation', frames=[0, 180], status='PASS')

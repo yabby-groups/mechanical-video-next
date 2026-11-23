@@ -63,7 +63,7 @@ class ComprehensionContracts(unittest.TestCase):
             c.validate_product_research(fixture.research)  # no shots are required in research
             patent = fixture.research['product_references'][0]
             patent['type'] = 'patent'; patent['observations']['embodiment'] = 'specific fixture'
-            with self.assertRaisesRegex(ValueError, 'CAD/patent-only'):
+            with self.assertRaisesRegex(ValueError, 'PATENT_SOURCE_FORBIDDEN'):
                 w.put_handoff(fixture.task, 'MechanicalResearch', 'research', fixture.research)
             self.assertNotIn('research', w.load(fixture.task)['handoffs'])
         finally:

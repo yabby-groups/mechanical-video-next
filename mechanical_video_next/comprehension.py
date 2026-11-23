@@ -52,8 +52,16 @@ def _binding(row, label):
     return path
 
 
-def validate_product_sources(data, research=None):
+def validate_product_sources(data, research=None, *, policy=None):
     """Validate the observed product or an explicit bounded scientific subject."""
+    from .source_policy import enabled as restricted, validate_sources
+    from .production_contract import mechanism_first
+
+    policy = data if policy is None else policy
+    require_exterior = restricted(policy) and mechanism_first(policy)
+    validate_sources(data, policy=policy)
+    if research is not None and research is not data:
+        validate_sources(research, policy=policy)
     if subject_story(data) or phenomenon(data,research):
         subject=data.get('subject_identity') or data.get('science',{}).get('subject',{})
         _required(subject,('id','name','scope','model_kind'),'Bounded science subject')
@@ -87,6 +95,10 @@ def validate_product_sources(data, research=None):
     for ref in refs:
         _required(ref, ('reference_id', 'product_id', 'mechanism_id', 'type', 'location', 'observations', 'supported_claims',
                         'evidence_files'), 'Product reference')
+        observation = ref['observations']
+        if (ref['type'] == 'video' or restricted(policy)) and observation.get('status') == 'UNKNOWN':
+            # Preserve inaccessible leads without counting them as product evidence.
+            continue
         for binding in ref['evidence_files']:
             _binding(binding, 'Observed product source')
         if ref['reference_id'] in sources or ref['product_id'] != product['product_id']:
@@ -95,11 +107,6 @@ def validate_product_sources(data, research=None):
             raise ValueError('Product source mechanism differs from selected implementation')
         if ref.get('relationship_status') != 'CONFIRMED' or not ref.get('relationship_evidence'):
             raise ValueError('Product reference relationship to actual product unconfirmed')
-        observation = ref['observations']
-        if ref['type'] == 'video' and observation.get('status') == 'UNKNOWN':
-            # Unwatched sources stay disclosed research leads, never evidence
-            # for the identity or mechanism being depicted.
-            continue
         _required(observation, ('observed_product', 'identified_parts', 'assembly_positions'), 'Actual source observation')
         if not isinstance(observation.get('unknowns'), list):
             raise ValueError('Source unknowns must be explicitly recorded')
@@ -114,16 +121,23 @@ def validate_product_sources(data, research=None):
                         or not math.isfinite(point)
                         or not any(t[0] <= point <= t[1] for t in observation['viewed_ranges'])):
                     raise ValueError('Key source timecodes must fall inside actually observed intervals')
-            real_product = real_product or ref.get('depicts_real_product') is True
+            real_product = real_product or (
+                ref.get('depicts_real_product') is True
+                and (not require_exterior or observation.get('exterior_visible') is True))
         elif ref['type'] in {'photo', 'drawing', 'manual', 'patent', 'document', 'cad'}:
             _required(observation, ('figure_or_region',), 'Located source observation')
             if ref['type'] == 'patent':
                 _required(observation, ('embodiment',), 'Specific patent implementation')
-            real_product = real_product or (ref['type'] in {'photo', 'manual', 'document'}
-                and ref.get('depicts_real_product') is True)
+            appearance_types = {'photo', 'manual', 'document'}
+            if restricted(policy):
+                appearance_types |= {'drawing', 'cad'}
+            real_product = real_product or (ref['type'] in appearance_types
+                and ref.get('depicts_real_product') is True
+                and (not require_exterior or observation.get('exterior_visible') is True))
             # A documented implementation is a legitimate teaching subject.
             # This identifies that embodiment, never a claimed retail product.
-            if product.get('identity_basis') == 'documented_mechanism' and ref['type'] in {'drawing', 'manual', 'patent', 'document'}:
+            if (not restricted(policy) and product.get('identity_basis') == 'documented_mechanism'
+                    and ref['type'] in {'drawing', 'manual', 'patent', 'document'}):
                 _required(product, ('teaching_scope',), 'Documented mechanism scope')
                 _required(observation, ('embodiment', 'confirmed_actions'), 'Documented mechanism implementation')
                 real_product = True
@@ -131,14 +145,38 @@ def validate_product_sources(data, research=None):
             raise ValueError('Unknown product source type')
         sources[ref['reference_id']] = ref
     if not real_product:
+        if restricted(policy):
+            raise ValueError('PRODUCT_APPEARANCE_UNKNOWN: need an inspected exterior of the selected product')
         raise ValueError('CAD/patent-only evidence cannot identify an actual product')
     return sources
 
 
-def validate_product_research(research):
+def validate_product_research(research, *, policy=None):
     """A research handoff needs a real product, not only a patent embodiment."""
     _required(research, ('mechanism_id',), 'Selected product implementation')
-    return validate_product_sources(research, research)
+    return validate_product_sources(research, research, policy=policy)
+
+
+def validate_native_reveal(config):
+    """Require a visible change in assembly structure at the executable edit level."""
+    from .joint_timeline import frame_number
+    from .science_shots import disassembly_frames
+
+    cuts = {cut['id']: cut for cut in config.get('timeline', {}).get('shots', [])}
+    has_reveal = False
+    for row in config.get('storyboard', []):
+        shot = config['shots'][row['shot']]
+        plan = shot.get('science', {}).get('disassembly')
+        if not plan or not plan.get('reveal_targets') or plan['operation'] == 'reassemble':
+            continue
+        first = cuts.get(row['id'], {}).get('source_start_frame', 0)
+        paired = disassembly_frames(plan)
+        separated = round(next(progress for progress, amount in paired if amount == 1)
+                          * (frame_number(shot['seconds']) - 1))
+        if first == 0 and separated < frame_number(row['seconds']):
+            has_reveal = True
+    if not has_reveal:
+        raise ValueError('PRODUCT_DISASSEMBLY_MISSING: edit needs an installed-to-separated native shot')
 
 
 def validate_product_plan(data, research=None):

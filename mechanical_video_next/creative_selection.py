@@ -51,6 +51,8 @@ def validate_treatment(treatment, facts, *, mechanics=False):
 
 
 def validate_creative_gate(task, report, *, duration=None):
+    from .source_policy import enabled as source_policy_enabled
+
     reviewer = report.get('reviewer_thread_id')
     if (not nonempty(reviewer) or report.get('independent_reviewer') is not True
             or not any(row['role'] == 'QA' and row['thread_id'] == reviewer
@@ -64,6 +66,8 @@ def validate_creative_gate(task, report, *, duration=None):
     status = decision.get('status')
     findings = decision.get('findings', {})
     criteria = MECHANICAL_CRITERIA if mechanism_first(task) else CREATIVE_CRITERIA
+    if duration is not None and mechanism_first(task) and source_policy_enabled(task):
+        criteria += ('product_disassembly', 'visible_transmission')
     if (not isinstance(status, str) or status not in CREATIVE_VERDICTS
             or not isinstance(findings, dict) or set(findings) != set(criteria)):
         raise ValueError('Creative QA requires a verdict and all applicable findings')

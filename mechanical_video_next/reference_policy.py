@@ -125,7 +125,12 @@ def validate_shot_evidence(shot, mechanism_id):
     return shot
 
 
-def validate_research(research):
+def validate_research(research, *, policy=None):
+    from .production_contract import mechanism_first
+    from .source_policy import enabled, validate_sources
+
+    policy = research if policy is None else policy
+    validate_sources(research, policy=policy)
     _required(research, ('mechanism_id', 'references'), 'Research')
     refs = {}
     for ref in research['references']:
@@ -138,7 +143,7 @@ def validate_research(research):
             raise ValueError('Reference must disclose unknowns and conflicts')
         scope = ref['viewed_scope']
         _required(scope, ('status', 'evidence'), 'Actual viewing scope')
-        if ref['type'] == 'video' and scope['status'] == 'UNKNOWN':
+        if (ref['type'] == 'video' or enabled(policy)) and scope['status'] == 'UNKNOWN':
             # Keep inaccessible research leads honest. They cannot support a
             # modeled fact, asset selection, or narrated mechanical conclusion.
             continue
@@ -151,6 +156,15 @@ def validate_research(research):
             raise ValueError('Title, cover or metadata cannot prove mechanics')
         if scope['status'] != expected[ref['type']]:
             raise ValueError('Actual viewing status must match reference type')
+        if enabled(policy) and mechanism_first(policy):
+            from .visual_narrative import local_binding
+            evidence = scope['evidence']
+            if isinstance(evidence, dict):
+                evidence = [evidence]
+            if not isinstance(evidence, list) or not evidence or any(not isinstance(row, dict) for row in evidence):
+                raise ValueError('SOURCE_IDENTITY_UNKNOWN: reference needs inspected source files')
+            for binding in evidence:
+                local_binding(binding)
         if ref['type'] == 'video':
             ranges = scope.get('time_ranges', [])
             if not ranges or any(len(t) != 2 or not all(finite(v) for v in t) or not 0 <= t[0] < t[1] for t in ranges):
@@ -177,13 +191,17 @@ def validate_asset_candidate(row, strategy, research, refs):
         raise ValueError('Existing asset requires actual source files')
 
 
-def select_asset_strategy(research, candidates):
+def select_asset_strategy(research, candidates, *, policy=None):
     """Select the highest qualified and legally usable available candidate.
 
     An investigated but unavailable category is retained with a reason. A title
     alone, an unknown license, or an appearance-only source never qualifies.
     """
-    refs = validate_research(research)
+    from .source_policy import validate_sources
+
+    policy = research if policy is None else policy
+    validate_sources(candidates, policy=policy)
+    refs = validate_research(research, policy=policy)
     if not isinstance(candidates, list):
         raise ValueError('Asset search candidates required')
     for strategy in STRATEGIES:
@@ -199,9 +217,12 @@ def select_asset_strategy(research, candidates):
     raise ValueError('Insufficient evidence: retain research, narrow scope; never invent internal structure')
 
 
-def validate_asset(research, asset):
+def validate_asset(research, asset, *, policy=None):
     from .production_contract import flexible_story
+    from .source_policy import validate_sources
     from .three_d import require_route
+    policy = research if policy is None else policy
+    validate_sources(asset, policy=policy)
     require_route(asset.get('render_route', '3d'))
     if asset.get('strategy') == 'illustrated':
         raise ValueError('3D-only asset required')
@@ -216,9 +237,9 @@ def validate_asset(research, asset):
             raise ValueError('The chosen asset needs a unique qualified candidate')
         candidate = matches[0]
         _required(candidate, ('reason',), 'Asset candidate')
-        validate_asset_candidate(candidate, selected[0], research, validate_research(research))
+        validate_asset_candidate(candidate, selected[0], research, validate_research(research, policy=policy))
     else:
-        selected = select_asset_strategy(research, asset.get('candidates'))
+        selected = select_asset_strategy(research, asset.get('candidates'), policy=policy)
         if (asset.get('strategy'), asset.get('selected_candidate_id')) != selected:
             raise ValueError('Asset must prefer qualified legal reuse before new CAD')
         candidate = next(c for c in asset['candidates'] if c.get('id') == selected[1])
@@ -263,11 +284,15 @@ def validate_asset(research, asset):
     return selected
 
 
-def validate_plan(blueprint, research, asset):
+def validate_plan(blueprint, research, asset, *, policy=None):
     from .production_contract import creative_first, flexible_story
+    from .source_policy import validate_sources
+
+    policy = blueprint if policy is None else policy
+    validate_sources(blueprint, policy=policy)
     flexible = flexible_story(blueprint)
-    refs = validate_research(research)
-    validate_asset(research, asset)
+    refs = validate_research(research, policy=policy)
+    validate_asset(research, asset, policy=policy)
     _required(blueprint, ('core_question', 'evidence_map', 'shots', 'content_timing'), 'Blueprint')
     shots = {s['shot_id']: s for s in blueprint['shots']}
     claims = {}

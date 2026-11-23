@@ -3,7 +3,10 @@ name = "mechanical-video-next"
 version = "0.1.0"
 description = "Evidence-gated mechanical video production tools"
 requires-python = "==3.14.2"
-dependencies = ["pillow>=11,<13"]
+dependencies = [
+    "pillow>=11,<13",
+    "pypdf>=6,<7",
+]
 
 [project.optional-dependencies]
 cad = [

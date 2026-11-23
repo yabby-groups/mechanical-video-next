@@ -241,6 +241,8 @@ def analyze(media, plan, design, *, measured=None, states=(), inputs=None, wait_
                                           start_frame=motion[0][0] if motion else None,
                                           completion_frame=motion[-1][1] - 1 if motion else None))
         activity = [span for track in native_tracks for span in track['motion_ranges']]
+        for frames in activity:
+            cover(frames)
         for frames in intervals([not value for value in coverage], start):
             code = 'no_directed_progress'
             if activity and frames[1] <= min(a for a, _ in activity):
