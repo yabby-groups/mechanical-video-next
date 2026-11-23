@@ -1,0 +1,69 @@
+{
+  "id": "junge-theme-v7",
+  "title": "《君哥拆机器》V7 · 紧凑律动版",
+  "theme": "junge-theme",
+  "source": {
+    "path": "assets/audio/bgm/君哥拆机器-V7.wav",
+    "sha256": "5c2eb17207674638be801fb2e5b4afb7e0220592cf54419f038d69ff7228bfa1"
+  },
+  "source_url": "https://chatgpt.com/",
+  "production_source": "用户确认 V7 由本人通过 ChatGPT 生成，用于自己的科普视频。V5 为程序合成音色，V6 基于原创合成方式制作机械拆解音乐，V7 调整 V6 的节奏和编曲。V7 成品和下载来源已核验，上游制作细节为用户说明。",
+  "author": null,
+  "duration_seconds": 58.1851875,
+  "channels": 2,
+  "sample_rate": 48000,
+  "codec": "pcm_s16le",
+  "source_loudness_lufs": -16.82,
+  "source_true_peak_dbtp": -2.48,
+  "pcm_downmix": "stereo_average",
+  "style": ["light game electronic", "compact rhythmic pulse"],
+  "mood": ["playful", "focused", "energetic"],
+  "use_cases": ["机械拆解", "生活科学", "知识科普"],
+  "energy": 0.6,
+  "bpm": 132,
+  "speech_fit": 0.7,
+  "sfx_fit": 0.7,
+  "loopable": true,
+  "loop_samples": [1017120, 2419244],
+  "loop_crossfade_samples": 5760,
+  "source_type": "GENERATED",
+  "license_status": "VERIFIED",
+  "credit": "《君哥拆机器》V7 · 紧凑律动版",
+  "usage_restrictions": ["项目登记用途为用户科普视频的配乐及随成片分发。"],
+  "license": {
+    "status": "VERIFIED",
+    "holder": "《君哥拆机器》项目用户（ChatGPT 输出使用方）",
+    "name": "ChatGPT 输出条款与用户来源确认",
+    "commercial_use": true,
+    "editing_and_distribution": true,
+    "proof": {
+      "path": "docs/junge-theme-v7-rights.md",
+      "sha256": "4b9c058ce5472a659bd86d25b7601467937d6db85f67641a082c49ce3bb65488",
+      "position": "权利结论：商业使用许可；制作链路与证据：V7；登记依据与复核范围"
+    }
+  },
+  "rights_review": {
+    "reviewed_on": "2026-11-23",
+    "commercial_use": {
+      "status": "VERIFIED_FOR_PROJECT",
+      "scope": "用于用户自己的科普视频，含音画同步、剪辑、循环和随成片的平台分发",
+      "basis": "用户确认由本人通过 ChatGPT 生成，结合与下载件同哈希的 WAV 和 OpenAI 个人服务条款中的输出权利约定登记。"
+    },
+    "third_party_materials": {
+      "status": "PARTIAL",
+      "pixabay_498036": {
+        "status": "NO_DIRECT_USE_FOUND",
+        "sha256": "a0d8a3833aab56f8cc7af5998a1bc6b0be597566cba06903a939e8fea3fb3962",
+        "basis": "试听版 BGM 输入及 V7 源 WAV 的 2 秒窗口波形比对",
+        "max_abs_normalized_correlation": 0.081568,
+        "positive_control_correlation": 1.0
+      },
+      "evidence_gap": "未取得上游制作文件，无法独立逐项复核采样、音色库、插件预置及外部录音输入。发现具体第三方素材时逐项复核。"
+    },
+    "copyright_ownership": {
+      "status": "UNDETERMINED",
+      "rights_reserved": "保留用户依法可能享有的权益。"
+    }
+  },
+  "rights_evidence": "docs/junge-theme-v7-rights.md"
+}

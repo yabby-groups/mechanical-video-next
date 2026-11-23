@@ -23,6 +23,7 @@ references/.library.lock
 !/assets/audio/metadata/quiet-link-*.json
 !/assets/audio/metadata/junge-theme-v3.json
 !/assets/audio/metadata/junge-theme-v4.json
+!/assets/audio/metadata/junge-theme-v7.json
 # Per-video inputs, CAD sources/exports, provenance and diagnostics stay local.
 /assets/assemblies/
 /assets/media/
