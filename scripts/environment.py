@@ -2,6 +2,7 @@
 """Read-only environment audit; saves evidence, installs nothing."""
 import importlib.util
 import json
+from pathlib import Path
 import platform
 import shutil
 import subprocess

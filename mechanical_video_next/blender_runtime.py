@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 import time
 
-from scripts.common import ROOT, writejson
+from scripts.common import ROOT, active_budget, writejson
 
 
 DEFAULT_BLENDER = '/Applications/Blender.app/Contents/MacOS/Blender'
@@ -98,8 +98,34 @@ def blender_slot():
     path = ROOT / 'work/blender-render.lock'
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a') as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        guard = active_budget.get()
+        while True:
+            if guard:
+                guard.check()
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if guard is None:
+                    raise
+                time.sleep(0.25)
         yield handle
+
+
+def wait_for_blender(process, timeout):
+    guard = active_budget.get()
+    if guard is None:
+        return process.wait(timeout=timeout)
+    deadline = time.monotonic() + timeout
+    while True:
+        guard.check()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(process.args, timeout)
+        try:
+            return process.wait(timeout=min(0.25, remaining))
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def stop_process_group(process, *, grace=2):
@@ -241,6 +267,7 @@ def run_blender(args, *, name='blender', log=None, directory=None, timeout=None,
     started, monotonic = time.time(), time.monotonic()
     process = None
     returncode, launch_error, timed_out = None, None, False
+    cancellation = None
     cleanup_errors = []
     with stdout.open('wb') as out, stderr.open('wb') as err:
         try:
@@ -252,9 +279,11 @@ def run_blender(args, *, name='blender', log=None, directory=None, timeout=None,
                                            stdout=out, stderr=err, process_group=0,
                                            pass_fds=(slot.fileno(),))
                 try:
-                    returncode = process.wait(timeout=timeout)
+                    returncode = wait_for_blender(process, timeout)
                 except subprocess.TimeoutExpired:
                     timed_out = True
+                except (RuntimeError, KeyboardInterrupt) as error:
+                    cancellation = error
                 finally:
                     if process.returncode != 0:
                         cleanup_errors = stop_process_group(process)
@@ -275,8 +304,8 @@ def run_blender(args, *, name='blender', log=None, directory=None, timeout=None,
     native_signal = signal.Signals(-returncode).name if returncode is not None and returncode < 0 else None
     probe = next((m for m in markers if m.get('phase') == 'preflight_start'), {})
     result = dict(name=name, command=command, pid=process.pid if process else None,
-                  status='TIMEOUT' if timed_out else 'PASS' if returncode == 0 else 'FAIL',
-                  returncode=returncode, signal=native_signal, process_crash=bool(native_signal and not timed_out),
+                  status='CANCELLED' if cancellation else 'TIMEOUT' if timed_out else 'PASS' if returncode == 0 else 'FAIL',
+                  returncode=returncode, signal=native_signal, process_crash=bool(native_signal and not timed_out and not cancellation),
                   duration_seconds=round(time.monotonic() - monotonic, 3), timeout_seconds=timeout,
                   blender_version=next((m.get('version') for m in markers if m.get('version')),
                                        version.group(1) if version else None),
@@ -284,15 +313,20 @@ def run_blender(args, *, name='blender', log=None, directory=None, timeout=None,
                   launch_error=launch_error, stdout=str(stdout), stderr=str(stderr),
                   process_reaped=process.returncode is not None if process else None,
                   cleanup_errors=cleanup_errors,
+                  cancellation_reason=str(cancellation) if cancellation else None,
                   report=str(directory / 'result.json'))
     if result['status'] != 'PASS':
         render_crash_report(result, directory, started, output, errors)
+        if cancellation:
+            result['classification'] = 'CANCELLED'
     writejson(result['report'], result)
     if log is not None:
         log = Path(log)
         log.parent.mkdir(parents=True, exist_ok=True)
         with log.open('a') as handle:
             handle.write(json.dumps({k: result.get(k) for k in ('status', 'classification', 'report', 'stdout', 'stderr')}) + '\n')
+    if cancellation:
+        raise cancellation from BlenderFailure(result)
     if result['status'] != 'PASS' and not allow_failure:
         raise BlenderFailure(result)
     return result

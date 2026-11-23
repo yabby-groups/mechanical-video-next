@@ -10,8 +10,13 @@ import shutil
 import os
 import subprocess
 from contextlib import ExitStack
+import sys
 import time
-from common import ROOT, treebytes, filehash, writejson
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.common import CleanupBusy, ROOT, treebytes, filehash, writejson
 
 @contextmanager
 def production_lock():
@@ -21,22 +26,19 @@ def production_lock():
         raise ValueError('Refuse symlink production lock')
     with ExitStack() as stack:
         handle = stack.enter_context(path.open('a'))
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise CleanupBusy('Production busy; cleanup skipped') from error
         for other in sorted((ROOT/'work').rglob('*render*.lock')):
             if other.is_symlink():
                 raise ValueError('Refuse symlink render lock')
             stream = stack.enter_context(other.open('a'))
             try:
                 fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                raise RuntimeError('Render busy; cleanup skipped')
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise RuntimeError('Production busy; cleanup skipped')
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+            except BlockingIOError as error:
+                raise CleanupBusy('Render busy; cleanup skipped') from error
+        yield
 
 def reference_hashes(bases):
     """Stream references with ripgrep; large compiled geometry JSON never enters Python memory."""

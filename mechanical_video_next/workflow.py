@@ -24,6 +24,7 @@ from .production_contract import (
     directed_story, flexible_story, match_mechanical_scope, mechanism_first, producer_directed,
     skill_driven, story_development,
 )
+from scripts.common import CleanupBusy, filehash, hashed_inputs, input_hashes
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
@@ -102,14 +103,6 @@ V2_DEPENDENCIES = dict(LEGACY_DEPENDENCIES, **{
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
                                     separators=(',', ':')).encode()).hexdigest()
-
-
-def filehash(path):
-    h = hashlib.sha256()
-    with Path(path).open('rb') as f:
-        for block in iter(lambda: f.read(1024 * 1024), b''):
-            h.update(block)
-    return h.hexdigest()
 
 
 def write(path, value):
@@ -1696,7 +1689,10 @@ def artifact(task, name):
     entry = data['handoffs'].get(name)
     if not entry:
         raise ValueError('Missing handoff: ' + name)
-    envelope = json.loads((Path(task) / entry['path']).read_text())
+    path = Path(task) / entry['path']
+    contents = path.read_bytes()
+    hashed_inputs(path, hashlib.sha256(contents).hexdigest())
+    envelope = json.loads(contents)
     body = {k: v for k, v in envelope.items() if k != 'sha256'}
     if digest(body) != entry['sha256'] or envelope['sha256'] != entry['sha256']:
         raise ValueError('Handoff hash mismatch: ' + name)
@@ -3129,7 +3125,7 @@ def repair_attempt(task, issue_id, strategy, score):
     return issue
 
 
-def require_hd_workprint_request(task, config):
+def require_hd_workprint_request(task, config, *, record=True):
     """Verify explicit native-HD candidate authorization without granting acceptance."""
     data = load(task)
     binding = data.get('hd_workprint_authorization', {})
@@ -3201,11 +3197,12 @@ def require_hd_workprint_request(task, config):
     if (asset.get('qualified') is not True or asset.get('independent_meshes') is not True
             or asset.get('missing_required_parts') != []):
         raise ValueError('HD workprint requires the qualified existing asset')
-    event(task, 'hd_workprint_authorized', request=binding, config_sha256=filehash(config),
-          formal_acceptance=False)
+    if record:
+        event(task, 'hd_workprint_authorized', request=binding, config_sha256=filehash(config),
+              formal_acceptance=False)
 
 
-def require_animatic_diagnostic(task, config, qa_path):
+def require_animatic_diagnostic(task, config, qa_path, *, record=True):
     """Authorize only inexpensive raw full-storyboard previews before freeze."""
     data = load(task)
     if story_development(data):
@@ -3218,7 +3215,9 @@ def require_animatic_diagnostic(task, config, qa_path):
         states.add('REPAIRING')
     if data['state'] not in states or qa_path is None:
         raise ValueError('Low-cost full animatic requires RESEARCHING and independent preproduction QA')
-    qa = json.loads(Path(qa_path).read_text())
+    qa_contents = Path(qa_path).read_bytes()
+    hashed_inputs(qa_path, hashlib.sha256(qa_contents).hexdigest())
+    qa = json.loads(qa_contents)
     if (qa.get('task_id') != data['id'] or qa.get('reviewer_role') != 'QA'
             or qa.get('independent') is not True or not qa.get('reviewer_thread_id')
             or qa['reviewer_thread_id'] in {row['thread_id'] for row in data['agent_runs'] if row['role'] != 'QA'}):
@@ -3257,21 +3256,21 @@ def require_animatic_diagnostic(task, config, qa_path):
     for item in assembly.get('source_files', []):
         if not Path(item['path']).is_file() or filehash(item['path']) != item['sha256']:
             raise ValueError('Stale assembly source for full animatic: ' + item['path'])
-    event(task, 'low_cost_full_animatic_authorized', config_sha256=filehash(config),
-          qa=dict(path=str(qa_path), sha256=filehash(qa_path)),
-          formal_acceptance=False, expensive_render_allowed=False)
-    with lock(Path(task) / '.ledger.lock'):
-        current = load(task)
-        current['low_cost_animatic_approval'] = dict(
-            config=dict(path=str(Path(config).resolve()), sha256=filehash(config)),
-            qa=dict(path=str(Path(qa_path).resolve()), sha256=filehash(qa_path)))
-        write(Path(task) / 'task.json', current)
+    if record:
+        event(task, 'low_cost_full_animatic_authorized', config_sha256=filehash(config),
+              qa=dict(path=str(qa_path), sha256=filehash(qa_path)),
+              formal_acceptance=False, expensive_render_allowed=False)
+        with lock(Path(task) / '.ledger.lock'):
+            current = load(task)
+            current['low_cost_animatic_approval'] = dict(
+                config=dict(path=str(Path(config).resolve()), sha256=filehash(config)),
+                qa=dict(path=str(Path(qa_path).resolve()), sha256=filehash(qa_path)))
+            write(Path(task) / 'task.json', current)
     return qa
 
 
-def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=False,
-              animatic_diagnostic=False, preproduction_qa=None):
-    """Execute existing deterministic script once; serialize all Blender work."""
+def validate_stage(task, phase, config, *, workprint=False, diagnostic=False,
+                   animatic_diagnostic=False, preproduction_qa=None):
     if phase not in {'asset', 'checks', 'keys', 'local', 'preview', 'final'}:
         raise ValueError('Unsupported stage')
     data = load(task)
@@ -3288,15 +3287,17 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     from .three_d import validate_config
     if not Path(config).is_file():
         raise ValueError('Actual 3D production config file required')
-    validate_config(json.loads(Path(config).read_text()))
+    contents = Path(config).read_bytes()
+    hashed_inputs(config, hashlib.sha256(contents).hexdigest())
+    cfg = json.loads(contents)
+    validate_config(cfg)
     technical_render = require_source_supported_render(task, config)
-    scoped_render = json.loads(Path(config).read_text()).get('production_scope') == 'verified-shots'
+    scoped_render = cfg.get('production_scope') == 'verified-shots'
     if scoped_render and phase not in {'keys', 'checks', 'local'}:
         raise ValueError('Scoped shots cannot authorize a full film or final acceptance')
     if technical_render:
         remake_candidate = False
     if remake_candidate:
-        cfg = json.loads(Path(config).read_text())
         from .reference_policy import validate_research
         research = artifact(task, 'research')
         validate_research(research)
@@ -3334,7 +3335,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
     if animatic_diagnostic:
         if phase != 'local' or diagnostic or workprint:
             raise ValueError('Full animatic diagnostic only permits raw low-cost local previews')
-        require_animatic_diagnostic(task, config, preproduction_qa)
+        require_animatic_diagnostic(task, config, preproduction_qa, record=False)
     if data.get('reference_policy_version') == 1:
         if phase == 'asset':
             from .comprehension import enabled, validate_product_research
@@ -3349,13 +3350,13 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             require_reference_content(task)
         from .production_contract import science_story
         if data.get('asset_strategy') == 'existing-media' and not science_story(data) and not (
-                phase != 'asset' and json.loads(Path(config).read_text()).get('render_route') in {'2d', '2.5d'}):
+                phase != 'asset' and cfg.get('render_route') in {'2d', '2.5d'}):
             raise ValueError('Existing media requires an authored editing route plan; do not invoke CAD rendering')
     if data.get('asset_strategy') == 'autonomous-cad' and phase != 'asset':
-        candidate_config = json.loads(Path(config).read_text())
+        candidate_config = cfg
         if candidate_config.get('render', {}).get('preview_native'):
             if phase == 'local' and workprint and not diagnostic:
-                require_hd_workprint_request(task, config)
+                require_hd_workprint_request(task, config, record=False)
                 native_hd_workprint = True
                 selected = candidate_config.get('local_preview_shots', [])
                 storyboard = candidate_config.get('storyboard', [])
@@ -3379,7 +3380,6 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             source = Path(candidate.get('path', ''))
             if not source.is_file() or filehash(source) != candidate.get('sha256'):
                 raise ValueError('Diagnostic stage requires unchanged candidate model evidence')
-        cfg = json.loads(Path(config).read_text())
         selected = cfg.get('local_preview_shots', [])
         if (len(selected) != 1 or selected[0] not in cfg.get('shots', {})
                 or not 0 < cfg['shots'][selected[0]].get('seconds', 0) <= 5):
@@ -3408,24 +3408,88 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         check_qa(task, 'preview-qa', acceptance=False)
     if phase == 'final' and not technical_render and not (workprint and data['state'] == 'PREVIEW_CHECKING'):
         check_qa(task, 'preview-qa', acceptance=False)
+    assembly_path = ROOT / (cfg.get('assembly_config') or 'config/assembly.json')
+    if assembly_path.is_file():
+        contents = assembly_path.read_bytes()
+        hashed_inputs(assembly_path, hashlib.sha256(contents).hexdigest())
+        assembly = json.loads(contents)
+        for source in assembly.get('source_files', []):
+            if filehash(ROOT / source['path']) != source['sha256']:
+                raise ValueError('Assembly source hash mismatch: ' + source['path'])
+    return data, technical_render, scoped_render, remake_candidate, native_hd_short_insert
+
+
+def stage_ledger_identity(data):
+    # Progress reporting and receipts do not authorize rendering. Use a separate
+    # identity from asset/shot/composition keys.
+    progress = {'continuation', 'next_step', 'production_status', 'stages', 'route_runs',
+                'candidate_failures', 'delivery_receipt', 'low_cost_animatic_approval'}
+    return digest({key: value for key, value in data.items() if key not in progress})
+
+
+def stage_authorization(task, phase, config, **options):
+    files = {}
+    token = input_hashes.set(files)
+    try:
+        config_sha = filehash(config) if Path(config).is_file() else None
+        ledger = stage_ledger_identity(load(task))
+        validated = validate_stage(task, phase, config, **options)
+        if ledger != stage_ledger_identity(load(task)) or config_sha != filehash(config):
+            raise ValueError('Production inputs changed during stage validation')
+    finally:
+        input_hashes.reset(token)
+    return validated, dict(task=str(Path(task).resolve()), phase=phase, ledger=ledger,
+                           config=str(Path(config).resolve()), files=files)
+
+
+def verify_stage_authorization(binding, task, phase, config, contents, data):
+    path = str(Path(config).resolve())
+    if (binding['task'] != str(Path(task).resolve()) or binding['phase'] != phase
+            or binding['config'] != path or binding['ledger'] != stage_ledger_identity(data)
+            or binding['files'].get(path) != hashlib.sha256(contents).hexdigest()):
+        raise ValueError('Stage input differs from the authorized task, phase or config')
+    for source, expected in binding['files'].items():
+        if source != path and filehash(source) != expected:
+            raise ValueError('Authorized stage dependency changed: ' + source)
+
+
+def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=False,
+              animatic_diagnostic=False, preproduction_qa=None):
+    """Execute existing deterministic script once; serialize all Blender work."""
+    options = dict(workprint=workprint, diagnostic=diagnostic,
+                   animatic_diagnostic=animatic_diagnostic, preproduction_qa=preproduction_qa)
+    _, queued = stage_authorization(task, phase, config, **options)
     # Existing cleanup only removes old completed content-addressed entries,
     # skips protected/task-referenced entries and shares our global lock.
     sys.path.insert(0, str(ROOT / 'scripts'))
     from clean import cleanup
     try:
         cleanup(older_hours=720, apply=True)
-    except RuntimeError as error:
-        if str(error) != 'Production busy; cleanup skipped':
-            raise
+    except CleanupBusy as error:
         # Another real renderer owns the global lock. Skip optional cleanup,
         # then queue on that same lock; never fail or delete its live frames.
         event(task, 'cleanup_deferred', reason=str(error))
     with lock(ROOT / 'work/production.lock', wait=True):
-        if (editorial_policy.enabled(data) or directed_story(data)) and phase in {'preview', 'final'}:
-            require_animatic(task)
-            check_production_config(task, config)
-            if phase == 'final':
-                check_qa(task, 'preview-qa', acceptance=False)
+        validated, authorized = stage_authorization(task, phase, config, **options)
+        if authorized != queued:
+            raise ValueError('Authorized production inputs changed while waiting for the production lock')
+        data, technical_render, scoped_render, remake_candidate, native_hd_short_insert = validated
+        if animatic_diagnostic:
+            # Persist only the approval that passed revalidation under the production lock.
+            with lock(Path(task) / '.ledger.lock'):
+                current = load(task)
+                current['low_cost_animatic_approval'] = dict(
+                    config=dict(path=authorized['config'], sha256=authorized['files'][authorized['config']]),
+                    qa=dict(path=str(Path(preproduction_qa).resolve()),
+                            sha256=authorized['files'][str(Path(preproduction_qa).resolve())]))
+                write(Path(task) / 'task.json', current)
+            event(task, 'low_cost_full_animatic_authorized', **current['low_cost_animatic_approval'],
+                  formal_acceptance=False, expensive_render_allowed=False)
+        if workprint and data.get('hd_workprint_authorization'):
+            event(task, 'hd_workprint_authorized', request=data['hd_workprint_authorization'],
+                  config_sha256=authorized['files'][authorized['config']],
+                  formal_acceptance=False)
+        config_sha = authorized['files'][authorized['config']]
         start = time.time()
         from .production_contract import enabled as science_contract
         previous_media=None
@@ -3456,6 +3520,9 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         if env_file:
             args += ['--env-file', str(env_file)]
         logfile = Path(task) / ('stage-' + phase + '-' + str(time.time_ns()) + '.log')
+        authorization_path = logfile.with_suffix('.inputs.json')
+        write(authorization_path, authorized)
+        args += ['--stage-authorization', str(authorization_path), digest(authorized)]
         try:
             with logfile.open('w') as out:
                 subprocess.run(args, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, check=True)
@@ -3468,7 +3535,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                 with lock(Path(task) / '.ledger.lock'):
                     current = load(task)
                     current.setdefault('candidate_failures', []).append(dict(
-                        phase=phase, config=str(Path(config).resolve()), config_sha256=filehash(config),
+                        phase=phase, config=str(Path(config).resolve()), config_sha256=config_sha,
                         route=json.loads(Path(config).read_text()).get('render_route'),
                         status='REPAIRING', log=str(logfile), epoch=time.time()))
                     write(Path(task) / 'task.json', current)
@@ -3477,11 +3544,13 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             event(task, 'stage_failed', phase=phase, seconds=time.time()-start, log=str(logfile),
                   diagnostic=diagnostic or animatic_diagnostic or native_hd_short_insert, animatic_diagnostic=animatic_diagnostic,
                   previous_state=data['state'], isolated_candidate=isolated_candidate,
-                  lifecycle='REPAIRING' if isolated_candidate else 'FAILED', config_sha256=filehash(config))
+                  lifecycle='REPAIRING' if isolated_candidate else 'FAILED', config_sha256=config_sha)
             continuation(task)
             raise
-        with lock(Path(task) / '.ledger.lock'):
+        with lock(Path(task) / '.ledger.lock', wait=True):
             data = load(task)
+            config_contents = Path(config).read_bytes()
+            verify_stage_authorization(authorized, task, phase, config, config_contents, data)
             observations = []
             for line in logfile.read_text().splitlines():
                 try:
@@ -3491,7 +3560,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                 if isinstance(observation, dict) and 'cache_hit' in observation:
                     observations.append(observation)
             row = dict(phase=phase, seconds=round(time.time()-start, 3), log=str(logfile),
-                       config_sha256=filehash(config),
+                       config_sha256=config_sha,
                        command_success=True, quality_accepted=False, unaccepted_workprint=workprint or technical_render,
                        diagnostic=diagnostic or animatic_diagnostic or native_hd_short_insert, animatic_diagnostic=animatic_diagnostic,
                        cache_observations=observations,
@@ -3502,7 +3571,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             data['stages'].append(row)
             if phase=='final' and science_contract(data):
                 from .media_revision import compare, bind
-                cfg=json.loads(Path(config).read_text())
+                cfg=json.loads(config_contents)
                 target=ROOT/'output'/(cfg['id']+'-final.mp4')
                 row['media']=bind(target)
                 if producer_directed(data):
@@ -3519,7 +3588,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                     row['revision']=bind(revision)
                     row['upgrade_target_met']=result['status']=='OBSERVABLE_CHANGE_VERIFIED'
             if technical_render and not scoped_render and phase in {'preview', 'final'}:
-                cfg = json.loads(Path(config).read_text())
+                cfg = json.loads(config_contents)
                 target = ROOT/'output'/(cfg['id']+'-'+phase+'.mp4')
                 row['media'] = dict(path=str(target), sha256=filehash(target))
                 check_media([row['media']])
@@ -3531,9 +3600,9 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                     failure.update(status='RESOLVED', resolved_epoch=time.time(),
                                    resolution='Corrected inputs/environment; exact stage completed successfully')
             if scoped_render and phase == 'local':
-                cfg = json.loads(Path(config).read_text())
+                cfg = json.loads(config_contents)
                 receipt = json.loads((ROOT/'output'/cfg['id']/'verified-shots.json').read_text())
-                if receipt['config_sha256'] != filehash(config):
+                if receipt['config_sha256'] != config_sha:
                     raise ValueError('Scoped render receipt config changed')
                 for name, rendered in receipt['shots'].items():
                     check_media([rendered['media']])

@@ -12,10 +12,15 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
-from common import ROOT, budget, codehash, digest, filehash, probe, run, writejson
+
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.common import ROOT, budget, codehash, digest, execute, filehash, probe, run, writejson
 
 STORE = ROOT/'assets/audio/narration'
 DEFAULTS = ROOT/'config/narration-default.json'
@@ -146,7 +151,7 @@ def loudnorm_filter(p, measured=None):
 
 def measure_loudness(path, profile):
     command=['ffmpeg','-hide_banner','-nostats','-i',str(path),'-af',loudnorm_filter(profile),'-f','null','-']
-    p=subprocess.run(command,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True,check=True)
+    p=execute(command,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True,check=True)
     match=re.search(r'\{\s*"input_i".*?\}',p.stderr,re.S)
     if not match: raise RuntimeError('FFmpeg did not return loudnorm measurements')
     values=json.loads(match.group())
@@ -226,7 +231,7 @@ def normalize(source, output, profile):
 def silence_trim(source, output, profile):
     # Boundary observations only; no ASR or phoneme/semantic alignment claims.
     cmd=['ffmpeg','-hide_banner','-nostats','-i',str(source),'-af','silencedetect=noise=-48dB:d=0.04','-f','null','-']
-    proc=subprocess.run(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True,check=True)
+    proc=execute(cmd,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True,check=True)
     duration=float(probe(source)['format']['duration'])
     events=re.findall(r'silence_(start|end):\s*([0-9.]+)',proc.stderr)
     leading=0.0; trailing=duration; open_start=None

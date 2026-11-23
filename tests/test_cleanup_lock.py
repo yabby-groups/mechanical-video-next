@@ -51,6 +51,18 @@ class CleanupLockTests(unittest.TestCase):
                         clean.cleanup(0, apply=True)
                 self.assertTrue(folder.exists())
 
+    def test_standalone_render_lock_defers_cleanup_and_releases_production_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = self.make_entry(root, 'a' * 64)
+            with (root/'work/blender-render.lock').open('a') as render, patch.object(clean, 'ROOT', root):
+                fcntl.flock(render, fcntl.LOCK_EX)
+                with self.assertRaisesRegex(clean.CleanupBusy, 'Render busy'):
+                    clean.cleanup(0, apply=True)
+                self.assertTrue(folder.exists())
+                with (root/'work/production.lock').open('a') as production:
+                    fcntl.flock(production, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
     def test_symlink_inside_cache_is_refused_without_deleting_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

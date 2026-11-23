@@ -6,11 +6,10 @@ import json
 import math
 from pathlib import Path
 import re
-import subprocess
 import sys
 import wave
 
-from scripts.common import ROOT, codehash, digest, filehash, probe
+from scripts.common import ROOT, check_output, digest, filehash, probe
 from . import joint_timeline as joint
 from .media_policy import binding, bound, validate_rights
 
@@ -134,7 +133,7 @@ def decode_aac(path, expected_samples):
             or abs(float(audio['start_time'])) > 1 / rate
             or not math.isfinite(duration) or abs(round(duration * rate) - expected_samples) > AAC_FRAME):
         raise ValueError('Final AAC start, format or duration differs from the complete measured timeline')
-    data = subprocess.check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path), '-map', '0:a:0',
+    data = check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path), '-map', '0:a:0',
                                     '-f', 'f32le', '-acodec', 'pcm_f32le', '-'])
     samples = memoryview(data).cast('f')
     count = len(samples) // channels

@@ -10,8 +10,8 @@
     "reason": "Reviewed legacy no-science/no-context paths against pinned 86bd9b6: only guarded opt-in branches, conditional report fields and new-template camera handling differ. The explicit science.camera_clip branch also leaves these legacy paths unchanged. Science shots still use actual source hashes, including camera clipping changes. Evidence: docs/productions/cache-equivalence-audit-20261118.md"
   },
   "scripts/produce.py": {
-    "current_sha256": "73681446a79ffc2fb307ed6eb324445b6e93200d969e2e6dc5f239d74ab3e8d2",
-    "media_equivalent_sha256": "398af7fdbcf75d506f16a26b2d918f44b8e1df327f91dcff1fa1e4a202dde74e",
-    "reason": "Storage-only composition export/cache changes. Exact prior producer source retained and hash-verified in task repair evidence; props construction, Remotion sources and render flags unchanged. New mixed-original tasks render directly under output; cache binds the decoded export. Historical tasks retain original destination. See docs/productions/cache-equivalence-audit-20261118.md"
+    "current_sha256": "a7be7f2b81833e7d1d7693407b955c0866e60b3a99455ac6a248ae5fa830b118",
+    "media_equivalent_sha256": "cef6c56223c3ff59d19d6860d910321ccf59d8b603a50ce15ad399a9386554b9",
+    "reason": "Stage authorization, cancellation and metrics retain the same completed composition inputs, renderer invocation and media recipe."
   }
 }

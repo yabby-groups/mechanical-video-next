@@ -6,22 +6,23 @@ No retry loops: a failed subprocess or assertion stops this invocation.
 """
 import argparse
 import array
+import hashlib
 import json
 import math
 from pathlib import Path
 import re
 import shutil
-import subprocess
 import sys
-import threading
 import time
-from common import ROOT, Metrics, budget, codehash, digest, filehash, probe, run, writejson, work_budget_limit
+from common import ROOT
 
 # Direct script execution otherwise exposes only scripts/, while diagnostic
 # stages also need the project's evidence helpers without a duration import.
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.common import (BudgetExceeded, Metrics, budget, budgeted_stage, check_budget, check_output,
+                            codehash, digest, filehash, probe, run, writejson, work_budget_limit)
 from mechanical_video_next.blender_runtime import BlenderFailure, run_blender
 from mechanical_video_next.render_diagnostics import render_engine_fallback
 
@@ -74,6 +75,7 @@ def asset_key(assembly_path=None, *, source_exact=False):
                    'asset_sources':sources})
 
 def asset(metrics, assembly_path=None):
+    check_budget()
     start=time.time()
     folder=CACHE/'assets'/asset_key(assembly_path)
     target=folder/'assembly.blend'
@@ -104,10 +106,14 @@ def bounded_chunk_frames(requested, needed, width, height, used_bytes):
     per_frame = width * height * 3 * 1.12
     # Keep space for encoded chunks, concatenation and metadata as well as PNGs.
     reserve = max(8 * 1024**2, needed * width * height * 3 // 4)
-    available = min(work_budget_limit() - used_bytes - 8 * 1024**2, shutil.disk_usage(ROOT).free - 3 * 1024**3 - reserve)
+    limit = work_budget_limit()
+    free = shutil.disk_usage(ROOT).free
+    available = min(limit - used_bytes - 8 * 1024**2, free - 3 * 1024**3 - reserve)
     capacity = math.floor(available / per_frame)
     if capacity < 1:
-        raise RuntimeError('Insufficient work budget for one frame and encoding reserve')
+        raise BudgetExceeded('Insufficient work budget for one frame and encoding reserve',
+                             work_bytes=used_bytes, work_limit_bytes=limit, free_disk_bytes=free,
+                             reserve_bytes=reserve)
     return min(requested, needed, capacity)
 
 def shot_key(shot, quality, render=None, assembly_path=None, *, model=None):
@@ -186,6 +192,7 @@ def complete_frame_sequence(frames, template, science, needed, width, height):
 
 
 def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
+    check_budget()
     shot = {k: v for k, v in shot.items() if k != 'visual'}
     from mechanical_video_next.three_d import validate_config
     from mechanical_video_next.science_shots import validate_assembly_shot
@@ -251,7 +258,8 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
                                 else min(needed, chunk_frames) if chunked else needed)
             projected = budget() + width*height*3*projected_frames*1.12
             if projected > work_budget_limit():
-                raise RuntimeError('Projected temporary frame sequence exceeds work budget')
+                raise BudgetExceeded('Projected temporary frame sequence exceeds work budget',
+                                     projected_work_bytes=projected, work_limit_bytes=work_budget_limit())
             try:
                 run_blender(args, log=folder/'blender.log', name='shot')
             except BlenderFailure as exc:
@@ -300,6 +308,7 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     return folder/filename,kind,key
 
 def tts(shot, voice, metrics):
+    check_budget()
     start=time.time()
     if isinstance(voice,dict):
         from narration import synthesize_shot
@@ -366,7 +375,7 @@ def validate_video(path, config, cues):
         if i: assert cues[i-1]['end']<=c['start']
     run(['ffmpeg','-v','error','-i',path,'-f','null','-'],path.with_suffix('.decode.log'))
     samples=array.array('f')
-    samples.frombytes(subprocess.check_output(['ffmpeg','-v','error','-i',str(path),'-vn','-ac','1','-ar','16000','-f','f32le','pipe:1']))
+    samples.frombytes(check_output(['ffmpeg','-v','error','-i',str(path),'-vn','-ac','1','-ar','16000','-f','f32le','pipe:1']))
     peak=max(abs(x) for x in samples)
     rms=math.sqrt(sum(x*x for x in samples)/len(samples))
     assert 0.001<rms and 0.01<peak<0.9999, 'Silent or clipped narration track'
@@ -421,6 +430,7 @@ def composition_cached_media(folder):
 
 
 def compose(cfg, quality, media, metrics):
+    check_budget()
     from narration import effective_profile
     from mechanical_video_next.science_information import information_props, observation_overlay_findings
     from mechanical_video_next.remotion_build import render
@@ -683,7 +693,19 @@ def main():
     ap.add_argument('--task', type=Path, help='Evidence-led production task for full preview/final')
     ap.add_argument('--legacy-workprint', action='store_true', help='Explicit existing v1 task only; never quality acceptance')
     ap.add_argument('--diagnostic', action='store_true', help='One short candidate shot only; no full composition')
+    ap.add_argument('--stage-authorization', nargs=2, metavar=('PATH', 'SHA256'))
     args=ap.parse_args()
+    contents = args.config.read_bytes()
+    args.config_sha256 = hashlib.sha256(contents).hexdigest()
+    authorized_task = None
+    if args.stage_authorization:
+        from mechanical_video_next.workflow import load, verify_stage_authorization
+        authorization, expected = args.stage_authorization
+        binding = json.loads(Path(authorization).read_text())
+        if args.task is None or digest(binding) != expected:
+            raise ValueError('Invalid stage authorization binding')
+        authorized_task = load(args.task)
+        verify_stage_authorization(binding, args.task, args.phase, args.config, contents, authorized_task)
     if args.diagnostic and args.phase not in {'keys', 'checks', 'local'}:
         ap.error('Diagnostic mode cannot render a full video')
     if args.phase in {'preview', 'final', 'all'}:
@@ -692,7 +714,7 @@ def main():
         from mechanical_video_next.workflow import load, require_animatic, check_qa, require_source_supported_render, active_media_repair
         if args.task is None:
             ap.error('Full rendering requires --task with frozen blueprint and independent animatic QA')
-        task_data = load(args.task)
+        task_data = authorized_task if authorized_task is not None else load(args.task)
         technical_render = require_source_supported_render(args.task, args.config)
         bound_config = task_data.get('config')
         if not bound_config or Path(bound_config).resolve() != args.config.resolve():
@@ -714,11 +736,11 @@ def main():
             ap.error('Old task requires explicit --legacy-workprint; migrate new production to v2')
     from narration import load_env,effective_profile
     load_env(args.env_file or (ROOT/'.env.local' if (ROOT/'.env.local').exists() else None))
-    cfg=json.loads(args.config.read_text())
+    cfg=json.loads(contents)
     if args.task is not None:
         from mechanical_video_next.workflow import load
         from mechanical_video_next.production_contract import PRESENTATION_STYLE
-        task_style = load(args.task).get(PRESENTATION_STYLE)
+        task_style = (authorized_task if authorized_task is not None else load(args.task)).get(PRESENTATION_STYLE)
         if task_style is not None:
             cfg[PRESENTATION_STYLE] = task_style
     if cfg.get('production_scope') == 'verified-shots':
@@ -727,7 +749,6 @@ def main():
             ap.error('Verified shots require a task and a scoped local stage')
         require_source_supported_render(args.task, args.config)
     from mechanical_video_next.three_d import validate_config
-    from mechanical_video_next.visual_narrative import validate_footage
     validate_config(cfg)
     from mechanical_video_next.media_policy import enabled as asset_first
     needs_geometry = not asset_first(cfg) or any(s['visual']['render_engine'] == 'blender' for s in cfg['shots'].values())
@@ -766,118 +787,117 @@ def main():
             assert s['seconds'] == cfg['shots'][s['shot']]['seconds']
     elif joint.integrity(cfg['timeline']):
         cfg['render']['full_rate_preview'] = True
-    metrics=Metrics(cfg['id']+'-'+args.phase)
-    # Sample temporary use during rendering, including PNG sequences (not merely at stage end).
-    stopped=threading.Event()
-    def monitor():
-        while not stopped.wait(0.5):
-            try: metrics.peak=max(metrics.peak,budget())
-            except Exception as e:
-                # Main stages enforce the budget too; record the overrun and exit after current subprocess.
-                metrics.budget_error=str(e)
-    thread=threading.Thread(target=monitor,daemon=True)
-    thread.start()
-    status='passed'
-    error=None
+    metrics = Metrics(cfg['id'] + '-' + args.phase, defer_budget=True)
+    failure = None
     try:
-        models = [s['visual']['selected_asset'] for s in cfg['shots'].values()
-                  if asset_first(cfg) and s['visual']['reuse_decision'] == 'REUSE_MODEL']
-        if models and all(Path(m['path']).suffix == '.blend' for m in models):
-            from mechanical_video_next.media_policy import bound as media_bound
-            if len({m['sha256'] for m in models}) != 1:
-                raise ValueError('This assembly execution requires one matched native model')
-            model = media_bound(models[0])
-        else:
-            model=None if illustrated or not needs_geometry else asset(metrics,assembly_path)
-        if args.phase=='asset': return
-        names=list(dict.fromkeys(s['shot'] for s in cfg['storyboard']))
-        if args.diagnostic:
-            names=cfg['local_preview_shots']
-        elif args.phase == 'local':
-            selected = cfg.get('local_preview_shots', [])
-            assert selected and set(selected) <= set(names), 'Explicit local preview shots required'
-            names = selected
-        editorial = [name for name in names if cfg['shots'][name]['template'] == 'editorial']
-        names = [name for name in names if name not in editorial]
-        supplements = {}
-        from mechanical_video_next.media_policy import enabled as asset_first, bound as media_bound
-        if asset_first(cfg):
-            reused = [n for n in names if cfg['shots'][n]['visual']['reuse_decision'] == 'REUSE']
-            for name in reused:
-                spec = cfg['shots'][name]
-                visual = spec['visual']
-                path = media_bound(visual['selected_asset'])
-                if visual['source_time_range'] != [0, spec['seconds']] or not (path.parent/'checks.json').is_file():
-                    raise ValueError('Native 3D reuse needs a complete original clip with scene/checks provenance')
-                supplements[name] = (path, 'video', visual['selected_asset']['sha256'])
-            names = [n for n in names if n not in reused]
-        for name in editorial:
-            shot = cfg['shots'][name]
-            if 'footage' in shot:
-                path = validate_footage(shot['footage'], seconds=shot['seconds'])
-                supplements[name] = (path, 'video', shot['footage']['sha256'])
-        if args.phase=='checks':
-            selected=cfg.get('local_preview_shots',[])
-            assert selected and set(selected)<=set(names)
-            for name in selected:
-                make_shot(cfg['shots'][name],'checks',model,metrics,cfg['render'],assembly_path)
-            return
-        for name in names: make_shot(cfg['shots'][name],'keys',model,metrics,cfg['render'],assembly_path)
-        if args.phase=='keys': return
-        if args.phase=='local':
-            if editorial and cfg.get('production_scope') not in {'verified-shots', 'mechanism-preview'}:
-                clips = {n: make_shot(cfg['shots'][n], 'preview', model, metrics, cfg['render'], assembly_path) for n in names}
-                compose(cfg, 'preview', clips | supplements, metrics)
-                return
-            selected=cfg.get('local_preview_shots',[])
-            assert selected and set(selected)<=set(names), 'Explicit local preview shots required'
-            clips=[]
-            for name in selected:
-                clips.append(make_shot(cfg['shots'][name],'preview',model,metrics,cfg['render'],assembly_path)[0])
-            if cfg.get('production_scope') == 'verified-shots':
-                folder = ROOT/'output'/cfg['id']
-                folder.mkdir(parents=True, exist_ok=True)
-                media = {}
-                for name, clip in zip(selected, clips):
-                    target = folder/(name+'.mp4')
-                    shutil.copy2(clip, target)
-                    checks = json.loads((clip.parent/'checks.json').read_text())
-                    media[name] = dict(media=dict(path=str(target), sha256=filehash(target)),
-                        scene=checks['scene_artifact'], checks=dict(path=str(clip.parent/'checks.json'),
-                        sha256=filehash(clip.parent/'checks.json')))
-                writejson(folder/'verified-shots.json', dict(config_sha256=filehash(args.config),
-                    shots=media, formal_acceptance=False))
-            if cfg.get('production_scope') == 'mechanism-preview':
-                folder=ROOT/'output'/cfg['id']
-                folder.mkdir(parents=True,exist_ok=True)
-                listing=folder/'preview-segments.txt'
-                if any("'" in str(p) or '\n' in str(p) for p in clips):
-                    raise ValueError('Unsupported preview segment path')
-                listing.write_text(''.join("file '"+str(p.resolve())+"'\n" for p in clips))
-                target=folder/'candidate-preview.mp4'
-                run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',listing,
-                     '-c','copy','-movflags','+faststart',target],folder/'concat.log')
-                run(['ffmpeg','-v','error','-i',target,'-f','null','-'],folder/'decode.log')
-                writejson(folder/'candidate-preview.json',dict(media={'path':str(target),'sha256':filehash(target)},
-                    config={'path':str(args.config.resolve()),'sha256':filehash(args.config)},
-                    segments=[{'path':str(p),'sha256':filehash(p)} for p in clips],
-                    formal_acceptance=False,visual_review='UNKNOWN',audio_review='UNKNOWN'))
-            return
-        if args.phase != 'final':
-            preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render'],assembly_path) for n in names}
-            compose(cfg,'preview',preview | supplements,metrics)
-            if args.phase=='preview': return
-        final={n:make_shot(cfg['shots'][n],'final',model,metrics,cfg['render'],assembly_path) for n in names}
-        compose(cfg,'final',final | supplements,metrics)
-        if hasattr(metrics,'budget_error'): raise RuntimeError(metrics.budget_error)
-    except Exception as e:
-        status='failed'
-        error=str(e)
+        with budgeted_stage(metrics):
+            execute_stage(cfg, args, metrics, needs_geometry, illustrated, assembly_path)
+    except BaseException as error:
+        failure = error
         raise
     finally:
-        stopped.set()
-        thread.join()
-        value=metrics.finish(status=status,error=error,human_interventions_observed=None,automatic_repair_attempts=0)
-        writejson(ROOT/'output/runs'/f'{cfg["id"]}-{args.phase}-{int(metrics.start*1000)}.json',value)
+        budget_error = metrics.budget_error
+        try:
+            value = metrics.finish(
+                status='failed' if failure else 'passed', error=str(failure) if failure else None,
+                budget_error=dict(reason=str(budget_error), **getattr(budget_error, 'observation', {}))
+                if budget_error else None, human_interventions_observed=None, automatic_repair_attempts=0)
+            writejson(ROOT/'output/runs'/f'{metrics.name}-{int(metrics.start*1000)}.json', value)
+        except Exception as report_error:
+            if failure is None:
+                raise
+            failure.add_note(f'Could not write stage metrics: {report_error}')
+
+
+def execute_stage(cfg, args, metrics, needs_geometry, illustrated, assembly_path):
+    from mechanical_video_next.media_policy import enabled as asset_first, bound as media_bound
+    from mechanical_video_next.visual_narrative import validate_footage
+    models = [s['visual']['selected_asset'] for s in cfg['shots'].values()
+              if asset_first(cfg) and s['visual']['reuse_decision'] == 'REUSE_MODEL']
+    if models and all(Path(m['path']).suffix == '.blend' for m in models):
+        if len({m['sha256'] for m in models}) != 1:
+            raise ValueError('This assembly execution requires one matched native model')
+        model = media_bound(models[0])
+    else:
+        model=None if illustrated or not needs_geometry else asset(metrics,assembly_path)
+    if args.phase=='asset': return
+    names=list(dict.fromkeys(s['shot'] for s in cfg['storyboard']))
+    if args.diagnostic:
+        names=cfg['local_preview_shots']
+    elif args.phase == 'local':
+        selected = cfg.get('local_preview_shots', [])
+        assert selected and set(selected) <= set(names), 'Explicit local preview shots required'
+        names = selected
+    editorial = [name for name in names if cfg['shots'][name]['template'] == 'editorial']
+    names = [name for name in names if name not in editorial]
+    supplements = {}
+    if asset_first(cfg):
+        reused = [n for n in names if cfg['shots'][n]['visual']['reuse_decision'] == 'REUSE']
+        for name in reused:
+            spec = cfg['shots'][name]
+            visual = spec['visual']
+            path = media_bound(visual['selected_asset'])
+            if visual['source_time_range'] != [0, spec['seconds']] or not (path.parent/'checks.json').is_file():
+                raise ValueError('Native 3D reuse needs a complete original clip with scene/checks provenance')
+            supplements[name] = (path, 'video', visual['selected_asset']['sha256'])
+        names = [n for n in names if n not in reused]
+    for name in editorial:
+        shot = cfg['shots'][name]
+        if 'footage' in shot:
+            path = validate_footage(shot['footage'], seconds=shot['seconds'])
+            supplements[name] = (path, 'video', shot['footage']['sha256'])
+    if args.phase=='checks':
+        selected=cfg.get('local_preview_shots',[])
+        assert selected and set(selected)<=set(names)
+        for name in selected:
+            make_shot(cfg['shots'][name],'checks',model,metrics,cfg['render'],assembly_path)
+        return
+    for name in names: make_shot(cfg['shots'][name],'keys',model,metrics,cfg['render'],assembly_path)
+    if args.phase=='keys': return
+    if args.phase=='local':
+        if editorial and cfg.get('production_scope') not in {'verified-shots', 'mechanism-preview'}:
+            clips = {n: make_shot(cfg['shots'][n], 'preview', model, metrics, cfg['render'], assembly_path) for n in names}
+            compose(cfg, 'preview', clips | supplements, metrics)
+            return
+        selected=cfg.get('local_preview_shots',[])
+        assert selected and set(selected)<=set(names), 'Explicit local preview shots required'
+        clips=[]
+        for name in selected:
+            clips.append(make_shot(cfg['shots'][name],'preview',model,metrics,cfg['render'],assembly_path)[0])
+        if cfg.get('production_scope') == 'verified-shots':
+            folder = ROOT/'output'/cfg['id']
+            folder.mkdir(parents=True, exist_ok=True)
+            media = {}
+            for name, clip in zip(selected, clips):
+                target = folder/(name+'.mp4')
+                shutil.copy2(clip, target)
+                checks = json.loads((clip.parent/'checks.json').read_text())
+                media[name] = dict(media=dict(path=str(target), sha256=filehash(target)),
+                    scene=checks['scene_artifact'], checks=dict(path=str(clip.parent/'checks.json'),
+                    sha256=filehash(clip.parent/'checks.json')))
+            writejson(folder/'verified-shots.json', dict(config_sha256=args.config_sha256,
+                shots=media, formal_acceptance=False))
+        if cfg.get('production_scope') == 'mechanism-preview':
+            folder=ROOT/'output'/cfg['id']
+            folder.mkdir(parents=True,exist_ok=True)
+            listing=folder/'preview-segments.txt'
+            if any("'" in str(p) or '\n' in str(p) for p in clips):
+                raise ValueError('Unsupported preview segment path')
+            listing.write_text(''.join("file '"+str(p.resolve())+"'\n" for p in clips))
+            target=folder/'candidate-preview.mp4'
+            run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i',listing,
+                 '-c','copy','-movflags','+faststart',target],folder/'concat.log')
+            run(['ffmpeg','-v','error','-i',target,'-f','null','-'],folder/'decode.log')
+            writejson(folder/'candidate-preview.json',dict(media={'path':str(target),'sha256':filehash(target)},
+                config={'path':str(args.config.resolve()),'sha256':args.config_sha256},
+                segments=[{'path':str(p),'sha256':filehash(p)} for p in clips],
+                formal_acceptance=False,visual_review='UNKNOWN',audio_review='UNKNOWN'))
+        return
+    if args.phase != 'final':
+        preview={n:make_shot(cfg['shots'][n],'preview',model,metrics,cfg['render'],assembly_path) for n in names}
+        compose(cfg,'preview',preview | supplements,metrics)
+        if args.phase=='preview': return
+    final={n:make_shot(cfg['shots'][n],'final',model,metrics,cfg['render'],assembly_path) for n in names}
+    compose(cfg,'final',final | supplements,metrics)
 
 if __name__=='__main__': main()

@@ -61,7 +61,8 @@ class HDWorkprintTests(unittest.TestCase):
                 patch.object(w, 'lock', side_effect=lambda path, **kwargs: nullcontext()), \
                 patch.object(w, 'continuation'):
             w.run_stage(task, 'local', self.config, workprint=True)
-        authorize.assert_called_once_with(task, self.config)
+        self.assertEqual(authorize.call_count, 2)
+        authorize.assert_called_with(task, self.config, record=False)
         after = w.load(task)
         self.assertEqual(after['state'], 'RESEARCHING')
         self.assertTrue(after['stages'][-1]['unaccepted_workprint'])

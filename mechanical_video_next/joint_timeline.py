@@ -4,10 +4,9 @@ import json
 import math
 from fractions import Fraction
 from pathlib import Path
-import subprocess
 import wave
 
-from scripts.common import ROOT, filehash, probe
+from scripts.common import ROOT, check_output, filehash, probe
 
 FIELD = 'timeline_policy_version'
 VERSION = 1
@@ -145,7 +144,7 @@ def validate_rendered_film(path, plan, *, require_audio=True):
             or abs(float(video.get('duration', 'inf')) - duration) > 1e-6):
         raise ValueError('Actual MP4 picture clock differs from the complete joint timeline')
     audio_stream = '0:a:0' if require_audio else '0:a:0?'
-    progress = subprocess.check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path),
+    progress = check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path),
                                         '-map', '0:v:0', '-map', audio_stream, '-fps_mode', 'passthrough',
                                         '-nostats', '-progress', 'pipe:1', '-f', 'null', '-'], text=True)
     frames = [int(line.split('=', 1)[1]) for line in progress.splitlines() if line.startswith('frame=')]
@@ -156,7 +155,7 @@ def validate_rendered_film(path, plan, *, require_audio=True):
 
 
 def validate_decoded_picture_clock(path, frame_count, time_base):
-    timestamps = json.loads(subprocess.check_output([
+    timestamps = json.loads(check_output([
         'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames',
         '-show_entries', 'frame=pts', '-of', 'json', str(path),
     ]))['frames']

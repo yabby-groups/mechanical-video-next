@@ -41,8 +41,10 @@ class AssetImportDurationTests(unittest.TestCase):
             with patch.object(sys, 'argv', ['produce', str(config), '--phase', 'asset']), \
                  patch.object(produce, 'asset') as asset, \
                  patch.object(produce, 'Metrics') as metrics, \
+                 patch('scripts.common.sample_budget', return_value=0), \
                  patch.object(produce, 'writejson'):
                 metrics.return_value.start = 0
+                metrics.return_value.peak = 0
                 produce.main()
                 asset.assert_called_once()
             with patch.object(sys, 'argv', ['produce', str(config), '--phase', 'local']), \
