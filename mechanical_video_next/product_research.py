@@ -56,16 +56,18 @@ def discover(plan, *, lookup=search):
 
     def add(url, title, category):
         if not url or urlsplit(url).scheme not in {'http', 'https'}:
-            return
+            return False
         try:
             check_identity(url)
             check_identity(title)
             key = canonical_video_id(url)
         except ValueError:
-            return
-        if key not in seen and len(leads) < limit:
-            leads.setdefault(key, dict(url=url, title=title, category=category,
-                                       status='UNKNOWN', license='REFERENCE_ONLY'))
+            return False
+        if key in seen or key in leads or len(leads) >= limit:
+            return False
+        leads[key] = dict(url=url, title=title, category=category,
+                          status='UNKNOWN', license='REFERENCE_ONLY')
+        return True
 
     for url in plan['seeds']:
         add(url, '', 'user_reference')
@@ -84,10 +86,12 @@ def discover(plan, *, lookup=search):
                 continue
             attempts.append(dict(query, status='SEARCHED', results=len(results)))
             # Reserve space for alternate models and asset categories.
-            matching = [(url, title) for url, title in results
-                        if url and relevant(url, title or '', query)]
-            for url, title in matching[:2]:
-                add(url, title, query['category'])
+            added = 0
+            for url, title in results:
+                if url and relevant(url, title or '', query) and add(url, title, query['category']):
+                    added += 1
+                    if added == 2:
+                        break
     return dict(version=VERSION, plan_sha256=digest(plan), product=plan['product'],
                 question=plan['question'], attempts=attempts, leads=list(leads.values()),
                 implementations=implementations,

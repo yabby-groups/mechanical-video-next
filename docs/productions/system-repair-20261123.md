@@ -31,6 +31,8 @@
 
 局部修订依据 Panasonic SR-FC106 实物维修照片 6、7、16 调整了可拆显示区罩的弧形外沿与开口。新片为 54 帧，安装壳体保留在画面中，Blender 在此次拆装的所有帧中未检出高于安装状态的网格表面相交。尺寸以照片比例估算，后铰链与受力脱扣仍无足够的同型号实证。垃圾桶已有的原生侧视段可同时观察踏板、竖杆与盖沿在松脚后回位，历史模型的来源仅适用于历史复查。 [电饭煲前罩对照](../../output/system-repair-validation/followup/sr-fc106-before-after.mp4) · [SR-FC106 实拍](https://taakuyu.hatenablog.com/entry/2023/11/29/224804) · [垃圾桶原生回放](../../output/system-repair-validation/reveal-repair/bin-release/bin-native-replay.mp4)
 
+锁定 SR-FC106 的实际检索中，10 次查询没有新增可用候选。现有 `continue` 在这种情况下带出最多三条同题维修检索供浏览器补查。用其中的日语查询定位到原厂支持和同型号维修，另核对零件供应商对前开盖锁扣弹簧 ARE06-H64 的兼容型号清单。此清单支持零件对应，后部弹盖铰链仍需实物证据。 [浏览器接续回执](../../output/system-repair-validation/followup/product-browser-continuation.json) · [原厂支持](https://panasonic.jp/suihan/products/SR-FC106/support.html) · [零件资料](https://www.parts-com.net/view/item/000000030160)
+
 浏览器从首帧播放到片尾的四个 MP4 分别为电饭煲 v6 36.00 秒、垃圾桶 r12 52.87 秒、门把手原版 40.50 秒和紧剪版 22.60 秒。FFmpeg 全量扫描定位了时间区间，静音播放和时序画面支持定位，音频感知和连续视觉接受度仍未确认。电饭煲 v6 起始 1.33 秒为低变化，画面主体和工业造型不足以对应 SR-FC106，9 秒分离后仍有一片盖盘遮挡。垃圾桶 r12 在 1 秒已见开盖，25.77–33.43 秒一带仍多次出现低变化画面。门把手紧剪版动作开端由 0.767 秒提前到 0.033 秒，18.97 秒后仍有低变化的力矩讲解段，保留了对原速回程与讲解同步的检查。 [完整播放记录](../../output/system-repair-validation/followup/local-playback.json) · [门把手完整前后对照](../../output/door-handle-pacing-regression-20261123/full-before-after.mp4)
 
 11 月 23 日抖音窗口的 2 秒跳出 32.73%、5 秒完播 40.25%、均播 11.24 秒、完播 2.9% 用于安排验证重点。留存看第一动作和首次因果，点赞看是否出现清楚的机械发现，收藏看结构切面是否值得复看，评论围绕真实设计问题，关注看是否呈现系列承诺。历史数据无法验证此次改动的发布效果。 [双平台历史数据](../plans/operations-growth-review-20261123.md)

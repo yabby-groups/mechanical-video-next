@@ -975,9 +975,17 @@ def continuation(task, persist=True):
         discovery = plan.with_name('product-discovery.json')
         action['product_search_plan'] = str(plan)
         action['product_discovery'] = str(discovery)
-        if not discovery.is_file() or read_input_json(discovery).get('plan_sha256') != digest(read_input_json(plan)):
+        search_plan = read_input_json(plan)
+        result = read_input_json(discovery) if discovery.is_file() else {}
+        if result.get('plan_sha256') != digest(search_plan):
             action.update(kind='EXECUTABLE', command=['uv', 'run', 'python', '-m',
                           'mechanical_video_next.product_research', str(task.resolve())])
+        elif result.get('status') == 'INSPECTION_REQUIRED' and not any(
+                lead['category'] != 'user_reference' for lead in result.get('leads', [])):
+            action['browser_lookups'] = [row['url'] for row in search_plan['queries']
+                                         if row['category'] == 'repair' and row.get('url')][:3]
+            if action['browser_lookups']:
+                action['action'] += '. Open the supplied browser lookups for gaps; the automated queries added no distinct sources'
         action['action'] += '. Use the cached sources and bounded multilingual public lookups in the product search plan.'
     # A QA gap is work, not proof that every possible production step is blocked.
     blockers = [row for row in data.get('production_blockers', []) if row.get('status') == 'OPEN'

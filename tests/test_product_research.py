@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from mechanical_video_next import product_assembly, product_research, reference_library, workflow
-from scripts.common import filehash
+from scripts.common import digest, filehash
 
 
 class ProductResearchTests(unittest.TestCase):
@@ -39,6 +39,24 @@ class ProductResearchTests(unittest.TestCase):
         self.assertGreater(len(result['attempts']), 1)
         self.assertEqual(result['status'], 'INSPECTION_REQUIRED')
         self.assertEqual([(row['url'], row['status']) for row in result['leads']], [(source[0], 'UNKNOWN')])
+
+    def test_provider_duplicates_leave_room_for_new_leads_and_empty_results_get_browser_urls(self):
+        seed = 'https://example.com/rice-cooker-manual'
+        task = workflow.create_task('rice cooker', root=self.root, visual_policy_version=2,
+                                    media_policy_version=1, product_references=[seed])
+        action = workflow.continuation(task, persist=False)['next_action']
+        plan = json.loads(Path(action['product_search_plan']).read_text())
+        new = 'https://example.com/rice-cooker-teardown'
+        reply = [(seed, 'Rice cooker manual'), (seed + '?utm_source=duplicate', 'Rice cooker PDF'),
+                 (new, 'Rice cooker teardown')]
+        result = product_research.discover(plan, lookup=lambda _: reply)
+        self.assertEqual([lead['url'] for lead in result['leads']], [seed, new])
+        report = Path(action['product_discovery'])
+        report.write_text(json.dumps({'plan_sha256': digest(plan), 'status': 'INSPECTION_REQUIRED',
+                                      'leads': result['leads'][:1]}))
+        fallback = workflow.continuation(task, persist=False)['next_action']
+        self.assertEqual(fallback['kind'], 'REASONING_REQUIRED')
+        self.assertEqual(len(fallback['browser_lookups']), 3)
 
     def test_reuses_valid_inspection_and_keeps_models_separate(self):
         source = self.root / 'repair.txt'
