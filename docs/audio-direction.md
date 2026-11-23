@@ -27,8 +27,9 @@
 
 ## 混音、增量与审查
 
-- 现有 Neil 配置及逐句音源保留。按原音乐响度校准不同段落，实测语音区间及两侧留量控制动态避让。拟音窗降低音乐。音乐循环交叠淡化，段落淡入淡出，结尾逐渐归零。混音以相同的逐样本算法生成和验证，包含有限的整轨峰值余量，由实际 AAC 预编码测定。
-- `assets/audio/mixes/` 按音源、帧长和混音参数缓存结果。`scripts/clean.py` 围绕现有引用和清理锁移除过期可再生混音。解码 WAV 与试编码 AAC 随混音清理。字幕变化复用原选曲和混音键。若正在修订 BGM，编译新配置并按已有不可变交接登记，可复用同质量、同轨道、字幕和画面内容的已有合成。现有 Blender 镜头键与音频字段无关。对旧成片也可另外生成一个独立版本。
+- 默认使用 Adaptive Ducking V2。先按源音乐响度设定各段底乐，再以 100 ms PCM 窗测量 Neil、BGM 和拟音。常规旁白避让约 4–8 dB，短时语音与音乐 RMS 差以约 15 dB 为目标。音乐在 200 ms 内提前降低，Hold 为 320 ms，Release 为 600 ms。短停顿共享同一包络。若较弱的实际语音窗仍有掩蔽风险，按已绑定的音乐和拟音能量进一步降低 BGM。继续使用原有逐窗 10 dB 技术门禁。拟音窗另留 6 dB 空间。
+- `audio_direction.json` 绑定 Ducking 版本、参数和以样本位置为单位的增益曲线。常规避让保持正增益，段落、循环和结尾仍按设计淡化。验收从原始音源及 Neil PCM 复算包络和最终混音。试编码 AAC 用于确定同一混音的峰值余量。旧收据仍按 V1 固定避让校验。
+- `assets/audio/mixes/` 按音源、帧长、Ducking 版本和完整参数缓存结果。`scripts/clean.py` 围绕现有引用和清理锁移除过期可再生混音。解码 WAV 与试编码 AAC 随混音清理。字幕变化复用原选曲和混音键。若正在修订 BGM，编译新配置并按已有不可变交接登记，可复用同质量、同轨道、字幕和画面内容的已有合成。现有 Blender 镜头键与音频字段无关。对旧成片也可另外生成一个独立版本。
 
 ```sh
 uv run python -m mechanical_video_next.director_audio postprocess BLUEPRINT.json \
@@ -37,4 +38,6 @@ uv run python -m mechanical_video_next.director_audio postprocess BLUEPRINT.json
 
 后期命令需要原影片对应的 Joint Timeline、实测 Neil 收据和原始 PCM。它通过 FFmpeg 复制 H.264 画面码流，校验帧数、时间轴、最终 AAC 和真峰值，并写 `REVISION.audio-post.json`。历史任务和原文件的交付记录仍可用于核对原版。新版本须以其精确 MP4 重新审查。
 
-最终技术检查绑定混音、逐段版权证据、实际 AAC、语音样本和字幕时序，检查可测 BGM、削波、局部掩蔽和不高于项目设定的真峰值。独立 QA 在现有 `final-qa` 写 `music_listening_review`，包含 `media_sha256`、`method`、实际覆盖的 `time_range` 和七项 `checks`。字段为 `story_fit`、`neil_clarity`、`mechanical_sync`、`opening`、`reveal`、`transitions`、`ending`。每项写 `status` 与观察。实际听完全片时记录 `full_audio_listened` 和现有逐镜音画观察，没有实听时感知为 `UNKNOWN`。正式交付要求技术和独立听审同时通过。
+最终技术检查绑定混音、逐段版权证据、实际 AAC、语音样本和字幕时序。Speech Intelligibility 测量活动语音窗的人声与背景电平差。BGM Continuity 在源音乐有能量的旁白窗检查混音后是否持续掉到极低电平，并记录样本范围。源音乐本身较弱或静音的窗口单独记录。削波、语音完整性、逐窗掩蔽与真峰值验收照常执行。
+
+独立 QA 在 `final-qa` 写 `music_listening_review`，包含 `media_sha256`、`method`、实际听审的 `time_range`、各项 `status` 和观察。使用 `story_fit`、`neil_clarity`、`mechanical_sync`、`opening`、`reveal`、`transitions`、`ending`。V2 新增 `bgm_continuity`，同时通过 `neil_clarity` 检查 Speech Intelligibility。实际听完全片时记录 `full_audio_listened` 和现有逐镜音画观察。没有实听时感知为 `UNKNOWN`。正式交付要求技术和独立听审同时通过。
