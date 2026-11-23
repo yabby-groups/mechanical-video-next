@@ -60,3 +60,5 @@ uv run python -m mechanical_video_next.covers output/tasks/<task> --require-pass
 增长报告绑定封面报告；最终 COMPLETED 门禁验证封面独立QA和增长报告时效。更换推荐版本、源视频、文案、字体或生成器会使旧封面/QA过期。重新生成封面后须重新审查并生成增长报告。该入口仅执行 ffprobe、单帧 ffmpeg 和 Pillow 排版，不调用CAD、动画、配音或视频合成。
 
 候选可设置 `source_crop: [left, top, right, bottom]` 从来源帧裁去旧字幕与空白；坐标归一化，必须完整包含 `subject_box`，越界或裁掉重要结构会被阻止。报告记录实际裁区。历史任务的 `outputs.candidate.path` 可作为封面来源，视频仍保留候选状态；封面生成不把候选升级为已验收成片。
+
+历史 `source-supported-film` 任务的默认入口优先选择当前配置的有效成片。当前配置尚无 final 阶段时，入口验证候选的路径、哈希、章节及当前来源，并要求候选与同一配置成功生成的 preview 阶段一致。封面报告在实际使用的候选来源上标记 `candidate: true`。增长报告与交付仍要求当前有效成片。

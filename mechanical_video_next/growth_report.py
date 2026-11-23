@@ -283,7 +283,7 @@ def comparison_markdown(report):
 
 
 def paths_for(task):
-    from .workflow import current_source_supported_film
+    from .workflow import current_source_supported_film, reject_superseded_scoped_final
     data = read(Path(task)/'task.json')
     scoped_media = current_source_supported_film(task, data)
     paths = {}
@@ -291,13 +291,24 @@ def paths_for(task):
         ref = (scoped_media if route == '3d' and scoped_media is not None
                else data.get('route_runs', {}).get(route, {}).get('outputs', {}))
         paths[route] = Path(ref.get('path', Path(task)/('2_5d' if route=='2.5d' else route)/'final.mp4')).resolve()
+        if route == '3d' and scoped_media is None and not ref.get('sha256') and paths[route].is_file():
+            reject_superseded_scoped_final(data, {'sha256': sha(paths[route])})
     return paths
 
 
 def generate(task, paths=None, comparison=None):
     task = Path(task).resolve()
     task_data = read(task/'task.json')
-    paths = paths or paths_for(task)
+    if paths:
+        from .workflow import current_source_supported_film, reject_superseded_scoped_final
+        scoped_media = current_source_supported_film(task, task_data)
+        if scoped_media is not None:
+            if Path(paths.get('3d', '')).resolve() != Path(scoped_media['path']).resolve():
+                raise ValueError('Growth report requires the current source-supported final stage')
+        elif paths.get('3d') and Path(paths['3d']).is_file():
+            reject_superseded_scoped_final(task_data, {'sha256': sha(paths['3d'])})
+    else:
+        paths = paths_for(task)
     routes = ('3d',) if task_data.get('three_d_policy_version') == 1 else ROUTES
     comparison = None if len(routes) == 1 else Path(comparison or task/'multiroute/compare.mp4').resolve()
     missing = [str(paths.get(r)) for r in routes if not paths.get(r) or not Path(paths[r]).is_file()]
@@ -401,7 +412,12 @@ def generate(task, paths=None, comparison=None):
     # are recorded, never silently treated as current QA acceptance.
     dependencies = {}
     for doc in docs:
-        for ref in references(doc['data']):
+        content = doc['data']
+        if Path(doc['source']['path']) == task/'task.json':
+            # Receipts and report pointers describe earlier outputs. Scanning them
+            # as inputs would make regenerating this report invalidate itself.
+            content = {k: v for k, v in content.items() if k not in {'delivery_receipt', 'growth_report'}}
+        for ref in references(content):
             p=str(Path(ref['path']).resolve())
             dependencies[p]={'path':p,'sha256':sha(p) if Path(p).is_file() else None}
     report['dependencies']=list(dependencies.values())
@@ -450,13 +466,16 @@ def generate(task, paths=None, comparison=None):
 def validate(task):
     task=Path(task).resolve(); report=read(task/'growth-report.json')
     from .covers import validate as validate_covers
-    from .workflow import current_source_supported_film
-    scoped_media = current_source_supported_film(task, read(task/'task.json'))
+    from .workflow import current_source_supported_film, reject_superseded_scoped_final
+    data = read(task/'task.json')
+    scoped_media = current_source_supported_film(task, data)
+    reported = report.get('routes', {}).get('3d', {}).get('media', {})
     if scoped_media is not None:
-        reported = report.get('routes', {}).get('3d', {}).get('media', {})
         if (Path(reported.get('path', '')).resolve() != Path(scoped_media['path']).resolve()
                 or reported.get('sha256') != scoped_media['sha256']):
             raise ValueError('Growth report STALE: current source-supported final media changed')
+    else:
+        reject_superseded_scoped_final(data, reported)
     if not bound(report.get('covers', {})):
         raise ValueError('Growth report STALE: covers changed or missing')
     validate_covers(task)

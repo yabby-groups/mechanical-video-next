@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from contextlib import ExitStack
+from contextlib import redirect_stdout
+from io import StringIO
 from mechanical_video_next import workflow as w
 
 
@@ -158,6 +160,48 @@ class HistoricalScopedDeliveryTests(unittest.TestCase):
                 candidates=[dict(id='core', route='3d', seconds=0, shot_id='core', mechanical_moment='Fixture',
                                  subject_box=[0, 0, 1, 1])]))
             self.assertTrue(w.require_source_supported_render(task))
+            def cli(*args):
+                with patch('sys.argv', ['mechanical_video_next', *map(str, args)]), redirect_stdout(StringIO()):
+                    w.main()
+
+            candidate_path = root / 'candidate.mp4'
+            subprocess.run(['ffmpeg', '-v', 'error', '-i', str(final), '-c', 'copy',
+                            '-metadata', 'title=Candidate', str(candidate_path)], check=True)
+            candidate = dict(bind(candidate_path), chapter_ids=['core'])
+            candidate_data = w.load(task)
+            candidate_data['stages'][-1].update(phase='preview', media=bind(candidate_path))
+            candidate_data['route_runs'] = {'3d': {'outputs': {'candidate': candidate}}}
+            w.write(task/'task.json', candidate_data)
+            with self.subTest(case='candidate with no final'):
+                before = w.continuation(task)
+                self.assertFalse(before['rendered_routes'])
+                report = covers.generate(task)
+                self.assertEqual(report['source_media']['3d'],
+                                 dict(bind(candidate_path), candidate=True))
+                self.assertEqual(report['status'], 'CANDIDATE_UNACCEPTED')
+                self.assertEqual(covers.validate(task), report)
+                self.assertEqual(w.continuation(task), before)
+                with self.assertRaisesRegex(ValueError, 'independent QA acceptance'):
+                    w.record_delivery(task, [candidate_path], 'fixture candidate')
+                with self.assertRaisesRegex(ValueError, 'final stage media is missing'):
+                    growth_report.generate(task)
+
+            for stale in (candidate_path, Path(manual['path']), config):
+                with self.subTest(candidate_stale=stale.name):
+                    original = stale.read_bytes()
+                    try:
+                        stale.write_bytes(original + b' ')
+                        with self.assertRaises((ValueError, OSError)):
+                            covers.prepare(task)
+                        if stale == candidate_path:
+                            stale.unlink()
+                            with self.assertRaises((ValueError, OSError)):
+                                covers.prepare(task)
+                    finally:
+                        stale.write_bytes(original)
+            data['route_runs'] = candidate_data['route_runs']
+            data['stages'].insert(-1, candidate_data['stages'][-1])
+            w.write(task/'task.json', data)
             self.assertEqual(growth_report.paths_for(task), {'3d': final.resolve()})
             self.assertEqual(covers.prepare(task)[1], {'3d': media})
 
@@ -193,10 +237,74 @@ class HistoricalScopedDeliveryTests(unittest.TestCase):
                 w.advance(task, 'COMPLETED')
                 self.assertEqual(validate_proof.call_args.args[1], dict(media, chapter_ids=['core']))
                 self.assertEqual(w.continuation(task)['milestone'], 'QA_ACCEPTED')
+
+                original_config = config.read_bytes()
+                verified_config = root/'verified-shots.json'
+                w.write(verified_config, dict(json.loads(original_config), production_scope='verified-shots',
+                                              local_preview_shots=['core']))
+                plan_path = root/'route-plan.json'
+                w.write(plan_path, dict(topic=data['topic'], routes={'3d': str(final)}, steps=[],
+                                        prerequisite_inputs=[str(verified_config)]))
+
+                def assert_superseded():
+                    historical = w.load(task)
+                    replacement = w.load(task)
+                    replacement['config'] = str(verified_config)
+                    for row in replacement['shot_production'].values():
+                        row.update(config=bind(verified_config), status='RESEARCH_REQUIRED')
+                    w.write(task/'task.json', replacement)
+                    try:
+                        before_refresh = w.continuation(task)
+                        blocked = []
+                        for entry in (growth_report.paths_for, covers.prepare,
+                                      growth_report.generate, growth_report.validate):
+                            try:
+                                entry(task)
+                            except ValueError as error:
+                                blocked.append(str(error))
+                        current = w.continuation(task)
+                        print(f"Receipt={bool(historical.get('delivery_receipt'))}: "
+                              f"{before_refresh['milestone']} -> {current['milestone']}, "
+                              f"routes={list(current['rendered_routes'])}, failures={current.get('invalid_evidence')}")
+                        self.assertNotIn(current['milestone'], {'QA_ACCEPTED', 'DELIVERED'},
+                                         f"fallback resolved {current['rendered_routes']}, report errors {blocked}")
+                        self.assertEqual(len(blocked), 4)
+                        self.assertTrue(all('superseded the source-supported final' in reason for reason in blocked))
+                        self.assertFalse(current['rendered_routes'])
+                        self.assertIn('superseded the source-supported final', current['invalid_evidence']['route:3d'])
+                        self.assertEqual(current['next_action']['research_required'], ['core'])
+                        for entry in (lambda: w.check_qa(task, 'final-qa'),
+                                      lambda: w.check_requested_routes(task, replacement),
+                                      lambda: w.delivery_files(task, replacement, {'3d': media})):
+                            with self.assertRaisesRegex(ValueError, 'superseded the source-supported final'):
+                                entry()
+                        with self.assertRaisesRegex(ValueError, 'independent QA acceptance'):
+                            w.record_delivery(task, [final], 'superseded fixture final')
+                        with self.assertRaisesRegex(ValueError, 'superseded the source-supported final'):
+                            growth_report.generate(task, {'3d': final})
+                        self.assertEqual(w.load(task).get('delivery_receipt'), historical.get('delivery_receipt'))
+                        self.assertEqual(w.load(task)['handoffs'], historical['handoffs'])
+                        self.assertEqual(w.load(task)['stages'], historical['stages'])
+                        self.assertEqual(bind(final), media)
+                    finally:
+                        w.write(task/'task.json', historical)
+
+                accepted = w.load(task)
+                self.assertNotIn('delivery_receipt', accepted)
+                accepted['route_runs']['3d']['outputs'].update(media, chapter_ids=['core'])
+                w.write(task/'task.json', accepted)
+                cli('continue', task, '--plan', plan_path)
+                growth_report.generate(task)
+                self.assertEqual(w.continuation(task)['milestone'], 'QA_ACCEPTED')
+                with self.subTest(case='replaced config before receipt'):
+                    assert_superseded()
+                growth_report.generate(task)
                 with self.assertRaisesRegex(ValueError, 'Every required delivery file'):
                     w.record_delivery(task, [], 'fixture delivery')
                 files = w.delivery_files(task, w.load(task), w.continuation(task)['rendered_routes'])
                 self.assertTrue(w.record_delivery(task, [item['path'] for item in files], 'fixture delivery')['delivered'])
+                with self.subTest(case='replaced config with receipt'):
+                    assert_superseded()
                 old = w.load(task)
                 old['route_runs'] = {'3d': {'outputs': dict(media, chapter_ids=['core'])}}
                 w.write(task/'task.json', old)
@@ -225,3 +333,51 @@ class HistoricalScopedDeliveryTests(unittest.TestCase):
                 submit('Research', 'script', {'text': 'updated dependency'}, 'research')
                 self.assertFalse(w.continuation(task)['delivered'])
                 self.assertEqual(w.continuation(task)['production_status'], 'FINAL_QA_PENDING')
+
+                # Exercise the ordinary route after a new production, with the
+                # old scoped stages and receipt still in the ledger.
+                new_config = root/'ordinary-film.json'
+                ordinary_config = json.loads(original_config)
+                del ordinary_config['production_scope']
+                del ordinary_config['shot_evidence_version']
+                w.write(new_config, ordinary_config)
+                new_final = root/'output'/'replacement-final.mp4'
+                w.write(plan_path, dict(topic=data['topic'], routes={'3d': str(new_final)}, steps=[
+                    dict(id='replacement-fixture', inputs=[str(new_config), str(final)], outputs=[str(new_final)],
+                         command=['ffmpeg', '-v', 'error', '-i', str(final), '-c', 'copy',
+                                  '-metadata', 'title=Replacement fixture', str(new_final)])]))
+                replacement = w.load(task)
+                receipt = replacement['delivery_receipt']
+                replacement['config'] = str(new_config)
+                replacement['shot_production']['core'].update(config=bind(new_config), status='RESEARCH_REQUIRED')
+                w.write(task/'task.json', replacement)
+                cli('continue', task, '--plan', plan_path)
+                cli('route-run', task, '--plan', plan_path)
+                replacement = w.load(task)
+                new_media = bind(new_final)
+                replacement['route_runs']['3d']['outputs']['chapter_ids'] = ['core']
+                w.write(task/'task.json', replacement)
+                self.assertEqual(growth_report.paths_for(task), {'3d': new_final.resolve()})
+                self.assertEqual(w.continuation(task)['milestone'], 'FINAL_RENDERED')
+                self.assertEqual(w.load(task)['delivery_receipt'], receipt)
+                submit('Animation', 'animation-manifest', {'media': [new_media]}, 'research', 'asset-plan')
+                new_qa = dict(qa, media=[new_media], route_checks={'3d': dict(qa['route_checks']['3d'], media=new_media)})
+                submit('QA', 'preview-qa', new_qa, 'animation-manifest')
+                submit('Editor', 'timeline', {'media': [new_media]}, 'script', 'animation-manifest')
+                submit('QA', 'final-qa', new_qa, 'timeline')
+                growth_report.generate(task)
+                fresh_growth = growth_report.validate(task)
+                self.assertEqual(fresh_growth['routes']['3d']['media']['sha256'], new_media['sha256'])
+                self.assertNotIn(str(task/'growth-report.json'), {ref['path'] for ref in fresh_growth['dependencies']})
+                self.assertEqual(w.load(task)['delivery_receipt'], receipt)
+                new_cover_paths = [bind(task/'cover'/name) for name in covers.SIZES]
+                cover_qa = json.loads((task/'cover/cover-qa.json').read_text())
+                cover_qa['report_sha256'] = w.filehash(task/'cover/cover-report.json')
+                for check in cover_qa['cover_checks'].values():
+                    check['artifacts'] = new_cover_paths
+                w.write(task/'cover/cover-qa.json', cover_qa)
+                self.assertEqual(w.continuation(task)['milestone'], 'QA_ACCEPTED')
+                with self.assertRaisesRegex(ValueError, 'superseded the source-supported final'):
+                    w.delivery_files(task, w.load(task), {'3d': media})
+                files = w.delivery_files(task, w.load(task), w.continuation(task)['rendered_routes'])
+                self.assertTrue(w.record_delivery(task, [item['path'] for item in files], 'fixture replacement')['delivered'])

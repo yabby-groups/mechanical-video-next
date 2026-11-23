@@ -38,6 +38,7 @@ def font_path():
 
 def prepare(task, paths=None):
     from .growth_report import paths_for
+    from .workflow import check_media, current_source_supported_film, reject_superseded_scoped_final
     task = Path(task).resolve()
     plan = read(task/'cover-plan.json')
     data = read(task/'task.json')
@@ -47,12 +48,22 @@ def prepare(task, paths=None):
         if r not in ROUTES or not Path(ref['path']).is_file() or sha(ref['path']) != ref.get('sha256'):
             raise ValueError('Cover source override missing or STALE')
         overrides[r] = Path(ref['path'])
+    candidates_by_route = {}
     if paths is None and not set(routes) <= overrides.keys():
-        paths = paths_for(task)
-        for r, run in data.get('route_runs', {}).items():
-            candidate = run.get('outputs', {}).get('candidate', {})
-            if r in routes and not paths[r].is_file() and candidate.get('path'):
-                paths[r] = Path(candidate['path'])
+        scoped_media = current_source_supported_film(task, data, for_cover=True)
+        if scoped_media is not None and routes == ('3d',):
+            paths = {'3d': Path(scoped_media['path'])}
+            if scoped_media.get('candidate') is True:
+                candidates_by_route['3d'] = scoped_media
+        else:
+            paths = paths_for(task)
+            for r in set(routes) - overrides.keys():
+                candidate = data.get('route_runs', {}).get(r, {}).get('outputs', {}).get('candidate')
+                if not paths[r].is_file() and candidate:
+                    reject_superseded_scoped_final(data, candidate)
+                    check_media([candidate])
+                    paths[r] = Path(candidate['path'])
+                    candidates_by_route[r] = candidate
     paths = dict(paths or {}, **overrides)
     if plan.get('topic') != data['topic']:
         raise ValueError('Cover topic does not match task')
@@ -83,6 +94,10 @@ def prepare(task, paths=None):
         if r not in paths or not Path(paths[r]).is_file():
             raise ValueError('Cover requires the completed task route video: '+r)
         sources[r] = binding(paths[r])
+        if r in candidates_by_route:
+            if sources[r]['sha256'] != candidates_by_route[r]['sha256']:
+                raise ValueError('Cover candidate media changed during preparation')
+            sources[r]['candidate'] = True
     identifiers = set()
     for c in candidates:
         ident = c.get('id', '')

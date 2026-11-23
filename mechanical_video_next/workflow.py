@@ -399,8 +399,7 @@ def complete_media(data, media, final=True):
 
 
 def source_supported_film_config(data):
-    shots = data.get('shot_production')
-    if not shots:
+    if not (data.get('shot_production') or data.get('technical_preview')):
         return None
     config_path = data.get('config')
     if config_path:
@@ -410,40 +409,66 @@ def source_supported_film_config(data):
         config_sha256 = hashlib.sha256(contents).hexdigest()
         if config.get('production_scope') == 'source-supported-film' and config.get('shot_evidence_version') == 1:
             return path, config, config_sha256
-    else:
-        config_sha256 = None
-    latest_final = next((row for row in reversed(data.get('stages', []))
-                         if row.get('phase') == 'final' and row.get('command_success') is True and row.get('media')), {})
-    prior_sha256 = latest_final.get('config_sha256')
-    if (prior_sha256 and prior_sha256 != config_sha256
-            and any(shot.get('config', {}).get('sha256') == prior_sha256 for shot in shots.values())):
-        raise ValueError('Current configuration has superseded the source-supported final stage')
     return None
+
+
+def reject_superseded_scoped_final(data, media):
+    """Keep a historical scoped stage from being accepted through an ordinary route."""
+    if not media.get('sha256'):
+        return
+    for row in data.get('stages', []):
+        if (row.get('phase') != 'final' or row.get('command_success') is not True
+                or row.get('media', {}).get('sha256') != media['sha256']):
+            continue
+        # Legacy scoped ledgers have a technical preview of the same assembly.
+        # Their stage writer recorded exact final media for technical renders.
+        # Ordinary mixed-contract final stages also recorded previous_media.
+        legacy_scoped = (row.get('config_sha256') and 'previous_media' not in row
+                         and (data.get('technical_preview')
+                              or (data.get('shot_production') and row.get('unaccepted_workprint') is True)))
+        if row.get('source_supported_film', legacy_scoped):
+            raise ValueError('Current configuration has superseded the source-supported final stage')
 
 
 def source_supported_stage_media(task, data, scoped_config):
     path, config, config_sha256 = scoped_config
-    if not require_source_supported_render(task, path) or filehash(path) != config_sha256:
+    if (not data.get('shot_production') or not require_source_supported_render(task, path)
+            or filehash(path) != config_sha256):
         raise ValueError('Current source-supported film configuration is stale: ' + str(path))
     row = next((stage for stage in reversed(data.get('stages', []))
                 if stage.get('command_success') is True and stage.get('phase') == 'final'
-                and stage.get('config_sha256') == config_sha256), {})
-    if not row.get('media'):
+                and stage.get('config_sha256') == config_sha256), None)
+    if row is None:
         return None
+    if not row.get('media'):
+        raise ValueError('Current source-supported final stage lacks a media binding')
     media = dict(row['media'], chapter_ids=[shot['id'] for shot in config['storyboard']])
     complete_media(data, media)
     return media
 
 
-def current_source_supported_film(task, data):
-    """Resolve the technical film for the historical scoped route, if applicable."""
+def current_source_supported_film(task, data, *, for_cover=False):
+    """Resolve a current scoped final, or an exact scoped preview for covers."""
+    output = data.get('route_runs', {}).get('3d', {}).get('outputs', {})
     scoped_config = source_supported_film_config(data)
     if scoped_config is None:
+        reject_superseded_scoped_final(data, output)
         return None
     media = source_supported_stage_media(task, data, scoped_config)
-    if media is None:
-        raise ValueError('Current source-supported final stage media is missing')
-    return media
+    if media is not None:
+        return media
+    candidate = output.get('candidate')
+    if for_cover and candidate:
+        complete_media(data, candidate, final=False)
+        _, _, config_sha256 = scoped_config
+        if not any(row.get('phase') == 'preview' and row.get('command_success') is True
+                   and row.get('config_sha256') == config_sha256
+                   and row.get('media', {}).get('sha256') == candidate['sha256']
+                   and Path(row['media']['path']).resolve() == Path(candidate['path']).resolve()
+                   for row in data.get('stages', [])):
+            raise ValueError('Cover candidate must bind a successful preview of the exact current scoped configuration')
+        return dict(candidate, candidate=True)
+    raise ValueError('Current source-supported final stage media is missing')
 
 
 def require_source_supported_review(review, media):
@@ -462,15 +487,20 @@ def continuation(task, persist=True):
     data = load(task)
     source_supported = None
     scoped_film = False
+    scoped_error = None
+    try:
+        scoped_config = source_supported_film_config(data)
+        if scoped_config is None:
+            output = data.get('route_runs', {}).get('3d', {}).get('outputs', {})
+            reject_superseded_scoped_final(data, output)
+    except (ValueError, OSError) as error:
+        scoped_config = None
+        scoped_error = str(error)
+        scoped_film = True
     # Independent verified shots precede global research/handoff dependencies.
     # Keep this branch task-opt-in; historical ledgers retain their semantics.
     if data.get('shot_production'):
         require_current_scheme(data)
-        try:
-            scoped_config = source_supported_film_config(data)
-        except (ValueError, OSError):
-            scoped_config = None
-            scoped_film = True  # A missing or unreadable config cannot reauthorize an old route output.
         if scoped_config is not None:
             scoped_film = True
             full_config, _, config_sha256 = scoped_config
@@ -478,8 +508,8 @@ def continuation(task, persist=True):
             # previous stages and reconcile independently evidenced shots.
             try:
                 media = source_supported_stage_media(task, data, scoped_config)
-            except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, StopIteration, ZeroDivisionError):
-                pass
+            except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, StopIteration, ZeroDivisionError) as error:
+                scoped_error = str(error)
             else:
                 done = {row['phase'] for row in data.get('stages', [])
                         if row.get('command_success') and row.get('config_sha256') == config_sha256}
@@ -539,19 +569,24 @@ def continuation(task, persist=True):
                 action='Resolve the evidence gaps for the listed shots or assess a supported alternative. Prepare narration and continue QA on independently rendered shots.',
                 research_required=pending)
         # Hand back to the existing full-film workflow once a full plan is bound.
-        if source_supported is None and (ready or not data.get('production_plan')):
+        if source_supported is None and (ready or not data.get('production_plan') or (scoped_error and pending)):
             status = 'PARTIAL_3D_RENDERED' if rendered_shots else 'PRODUCTION_IN_PROGRESS' if ready else 'RESEARCH_PARTIAL'
             result = dict(schema_version=1, milestone=status, production_status=status,
                 lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
                 next_action=action, remaining_work=pending, rendered_routes={},
                 rendered_shots=rendered_shots, invalid_evidence=invalid_shots, background_execution=False,
                 execution_mode='current_native_codex_session')
+            if scoped_error:
+                invalid_shots['route:3d'] = scoped_error
             if persist:
                 with lock(task / '.ledger.lock', wait=True):
                     current = load(task)
                     current.update(continuation=result, production_status=status, next_step=action['action'])
                     write(task / 'task.json', current)
             return result
+    elif scoped_config is not None:
+        scoped_film = True
+        scoped_error = 'Current source-supported film has no current shot bindings'
     try:
         if (data.get('reference_remake', {}).get('old_scheme_status') == 'REJECTED_BY_USER'
                 and data['reference_remake'].get('preview_accepted') is not True):
@@ -641,6 +676,9 @@ def continuation(task, persist=True):
     routes = data.get('requested_routes', [data.get('render_route', '3d')])
     rendered, route_previews = {}, {}
     for route in routes:
+        if route == '3d' and scoped_error:
+            invalid['route:3d'] = scoped_error
+            continue
         media = ((source_supported or {}) if route == '3d' and scoped_film
                  else data.get('route_runs', {}).get(route, {}).get('outputs', {}))
         candidate = media.get('candidate')
@@ -1013,6 +1051,8 @@ def delivery_files(task, data, routes):
     scoped_media = current_source_supported_film(task, data)
     if scoped_media is not None and routes.get('3d') != scoped_media:
         raise ValueError('Delivery media differs from the current source-supported final stage')
+    if scoped_media is None:
+        reject_superseded_scoped_final(data, routes.get('3d', {}))
     required = list(routes.values())
     if len(data.get('requested_routes', [])) != 3 and data.get('three_d_policy_version') != 1:
         return required
@@ -1041,9 +1081,8 @@ def delivery_files(task, data, routes):
         if len(matches) != 1:
             raise ValueError('Both accepted cover ratios required for delivery: ' + name)
         required.extend(matches)
-    growth_binding = data.get('growth_report') or {'path': str(Path(task) / 'growth-report.json')}
-    growth_path = Path(growth_binding['path'])
-    required.append(dict(path=str(growth_path), sha256=growth_binding.get('sha256') or filehash(growth_path)))
+    growth_path = Path(task).resolve() / 'growth-report.json'
+    required.append(dict(path=str(growth_path), sha256=filehash(growth_path)))
     directed = producer_directed(data)
     if directed:
         artifact(task, 'final-qa')
@@ -2624,6 +2663,13 @@ def check_qa(task, name, *, acceptance=True):
     if any(str(i.get('severity', '')).lower() in {'critical', 'major', 'error'}
            and i.get('status') != 'RESOLVED' for i in qa.get('issues', [])):
         raise ValueError('Unresolved blocking QA defects')
+    if name == 'final-qa' and acceptance:
+        scoped_media = current_source_supported_film(task, data)
+        if scoped_media is not None:
+            require_source_supported_review(qa, scoped_media)
+        else:
+            for media in production['media']:
+                reject_superseded_scoped_final(data, media)
     return qa
 
 
@@ -3621,6 +3667,9 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                     row['upgrade_target_met']=result['status']=='OBSERVABLE_CHANGE_VERIFIED'
             if technical_render and not scoped_render and phase in {'preview', 'final'}:
                 cfg = json.loads(config_contents)
+                row['source_supported_film'] = bool(data.get('shot_production')
+                    and cfg.get('production_scope') == 'source-supported-film'
+                    and cfg.get('shot_evidence_version') == 1)
                 target = ROOT/'output'/(cfg['id']+'-'+phase+'.mp4')
                 row['media'] = dict(path=str(target), sha256=filehash(target))
                 check_media([row['media']])
