@@ -283,10 +283,13 @@ def comparison_markdown(report):
 
 
 def paths_for(task):
+    from .workflow import current_source_supported_film
     data = read(Path(task)/'task.json')
+    scoped_media = current_source_supported_film(task, data)
     paths = {}
     for route in (('3d',) if data.get('three_d_policy_version') == 1 else ROUTES):
-        ref = data.get('route_runs', {}).get(route, {}).get('outputs', {})
+        ref = (scoped_media if route == '3d' and scoped_media is not None
+               else data.get('route_runs', {}).get(route, {}).get('outputs', {}))
         paths[route] = Path(ref.get('path', Path(task)/('2_5d' if route=='2.5d' else route)/'final.mp4')).resolve()
     return paths
 
@@ -447,6 +450,13 @@ def generate(task, paths=None, comparison=None):
 def validate(task):
     task=Path(task).resolve(); report=read(task/'growth-report.json')
     from .covers import validate as validate_covers
+    from .workflow import current_source_supported_film
+    scoped_media = current_source_supported_film(task, read(task/'task.json'))
+    if scoped_media is not None:
+        reported = report.get('routes', {}).get('3d', {}).get('media', {})
+        if (Path(reported.get('path', '')).resolve() != Path(scoped_media['path']).resolve()
+                or reported.get('sha256') != scoped_media['sha256']):
+            raise ValueError('Growth report STALE: current source-supported final media changed')
     if not bound(report.get('covers', {})):
         raise ValueError('Growth report STALE: covers changed or missing')
     validate_covers(task)

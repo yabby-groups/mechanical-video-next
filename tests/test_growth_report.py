@@ -38,6 +38,7 @@ class GrowthReportTests(unittest.TestCase):
             self.assertTrue(any(v['status'] == 'UNKNOWN' for v in entry['dimensions'].values()))
         self.assertTrue((self.task/'growth-evidence/manifest.json').is_file())
         self.assertTrue((self.task/'version-comparison.md').is_file())
+        self.assertEqual(gr.paths_for(self.task), {route: (self.task/'source.mp4').resolve() for route in gr.ROUTES})
 
     def test_report_validation_detects_changed_report_dependency(self):
         report_path = self.task/'growth-report.json'

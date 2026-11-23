@@ -398,19 +398,58 @@ def complete_media(data, media, final=True):
     return dict(duration=duration, fps=fps, chapter_ids=coverage)
 
 
-def source_supported_stage_media(data, config, config_sha256):
+def source_supported_film_config(data):
+    shots = data.get('shot_production')
+    if not shots:
+        return None
+    config_path = data.get('config')
+    if config_path:
+        path = Path(config_path)
+        contents = read_input_bytes(path)
+        config = json.loads(contents)
+        config_sha256 = hashlib.sha256(contents).hexdigest()
+        if config.get('production_scope') == 'source-supported-film' and config.get('shot_evidence_version') == 1:
+            return path, config, config_sha256
+    else:
+        config_sha256 = None
+    latest_final = next((row for row in reversed(data.get('stages', []))
+                         if row.get('phase') == 'final' and row.get('command_success') is True and row.get('media')), {})
+    prior_sha256 = latest_final.get('config_sha256')
+    if (prior_sha256 and prior_sha256 != config_sha256
+            and any(shot.get('config', {}).get('sha256') == prior_sha256 for shot in shots.values())):
+        raise ValueError('Current configuration has superseded the source-supported final stage')
+    return None
+
+
+def source_supported_stage_media(task, data, scoped_config):
+    path, config, config_sha256 = scoped_config
+    if not require_source_supported_render(task, path) or filehash(path) != config_sha256:
+        raise ValueError('Current source-supported film configuration is stale: ' + str(path))
     row = next((stage for stage in reversed(data.get('stages', []))
-                if stage.get('command_success') and stage.get('phase') == 'final'
+                if stage.get('command_success') is True and stage.get('phase') == 'final'
                 and stage.get('config_sha256') == config_sha256), {})
-    media = row.get('media')
-    return dict(media, chapter_ids=[shot['id'] for shot in config['storyboard']]) if media else None
+    if not row.get('media'):
+        return None
+    media = dict(row['media'], chapter_ids=[shot['id'] for shot in config['storyboard']])
+    complete_media(data, media)
+    return media
 
 
-def source_supported_route_data(data, review, media):
+def current_source_supported_film(task, data):
+    """Resolve the technical film for the historical scoped route, if applicable."""
+    scoped_config = source_supported_film_config(data)
+    if scoped_config is None:
+        return None
+    media = source_supported_stage_media(task, data, scoped_config)
+    if media is None:
+        raise ValueError('Current source-supported final stage media is missing')
+    return media
+
+
+def require_source_supported_review(review, media):
     exact = (Path(media['path']).resolve(), media['sha256'])
     if not any((Path(item['path']).resolve(), item['sha256']) == exact for item in review['media']):
         raise ValueError('Final QA must review the current source-supported stage media')
-    return dict(data, route_runs=dict(data.get('route_runs', {}), **{'3d': {'outputs': media}}))
 
 
 def continuation(task, persist=True):
@@ -427,49 +466,47 @@ def continuation(task, persist=True):
     # Keep this branch task-opt-in; historical ledgers retain their semantics.
     if data.get('shot_production'):
         require_current_scheme(data)
-        full_config = Path(data.get('config') or '')
-        if full_config.is_file():
-            cfg = json.loads(full_config.read_text())
-            scoped_film = cfg.get('production_scope') == 'source-supported-film' and cfg.get('shot_evidence_version') == 1
-            if scoped_film:
-                # Reuse the existing render stages; this authorizes media production,
-                # never independent mechanical/sensory acceptance or delivery.
-                try:
-                    require_source_supported_render(task, full_config)
-                except (ValueError, OSError, KeyError):
-                    # A new partial model/preview can legitimately supersede the
-                    # full plan. Reconcile independent shots below; preserve the
-                    # successful stage instead of raising after it completed.
-                    pass
+        try:
+            scoped_config = source_supported_film_config(data)
+        except (ValueError, OSError):
+            scoped_config = None
+            scoped_film = True  # A missing or unreadable config cannot reauthorize an old route output.
+        if scoped_config is not None:
+            scoped_film = True
+            full_config, _, config_sha256 = scoped_config
+            # A newer partial model may supersede the complete film. Preserve
+            # previous stages and reconcile independently evidenced shots.
+            try:
+                media = source_supported_stage_media(task, data, scoped_config)
+            except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, StopIteration, ZeroDivisionError):
+                pass
+            else:
+                done = {row['phase'] for row in data.get('stages', [])
+                        if row.get('command_success') and row.get('config_sha256') == config_sha256}
+                if media:
+                    source_supported = media
                 else:
-                    config_sha256 = filehash(full_config)
-                    done = {s['phase'] for s in data.get('stages', [])
-                            if s.get('command_success') and s.get('config_sha256') == config_sha256}
-                    media = source_supported_stage_media(data, cfg, config_sha256)
-                    if media:
-                        source_supported = media
-                    else:
-                        phase = 'final' if 'preview' in done else 'preview'
-                        status = 'PRODUCTION_IN_PROGRESS'
-                        action = dict(owner='Producer', kind='EXECUTABLE_COMMAND',
-                            action='Render the evidenced full 3D workprint; acceptance remains pending',
-                            command=['uv','run','python','-m','mechanical_video_next','stage',str(task),
-                                     phase,'--config',str(full_config)])
-                        failure = data.get('production_execution_failure', {})
-                        if (failure.get('status') == 'OPEN'
-                                and failure.get('config_sha256') == config_sha256):
-                            action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
-                                action='Diagnose the preserved failed full-film command and change its inputs or strategy before retrying', evidence=failure)
-                        result = dict(schema_version=1, milestone=status, production_status=status,
-                            lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
-                            next_action=action, rendered_routes={},
-                            background_execution=False, execution_mode='current_native_codex_session')
-                        if persist:
-                            with lock(task / '.ledger.lock', wait=True):
-                                current = load(task)
-                                current.update(continuation=result, production_status=status, next_step=action['action'])
-                                write(task / 'task.json', current)
-                        return result
+                    phase = 'final' if 'preview' in done else 'preview'
+                    status = 'PRODUCTION_IN_PROGRESS'
+                    action = dict(owner='Producer', kind='EXECUTABLE_COMMAND',
+                        action='Render the evidenced full 3D workprint; acceptance remains pending',
+                        command=['uv','run','python','-m','mechanical_video_next','stage',str(task),
+                                 phase,'--config',str(full_config)])
+                    failure = data.get('production_execution_failure', {})
+                    if (failure.get('status') == 'OPEN'
+                            and failure.get('config_sha256') == config_sha256):
+                        action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
+                            action='Diagnose the preserved failed full-film command and change its inputs or strategy before retrying', evidence=failure)
+                    result = dict(schema_version=1, milestone=status, production_status=status,
+                        lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
+                        next_action=action, rendered_routes={},
+                        background_execution=False, execution_mode='current_native_codex_session')
+                    if persist:
+                        with lock(task / '.ledger.lock', wait=True):
+                            current = load(task)
+                            current.update(continuation=result, production_status=status, next_step=action['action'])
+                            write(task / 'task.json', current)
+                    return result
         rows = data['shot_production']
         ready, pending, rendered_shots, invalid_shots = [], [], {}, {}
         for name, row in rows.items():
@@ -658,10 +695,8 @@ def continuation(task, persist=True):
     if milestone == 'FINAL_RENDERED' and data['state'] == 'COMPLETED' and not unresolved_content:
         try:
             check_qa(task, 'preview-qa')
-            final_qa = check_qa(task, 'final-qa')
-            route_data = (source_supported_route_data(data, final_qa, source_supported)
-                          if source_supported is not None else data)
-            check_requested_routes(task, route_data)
+            check_qa(task, 'final-qa')
+            check_requested_routes(task, data)
             accepted = True
             milestone = 'QA_ACCEPTED'
         except (ValueError, OSError, KeyError, TypeError) as error:
@@ -975,6 +1010,9 @@ def continue_production(task):
 
 def delivery_files(task, data, routes):
     """Resolve mandatory files from accepted reports, never a topic-specific path."""
+    scoped_media = current_source_supported_film(task, data)
+    if scoped_media is not None and routes.get('3d') != scoped_media:
+        raise ValueError('Delivery media differs from the current source-supported final stage')
     required = list(routes.values())
     if len(data.get('requested_routes', [])) != 3 and data.get('three_d_policy_version') != 1:
         return required
@@ -2864,21 +2902,7 @@ def advance(task, target):
         if target == 'COMPLETED':
             check_qa(task, 'preview-qa')
             review = check_qa(task, 'final-qa')
-            route_data = data
-            if data.get('shot_production') and data.get('config'):
-                config_path = Path(data['config'])
-                if config_path.is_file():
-                    contents = config_path.read_bytes()
-                    config = json.loads(contents)
-                    if (config.get('production_scope') == 'source-supported-film'
-                            and config.get('shot_evidence_version') == 1):
-                        require_source_supported_render(task, config_path)
-                        media = source_supported_stage_media(data, config, hashlib.sha256(contents).hexdigest())
-                        if media is None:
-                            raise ValueError('Current source-supported final stage media is missing')
-                        complete_media(data, media)
-                        route_data = source_supported_route_data(data, review, media)
-            check_requested_routes(task, route_data)
+            check_requested_routes(task, data)
             reviewed_shots = review.get('shot_acceptance', {})
             for shot_id, record in data.get('shot_production', {}).items():
                 if record.get('status') not in {'RENDERED', 'QA_PENDING'}:
@@ -2898,11 +2922,14 @@ def advance(task, target):
 
 def check_requested_routes(task, data):
     routes = data.get('requested_routes', [])
+    scoped_media = current_source_supported_film(task, data)
+    if scoped_media is not None:
+        require_source_supported_review(artifact(task, 'final-qa'), scoped_media)
     if data.get('three_d_policy_version') == 1:
         if routes != ['3d']:
             raise ValueError('3D-only task route scope changed')
         from .provenance import validate as validate_provenance
-        output = data.get('route_runs', {}).get('3d', {}).get('outputs', {})
+        output = scoped_media or data.get('route_runs', {}).get('3d', {}).get('outputs', {})
         from .media_policy import enabled as asset_first, validate_manifest, bound
         if asset_first(data):
             manifest_path = Path(output['path']).with_suffix('.media-provenance.json')
@@ -2957,7 +2984,8 @@ def check_requested_routes(task, data):
                 raise ValueError('Technical audio acceptance cannot claim a route listening result')
         if not all(result.get('checks', {}).get(check) == 'PASS' for check in route_checks_required):
             raise ValueError('Requested route final QA has FAIL/UNKNOWN/missing checks: ' + route)
-        recorded = data.get('route_runs', {}).get(route, {}).get('outputs', {})
+        recorded = (scoped_media if route == '3d' and scoped_media is not None
+                    else data.get('route_runs', {}).get(route, {}).get('outputs', {}))
         if not recorded or recorded.get('sha256') != media.get('sha256'):
             raise ValueError('Final QA does not match recorded route output: ' + route)
 

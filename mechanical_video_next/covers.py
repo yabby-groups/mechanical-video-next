@@ -42,16 +42,18 @@ def prepare(task, paths=None):
     plan = read(task/'cover-plan.json')
     data = read(task/'task.json')
     routes = ('3d',) if data.get('three_d_policy_version') == 1 else ROUTES
-    if paths is None:
+    overrides = {}
+    for r, ref in plan.get('source_overrides', {}).items():
+        if r not in ROUTES or not Path(ref['path']).is_file() or sha(ref['path']) != ref.get('sha256'):
+            raise ValueError('Cover source override missing or STALE')
+        overrides[r] = Path(ref['path'])
+    if paths is None and not set(routes) <= overrides.keys():
         paths = paths_for(task)
         for r, run in data.get('route_runs', {}).items():
             candidate = run.get('outputs', {}).get('candidate', {})
             if r in routes and not paths[r].is_file() and candidate.get('path'):
                 paths[r] = Path(candidate['path'])
-    for r, ref in plan.get('source_overrides', {}).items():
-        if r not in ROUTES or not Path(ref['path']).is_file() or sha(ref['path']) != ref.get('sha256'):
-            raise ValueError('Cover source override missing or STALE')
-        paths[r] = Path(ref['path'])
+    paths = dict(paths or {}, **overrides)
     if plan.get('topic') != data['topic']:
         raise ValueError('Cover topic does not match task')
     route = plan.get('recommended_route')
