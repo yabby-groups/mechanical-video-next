@@ -151,17 +151,21 @@ def validate_rendered_film(path, plan, *, require_audio=True):
     frames = [int(line.split('=', 1)[1]) for line in progress.splitlines() if line.startswith('frame=')]
     if not frames or frames[-1] != plan['frame_count']:
         raise ValueError('Decoded frames differ from the complete joint picture track')
+    validate_decoded_picture_clock(path, plan['frame_count'], video['time_base'])
+    return video
+
+
+def validate_decoded_picture_clock(path, frame_count, time_base):
     timestamps = json.loads(subprocess.check_output([
         'ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_frames',
         '-show_entries', 'frame=pts', '-of', 'json', str(path),
     ]))['frames']
-    ticks_per_frame = 1 / (FPS * Fraction(video['time_base']))
-    if len(timestamps) != plan['frame_count']:
+    ticks_per_frame = 1 / (FPS * Fraction(time_base))
+    if len(timestamps) != frame_count:
         raise ValueError('Decoded picture timestamps differ in count from the joint track')
     for index, frame in enumerate(timestamps):
         if abs(frame.get('pts', math.inf) - index * ticks_per_frame) > Fraction(1, 2):
             raise ValueError(f'Decoded picture timestamps leave the joint 30 fps clock at frame {index}')
-    return video
 
 
 def validate_rendered_audio(path, plan, measured, playback=None, *, mix=False):

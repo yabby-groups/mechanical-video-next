@@ -14,7 +14,7 @@ from PIL import Image, ImageChops, ImageStat
 
 from scripts.common import probe
 from . import joint_timeline as joint
-from .media_revision import frames
+from .media_revision import decode_errors, frames
 from .qa_images import CACHE, prepare_contact_sheet, visual_packet
 
 FIELD = 'video_review_version'
@@ -156,17 +156,19 @@ def pixel_findings(path, source, first, last, offset, shot, *, region=None, sour
     count = last - first
     source_region = source_region if source_region is not None else region
     with ExitStack() as cleanup:
-        output, expected = (
+        decoders = [
             cleanup.enter_context(frames(file, start / joint.FPS, count / joint.FPS, crop))
             for file, start, crop in ((path, first, region), (source, offset, source_region))
-        )
+        ]
+        output, expected = (process for process, _ in decoders)
         mismatches = []
         black = []
         for index in range(first, last):
             actual_bytes = output.stdout.read(FRAME_SIZE)
             expected_bytes = expected.stdout.read(FRAME_SIZE)
             if len(actual_bytes) != FRAME_SIZE or len(expected_bytes) != FRAME_SIZE:
-                return [finding('picture_source_short', index, last, 'Incomplete decoded source or edit',
+                return [finding('picture_source_short', index, last, 'Incomplete decoded source or edit. '
+                                + decode_errors(*decoders),
                                 shot=shot)]
             actual, reference = (Image.frombytes('RGB', (160, 90), data)
                                  for data in (actual_bytes, expected_bytes))
@@ -179,8 +181,9 @@ def pixel_findings(path, source, first, last, offset, shot, *, region=None, sour
                 mismatches.append(index)
                 if ImageStat.Stat(actual.convert('L')).mean[0] < 12:
                     black.append(index)
-        if output.wait() or expected.wait():
-            return [finding('picture_decode_error', first, last, 'FFmpeg failed decoding the comparison',
+        if any([output.wait(), expected.wait()]):
+            return [finding('picture_decode_error', first, last, 'FFmpeg failed decoding the comparison. '
+                            + decode_errors(*decoders),
                             shot=shot)]
     return [
         finding(code, start, end, detail, shot=shot)

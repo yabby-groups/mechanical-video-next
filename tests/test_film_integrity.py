@@ -145,8 +145,9 @@ class FilmIntegrityTests(unittest.TestCase):
             '-vf', "settb=1/90000,setpts=PTS+if(eq(N\\,10)\\,40\\,0)",
             '-fps_mode', 'passthrough', '-enc_time_base', '1:90000',
         ))
-        with self.assertRaisesRegex(ValueError, 'Decoded picture timestamps'):
-            joint.validate_rendered_film(video, self.plan)
+        stream = next(row for row in joint.probe(video)['streams'] if row['codec_type'] == 'video')
+        with self.assertRaisesRegex(ValueError, 'Decoded picture timestamps.*frame 10'):
+            joint.validate_decoded_picture_clock(video, self.plan['frame_count'], stream['time_base'])
 
     def test_remotion_rejects_disagreeing_composition_duration_before_render(self):
         props = self.root / 'props.json'

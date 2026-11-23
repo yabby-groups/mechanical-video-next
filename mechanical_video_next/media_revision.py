@@ -5,11 +5,13 @@ a new production ledger. Every frame in each claimed interval is compared after
 normalizing to 160x90 RGB. Re-encoding noise is distinguished from material change.
 """
 import argparse
+from contextlib import contextmanager, ExitStack
 import hashlib
 import json
 import math
 from pathlib import Path
 import subprocess
+import tempfile
 
 from scripts.common import filehash, probe, writejson
 
@@ -57,6 +59,7 @@ def frame_span(start, seconds):
     return math.ceil(start*30-1e-6), math.ceil((start+seconds)*30-1e-6)
 
 
+@contextmanager
 def frames(path, start, seconds, region=None):
     crop = ''
     if region is not None:
@@ -67,9 +70,28 @@ def frames(path, start, seconds, region=None):
     seek = math.floor(start)
     first, last = frame_span(start, seconds)
     trim = f'fps=30,trim=start_frame={first-seek*30}:end_frame={last-seek*30},setpts=PTS-STARTPTS,'
-    return subprocess.Popen(['ffmpeg', '-v', 'error', '-ss', str(seek), '-i', str(path),
-        '-frames:v', str(last-first), '-an', '-vf', trim+crop+'scale=160:90:flags=area,format=rgb24',
-        '-f', 'rawvideo', '-'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    # A file lets both decoders emit diagnostics while stdout is read in lockstep.
+    with tempfile.TemporaryFile() as stderr:
+        process = subprocess.Popen(['ffmpeg', '-v', 'error', '-xerror', '-nostdin', '-ss', str(seek), '-i', str(path),
+            '-frames:v', str(last-first), '-an', '-vf', trim+crop+'scale=160:90:flags=area,format=rgb24',
+            '-fps_mode', 'passthrough', '-f', 'rawvideo', '-'], stdout=subprocess.PIPE, stderr=stderr)
+        try:
+            yield process, stderr
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            process.stdout.close()
+
+
+def decode_errors(*decoders):
+    messages = []
+    for process, stderr in decoders:
+        stderr.seek(0)
+        detail = stderr.read(8192).decode(errors='replace').strip()
+        if detail or process.poll():
+            messages.append(f'{process.args[process.args.index("-i")+1]} (exit {process.poll()}): {detail}')
+    return ' | '.join(messages)
 
 
 def compare(previous, current, changes, *, mean_threshold=2.0, changed_fraction=.01):
@@ -99,16 +121,18 @@ def compare(previous, current, changes, *, mean_threshold=2.0, changed_fraction=
         if not counts[0] or counts[0] != counts[1]:
             raise ValueError('Corresponding intervals must contain the same nonzero number of 30 fps frames')
         region = comparison_region(change)
-        workers = [frames(p,r[0],lengths[0],region) for p,r in zip((previous,current),ranges)]
         count, meaningful, total, maximum = 0, 0, 0., 0.
         hashes = [hashlib.sha256(),hashlib.sha256()]
-        try:
+        with ExitStack() as cleanup:
+            decoders = [cleanup.enter_context(frames(p,r[0],lengths[0],region))
+                        for p,r in zip((previous,current),ranges)]
+            workers = [process for process, _ in decoders]
             while True:
                 pixels = [worker.stdout.read(160*90*3) for worker in workers]
                 if not any(pixels):
                     break
                 if any(len(p) != 160*90*3 for p in pixels):
-                    raise ValueError('Decoded frame count mismatch in corresponding interval')
+                    raise ValueError('Decoded frame count mismatch in corresponding interval: ' + decode_errors(*decoders))
                 for digest, data in zip(hashes,pixels):
                     digest.update(data)
                 mae = sum(abs(a-b) for a,b in zip(*pixels))/len(pixels[0])
@@ -118,14 +142,9 @@ def compare(previous, current, changes, *, mean_threshold=2.0, changed_fraction=
                 maximum = max(maximum,mae)
             # Equal early EOF in both decoders is not complete-interval evidence.
             expected_frames = counts[0]
-            if any(w.wait() for w in workers) or count != expected_frames:
-                raise ValueError('Complete interval decoding failed')
-        finally:
-            for worker in workers:
-                if worker.poll() is None:
-                    worker.kill()
-                    worker.wait()
-                worker.stdout.close()
+            if any([w.wait() for w in workers]) or count != expected_frames:
+                raise ValueError(f'Complete interval decoding failed ({count}/{expected_frames} frames): '
+                                 + decode_errors(*decoders))
         passed = meaningful/count >= changed_fraction
         rows.append({**change, 'decoded_frames':count, 'mean_rgb_difference':total/count,
             'maximum_frame_mean_difference':maximum, 'materially_changed_frames':meaningful,

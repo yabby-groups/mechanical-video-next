@@ -1,15 +1,55 @@
 import json
 import io
+from contextlib import nullcontext
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from mechanical_video_next.media_revision import compare, validate_report
+from mechanical_video_next.media_revision import compare, frames, validate_report
 
 
 class MediaRevisionTests(unittest.TestCase):
+    def test_native_and_variable_rates_use_the_same_half_open_output_grid(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for name, rate, options in (
+                ('native', 30, []),
+                ('cfr24', 24, []),
+                ('vfr', 30, ['-vf', 'select=not(eq(mod(n\\,3)\\,1))', '-fps_mode', 'passthrough']),
+            ):
+                with self.subTest(name=name):
+                    source = Path(folder) / (name + '.mp4')
+                    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                                    f'testsrc2=s=160x90:r={rate}:d=1',
+                                    *options, '-c:v', 'libx264', str(source)], check=True)
+                    with frames(source, 0, 1) as (decoder, stderr):
+                        full = decoder.stdout.read()
+                        self.assertEqual(decoder.wait(), 0, stderr.read())
+                    self.assertEqual(len(full), 30 * 160 * 90 * 3)
+                    with frames(source, .023, .61) as (decoder, stderr):
+                        part = decoder.stdout.read()
+                        self.assertEqual(decoder.wait(), 0, stderr.read())
+                    self.assertEqual(part, full[160*90*3:19*160*90*3])
+
+    def test_actual_truncated_mp4_rejects_even_when_both_inputs_end_early(self):
+        from mechanical_video_next.video_review import pixel_findings
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'full.mp4'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                            'testsrc2=s=160x90:r=30:d=1', '-c:v', 'libx264',
+                            '-movflags', '+faststart', str(path)], check=True)
+            truncated = Path(folder) / 'truncated.mp4'
+            data = path.read_bytes()
+            truncated.write_bytes(data[:len(data)*2//3])
+            change = dict(shot_id='core', defect_key='truncated', knowledge_target='Full cycle',
+                          previous_range=[0, 1], current_range=[0, 1])
+            with self.assertRaisesRegex(ValueError, r'interval.*truncated\.mp4.*exit'):
+                compare(truncated, truncated, [change])
+            findings = pixel_findings(path, truncated, 0, 30, 0, 'core')
+            self.assertEqual(findings[0]['code'], 'picture_source_short')
+            self.assertIn('truncated.mp4', findings[0]['evidence'])
+
     def test_workflow_binds_region_to_request_and_passes_current_blueprint(self):
         from mechanical_video_next import workflow
         from mechanical_video_next import production_contract
@@ -73,7 +113,8 @@ class MediaRevisionTests(unittest.TestCase):
         change = dict(shot_id='core', defect_key='truncated-action', knowledge_target='Observe full cycle',
                       previous_range=[0, 1], current_range=[0, 1])
         with patch('mechanical_video_next.media_revision.spec', return_value={'duration': 1}), \
-                patch('mechanical_video_next.media_revision.frames', side_effect=[Decoder(0), Decoder(255)]):
+                patch('mechanical_video_next.media_revision.frames', side_effect=[
+                    nullcontext((Decoder(value), io.BytesIO())) for value in (0, 255)]):
             with self.assertRaisesRegex(ValueError, 'Complete interval'):
                 compare('before.mp4', 'after.mp4', [change])
 
