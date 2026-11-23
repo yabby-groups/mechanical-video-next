@@ -564,7 +564,15 @@ gates follow the pinned task policies. Unknown capabilities stay UNKNOWN.
 
 ### Technical audio acceptance for verified Neil narration
 
-New Producer-directed tasks carry `audio_acceptance_policy=verified_neil_technical`
+New Producer-directed tasks pin `music_direction_version=1`. The Producer
+directs music from the Treatment, story observations and action clock. The
+existing Editor uses the registered rights-verified catalog and measured Neil
+to produce the score, action effects and sample-verifiable mix. Formal delivery
+requires technical audio PASS and independent continuous listening on the exact
+MP4. Documented intentional silence follows the same review. See
+[automatic music direction](audio-direction.md) for the inputs and outputs.
+
+Earlier Producer-directed tasks may carry `audio_acceptance_policy=verified_neil_technical`
 in `task.json`. If the independent reviewer has no full listening record, submit
 the normal `final-qa` handoff with real `continuous_video` observations and leave
 `checks.listening` absent or `UNKNOWN`. The workflow generates
