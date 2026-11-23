@@ -300,6 +300,24 @@ class TechnicalAudioTests(unittest.TestCase):
         self.assertFalse(result['full_audio_listened'])
         self.assertEqual(result['audio_technical_evidence']['last_utterance_end_sample'], 96000)
 
+    def test_music_policy_requires_independent_listening_after_technical_pass(self):
+        from mechanical_video_next import director_audio as music
+
+        self.data[music.FIELD] = self.blueprint[music.FIELD] = music.VERSION
+        direction, mix, _ = music.arrange(self.blueprint, self.measured, directory=self.root / 'direction',
+                                          cache=self.root / 'mix-cache')
+        self.blueprint.update(audio_direction=direction, audio_mix=mix)
+        picture = self.root / 'picture.mp4'
+        self.final.replace(picture)
+        track = joint.bound(mix['master'])
+        music.mux_picture(picture, track, self.final)
+        self.public_master.write_bytes(track.read_bytes())
+        self.bind_final()
+        evidence = audio.verify(self.timeline, self.blueprint)
+        self.assertEqual(evidence['mix_check']['music_status'], 'READY')
+        with self.assertRaisesRegex(ValueError, 'full independent listening'):
+            self.validate_workflow(self.report())
+
     def test_missing_and_truncated_audio_fail(self):
         self.encode(audio_input=False)
         with self.assertRaisesRegex(ValueError, 'AAC audio track'):

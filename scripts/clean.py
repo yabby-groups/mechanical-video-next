@@ -48,6 +48,10 @@ def reference_hashes(bases):
         if root.is_symlink():
             raise ValueError('Refuse symlink reference root')
         for path in root.rglob('*'):
+            if path.parent.parent.name == 'audio-mixes' and path.name == 'complete.json':
+                continue
+            if path.parent.name == 'picture-compositions':
+                continue
             if path.is_symlink() and path.suffix in {'.json', '.jsonl', '.md'}:
                 if not path.resolve().is_relative_to(ROOT.resolve()):
                     raise ValueError('Refuse external symlink reference')
@@ -79,8 +83,7 @@ def candidates(older_hours, only_keys=None):
     cutoff=time.time()-older_hours*3600
     protected = referenced_keys()
     result=[]
-    for category in ['shots','compositions']:
-        parent=root/category
+    for parent in (root/'shots', root/'compositions', ROOT/'assets/audio/mixes'):
         if parent.is_symlink(): raise ValueError('Refuse symlink category')
         for folder in parent.glob('*'):
             if folder.is_symlink() or not folder.is_dir(): continue
@@ -149,6 +152,25 @@ def cleanup(older_hours=720, apply=False, only_keys=None, task=None, pressure=Fa
                 row['deleted_bytes'] = 0
                 row['deleted_files'] = 0
                 try:
+                    if p.parent == ROOT/'assets/audio/mixes':
+                        with (p.parent / (p.name + '.lock')).open('a') as handle:
+                            try:
+                                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            except BlockingIOError:
+                                continue
+                            if ((p/'.last-used').is_file() and
+                                    (p/'.last-used').stat().st_mtime >= time.time() - older_hours * 3600):
+                                continue
+                            if p.name in referenced_keys():
+                                continue
+                            if any(path.is_symlink() for path in p.rglob('*')):
+                                raise ValueError('Refuse cache entry containing symlink')
+                            files = sum(file.is_file() for file in p.rglob('*'))
+                            shutil.rmtree(p)
+                            row.update(delete=True, deleted_files=files, deleted_bytes=row['bytes'])
+                            rows.append(row)
+                            (audit/'result.json').write_text(json.dumps(rows, indent=2))
+                            continue
                     owned = sorted(p.rglob('*')) if p.is_dir() else [p]
                     for file in owned:
                         if file.is_symlink():

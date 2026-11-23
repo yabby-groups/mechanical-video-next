@@ -77,6 +77,12 @@ def validate(data):
             joint.receipt(data['timeline'], data['measured_timeline'])
     validate_direction(data)
     director.validate(data)
+    from . import director_audio
+    if director_audio.enabled(data):
+        if not shared:
+            raise ValueError('Music direction requires a Joint Timeline')
+        director_audio.plan_direction(data)
+        director_audio.sound_stems(data['timeline'], data.get('sound_events', []), mechanical=True)
     if director.enabled(data) and data.get('status') == 'FROZEN':
         director.validate_measured_edit(data, joint.receipt(data['timeline'], data['measured_timeline']))
     visual = version(data) == VERSION
@@ -247,9 +253,24 @@ def compile_config(blueprint, base, output, draft=False):
     else:
         for key in (joint.FIELD, 'timeline', 'measured_timeline'):
             result.pop(key, None)
+    from . import director_audio
+    if director_audio.enabled(data):
+        result[director_audio.FIELD] = director_audio.VERSION
+        result.pop('audio_mix', None)
+        result.pop('audio_direction', None)
+        if data.get('measured_timeline'):
+            measured = joint.receipt(data['timeline'], data['measured_timeline'])
+            direction, mixture, _ = director_audio.arrange(data, measured, directory=output.parent / 'audio-direction')
+            result['audio_direction'] = direction
+            if mixture:
+                result['audio_mix'] = mixture
+            result['id'] += '-audio-' + direction['sha256'][:16]
+    else:
+        result.pop(director_audio.FIELD, None)
+        result.pop('audio_direction', None)
     if creative:
         result[director.FIELD] = director.VERSION
-        if data.get('sound_events') and data.get('measured_timeline'):
+        if not director_audio.enabled(data) and data.get('sound_events') and data.get('measured_timeline'):
             from .director_audio import mix
             measured = joint.receipt(data['timeline'], data['measured_timeline'])
             sound_key = digest([data['timeline'], data['sound_events'], measured['narration_audio']])

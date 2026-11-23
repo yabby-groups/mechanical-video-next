@@ -247,6 +247,10 @@ def write_manifest(path, final, config, build_proof):
                 'original_3d_only_acceptance': False}
     if shared:
         manifest.update({joint.FIELD: joint.VERSION, 'narration': proof['build']['narration']})
+    from . import director_audio
+    if director_audio.enabled(config):
+        manifest[director_audio.FIELD] = director_audio.VERSION
+        manifest['audio_direction'] = config['audio_direction']
     for key in ('production_contract_version','production_contract','knowledge_progression_version','subject_kind'):
         if key in config:
             manifest[key]=config[key]
@@ -297,6 +301,10 @@ def validate_manifest(path, media=None):
     from .provenance import verify_remotion_inputs
     verify_remotion_inputs(proof['build'])
     config = proof['build']['visual_config']
+    from . import director_audio
+    if (director_audio.enabled(config) != director_audio.enabled(doc)
+            or doc.get('audio_direction') != config.get('audio_direction')):
+        raise ValueError('Hybrid manifest music direction differs from the bound build')
     from . import joint_timeline as joint
     shared = joint.enabled(config)
     if shared and doc.get('narration') != proof['build']['narration']:

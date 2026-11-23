@@ -82,6 +82,8 @@ def verify_remotion_inputs(build):
             verify_mix(config['audio_mix'], joint.bound(measured['narration_audio']),
                        plan['frame_count'] * joint.SAMPLES_PER_FRAME, check_masking=False)
             playback = config['audio_mix']['master']
+        from .director_audio import validate_arrangement
+        validate_arrangement(config, measured=measured, require_ready=True)
         if (relative.parts[:1] != ('cache',) or len(relative.parts) != 2
                 or '\\' in props['narrationTrack']
                 or build.get('narration') != measured['narration_audio']
@@ -250,9 +252,20 @@ def compose(build, output):
     if build.get('renderer') == 'remotion-v1':
         from .remotion_build import render
         from .knowledge_progression import enabled
-        render(verify_remotion_inputs(build), output, output.with_suffix('.remotion.log'),
-               encode_profile=build.get('encode_profile'), visual=build.get('visual_policy_version') == 2,
-               progression=enabled(build))
+        from . import director_audio
+        props = verify_remotion_inputs(build)
+        render_options = dict(encode_profile=build.get('encode_profile'),
+                              visual=build.get('visual_policy_version') == 2, progression=enabled(build))
+        if director_audio.enabled(build.get('visual_config', {})):
+            from tempfile import TemporaryDirectory
+            with TemporaryDirectory(dir=output.parent) as folder:
+                picture = Path(folder) / 'picture.mp4'
+                render(props, picture, output.with_suffix('.remotion.log'), **render_options)
+                config = build['visual_config']
+                playback = (config.get('audio_mix') or {}).get('master', build['narration'])
+                director_audio.mux_picture(picture, bound(playback), output)
+        else:
+            render(props, output, output.with_suffix('.remotion.log'), **render_options)
         return
     audio=bound(build['narration']);ass=bound(build['subtitles'])
     for font in build.get('fonts',[]): bound(font)

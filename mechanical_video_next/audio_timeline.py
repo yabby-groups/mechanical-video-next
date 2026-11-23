@@ -53,17 +53,24 @@ def prepare(task, script, env_file=None):
         if not joint_timeline.enabled(content):
             raise ValueError('The task requires a joint Blueprint timeline')
         plan = joint_timeline.validate(content['timeline'], content.get('shots'))
+        from . import director_audio
+        shared = Path(task) / 'shared'
+        if director_audio.enabled(data):
+            music_plan = director_audio.plan_direction(content)
+            direction = shared / 'audio_intent.json'
+            writejson(direction, music_plan)
         for segment in plan['narration']:
             validate_audience_copy({'narration': [segment['text']]}, creative=True)
         load_env(env_file)
         profile = effective_profile({'narration_profile': 'config/narration-neil.json'})
         if profile['voice'] != 'Neil' or profile['target_speed'] != 1:
             raise ValueError('Joint timeline requires unmodified Neil speech')
-        shared = Path(task) / 'shared'
         endpoint = effective_endpoint(profile)
         result = joint_timeline.measure(plan, lambda line: sentence(line, profile, endpoint=endpoint), shared / 'narration.wav')
         result['task_id'] = data['id']
         result['script'] = joint_timeline.binding(script)
+        if director_audio.enabled(data):
+            result['audio_intent'] = joint_timeline.binding(direction)
         writejson(shared / 'timeline.json', result)
         return result
     chapters=content.get('chapters',[])

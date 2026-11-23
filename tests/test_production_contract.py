@@ -17,7 +17,7 @@ class ProductionContractTests(unittest.TestCase):
         import sys
         import wave
         from types import SimpleNamespace
-        from mechanical_video_next import blueprint, director, joint_timeline as joint, reference_policy as references
+        from mechanical_video_next import blueprint, director, director_audio, joint_timeline as joint, reference_policy as references
         from mechanical_video_next import workflow as w
 
         with tempfile.TemporaryDirectory() as folder:
@@ -163,6 +163,8 @@ class ProductionContractTests(unittest.TestCase):
                                             chapters=[dict(id='trace', knowledge_ids=['reduction'],
                                                            new_information='Output', duration_reason='Action')]))
             plan[director.FIELD] = director.VERSION
+            plan[director_audio.FIELD] = data[director_audio.FIELD]
+            plan['music_direction'] = {'mode': 'silence', 'reason': 'Keep the speed comparison quiet.'}
             plan['director'] = research['director']
             model = task / 'model.blend'
             model.write_bytes(b'fixture model')
