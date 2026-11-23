@@ -163,6 +163,12 @@ class VideoReviewTests(unittest.TestCase):
         report = video_review.for_composition(media, blueprint, research, cfg, self.root)
         self.assert_blocked(report, 'picture_source_mismatch')
 
+    def test_full_media_scan_reports_an_ending_hold(self):
+        report = video_review.scan_media(joint.binding(self.baseline))
+        self.assertEqual(report['picture_seconds'], 2)
+        self.assertTrue(report['audio_present'])
+        self.assertEqual(report['candidate_intervals_seconds']['freeze'], [[.5, 2]])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -20,3 +20,17 @@
 | 移动外壳后仍盖住关键信息 | 两个历史模型各执行同一拆装代码，均输出 480×270、30 fps、48 帧 MP4。独立抽样指出电饭煲内层仍遮挡、垃圾桶传力路线难辨 | Blender 在声明的分离姿态检查保留零件的可见性。加入目标后重跑检查，电饭煲第 20 帧报告上沿遮挡内胆底，垃圾桶第 20 帧报告近侧边沿遮挡推杆。 [电饭煲](../../output/system-repair-validation/rice.mp4) · [垃圾桶](../../output/system-repair-validation/bin.mp4) · [独立 QA](../../output/system-repair-validation/independent-qa.md) |
 | 等待和重复动作 | 门把手历史 40.50 秒预演删等候、重复外观循环，并保留按压和回程原生帧成为 22.60 秒候选 | `pacing.py` 将已求值的运动纳入观察保护，保留明示的必要停顿。使用原生样本复跑，原版报告 6 处动作前后等待，候选报告 0 处。完整观看和实听为 UNKNOWN。 [门把手节奏回归](door-handle-pacing-regression-20261123.md) |
 | 技术结果被当成可读性 | 门把手和脚踩垃圾桶保留的技术回执与独立抽样覆盖不同 | 已有独立 QA 的当前 MP4 判断增加拆解关系和可见传动。两个短样片的连续拆装、机制正确性与观看体验均为 UNKNOWN。 [皂液泵和门把手既有复用](cinematic-3d-20261122.md) |
+
+## 后续动态复验
+
+浏览器以原速播放 Branch Education 硬盘原作约 0–28 秒，以及从公开版取得的 30–65、295–317 秒。至采样时公开计数为 330,898 次观看、7,066 赞。5 秒附近保留原机身作参照，8–14 秒逐层抬起盘片，并在原位置呈现直径与转速。50 秒附近把气隙转成与盘面同框的剖面，片尾抽查区间出现赞助段。本项目复验沿用固定壳体参照和拆后观察窗，传动复验另用保留上下游的侧视镜头。 [硬盘原作](https://www.youtube.com/watch?v=ZZTC_dXcC2o)
+
+浏览器原速播放《施德楼925-85自动铅笔完全拆解、内部机构、调节出芯长度原理3D动画》的 0–18、67–100、247–285、405–429 秒。至采样时公开计数为 153 次播放、10 赞，归为实拆和三维表达参考。98 秒附近用局部近照保留螺纹细节，249–280 秒在实物和同方向剖视之间切换，露出弹簧并保留笔尖作为方位基准。427 秒附近回到整支笔的剖视。本项目在垃圾桶侧视中保留踏板、推杆和桶盖，在电饭煲拆罩中保留锅身与显示区域。两条参考的播放遥测与定点观察分别记录，第三方画面用作研究。 [自动铅笔原作](https://www.bilibili.com/video/BV1zFyQzgEC9/) · [播放记录](../../output/system-repair-validation/followup/reference-playback.json)
+
+合成和审查入口现将独立拆解纳入源帧比对。各用 48 帧实渲的两类诊断做回归，原片比对均无差异。冻结首帧仍能正常解码，但垃圾桶在 0.367–1.233 秒、电饭煲在 0.333–1.267 秒均检出源帧不匹配。相同时长内，拆后观察窗的端点间隔由 9 帧扩至 19 帧和 15 帧。独立 QA 仍判这两个视角的关键机构揭示失败。 [逐帧比较](../../output/system-repair-validation/followup/disassembly-frame-comparison.json) · [垃圾桶时序对照](../../output/system-repair-validation/followup/bin-before-after.mp4) · [电饭煲时序对照](../../output/system-repair-validation/followup/rice-before-after.mp4) · [独立 QA](../../output/system-repair-validation/followup/independent-qa.md)
+
+局部修订依据 Panasonic SR-FC106 实物维修照片 6、7、16 调整了可拆显示区罩的弧形外沿与开口。新片为 54 帧，安装壳体保留在画面中，Blender 在此次拆装的所有帧中未检出高于安装状态的网格表面相交。尺寸以照片比例估算，后铰链与受力脱扣仍无足够的同型号实证。垃圾桶已有的原生侧视段可同时观察踏板、竖杆与盖沿在松脚后回位，历史模型的来源仅适用于历史复查。 [电饭煲前罩对照](../../output/system-repair-validation/followup/sr-fc106-before-after.mp4) · [SR-FC106 实拍](https://taakuyu.hatenablog.com/entry/2023/11/29/224804) · [垃圾桶原生回放](../../output/system-repair-validation/reveal-repair/bin-release/bin-native-replay.mp4)
+
+浏览器从首帧播放到片尾的四个 MP4 分别为电饭煲 v6 36.00 秒、垃圾桶 r12 52.87 秒、门把手原版 40.50 秒和紧剪版 22.60 秒。FFmpeg 全量扫描定位了时间区间，静音播放和时序画面支持定位，音频感知和连续视觉接受度仍未确认。电饭煲 v6 起始 1.33 秒为低变化，画面主体和工业造型不足以对应 SR-FC106，9 秒分离后仍有一片盖盘遮挡。垃圾桶 r12 在 1 秒已见开盖，25.77–33.43 秒一带仍多次出现低变化画面。门把手紧剪版动作开端由 0.767 秒提前到 0.033 秒，18.97 秒后仍有低变化的力矩讲解段，保留了对原速回程与讲解同步的检查。 [完整播放记录](../../output/system-repair-validation/followup/local-playback.json) · [门把手完整前后对照](../../output/door-handle-pacing-regression-20261123/full-before-after.mp4)
+
+11 月 23 日抖音窗口的 2 秒跳出 32.73%、5 秒完播 40.25%、均播 11.24 秒、完播 2.9% 用于安排验证重点。留存看第一动作和首次因果，点赞看是否出现清楚的机械发现，收藏看结构切面是否值得复看，评论围绕真实设计问题，关注看是否呈现系列承诺。历史数据无法验证此次改动的发布效果。 [双平台历史数据](../plans/operations-growth-review-20261123.md)

@@ -218,6 +218,40 @@ def contiguous_ranges(indices):
     return intervals
 
 
+def scan_media(media):
+    """Locate reviewable picture holds and audio gaps even without a Blueprint."""
+    path = joint.bound(media)
+    streams = probe(path)['streams']
+    picture = next(stream for stream in streams if stream['codec_type'] == 'video')
+    audio = next((stream for stream in streams if stream['codec_type'] == 'audio'), None)
+    duration = float(picture['duration'])
+    command = ['ffmpeg', '-hide_banner', '-nostdin', '-v', 'info', '-xerror', '-i', str(path),
+               '-map', '0:v:0', '-vf', 'scale=320:-2,freezedetect=n=-45dB:d=1,blackdetect=d=0.15',
+               '-fps_mode', 'passthrough']
+    if audio:
+        command += ['-map', '0:a:0', '-af', 'silencedetect=n=-45dB:d=0.5']
+    decoded = subprocess.run(command + ['-f', 'null', '-'], capture_output=True, text=True, check=True)
+    events = re.findall(r'\b(freeze|black|silence)_(start|end):\s*(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)',
+                        decoded.stderr)
+    intervals = {'freeze': [], 'black': [], 'silence': []}
+    opened = {}
+    ends = {'freeze': duration, 'black': duration, 'silence': float(audio.get('duration', duration)) if audio else 0}
+    for kind, edge, raw_time in events:
+        time = max(0, min(ends[kind], float(raw_time)))
+        if edge == 'start':
+            opened[kind] = time
+        elif kind in opened:
+            intervals[kind].append([opened.pop(kind), time])
+    for kind, start in opened.items():
+        if kind == 'black' or ends[kind] - start >= {'freeze': 1, 'silence': .5}[kind]:
+            intervals[kind].append([start, ends[kind]])
+    joint.bound(media)
+    return {'media': media, 'picture_seconds': duration, 'audio_present': audio is not None,
+            'candidate_intervals_seconds': intervals,
+            'method': 'Full FFmpeg decode with freeze, black and silence filters',
+            'scope': 'Review cues. Compare holds with authored events and listen to audio in context.'}
+
+
 def needs_source_clip(cut, shot):
     science = shot.get('science', {})
     return bool(cut.get('action_views') or science.get('disassembly'))
@@ -469,11 +503,16 @@ def ordered_picture_evidence(media, frame_indices, *, cache_dir=CACHE):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('media', type=Path)
-    parser.add_argument('inputs', type=Path, help='JSON with plan and available review inputs')
+    parser.add_argument('inputs', nargs='?', type=Path, help='JSON with plan and available review inputs')
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
+    media = joint.binding(args.media)
+    if args.inputs is None:
+        write_report(args.output, scan_media(media))
+        print(args.output)
+        return 0
     inputs = json.loads(args.inputs.read_text())
-    report = inspect(joint.binding(args.media), **inputs)
+    report = inspect(media, **inputs)
     report['inputs'] = joint.binding(args.inputs)
     write_report(args.output, report)
     print(f"{report['technical_status']} {args.output}")
