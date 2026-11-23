@@ -254,8 +254,10 @@ def compile_config(blueprint, base, output, draft=False):
         for key in (joint.FIELD, 'timeline', 'measured_timeline'):
             result.pop(key, None)
     from . import director_audio
+    for key in director_audio.POLICY_FIELDS:
+        result.pop(key, None)
     if director_audio.enabled(data):
-        result[director_audio.FIELD] = director_audio.VERSION
+        result.update({key: data[key] for key in director_audio.POLICY_FIELDS if key in data})
         result.pop('audio_mix', None)
         result.pop('audio_direction', None)
         if data.get('measured_timeline'):
@@ -266,7 +268,6 @@ def compile_config(blueprint, base, output, draft=False):
                 result['audio_mix'] = mixture
             result['id'] += '-audio-' + direction['sha256'][:16]
     else:
-        result.pop(director_audio.FIELD, None)
         result.pop('audio_direction', None)
     if creative:
         result[director.FIELD] = director.VERSION

@@ -56,7 +56,9 @@ def prepare(task, script, env_file=None):
         from . import director_audio
         shared = Path(task) / 'shared'
         if director_audio.enabled(data):
-            music_plan = director_audio.plan_direction(content)
+            music_document = {key: value for key, value in content.items() if key not in director_audio.POLICY_FIELDS}
+            music_document.update({key: data[key] for key in director_audio.POLICY_FIELDS if key in data})
+            music_plan = director_audio.plan_direction(music_document)
             direction = shared / 'audio_intent.json'
             writejson(direction, music_plan)
         for segment in plan['narration']:

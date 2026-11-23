@@ -251,6 +251,7 @@ def write_manifest(path, final, config, build_proof):
     if director_audio.enabled(config):
         manifest[director_audio.FIELD] = director_audio.VERSION
         manifest['audio_direction'] = config['audio_direction']
+        manifest.update({key: config[key] for key in director_audio.POLICY_FIELDS if key in config})
     for key in ('production_contract_version','production_contract','knowledge_progression_version','subject_kind'):
         if key in config:
             manifest[key]=config[key]
@@ -302,7 +303,7 @@ def validate_manifest(path, media=None):
     verify_remotion_inputs(proof['build'])
     config = proof['build']['visual_config']
     from . import director_audio
-    if (director_audio.enabled(config) != director_audio.enabled(doc)
+    if (director_audio.policy(config) != director_audio.policy(doc)
             or doc.get('audio_direction') != config.get('audio_direction')):
         raise ValueError('Hybrid manifest music direction differs from the bound build')
     from . import joint_timeline as joint

@@ -163,7 +163,7 @@ class ProductionContractTests(unittest.TestCase):
                                             chapters=[dict(id='trace', knowledge_ids=['reduction'],
                                                            new_information='Output', duration_reason='Action')]))
             plan[director.FIELD] = director.VERSION
-            plan[director_audio.FIELD] = data[director_audio.FIELD]
+            plan.update({key: data[key] for key in director_audio.POLICY_FIELDS})
             plan['music_direction'] = {'mode': 'silence', 'reason': 'Keep the speed comparison quiet.'}
             plan['director'] = research['director']
             model = task / 'model.blend'
@@ -217,6 +217,7 @@ class ProductionContractTests(unittest.TestCase):
             w.write(pilot_plan, flexible)
             blueprint.compile_config(pilot_plan, base, pilot_config)
             compiled = json.loads(pilot_config.read_text())
+            self.assertEqual(compiled[director_audio.MIX_MODE_FIELD], data[director_audio.MIX_MODE_FIELD])
             self.assertEqual(compiled['chapters'], flexible['chapters'])
             self.assertEqual(director.action_program_digest(compiled['shots']['trace']),
                              director.action_program_digest(native))

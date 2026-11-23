@@ -1281,8 +1281,10 @@ media and obtain independent QA on that exact MP4 before advancing.
                         'Have independent QA listen to the exact complete MP4.')
         from . import director_audio
         if director_audio.enabled(data):
-            audio_review = ('Use music_direction_version=1 in the Blueprint. Direct the story cues before measuring Neil. '
-                            'The compile step matches the catalog and writes audio_direction.json. '
+            audio_review = ('Use music_direction_version=1 and the task music mix mode in the Blueprint. '
+                            f'The effective mode is {director_audio.mix_mode(data)}. '
+                            f'Copy default_bgm={director_audio.default_bgm(data)} when pinned. '
+                            'Design intentional silence where needed. Compilation resolves the catalog and writes audio_direction.json. '
                             'Bind verified mechanical sound_events to action frames. '
                             'Use technical evidence and independent full music_listening_review on the exact final MP4. '
                             'See docs/audio-direction.md for fields, explicit silence and audio-only revisions.')
@@ -1751,6 +1753,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value['audio_acceptance_policy'] = MODE
         from . import director_audio
         value[director_audio.FIELD] = director_audio.VERSION
+        from .ducking import CONSTANT_BED
+        value[director_audio.MIX_MODE_FIELD] = CONSTANT_BED
+        value[director_audio.DEFAULT_BGM_FIELD] = director_audio.DEFAULT_BGM
         if not skill_driven_pilot and not development:
             value[CREATIVE_DIRECTION] = CREATIVE_DIRECTION_VERSION
             value['reference_search_plan'] = 'research/search-plan.json'
@@ -2098,10 +2103,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if name == 'creative-blueprint' and role == 'Producer' and not story:
             raise ValueError('Producer Blueprint ownership requires the science-story contract')
         from . import director_audio
-        if name == 'creative-blueprint' and director_audio.enabled(data) != director_audio.enabled(payload):
+        if name == 'creative-blueprint' and director_audio.policy(data) != director_audio.policy(payload):
             raise ValueError('Blueprint music direction policy differs from the task')
         if name == 'story-treatment' and director_audio.enabled(data):
-            payload = dict(payload, audio_intent=director_audio.story_intent(payload))
+            payload = dict(payload, audio_intent=director_audio.story_intent(
+                payload, bgm=director_audio.default_bgm(data)))
         if name == 'animatic-manifest' and role == 'Editor' and not story:
             raise ValueError('Editor animatic ownership requires the science-story contract')
         if name == 'creative-blueprint' and data.get(PRESENTATION_STYLE) == NATURAL_SCIENCE:
@@ -2454,7 +2460,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     payload.update(audio_technical_status='FAIL', audio_technical_evidence={'reason': str(error)})
                 else:
                     payload.update(audio_technical_status='PASS', audio_technical_evidence=evidence)
-                require_continuity = bool(payload['audio_technical_evidence'].get('mix_check', {}).get('ducking'))
+                mix_check = payload['audio_technical_evidence'].get('mix_check', {})
+                require_continuity = bool(mix_check.get('ducking') or mix_check.get('constant_bed_calibration'))
                 payload = dict(payload, audio_perceptual_review=music_review(
                     payload, film['media'], require_continuity=require_continuity))
             elif directed and data.get('audio_acceptance_policy') == MODE and payload.get('full_audio_listened') is not True:
@@ -2597,7 +2604,8 @@ def check_qa(task, name, *, acceptance=True):
         from .audio_acceptance import check_evidence, music_review
         films = [row for row in production['media'] if Path(row['path']).suffix.lower() == '.mp4']
         check_evidence(qa, films, require_music=True)
-        require_continuity = bool(qa['audio_technical_evidence']['mix_check'].get('ducking'))
+        mix_check = qa['audio_technical_evidence']['mix_check']
+        require_continuity = bool(mix_check.get('ducking') or mix_check.get('constant_bed_calibration'))
         if music_review(qa, films, require_continuity=require_continuity) != 'PASS':
             raise ValueError('Final music and mechanical sound require full independent listening on the exact MP4')
     if mechanism_first(data) and name in {'preview-qa', 'final-qa'}:
@@ -2924,7 +2932,7 @@ def check_production_config(task, config=None):
     compiled = read_input_json(expected)
     from . import director, joint_timeline as joint
     from . import director_audio
-    if not director_audio.enabled(data) == director_audio.enabled(blueprint) == director_audio.enabled(compiled):
+    if not director_audio.policy(data) == director_audio.policy(blueprint) == director_audio.policy(compiled):
         raise ValueError('Executable music direction policy differs from the task')
     if director_audio.enabled(data):
         measured = joint.receipt(compiled['timeline'], compiled['measured_timeline'])
