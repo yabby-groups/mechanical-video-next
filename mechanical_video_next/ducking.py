@@ -2,7 +2,7 @@
 from bisect import bisect_right
 import math
 
-from .audio_acceptance import MIN_MIX_MARGIN_DB, WINDOW, process_mix
+from .audio_acceptance import ACTIVITY_POWER, MIN_MIX_MARGIN_DB, WINDOW, contextual_masking, process_mix
 from .joint_timeline import SAMPLE_RATE
 
 VERSION = 2
@@ -36,7 +36,8 @@ def measurements(stems, narration, expected, *, diagnostic_bgm=None):
     return rows
 
 
-def constant_bed(stems, effects, narration, expected, *, neil_lufs, cue_lufs, diagnostic_bgm=None):
+def constant_bed(stems, effects, narration, expected, *, neil_lufs, cue_lufs, diagnostic_bgm=None,
+                 speech_context=None):
     """Bound one static score trim by the same independent and summed masking budgets."""
     cap, limiting_sample = 1., None
     settings = CONSTANT_SETTINGS
@@ -44,9 +45,9 @@ def constant_bed(stems, effects, narration, expected, *, neil_lufs, cue_lufs, di
     if neil_lufs is not None:
         minimum = max(minimum, neil_lufs + settings['minimum_relative_bed_db'])
 
-    def measure(left, right, voice, music, sfx, summed_music, summed_sfx, cross):
+    def measure(left, right, voice, music, sfx, summed_music, summed_sfx, cross, *, raw_voice=None):
         nonlocal cap, limiting_sample
-        if voice <= (right - left) * (32768 * .01) ** 2:
+        if (voice if raw_voice is None else raw_voice) <= (right - left) * ACTIVITY_POWER:
             return
         budget = voice / 10 ** (MIN_MIX_MARGIN_DB / 10)
         if max(sfx, summed_sfx) > budget:
@@ -65,9 +66,20 @@ def constant_bed(stems, effects, narration, expected, *, neil_lufs, cue_lufs, di
         if ceiling < cap:
             cap, limiting_sample = ceiling, left
 
+    contextual = []
+    context_windows = []
     if stems or effects:
-        process_mix(stems + effects, narration, expected, check_masking=False, observe_masking=measure,
+        def collect(*row):
+            contextual.append(row)
+
+        process_mix(stems + effects, narration, expected, check_masking=False,
+                    observe_masking=measure if speech_context is None else collect,
                     diagnostic_bgm=diagnostic_bgm)
+        if speech_context is not None:
+            for pooled, original in contextual_masking(contextual, speech_context):
+                measure(*pooled, raw_voice=original[2])
+                if pooled != original:
+                    context_windows.append([original[0], original[1]])
     # Round down so recomputation cannot exceed the exact masking bound.
     masking_trim = math.floor(2000 * math.log10(cap)) / 100 if cap else None
     fixed_lufs = {cue: round(level + masking_trim, 3) if masking_trim is not None else None
@@ -78,6 +90,8 @@ def constant_bed(stems, effects, narration, expected, *, neil_lufs, cue_lufs, di
                 'minimum_bed_lufs': minimum, 'limiting_sample': limiting_sample, 'usable': usable,
                 'cues': {cue: {'calibrated_lufs': round(level, 3), 'fixed_lufs': fixed_lufs[cue]}
                          for cue, level in cue_lufs.items()}}
+    if speech_context is not None:
+        evidence['contextual_windows_samples'] = context_windows
     fixed = [dict(row, gain_db=round(row['gain_db'] + masking_trim, 6)) for row in stems] if usable else []
     return fixed, evidence
 
@@ -217,3 +231,31 @@ def review_metrics(windows):
             'low_music_ranges_samples': ranges,
         },
     }
+
+
+def effective_bed_lufs(calibration, bus):
+    effective = {cue: round(row['fixed_lufs'] + bus, 3) for cue, row in calibration['cues'].items()}
+    for cue, level in effective.items():
+        if level < min(calibration['minimum_bed_lufs'], calibration['cues'][cue]['calibrated_lufs']):
+            raise ValueError(f'BGM {cue} below its audibility budget after uniform bus gain ({level} LUFS estimated)')
+    return effective
+
+
+def audibility_metrics(windows, calibration, bus, music):
+    """Report measured BGM level by speech activity and the uniform trim applied."""
+    from statistics import median
+
+    groups = {'under_neil': [], 'without_neil': []}
+    for row in windows:
+        if row['bgm_dry_rms_dbfs'] is None or row['bgm_dry_rms_dbfs'] < -55:
+            continue
+        value = row['bgm_rms_dbfs']
+        if value is not None:
+            groups['under_neil' if row['active_speech'] else 'without_neil'].append(value + bus)
+    gains = sorted({row['gain_db'] for row in music})
+    return {'speech_groups': {key: {'windows': len(values),
+                                  'median_rms_dbfs': round(median(values), 2) if values else None}
+                              for key, values in groups.items()},
+            'fixed_gain_db': gains, 'bus_gain_db': bus,
+            'estimated_bed_lufs': effective_bed_lufs(calibration, bus),
+            'perceptual_status': 'UNKNOWN'}

@@ -428,8 +428,12 @@ def composition_cached_media(folder):
     return None
 
 
+def picture_only_props(props):
+    return {key: value for key, value in props.items() if key not in {'narrationTrack', 'finalAacSha256'}}
+
+
 def cached_picture(props, quality):
-    picture_props = {key: value for key, value in props.items() if key != 'narrationTrack'}
+    picture_props = picture_only_props(props)
     index = CACHE / 'picture-compositions' / (composition_key(picture_props, quality) + '.json')
     try:
         previous = json.loads(index.read_text())
@@ -438,7 +442,7 @@ def cached_picture(props, quality):
         folder = CACHE / 'compositions' / previous['composition_key']
         existing = composition_cached_media(folder)
         old_props = json.loads((folder / 'props.json').read_text())
-        if existing and picture_props == {key: value for key, value in old_props.items() if key != 'narrationTrack'}:
+        if existing and picture_props == picture_only_props(old_props):
             return index, existing
     except (OSError, ValueError, KeyError, TypeError):
         pass
@@ -466,6 +470,8 @@ def compose(cfg, quality, media, metrics):
     visual = version(cfg) == VERSION
     shared = joint.enabled(cfg)
     music = director_audio.enabled(cfg)
+    mixture = cfg.get('audio_mix')
+    fixed = director_audio.fixed_bed(cfg) and mixture is not None
     locked = shared and joint.integrity(cfg['timeline'])
     if shared:
         plan = joint.validate(cfg['timeline'])
@@ -550,6 +556,8 @@ def compose(cfg, quality, media, metrics):
             playback, _ = verify_mix(cfg['audio_mix'], master, plan['frame_count'] * joint.SAMPLES_PER_FRAME,
                                      check_masking=False)
         props['narrationTrack'] = expose(playback, filehash(playback))
+        if fixed:
+            props['finalAacSha256'] = mixture['aac']['sha256']
     if locked:
         props['frameCount'] = plan['frame_count']
     props[PRESENTATION_STYLE] = NATURAL_SCIENCE if natural else 'legacy'
@@ -613,21 +621,28 @@ def compose(cfg, quality, media, metrics):
     if not hit:
         writejson(cachedir/'props.json',props)
         cached_media = target if external else cachedir/'video.mp4'
-        candidate = cached_media.with_suffix('.unverified.mp4') if locked else cached_media
+        candidate = cached_media.with_suffix('.unverified.mp4') if locked or fixed else cached_media
         if music:
             from tempfile import TemporaryDirectory
             with TemporaryDirectory(dir=cachedir) as temporary:
                 picture_path = prior_picture or Path(temporary) / 'picture.mp4'
                 if prior_picture is None:
-                    render(cachedir/'props.json', picture_path, cachedir/'render.log',
+                    render_props = cachedir/'props.json'
+                    if fixed:
+                        render_props = Path(temporary) / 'picture.props.json'
+                        writejson(render_props, picture_only_props(props))
+                    render(render_props, picture_path, cachedir/'render.log',
                            preview=quality=='preview', encode_profile=encode_profile, visual=visual, progression=enabled(cfg))
-                director_audio.mux_picture(picture_path, playback, candidate)
+                director_audio.mux_arrangement(picture_path, playback, mixture, candidate)
                 if director_audio.picture_hash(picture_path) != director_audio.picture_hash(candidate):
                     raise ValueError('Sound composition changed the picture stream')
         else:
             render(cachedir/'props.json', candidate, cachedir/'render.log',
                    preview=quality=='preview', encode_profile=encode_profile, visual=visual, progression=enabled(cfg))
-        if locked:
+        if fixed:
+            delivery = director_audio.fixed_delivery(candidate, plan, measured, mixture, require_ready=quality == 'final')
+            candidate.replace(cached_media)
+        elif locked:
             joint.validate_rendered_film(candidate, plan)
             joint.validate_rendered_audio(candidate, plan, measured, playback, mix='audio_mix' in cfg)
             candidate.replace(cached_media)
@@ -635,7 +650,9 @@ def compose(cfg, quality, media, metrics):
         else: run(['ffmpeg','-v','error','-i',cached_media,'-f','null','-'],cachedir/'decode.log')
         if not external:
             complete(cachedir,['video.mp4'])
-    if locked and hit:
+    if fixed and hit:
+        delivery = director_audio.fixed_delivery(cached_media, plan, measured, mixture, require_ready=quality == 'final')
+    elif locked and hit:
         joint.validate_rendered_film(cached_media, plan)
         joint.validate_rendered_audio(cached_media, plan, measured, playback, mix='audio_mix' in cfg)
     if cached_media.resolve() != target.resolve():
@@ -647,7 +664,7 @@ def compose(cfg, quality, media, metrics):
     if picture_index is not None:
         from mechanical_video_next.workflow import write
         write(picture_index, {'composition_key': key})
-        writejson(target.with_suffix('.audio-direction.json'), {
+        writejson(target.with_suffix('.audio-direction.json'), (delivery if fixed else {}) | {
             'media': joint.binding(target), 'direction': cfg['audio_direction'],
             'picture_reused': bool(prior_picture) and not hit, 'composition_cache_hit': hit,
             'audio_perceptual_review': 'UNKNOWN',

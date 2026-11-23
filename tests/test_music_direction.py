@@ -58,8 +58,12 @@ class MusicDirectionTests(unittest.TestCase):
         task = workflow.create_task('Why does a latch spring back?', root=self.root,
                                     visual_policy_version=2, media_policy_version=1)
         self.assertTrue(music.enabled(workflow.load(task)))
+        self.assertEqual(workflow.load(task)[music.FIELD], music.CURRENT_VERSION)
         self.assertEqual(workflow.load(task)[music.MIX_MODE_FIELD], ducking.CONSTANT_BED)
-        self.assertEqual(workflow.load(task)[music.DEFAULT_BGM_FIELD], 'junge-theme-v4')
+        self.assertEqual(workflow.load(task)[music.DEFAULT_BGM_FIELD], 'junge-theme-v7')
+        legacy = self.blueprint | {music.MIX_MODE_FIELD: ducking.CONSTANT_BED,
+                                   music.DEFAULT_BGM_FIELD: 'junge-theme-v4'}
+        self.assertEqual(music.plan_direction(legacy)['asset_id'], 'junge-theme-v4')
         self.assertEqual(music.mix_mode(self.blueprint), ducking.ADAPTIVE_V2)
         self.assertFalse(music.enabled({}))
         self.assertIsNone(music.validate_arrangement({}, require_ready=True))
@@ -102,7 +106,7 @@ class MusicDirectionTests(unittest.TestCase):
                 wav.writeframes(data.tobytes())
         speech = [{'start_sample': 24000, 'end_sample': 48000},
                   {'start_sample': 57600, 'end_sample': 96000}]
-        rights = audio_library.records()[0][0]
+        (rights,), _ = audio_library.records(selected='quiet-link-curiosity')
         stem = dict(rights, source=joint.binding(music_source), kind='bgm', gain_db=0.,
                     cue_id='cue', start_sample=0, end_sample=count, source_start_sample=0,
                     envelope=[[0, 0.], [1000, 1.], [count-1000, 1.], [count-1, 0.]])
@@ -161,11 +165,13 @@ class MusicDirectionTests(unittest.TestCase):
     def test_v4_registration_and_verified_waveform(self):
         path = audio_library.LIBRARY / 'junge-theme-v4.json'
         row = json.loads(path.read_text())
-        self.assertEqual(row['id'], music.DEFAULT_BGM)
+        self.assertEqual(row['id'], 'junge-theme-v4')
         self.assertEqual(row['source']['sha256'], 'dee1879199239573889bfddba5fa3bfeb07c7a9398127c6893a80e70db3a18c3')
         self.assertEqual((row['duration_seconds'], row['channels'], row['sample_rate']), (80, 2, 48000))
         self.assertEqual(row['license_status'], audio_library.RIGHTS_REVIEW_REQUIRED)
-        self.assertEqual(len(audio_library.records()[0]), 4)
+        eligible, rejected = audio_library.records(selected='junge-theme-v4')
+        self.assertEqual(eligible, [])
+        self.assertEqual(len(rejected), 1)
         if not (audio_library.ROOT / row['source']['path']).is_file():
             self.skipTest('Original V4 WAV is kept local pending redistribution rights')
         track = audio_library.inspect_audio(row)
@@ -188,7 +194,46 @@ class MusicDirectionTests(unittest.TestCase):
                 self.assertAlmostEqual(sum(ducking.interpolate(stem['envelope'], point)
                                            for stem in (outgoing, incoming)), 1., places=7)
 
-    def test_v4_pending_or_missing_does_not_fall_back_to_other_catalog_music(self):
+    def test_v7_registration_short_cut_and_long_loop(self):
+        row = json.loads((audio_library.LIBRARY / 'junge-theme-v7.json').read_text())
+        self.assertEqual(row['id'], music.DEFAULT_BGM)
+        self.assertEqual(row['source']['sha256'], '5c2eb17207674638be801fb2e5b4afb7e0220592cf54419f038d69ff7228bfa1')
+        self.assertEqual((row['duration_seconds'], row['channels'], row['sample_rate'], row['bpm']),
+                         (58.1851875, 2, 48000, 132))
+        self.assertEqual(row['source_type'], 'GENERATED')
+        self.assertEqual(row['license_status'], 'VERIFIED')
+        self.assertTrue(row['license']['commercial_use'])
+        self.assertEqual(row['rights_review']['copyright_ownership']['status'], 'UNDETERMINED')
+        if not (audio_library.ROOT / row['source']['path']).is_file():
+            self.skipTest('Original V7 WAV is local')
+        tracks, rejected = audio_library.records(selected=music.DEFAULT_BGM)
+        self.assertEqual(rejected, [])
+        track, = tracks
+        seam = track['loop_analysis']
+        self.assertAlmostEqual(seam['period_beats'], 64, places=3)
+        self.assertGreater(seam['correlation'], .99)
+        self.assertGreater(seam['bass_correlation'], .99)
+        self.assertLess(abs(seam['incoming_minus_outgoing_db']), 1)
+        self.pin_theme()
+        cue, = music.plan_direction(self.blueprint)['segments']
+        bed, = music.lay_music(cue, track, -19.89, self.measured['speech'], [])
+        self.assertEqual(bed['source_start_sample'], 0)
+        self.assertEqual(bed['envelope'], [[0, 0.], [19200, 1.], [239999, 1.], [287999, 0.]])
+        frames = 5400
+        cue.update(end_frame=frames, film_samples=frames * joint.SAMPLES_PER_FRAME)
+        stems = list(music.lay_music(cue, track, -19.89, [], []))
+        self.assertEqual(stems[-1]['end_sample'], cue['film_samples'])
+        self.assertEqual(stems[-1]['envelope'][-1], [cue['film_samples'] - 1, 0.])
+        self.assertEqual(len({stem['gain_db'] for stem in stems}), 1)
+        self.assertGreater(len(stems), 4)
+        for outgoing, incoming in zip(stems, stems[1:]):
+            self.assertEqual(incoming['source_start_sample'], seam['start_sample'])
+            self.assertEqual(outgoing['end_sample'] - incoming['start_sample'], seam['overlap_samples'])
+            for point in range(incoming['start_sample'], outgoing['end_sample'], 117):
+                self.assertAlmostEqual(sum(ducking.interpolate(stem['envelope'], point)
+                                           for stem in (outgoing, incoming)), 1., places=7)
+
+    def test_v7_pending_or_missing_does_not_fall_back_to_other_catalog_music(self):
         self.pin_theme()
         catalog = self.root / 'library'
         rights = json.loads((audio_library.LIBRARY / 'quiet-link-curiosity.json').read_text())
@@ -196,19 +241,23 @@ class MusicDirectionTests(unittest.TestCase):
         config, design, _ = self.arrange(catalog=catalog)
         self.assertEqual(design['status'], 'BLOCKED')
         self.assertEqual(design['selections'], [])
-        with self.assertRaisesRegex(ValueError, 'catalog record missing.*junge-theme-v4'):
+        with self.assertRaisesRegex(ValueError, 'BGM BLOCKED.*catalog record missing.*junge-theme-v7'):
             music.validate_arrangement(config, require_ready=True)
         path = catalog / (music.DEFAULT_BGM + '.json')
         record = dict(rights, id=music.DEFAULT_BGM, license_status=audio_library.RIGHTS_REVIEW_REQUIRED,
                       source=joint.binding(self.clip))
         writejson(path, record)
         config, design, _ = self.arrange(catalog=catalog)
-        with self.assertRaisesRegex(ValueError, audio_library.RIGHTS_REVIEW_REQUIRED):
+        with self.assertRaisesRegex(ValueError, 'BGM BLOCKED.*' + audio_library.RIGHTS_REVIEW_REQUIRED):
             music.validate_arrangement(config, require_ready=True)
         self.clip.unlink()
-        self.assertIn('Music source missing', audio_library.records(catalog, selected=music.DEFAULT_BGM)[1][0]['reason'])
+        config, design, _ = self.arrange(catalog=catalog)
+        self.assertEqual(design['status'], 'BLOCKED')
+        self.assertIsNone(config['audio_mix'])
+        with self.assertRaisesRegex(ValueError, 'BGM BLOCKED.*Music source missing'):
+            music.validate_arrangement(config, require_ready=True)
 
-    def test_v4_exact_override_silence_clock_and_source_cache(self):
+    def test_v7_exact_override_silence_clock_and_source_cache(self):
         self.pin_theme()
         catalog = self.root / 'library'
         record = json.loads((audio_library.LIBRARY / 'quiet-link-curiosity.json').read_text())
@@ -224,6 +273,15 @@ class MusicDirectionTests(unittest.TestCase):
         self.assertEqual(stem['envelope'], [[96000, 0.], [115200, 1.], [239999, 1.], [287999, 0.]])
         self.assertEqual(config['audio_mix']['output_gain_db'], 0.)
         self.assertTrue(self.arrange(catalog=catalog)[2])
+        # A catalog alias for identical bytes still has its own fixed-score cache identity.
+        writejson(catalog / (music.DEFAULT_BGM + '.json'), record | {'id': music.DEFAULT_BGM})
+        del self.blueprint['music_direction']['asset_id']
+        pinned, plan, hit = self.arrange(catalog=catalog)
+        self.assertFalse(hit)
+        self.assertEqual(plan['selections'][0]['asset_id'], 'junge-theme-v7')
+        self.assertNotEqual(pinned['audio_mix']['cache_key'], config['audio_mix']['cache_key'])
+        self.assertTrue(self.arrange(catalog=catalog)[2])
+        self.blueprint['music_direction']['asset_id'] = original
         changed = self.root / 'replacement.wav'
         self.tone(changed, 6 * joint.SAMPLE_RATE, 1200)
         writejson(catalog / (original + '.json'), record | {'source': joint.binding(changed)})
@@ -258,7 +316,7 @@ class MusicDirectionTests(unittest.TestCase):
             wav.writeframes(voice.tobytes())
         self.tone(music_source, count, 6000)
         self.tone(effect_source, 1600, 8000)
-        rights = audio_library.records()[0][0]
+        (rights,), _ = audio_library.records(selected='quiet-link-curiosity')
         stem = dict(rights, source=joint.binding(music_source), kind='bgm', gain_db=-8., cue_id='bed',
                     start_sample=0, end_sample=count, source_start_sample=0,
                     envelope=music.constant_envelope(0, count, 1000, 1000))
@@ -282,6 +340,58 @@ class MusicDirectionTests(unittest.TestCase):
             ducking.constant_bed([stem], [dict(effect, start_sample=0, end_sample=1600, gain_db=0)],
                                  foreground, count, **kwargs)
 
+    def test_contextual_masking_only_pools_isolated_weak_speech_within_utterance(self):
+        size = audio_acceptance.WINDOW
+        activity = size * audio_acceptance.ACTIVITY_POWER
+        def window(index, speech, sfx=0):
+            return (index * size, (index + 1) * size, speech * activity,
+                    .2 * activity, sfx * activity, .2 * activity, sfx * activity, 0)
+        voice = [window(0, 0), window(1, 1.06), window(2, 0), window(3, 70), window(4, 70)]
+        utterance = [{'start_sample': 0, 'end_sample': 5 * size}]
+        pooled = list(audio_acceptance.contextual_masking(voice, utterance))
+        self.assertEqual(pooled[1], ((size, 2 * size, 71.06 * activity,
+                                     .4 * activity, 0, .4 * activity, 0, 0), voice[1]))
+        self.assertEqual(pooled[3], (voice[3], voice[3]))
+        for blocked_voice, ranges in (
+            (voice, [{'start_sample': 0, 'end_sample': 2 * size}]),
+            ([*voice[:2], window(2, 1.2), *voice[3:]], utterance),
+            ([voice[0], window(1, 1.06, .15), *voice[2:]], utterance),
+        ):
+            original = blocked_voice[1]
+            self.assertEqual(list(audio_acceptance.contextual_masking(blocked_voice, ranges))[1],
+                             (original, original))
+
+    def test_contextual_bed_uses_measured_speech_and_checks_post_bus_audibility(self):
+        self.pin_theme()
+        self.blueprint[music.FIELD] = music.CONTEXTUAL_VERSION
+        self.blueprint['music_direction'] = {'asset_id': 'quiet-link-curiosity'}
+        config, design, _ = self.arrange()
+        mix = config['audio_mix']
+        self.assertEqual(mix['speech_context'], design['speech'])
+        self.assertTrue(self.arrange()[2])
+        audio_acceptance.verify_mix(mix, self.master, 180 * 1600)
+        analysis = []
+        music.validate_arrangement(config, blueprint=self.blueprint, measured=self.measured,
+                                   require_ready=True, analysis=analysis)
+        evidence = ducking.audibility_metrics(analysis, design['constant_bed_calibration'],
+                                               mix['output_gain_db'], mix['stems'])
+        self.assertGreater(evidence['speech_groups']['under_neil']['windows'], 0)
+        self.assertGreater(evidence['speech_groups']['without_neil']['windows'], 0)
+        self.assertEqual(len(evidence['fixed_gain_db']), 1)
+        self.assertEqual(evidence['perceptual_status'], 'UNKNOWN')
+        calibration = {'minimum_bed_lufs': -44., 'cues': {'bed': {'fixed_lufs': -43.9, 'calibrated_lufs': -30.}}}
+        with self.assertRaisesRegex(ValueError, 'below its audibility budget'):
+            ducking.audibility_metrics([], calibration, -.25, mix['stems'])
+
+        conflict = design['constant_bed_calibration'] | {'usable': False, 'limiting_sample': 4800}
+        with patch.object(music, 'calibrate_constant', return_value=([], conflict)):
+            blocked, disposition, hit = self.arrange()
+        self.assertEqual(disposition['status'], 'BLOCKED')
+        self.assertIsNone(blocked['audio_mix'])
+        self.assertFalse(hit)
+        with self.assertRaisesRegex(ValueError, 'BGM BLOCKED.*0.100s'):
+            music.validate_arrangement(blocked, require_ready=True)
+
     def test_constant_loop_preserves_equal_power_at_each_seam(self):
         cue = {'id': 'loop', 'start_frame': 0, 'end_frame': 132, 'fade_in_seconds': .35, 'fade_out_seconds': .85}
         track = {'sample_count': 48000, 'loopable': True, 'loop_samples': [0, 48000]}
@@ -302,7 +412,7 @@ class MusicDirectionTests(unittest.TestCase):
             with wave.open(str(path), 'wb') as wav:
                 wav.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
                 wav.writeframes(data.tobytes())
-        rights = audio_library.records()[0][0]
+        (rights,), _ = audio_library.records(selected='quiet-link-curiosity')
         prepared = [dict(rights, **stem, source=joint.binding(source)) for stem in stems]
         audio_acceptance.process_mix(prepared, silence, count, destination=output)
         with wave.open(str(output), 'rb') as wav:
@@ -334,8 +444,8 @@ class MusicDirectionTests(unittest.TestCase):
         self.plan['actions'] = [action]
         for shot in self.plan['shots']:
             shot.update(action_views={'spring': shot['start_frame']}, source_start_frame=shot['start_frame'])
-        valid, _ = audio_library.records()
-        rights = {key: valid[0][key] for key in ('license', 'license_status', 'credit', 'source_type', 'usage_restrictions')}
+        (track,), _ = audio_library.records(selected='quiet-link-curiosity')
+        rights = {key: track[key] for key in ('license', 'license_status', 'credit', 'source_type', 'usage_restrictions')}
         self.blueprint['sound_events'] = [dict(rights, action_id='spring', offset_frames=frame, duration_frames=2,
             trigger_evidence=dict(joint.binding(source), frame=frame, position='inspected_contact_frames'),
             source=joint.binding(self.clip), purpose='Contact alignment test', gain_db=-30) for frame in (30, 70)]
@@ -355,8 +465,7 @@ class MusicDirectionTests(unittest.TestCase):
             cut['silence_reason'] = 'Observe the mechanism continuously'
         self.measure()
         catalog = self.root / 'library'
-        eligible, _ = audio_library.records()
-        record = json.loads(Path(eligible[0]['catalog_record']['path']).read_text())
+        record = json.loads((audio_library.LIBRARY / 'quiet-link-curiosity.json').read_text())
         record.update(style=['curiosity', 'discovery'], source=joint.binding(self.clip), tier='local', loopable=False)
         path = catalog / (record['id'] + '.json')
         writejson(path, record)
@@ -406,10 +515,10 @@ class MusicDirectionTests(unittest.TestCase):
             audio_acceptance.verify_mix(changed['audio_mix'], self.master, 180 * 1600)
 
     def test_clipping_is_rejected(self):
-        eligible, _ = audio_library.records()
+        (track,), _ = audio_library.records(selected='quiet-link-curiosity')
         source = self.root / 'overload.wav'
         self.tone(source, 48000, 27000)
-        row = dict(eligible[0], source=joint.binding(source), kind='sfx', gain_db=5,
+        row = dict(track, source=joint.binding(source), kind='sfx', gain_db=5,
                    start_sample=0, end_sample=48000, source_start_sample=0)
         with self.assertRaisesRegex(ValueError, 'clips'):
             audio_acceptance.process_mix([row], self.master, 180 * 1600, destination=self.root / 'mix.wav')
@@ -460,7 +569,9 @@ class MusicDirectionTests(unittest.TestCase):
         self.assertTrue((shared_cache / keep / 'mix.wav').exists())
 
     def test_production_composition_reuses_picture_after_music_change(self):
-        self.blueprint[music.MIX_MODE_FIELD] = ducking.CONSTANT_BED
+        self.pin_theme()
+        self.blueprint[music.FIELD] = music.CURRENT_VERSION
+        self.blueprint['music_direction'] = {'asset_id': 'quiet-link-curiosity'}
         self.plan['film_integrity_version'] = 1
         self.measure()
         source = self.root / 'picture.mp4'
@@ -479,22 +590,112 @@ class MusicDirectionTests(unittest.TestCase):
             'shots': {row['id']: {'visual': {}} for row in self.plan['shots']},
         }
         from unittest.mock import Mock
+
+        def render_picture(props, target, log, **kwargs):
+            self.assertNotIn('narrationTrack', json.loads(props.read_text()))
+            self.assertNotIn('finalAacSha256', json.loads(props.read_text()))
+            shutil.copyfile(source, target)
+
         with (patch.object(produce, 'ROOT', self.root), patch.object(produce, 'CACHE', self.root / 'composition'),
               patch.object(produce, 'PUBLIC', pub), patch('mechanical_video_next.style_lock.verify_lock',
                                                        return_value={'status': 'PASS'}),
-              patch('mechanical_video_next.remotion_build.render',
-                    side_effect=lambda props, target, log, **kwargs: shutil.copyfile(source, target)) as render):
+              patch('mechanical_video_next.remotion_build.render', side_effect=render_picture) as render):
             for variant in ('off', 'on'):
                 if variant == 'off':
                     self.blueprint['music_direction'] = {'mode': 'silence', 'reason': 'Audio-only reuse fixture'}
                 else:
-                    del self.blueprint['music_direction']
+                    self.blueprint['music_direction'] = {'asset_id': 'quiet-link-curiosity'}
                 config, _, _ = self.arrange()
                 produce.compose(configuration | config | {'id': variant}, 'preview', media, Mock())
             self.assertEqual(render.call_count, 1)
         changed = output / 'on-preview.mp4'
         self.assertEqual(music.picture_hash(changed), music.picture_hash(output / 'off-preview.mp4'))
-        self.assertTrue(json.loads(changed.with_suffix('.audio-direction.json').read_text())['picture_reused'])
+        receipt = json.loads(changed.with_suffix('.audio-direction.json').read_text())
+        self.assertTrue(receipt['picture_reused'])
+        self.assertEqual(receipt['media'], joint.binding(changed))
+        self.assertEqual(receipt['aac_packets_sha256'], music.aac_hash(changed))
+
+    def test_new_v7_in_decoded_long_mp4_with_unchanged_neil_and_sfx(self):
+        catalog = audio_library.LIBRARY / f'{music.DEFAULT_BGM}.json'
+        if not catalog.is_file() or not (audio_library.ROOT / json.loads(catalog.read_text())['source']['path']).is_file():
+            self.skipTest('Original V7 WAV and catalog are local')
+        (track,), _ = audio_library.records(selected=music.DEFAULT_BGM)
+        self.pin_theme()
+        self.blueprint[music.FIELD] = music.CURRENT_VERSION
+        self.plan['frame_count'] = self.plan['shots'][-1]['end_frame'] = 1950
+        self.blueprint['shots'][-1]['time_range'][-1] = 65
+        self.plan['narration'][0].update(start_frame=900, deadline_frame=942)
+        self.plan['shots'][0]['silence_reason'] = 'Reveal the movement'
+        self.plan['actions'] = [{'id': 'contact', 'start_frame': 1200, 'end_frame': 1260,
+                                 'source_start_frame': 0, 'source': joint.binding(self.clip),
+                                 'start_state': 'open', 'end_state': 'closed',
+                                 'curve': 'linear', 'constraints': ['contact']}]
+        self.plan['shots'][-1].update(action_views={'contact': 0}, source_clock_origin=-1140)
+        self.measure()
+        effect = self.root / 'click.wav'
+        self.tone(effect, 3200, 3500)
+        rights = {key: track[key] for key in ('source_type', 'license_status', 'license', 'credit', 'usage_restrictions')}
+        self.blueprint['sound_events'] = [dict(rights, action_id='contact', duration_frames=2,
+            purpose='Contact', source=joint.binding(effect), gain_db=0,
+            trigger_evidence=dict(joint.binding(effect), frame=1200, position='fixture contact'))]
+        conf, design, hit = self.arrange()
+        self.assertFalse(hit)
+        self.assertEqual(design['status'], 'BLOCKED')
+        self.assertIn('masking', design['technical_findings'])
+        self.assertNotIn('ducking', design)
+        self.assertNotIn('constant_bed_calibration', design)
+        mix = conf['audio_mix']
+        music_stems = [stem for stem in mix['stems'] if stem['kind'] == 'bgm']
+        self.assertEqual(len(music_stems), 2)
+        self.assertEqual({stem['gain_db'] for stem in music_stems}, {music.DEFAULT_GAIN_DB})
+        self.assertEqual(mix['output_gain_db'], 0)
+        seam = music_stems[1]['start_sample']
+        self.assertEqual(music_stems[0]['end_sample'] - seam, track['loop_crossfade_samples'])
+        self.assertEqual(music_stems[1]['source_start_sample'], track['loop_samples'][0])
+        source, final = (self.root / f'{name}.mp4' for name in ('picture', 'v7'))
+        execute(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=64x64:r=30:d=65',
+                 '-c:v', 'libx264', str(source)], check=True)
+        with patch('scripts.produce.run_blender', side_effect=AssertionError('Blender must stay idle')):
+            with self.assertRaisesRegex(ValueError, 'BGM BLOCKED.*masking'):
+                music.postprocess(source, self.blueprint, final, cache=self.cache)
+            self.assertFalse(final.exists())
+            receipt = music.postprocess(source, self.blueprint, final, cache=self.cache, audition=True)
+        self.assertTrue(receipt['cache_hit'])
+        self.assertEqual(receipt['audio_technical_status'], 'FAIL')
+        self.assertEqual(receipt['media'], joint.binding(final))
+        self.assertEqual(receipt['aac_packets_sha256'], music.aac_hash(final))
+        self.assertEqual(music.picture_hash(source), music.picture_hash(final))
+        decoded, identity = audio_acceptance.decode_aac(final, 1950 * 1600)
+        self.assertEqual(identity, receipt['audio']['pcm'])
+        self.assertEqual(receipt['neil'], joint.binding(self.master))
+        self.assertEqual(receipt['sfx'][0]['source'], joint.binding(effect))
+        # Compare the decoded sum on its original clock against the V7 waveform,
+        # with authored foreground on top before the seam and after it.
+        with (audio_library.open_pcm(joint.bound(track['source']), downmix=track['pcm_downmix']) as raw,
+              wave.open(str(self.master), 'rb') as voice, wave.open(str(effect), 'rb') as click):
+            for index, at, foreground in ((0, 30 * 48000, voice), (0, 40 * 48000, click),
+                                           (1, 58 * 48000, None)):
+                stem = music_stems[index]
+                count = 3200
+                raw.setpos(stem['source_start_sample'] + at - stem['start_sample'])
+                expected = audio_acceptance.wav_samples(raw, count)
+                if foreground is not None:
+                    foreground.setpos(at if foreground is voice else 0)
+                    original = audio_acceptance.wav_samples(foreground, count)
+                else:
+                    original = [0] * count
+                residual = [sample * 32768 - overlay
+                            for sample, overlay in zip(decoded[at:at+count], original, strict=True)]
+                power = math.sumprod(expected, expected)
+                fitted = math.sumprod(expected, residual) / power
+                self.assertAlmostEqual(20 * math.log10(fitted), music.DEFAULT_GAIN_DB, delta=.5)
+                self.assertGreater(math.sumprod(expected, residual) /
+                                   math.sqrt(power * math.sumprod(residual, residual)), .98)
+        encoded = joint.bound(mix['aac'])
+        encoded.write_bytes(b'stale AAC')
+        refreshed, _, hit = self.arrange()
+        self.assertFalse(hit)
+        self.assertEqual(refreshed['audio_mix']['aac'], mix['aac'])
 
 
 if __name__ == '__main__':

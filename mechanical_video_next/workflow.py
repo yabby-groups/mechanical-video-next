@@ -1281,7 +1281,7 @@ media and obtain independent QA on that exact MP4 before advancing.
                         'Have independent QA listen to the exact complete MP4.')
         from . import director_audio
         if director_audio.enabled(data):
-            audio_review = ('Use music_direction_version=1 and the task music mix mode in the Blueprint. '
+            audio_review = ('Use the task music_direction_version and music mix mode in the Blueprint. '
                             f'The effective mode is {director_audio.mix_mode(data)}. '
                             f'Copy default_bgm={director_audio.default_bgm(data)} when pinned. '
                             'Design intentional silence where needed. Compilation resolves the catalog and writes audio_direction.json. '
@@ -1752,7 +1752,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         value[video_review.FIELD] = video_review.VERSION
         value['audio_acceptance_policy'] = MODE
         from . import director_audio
-        value[director_audio.FIELD] = director_audio.VERSION
+        value[director_audio.FIELD] = director_audio.CURRENT_VERSION
         from .ducking import CONSTANT_BED
         value[director_audio.MIX_MODE_FIELD] = CONSTANT_BED
         value[director_audio.DEFAULT_BGM_FIELD] = director_audio.DEFAULT_BGM
@@ -2461,9 +2461,12 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 else:
                     payload.update(audio_technical_status='PASS', audio_technical_evidence=evidence)
                 mix_check = payload['audio_technical_evidence'].get('mix_check', {})
-                require_continuity = bool(mix_check.get('ducking') or mix_check.get('constant_bed_calibration'))
+                require_continuity = bool(mix_check.get('ducking') or mix_check.get('constant_bed_calibration')
+                                          or director_audio.fixed_bed(data) and mix_check.get('music_status') == 'READY')
                 payload = dict(payload, audio_perceptual_review=music_review(
-                    payload, film['media'], require_continuity=require_continuity))
+                    payload, film['media'], require_continuity=require_continuity,
+                    require_audibility=((director_audio.contextual_bed(data) or director_audio.fixed_bed(data))
+                                        and mix_check.get('music_status') != 'SILENCE_DESIGNED')))
             elif directed and data.get('audio_acceptance_policy') == MODE and payload.get('full_audio_listened') is not True:
                 if payload.get('audio_perceptual_review', 'NOT_PERFORMED') != 'NOT_PERFORMED':
                     raise ValueError('Record actual listening results only with the corresponding observations')
@@ -2605,8 +2608,11 @@ def check_qa(task, name, *, acceptance=True):
         films = [row for row in production['media'] if Path(row['path']).suffix.lower() == '.mp4']
         check_evidence(qa, films, require_music=True)
         mix_check = qa['audio_technical_evidence']['mix_check']
-        require_continuity = bool(mix_check.get('ducking') or mix_check.get('constant_bed_calibration'))
-        if music_review(qa, films, require_continuity=require_continuity) != 'PASS':
+        require_continuity = bool(mix_check.get('ducking') or mix_check.get('constant_bed_calibration')
+                                  or director_audio.fixed_bed(data) and mix_check['music_status'] == 'READY')
+        if music_review(qa, films, require_continuity=require_continuity,
+                        require_audibility=((director_audio.contextual_bed(data) or director_audio.fixed_bed(data))
+                                            and mix_check['music_status'] == 'READY')) != 'PASS':
             raise ValueError('Final music and mechanical sound require full independent listening on the exact MP4')
     if mechanism_first(data) and name in {'preview-qa', 'final-qa'}:
         video_review.require_mechanical_positioning(data, qa, production)

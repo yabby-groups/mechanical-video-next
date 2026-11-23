@@ -16,11 +16,14 @@ from .media_policy import bound, validate_rights
 FIELD = 'music_direction_version'
 MIX_MODE_FIELD = 'music_mix_mode'
 DEFAULT_BGM_FIELD = 'default_bgm'
-DEFAULT_BGM = 'junge-theme-v4'
+DEFAULT_BGM = 'junge-theme-v7'
 POLICY_FIELDS = (FIELD, MIX_MODE_FIELD, DEFAULT_BGM_FIELD)
 DEFAULT_FADE_IN = .4
 DEFAULT_FADE_OUT = 1.
+DEFAULT_GAIN_DB = -9.
 VERSION = 1
+CONTEXTUAL_VERSION = 2
+CURRENT_VERSION = 3
 CACHE = ROOT / 'assets/audio/mixes'
 MODES = {
     'curiosity': (['mysterious', 'anticipation'], .30, 88, -31., 'light electronic pulse'),
@@ -37,9 +40,12 @@ AAC_ARGS = ['-c:a', 'aac', '-b:a', '192k', '-ar', str(RATE), '-ac', '1']
 
 def enabled(document):
     version = document.get(FIELD, 0)
-    if type(version) is not int or version not in (0, VERSION):
+    if type(version) is not int or version not in (0, VERSION, CONTEXTUAL_VERSION, CURRENT_VERSION):
         raise ValueError('Unsupported music direction policy')
-    return version == VERSION
+    if version == CURRENT_VERSION and (document.get(MIX_MODE_FIELD) != ducking.CONSTANT_BED
+                                       or not default_bgm(document)):
+        raise ValueError('Music direction v3 requires a pinned constant bed and default BGM')
+    return version != 0
 
 
 def mix_mode(document):
@@ -51,6 +57,14 @@ def mix_mode(document):
 
 def policy(document):
     return (document[FIELD], mix_mode(document), default_bgm(document)) if enabled(document) else None
+
+
+def contextual_bed(document):
+    return document.get(FIELD) == CONTEXTUAL_VERSION and mix_mode(document) == ducking.CONSTANT_BED
+
+
+def fixed_bed(document):
+    return document.get(FIELD) == CURRENT_VERSION
 
 
 def asset_id(value):
@@ -149,6 +163,9 @@ def plan_direction(document, *, ducking_version=ducking.VERSION):
     default = default_bgm(document)
     if default:
         result[DEFAULT_BGM_FIELD] = default
+    if fixed_bed(document):
+        enabled(document)
+        result[FIELD] = CURRENT_VERSION
     if status == 'silence':
         if not isinstance(authored.get('reason'), str) or not authored['reason'].strip():
             raise ValueError('Intentional silence requires a concrete story reason')
@@ -159,6 +176,10 @@ def plan_direction(document, *, ducking_version=ducking.VERSION):
         raise ValueError('Music overrides must identify existing shot IDs')
     if default:
         return plan_fixed_track(result, plan, authored, notes)
+    return plan_legacy_cues(document, plan, notes, result, constant, ducking_version)
+
+
+def plan_legacy_cues(document, plan, notes, result, constant, ducking_version):
     shots = {row['shot_id']: row for row in document.get('shots', [])}
     moments = document.get('narrative', {}).get('moments', {})
     choices = []
@@ -278,9 +299,13 @@ def plan_fixed_track(result, plan, authored, notes):
         cue.update(id=f'music-{index:02d}', time_range=[cue[key] / joint.FPS
                    for key in ('start_frame', 'end_frame')])
         if cue['mode'] != 'silence':
-            cue.update(asset_id=selected, constant_bed=True, target_lufs=-28. + adjustment,
+            cue.update(asset_id=selected, constant_bed=True,
                        fade_in_seconds=DEFAULT_FADE_IN, fade_out_seconds=DEFAULT_FADE_OUT,
                        film_samples=plan['frame_count'] * joint.SAMPLES_PER_FRAME)
+            if fixed_bed(result):
+                cue['fixed_gain_db'] = DEFAULT_GAIN_DB + adjustment
+            else:
+                cue['target_lufs'] = -28. + adjustment
     if all(row['mode'] == 'silence' for row in result['segments']):
         raise ValueError('Use whole-film intentional silence with an explicit reason')
     return result
@@ -365,7 +390,8 @@ def music_stems(direction, available, measured, effects, profile):
 
 
 def lay_music(cue, track, source_lufs, speech, effects):
-    gain = min(3., max(-72., cue['target_lufs'] - source_lufs))
+    gain = (cue['fixed_gain_db'] if 'fixed_gain_db' in cue
+            else min(3., max(-72., cue['target_lufs'] - source_lufs)))
     if 'asset_id' in cue:
         yield from lay_fixed_track(cue, track, gain)
         return
@@ -533,32 +559,42 @@ def resolve_music(direction, measured, effects, profile, directory, catalog):
     return stems, selections, missing, rejected
 
 
-def calibrate_constant(music, effects, narration, samples, speech, selections, profile, *, diagnostic_bgm=None):
+def calibrate_constant(music, effects, narration, samples, speech, selections, profile, *,
+                       diagnostic_bgm=None, use_context=False):
     neil_lufs = measured_lufs(narration, profile) if speech else None
     shift = 0. if neil_lufs is None else neil_lufs - profile['loudness']['integrated_lufs']
     levels = {row['cue_id']: row['measured_lufs'] for row in selections}
     calibrated = [dict(row, gain_db=min(3., max(-72., row['gain_db'] + shift))) for row in music]
     cue_lufs = {row['cue_id']: levels[row['cue_id']] + row['gain_db'] for row in calibrated}
     return ducking.constant_bed(calibrated, effects, narration, samples,
-                                neil_lufs=neil_lufs, cue_lufs=cue_lufs, diagnostic_bgm=diagnostic_bgm)
+                                neil_lufs=neil_lufs, cue_lufs=cue_lufs, diagnostic_bgm=diagnostic_bgm,
+                                speech_context=speech if use_context else None)
 
 
 def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, ducking_settings=None,
-              constant=False, preserve_levels=False):
+              constant=False, preserve_levels=False, speech_context=None, fixed=False):
     from .workflow import lock, write
     ref = joint.binding(narration)
     recipe = [{key: row[key] for key in ('start_sample', 'end_sample', 'source_start_sample', 'gain_db', 'kind')}
               | {'source': row['source']['sha256'], 'envelope': row.get('envelope')} for row in stems]
     for row, item in zip(stems, recipe, strict=True):
         item.update({key: row[key] for key in ('pcm_downmix', 'loop_analysis') if key in row})
-    identity = {'version': VERSION, 'encoder': AAC_ARGS, 'headroom': 1,
-                'narration': ref['sha256'], 'stems': recipe, 'samples': expected}
-    if ducking_settings:
-        identity['ducking'] = ducking_settings
-    if constant:
-        identity['constant_bed'] = ducking.CONSTANT_SETTINGS
-    if preserve_levels:
-        identity['preserve_levels'] = True
+        if preserve_levels and row['kind'] == 'bgm':
+            item['asset_id'] = row['id']
+    identity = {'encoder': AAC_ARGS, 'narration': ref['sha256'], 'stems': recipe, 'samples': expected}
+    if fixed:
+        identity.update(music_direction_version=CURRENT_VERSION, speech_context=speech_context,
+                        ffmpeg=check_output(['ffmpeg', '-version']).decode())
+    else:
+        identity.update(version=VERSION, headroom=1)
+        if ducking_settings:
+            identity['ducking'] = ducking_settings
+        if constant:
+            identity['constant_bed'] = ducking.CONSTANT_SETTINGS
+        if preserve_levels:
+            identity['preserve_levels'] = True
+        if speech_context is not None:
+            identity.update(music_direction_version=CONTEXTUAL_VERSION, speech_context=speech_context)
     key = digest(identity)
     folder = Path(cache) / key
     if joint.pcm_frames(narration) != expected:
@@ -572,32 +608,48 @@ def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, d
                 receipt = json.loads(complete.read_text())
                 if (receipt['cache_key'] == key
                         and receipt.get(MIX_MODE_FIELD) == (ducking.CONSTANT_BED if constant else None)
-                        and (not preserve_levels or receipt['output_gain_db'] == 0)):
+                        and (not preserve_levels or receipt['output_gain_db'] == 0)
+                        and receipt.get('speech_context') == speech_context):
                     receipt['stems'] = stems
-                    if bool(receipt['master']) != bool(stems or receipt.get('output_gain_db')):
+                    if bool(receipt['master']) != bool(fixed or stems or receipt.get('output_gain_db')):
                         raise ValueError('Cached master receipt is incomplete')
                     if receipt['master'] is not None:
                         verify_mix(receipt, narration, expected, check_masking=check_masking)
+                    if fixed:
+                        bound(receipt['aac'])
                     (folder / '.last-used').touch()
                     return (receipt if receipt['master'] else None), True
             except (ValueError, KeyError, TypeError, OSError, EOFError, wave.Error):
                 pass
         with TemporaryDirectory(dir=folder) as temp:
             candidate = Path(temp) / 'mix.wav'
-            headroom = render_with_headroom(stems, narration, expected, candidate, check_masking=check_masking,
-                                            preserve_levels=preserve_levels)
-            if stems or headroom:
+            if fixed:
+                headroom = 0.
+                process_mix(stems, narration, expected, destination=candidate, check_masking=False)
+                encoded = candidate.with_suffix('.m4a')
+                encode_aac(candidate, encoded)
+                encoded.replace(folder / 'mix.m4a')
+            else:
+                headroom = render_with_headroom(stems, narration, expected, candidate, check_masking=check_masking,
+                                                preserve_levels=preserve_levels, speech_context=speech_context)
+            if fixed or stems or headroom:
                 candidate.replace(output)
-        receipt = {'schema_version': 1, 'master': joint.binding(output) if stems or headroom else None,
+        receipt = {'schema_version': 2 if fixed else 1,
+                   'master': joint.binding(output) if fixed or stems or headroom else None,
                    'stems': stems, 'output_gain_db': headroom, 'cache_key': key}
         if constant:
             receipt[MIX_MODE_FIELD] = ducking.CONSTANT_BED
+        if speech_context is not None:
+            receipt['speech_context'] = speech_context
+        if fixed:
+            receipt['aac'] = joint.binding(folder / 'mix.m4a')
         write(complete, receipt)
         (folder / '.last-used').touch()
         return (receipt if receipt['master'] else None), False
 
 
-def render_with_headroom(stems, narration, expected, output, *, check_masking, preserve_levels=False):
+def render_with_headroom(stems, narration, expected, output, *, check_masking, preserve_levels=False,
+                         speech_context=None):
     """Measure the actual codec overshoot and record modest uniform bus attenuation."""
     module = narration_module()
     profile = module.effective_profile({'narration_profile': 'config/narration-neil.json'})
@@ -606,8 +658,8 @@ def render_with_headroom(stems, narration, expected, output, *, check_masking, p
     encoded = output.with_suffix('.m4a')
     for _ in range(3):
         process_mix(stems, narration, expected, destination=output,
-                    check_masking=check_masking, output_gain_db=gain)
-        execute(['ffmpeg', '-v', 'error', '-y', '-i', str(output), *AAC_ARGS, str(encoded)], check=True)
+                    check_masking=check_masking, output_gain_db=gain, speech_context=speech_context)
+        encode_aac(output, encoded)
         try:
             true_peak = float(module.measure_loudness(encoded, profile)['input_tp'])
         except RuntimeError:
@@ -627,6 +679,34 @@ def render_with_headroom(stems, narration, expected, output, *, check_masking, p
     raise ValueError('AAC true peak cannot be brought within target with a 3 dB mix-bus trim')
 
 
+def encode_aac(source, output):
+    execute(['ffmpeg', '-v', 'error', '-xerror', '-y', '-i', str(source), '-map', '0:a:0',
+             *AAC_ARGS, str(output)], check=True)
+
+
+def fixed_findings(mix, narration, samples, profile):
+    findings = {}
+    try:
+        verify_mix(mix, narration, samples)
+    except ValueError as error:
+        if not str(error).startswith('Potential BGM or effect masking '):
+            raise
+        findings['masking'] = str(error)
+    encoded = bound(mix['aac'])
+    try:
+        levels = narration_module().measure_loudness(encoded, profile)
+    except RuntimeError:
+        with wave.open(str(narration), 'rb') as voice:
+            if mix['stems'] or any(voice.readframes(samples)):
+                raise
+        return findings, None
+    peak = float(levels['input_tp'])
+    limit = profile['loudness']['true_peak_dbtp']
+    if peak > limit:
+        findings['true_peak'] = f'AAC true peak {peak} dBTP exceeds {limit} dBTP at fixed levels'
+    return findings, levels
+
+
 def arrange(document, measured, *, directory, catalog=audio_library.LIBRARY, cache=CACHE,
             ducking_version=ducking.VERSION):
     direction = plan_direction(document, ducking_version=ducking_version)
@@ -635,38 +715,74 @@ def arrange(document, measured, *, directory, catalog=audio_library.LIBRARY, cac
     music, selections, missing, rejected = resolve_music(direction, measured, effects, profile, directory, catalog)
     narration = joint.bound(measured['narration_audio'])
     samples = direction['frame_count'] * joint.SAMPLES_PER_FRAME
+    speech = [{k: row[k] for k in ('id', 'start_sample', 'end_sample')} for row in measured['speech']]
+    if fixed_bed(document):
+        mixture, hit, findings = None, False, {}
+        if not missing:
+            mixture, hit = cache_mix(narration, samples, music + effects, cache=cache, constant=True,
+                                     speech_context=speech, preserve_levels=True, fixed=True)
+            findings, _ = fixed_findings(mixture, narration, samples, profile)
+        return write_arrangement(direction, effects, measured, speech, selections, missing, rejected,
+                                 mixture, hit, directory, blocked_reason=' / '.join(findings.values()),
+                                 findings=findings)
+    return arrange_legacy(document, direction, effects, measured, profile, music, selections, missing,
+                          rejected, narration, samples, speech, directory, cache)
+
+
+def arrange_legacy(document, direction, effects, measured, profile, music, selections, missing,
+                   rejected, narration, samples, speech, directory, cache):
     settings = direction.get('ducking')
     constant = direction.get(MIX_MODE_FIELD) == ducking.CONSTANT_BED
-    preserve_levels = bool(default_bgm(document))
-    blocked_default = preserve_levels and bool(missing)
-    if constant and not blocked_default:
+    use_context = contextual_bed(document)
+    preserve_levels = bool(default_bgm(document)) and not use_context
+    blocked = bool(default_bgm(document) and missing)
+    blocked_reason = None
+    if constant and not blocked:
         music, calibration = calibrate_constant(music, effects, narration, samples, measured['speech'],
-                                                selections, profile)
+                                                selections, profile, use_context=use_context)
         if not calibration['usable']:
             limiting_time = (calibration['limiting_sample'] or 0) / RATE
             levels = ', '.join(f'{cue}: {row["fixed_lufs"]} LUFS' for cue, row in calibration['cues'].items())
-            raise ValueError(f'BGM does not fit the speech masking budget near {limiting_time:.3f}s at an '
-                             f'audible fixed level ({levels}). Select a different licensed track or review the conflict.')
+            reason = (f'BGM does not fit the speech masking budget near {limiting_time:.3f}s at an '
+                      f'audible fixed level ({levels})')
+            if not use_context:
+                raise ValueError(reason)
+            blocked, blocked_reason = True, reason
         direction['constant_bed_calibration'] = calibration
     if settings:
         music = ducking.apply(music, effects, narration, samples, measured['speech'], settings)
-    add_sound_events(direction, effects)
-    arrangement = dict(direction, status='BLOCKED' if missing else
-                       ('SILENCE_DESIGNED' if direction['mode'] == 'silence' else 'READY'),
-                       selections=selections, missing=missing, rejected_records=rejected,
-                       speech=[{k: row[k] for k in ('id', 'start_sample', 'end_sample')} for row in measured['speech']],
-                       narration=measured['narration_audio'], audio_perceptual_review='UNKNOWN')
     mix_receipt, hit = None, False
-    if not blocked_default:
+    if not blocked:
         mix_receipt, hit = cache_mix(narration, samples, music + effects, cache=cache, ducking_settings=settings,
-                                     constant=constant, check_masking=constant, preserve_levels=preserve_levels)
-    arrangement['mix'] = mix_receipt
+                                     constant=constant, check_masking=constant, preserve_levels=preserve_levels,
+                                     speech_context=speech if use_context else None)
+        if use_context and music:
+            try:
+                ducking.effective_bed_lufs(calibration, mix_receipt['output_gain_db'])
+            except ValueError as error:
+                blocked_reason = str(error)
+                mix_receipt, hit = None, False
+    return write_arrangement(direction, effects, measured, speech, selections, missing, rejected,
+                             mix_receipt, hit, directory, blocked_reason=blocked_reason)
+
+
+def write_arrangement(direction, effects, measured, speech, selections, missing, rejected, mixture, hit,
+                      directory, *, blocked_reason=None, findings=None):
+    add_sound_events(direction, effects)
+    arrangement = dict(direction, status='BLOCKED' if missing or blocked_reason else
+                       ('SILENCE_DESIGNED' if direction['mode'] == 'silence' else 'READY'),
+                       selections=selections, missing=missing, rejected_records=rejected, speech=speech,
+                       narration=measured['narration_audio'], audio_perceptual_review='UNKNOWN', mix=mixture)
+    if findings is not None:
+        arrangement['technical_findings'] = findings
+    if blocked_reason:
+        arrangement['blocked_reason'] = blocked_reason
     folder = Path(directory) / digest(arrangement)
     path = folder / 'audio_direction.json'
     from .workflow import lock, write
     with lock(folder / '.write.lock', wait=True):
         write(path, arrangement)
-    return joint.binding(path), mix_receipt, hit
+    return joint.binding(path), mixture, hit
 
 
 def add_sound_events(direction, effects):
@@ -684,23 +800,41 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
     ref = config.get('audio_direction')
     direction = json.loads(bound(ref).read_text())
     constant = mix_mode(config) == ducking.CONSTANT_BED
+    use_context = contextual_bed(config)
+    fixed = fixed_bed(config)
     default = default_bgm(config)
-    blocked_default = bool(default and direction['status'] == 'BLOCKED')
+    blocked_default = (direction['status'] == 'BLOCKED'
+                       and bool(default or (use_context and direction.get('blocked_reason'))))
     if (constant != (direction.get(MIX_MODE_FIELD) == ducking.CONSTANT_BED)
             or (constant and (direction.get('ducking') is not None
-                              or (not blocked_default and not direction.get('constant_bed_calibration'))
+                              or (not fixed and not blocked_default and not direction.get('constant_bed_calibration'))
                               or (direction['mix'] and direction['mix'].get(MIX_MODE_FIELD) != ducking.CONSTANT_BED)))):
         raise ValueError('Music direction or mix receipt differs from the pinned mix mode')
     if direction['status'] not in {'READY', 'SILENCE_DESIGNED', 'BLOCKED'} or direction['mix'] != config.get('audio_mix'):
         raise ValueError('Music direction differs from the executable mix')
     if direction['status'] == 'BLOCKED' and require_ready:
+        if direction.get('blocked_reason'):
+            raise ValueError(f'BGM BLOCKED at {ref["path"]}: {direction["blocked_reason"]}')
         raise ValueError('BGM BLOCKED at ' + ref['path'] + ' for '
                          + ', '.join(row['cue_id'] + '/' + row.get('asset_id', row['mode']) for row in direction['missing'])
                          + ' (' + ', '.join(row['reason'] for row in direction['rejected_records']) + ')')
-    if direction.get(DEFAULT_BGM_FIELD) != default or (default and
-            (direction['mix'] or {}).get('output_gain_db', 0) != 0):
+    mixture = direction['mix']
+    if direction.get(DEFAULT_BGM_FIELD) != default or (default and not use_context and
+            (mixture or {}).get('output_gain_db', 0) != 0):
         raise ValueError('Fixed BGM policy or narration/SFX gain differs from the pinned defaults')
+    if mixture and mixture.get('speech_context') != (direction['speech'] if use_context or fixed else None):
+        raise ValueError('Mix speech context differs from the pinned measured speech')
     inputs = [ref]
+    if fixed:
+        if (not fixed_bed(direction) or not isinstance(direction.get('technical_findings'), dict)
+                or bool(mixture) == bool(direction['missing'])
+                or (direction['status'] == 'BLOCKED') != bool(direction['technical_findings'] or direction['missing'])):
+            raise ValueError('Fixed-bed arrangement is missing its sources or technical checks')
+        if mixture:
+            if mixture.get('schema_version') != 2:
+                raise ValueError('Fixed bed requires its encoded audio receipt')
+            bound(mixture['aac'])
+            inputs.append(mixture['aac'])
     stems = (direction['mix'] or {}).get('stems', [])
     music = [row for row in stems if row['kind'] == 'bgm']
     effects = [row for row in stems if row['kind'] == 'sfx']
@@ -710,7 +844,7 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
         raise ValueError('Music direction differs from the measured speech')
     cues = [row for row in direction['segments'] if row['mode'] != 'silence']
     selections = {row['cue_id']: row for row in direction['selections']}
-    if (direction['status'] == 'READY' and
+    if ((direction['status'] == 'READY' or fixed and mixture and direction['mode'] != 'silence') and
             (not cues or {row['id'] for row in cues} != selections.keys()
              or selections.keys() != {row['cue_id'] for row in music} or direction['missing'])):
         raise ValueError('The music design needs bound BGM throughout its intended cues')
@@ -745,10 +879,10 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
         expected = plan_direction(blueprint, ducking_version=ducking.VERSION if settings else 1)
         verified_effects = sound_stems(blueprint['timeline'], blueprint.get('sound_events', []), mechanical=True)
         add_sound_events(expected, verified_effects)
-        if ((not blocked_default and effects != verified_effects)
+        if (((not blocked_default or fixed and mixture) and effects != verified_effects)
                 or any(direction[key] != value for key, value in expected.items())):
             raise ValueError('Sound design differs from the frozen story and verified action triggers')
-        if blocked_default:
+        if blocked_default and not (fixed and mixture):
             return direction, inputs
         expected_stems = []
         for cue in cues:
@@ -761,7 +895,7 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
                 raise ValueError('Music loop differs from the decoded source evidence')
             track['catalog_record'] = row['catalog_record']
             expected_stems.extend(lay_music(cue, track, decision['measured_lufs'], direction['speech'], effects))
-        if settings or constant:
+        if not fixed and (settings or constant):
             narration = joint.bound(direction['narration'])
             samples = direction['frame_count'] * joint.SAMPLES_PER_FRAME
             dry_stems = expected_stems
@@ -772,9 +906,12 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
                         if measured_lufs(pcm, profile) != decision['measured_lufs']:
                             raise ValueError('Constant bed source loudness differs from the measured music')
                 expected_stems, calibration = calibrate_constant(dry_stems, verified_effects, narration, samples,
-                                                                 direction['speech'], list(selections.values()), profile)
+                                                                 direction['speech'], list(selections.values()), profile,
+                                                                 use_context=use_context)
                 if not calibration['usable'] or direction['constant_bed_calibration'] != calibration:
                     raise ValueError('Constant bed calibration differs from the measured audio')
+                if use_context and music:
+                    ducking.effective_bed_lufs(calibration, mixture['output_gain_db'])
             else:
                 expected_stems = ducking.apply(dry_stems, verified_effects, narration, samples, direction['speech'],
                                                settings)
@@ -793,10 +930,52 @@ def picture_hash(path):
                          '-c:v', 'copy', '-f', 'hash', '-hash', 'sha256', '-']).decode().strip()
 
 
-def mux_picture(source, track, output):
+def mux_picture(source, track, output, *, encoded=False):
     execute(['ffmpeg', '-v', 'error', '-xerror', '-y', '-i', str(source), '-i', str(track),
-             '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', *AAC_ARGS,
+             '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy',
+             *(['-c:a', 'copy'] if encoded else AAC_ARGS),
              '-movflags', '+faststart', str(output)], check=True)
+
+
+def aac_hash(path):
+    return check_output(['ffmpeg', '-v', 'error', '-xerror', '-i', str(path), '-map', '0:a:0',
+                         '-c:a', 'copy', '-f', 'hash', '-hash', 'sha256', '-']).decode().strip().removeprefix('SHA256=')
+
+
+def mux_arrangement(source, playback, mixture, output):
+    encoded = mixture.get('aac') if mixture else None
+    mux_picture(source, bound(encoded) if encoded else playback, output, encoded=bool(encoded))
+
+
+def verify_aac_identity(media, encoded, samples, final_pcm):
+    from .audio_acceptance import decode_aac
+    _, encoded_pcm = decode_aac(encoded, samples)
+    packet_hash = aac_hash(media)
+    if packet_hash != aac_hash(encoded) or final_pcm != encoded_pcm:
+        raise ValueError('MP4 audio differs from the encoded fixed-bed master')
+    return packet_hash
+
+
+def fixed_delivery(media, plan, measured, mixture, *, require_ready=False):
+    """Bind the source recipe and the AAC actually present in the delivered MP4."""
+    joint.validate_rendered_film(media, plan)
+    playback = bound(mixture['master'])
+    encoded = bound(mixture['aac'])
+    verdict = joint.validate_rendered_audio(media, plan, measured, playback, mix=bool(mixture['stems']))
+    samples = plan['frame_count'] * joint.SAMPLES_PER_FRAME
+    packet_hash = verify_aac_identity(media, encoded, samples, verdict['pcm'])
+    profile = narration_module().effective_profile({'narration_profile': 'config/narration-neil.json'})
+    findings, levels = fixed_findings(mixture, joint.bound(measured['narration_audio']), samples, profile)
+    if require_ready and findings:
+        raise ValueError('BGM BLOCKED: ' + ' / '.join(findings.values()))
+    stems = mixture['stems']
+    music = [{key: row[key] for key in ('id', 'source', 'gain_db', 'start_sample', 'end_sample',
+                                       'source_start_sample')} for row in stems if row['kind'] == 'bgm']
+    return dict(media=joint.binding(media), mix_wav=mixture['master'], final_aac=mixture['aac'],
+                aac_packets_sha256=packet_hash, neil=measured['narration_audio'], bgm=music,
+                sfx=[row for row in stems if row['kind'] == 'sfx'], audio=verdict, measurements=levels,
+                technical_findings=findings, audio_technical_status='FAIL' if findings else 'PASS',
+                audio_perceptual_review='UNKNOWN', formal_acceptance=False)
 
 
 def mix(plan, events, narration, output):
@@ -813,11 +992,13 @@ def mix(plan, events, narration, output):
     return dict(master=joint.binding(output), stems=stems)
 
 
-def postprocess(source, blueprint, output, *, catalog=audio_library.LIBRARY, cache=CACHE):
+def postprocess(source, blueprint, output, *, catalog=audio_library.LIBRARY, cache=CACHE, audition=False):
     """Create a new audio revision of an existing measured-timeline picture."""
     source, output = Path(source), Path(output)
     if source.resolve() == output.resolve() or output.exists():
         raise ValueError('Audio postproduction needs a fresh output path')
+    if audition and not fixed_bed(blueprint):
+        raise ValueError('An explicit fixed-gain audition requires music direction v3')
     plan = joint.validate(blueprint['timeline'], blueprint.get('shots'))
     measured = joint.receipt(plan, blueprint['measured_timeline'])
     joint.validate_rendered_film(source, plan, require_audio=False)
@@ -825,32 +1006,39 @@ def postprocess(source, blueprint, output, *, catalog=audio_library.LIBRARY, cac
     ref, mixture, hit = arrange(blueprint, measured, directory=output.parent / 'audio-direction',
                                 catalog=catalog, cache=cache)
     config = {key: blueprint[key] for key in POLICY_FIELDS if key in blueprint}
-    config.update({FIELD: VERSION, 'audio_direction': ref, 'audio_mix': mixture})
-    arrangement, _ = validate_arrangement(config, blueprint=blueprint, measured=measured, require_ready=True)
+    config.update({FIELD: blueprint.get(FIELD, VERSION), 'audio_direction': ref, 'audio_mix': mixture})
+    experimental = fixed_bed(config) and audition and mixture is not None
+    arrangement, _ = validate_arrangement(config, blueprint=blueprint, measured=measured,
+                                           require_ready=not experimental)
     track = joint.bound(mixture['master'] if mixture else measured['narration_audio'])
-    if mixture:
+    if mixture and not fixed_bed(config):
         verify_mix(mixture, joint.bound(measured['narration_audio']), plan['frame_count'] * joint.SAMPLES_PER_FRAME)
     output.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=output.parent) as folder:
         candidate = Path(folder) / 'audio-revision.mp4'
-        mux_picture(source, track, candidate)
-        joint.validate_rendered_film(candidate, plan)
-        verdict = joint.validate_rendered_audio(candidate, plan, measured, track, mix=bool(mixture))
-        narration = narration_module()
-        profile = narration.effective_profile({'narration_profile': 'config/narration-neil.json'})
-        levels = narration.measure_loudness(candidate, profile)
-        reference = float(narration.measure_loudness(track, profile)['input_i'])
-        check_levels(levels, profile, 'Postproduction AAC', reference_lufs=reference)
-        if float(levels['input_tp']) > profile['loudness']['true_peak_dbtp']:
-            raise ValueError('Postproduction AAC exceeds the configured true-peak ceiling')
+        mux_arrangement(source, track, mixture, candidate)
+        if fixed_bed(config):
+            receipt = fixed_delivery(candidate, plan, measured, mixture, require_ready=not experimental)
+        else:
+            joint.validate_rendered_film(candidate, plan)
+            verdict = joint.validate_rendered_audio(candidate, plan, measured, track, mix=bool(mixture))
+            narration = narration_module()
+            profile = narration.effective_profile({'narration_profile': 'config/narration-neil.json'})
+            levels = narration.measure_loudness(candidate, profile)
+            reference = float(narration.measure_loudness(track, profile)['input_i'])
+            check_levels(levels, profile, 'Postproduction AAC', reference_lufs=reference)
+            if float(levels['input_tp']) > profile['loudness']['true_peak_dbtp']:
+                raise ValueError('Postproduction AAC exceeds the configured true-peak ceiling')
+            receipt = dict(audio_technical_status='PASS', measurements=levels, audio=verdict)
         fingerprint = picture_hash(source)
         if picture_hash(candidate) != fingerprint or joint.binding(source) != source_ref:
             raise ValueError('Audio-only revision changed the bound picture')
         candidate.replace(output)
-    receipt = dict(source=source_ref, media=joint.binding(output), audio_direction=ref,
-                   picture_stream=fingerprint, audio_technical_status='PASS', audio_perceptual_review='UNKNOWN',
-                   music_status=arrangement['status'], cache_hit=hit, measurements=levels,
-                   audio=verdict, formal_acceptance=False)
+    receipt.update(source=source_ref, media=joint.binding(output), audio_direction=ref,
+                   picture_stream=fingerprint, audio_perceptual_review='UNKNOWN',
+                   music_status=arrangement['status'], cache_hit=hit, formal_acceptance=False)
+    if experimental:
+        receipt['audition'] = 'EXPERIMENTAL'
     writejson(output.with_suffix('.audio-post.json'), receipt)
     return receipt
 
@@ -865,12 +1053,13 @@ def main():
         command.add_argument('--output', required=True, type=Path)
     post.add_argument('--picture', required=True, type=Path)
     post.add_argument('--catalog', default=audio_library.LIBRARY, type=Path)
+    post.add_argument('--audition', action='store_true')
     args = parser.parse_args()
     blueprint = json.loads(args.blueprint.read_text())
     if args.command == 'plan':
         writejson(args.output, plan_direction(blueprint))
     else:
-        postprocess(args.picture, blueprint, args.output, catalog=args.catalog)
+        postprocess(args.picture, blueprint, args.output, catalog=args.catalog, audition=args.audition)
     print(args.output)
 
 
