@@ -717,10 +717,20 @@ Source/model/motion and full sensory acceptance stay strict; a named conceptual
 subject is not evidence of a physical simulation. Legacy product tasks retain
 their original product checks. This adds no second scheduler or fact database.
 
-## 2–5 分钟正式影片
+## 正式作品时长、节奏和五项增长目标
 
-新建常规 Producer 任务固定 `formal_duration_version: 1`。由实际 Neil PCM、动作观察时间和知识推进确定 120–300 秒的最终时长，首片通常以 150–210 秒为创作目标。Full Animatic 覆盖全部正式内容和 30 fps 联合播放轴。Final Film 使用 1920×1080、16:9、30 fps、H.264/AAC、Neil 原速中文和手机可读单行字幕。正式 Blueprint、完整预演与实际最终 MP4 都核验时长。Shot Test、Mechanism Preview、Social Cutdown 按各自目的定长。历史任务的固定版本与短预演保留各自的时钟。
+新建常规 Producer 任务固定 `formal_duration_version: 2`。由实际 Neil PCM、必要观察时间、原生动作和完整知识因果决定片长。成片支持 30 fps 的正整数帧，上限 300 秒。Full Animatic 覆盖全部正式内容和联合播放轴。Final Film 使用 1920×1080、16:9、30 fps、H.264/AAC、Neil 原速中文和手机可读单行字幕。任务、正式 Blueprint、完整预演与实际最终 MP4 使用同一版本。Shot Test、Mechanism Preview、Social Cutdown 按各自目的定长。
 
-Producer 在 research 里按已核实的知识估计长度，Treatment 用 `growth_design` 记录 retention、like、save、comment、follow 五项具体创作决定，Blueprint 承接并由 Director 落到可定位内容。它们分别关心开场和新发现、真实精巧机构、可复习传动链、自然讨论及持续系列价值。可以用简介和可选置顶评论承接单一主问题。审查全片实际知识增量，局部复演标明用途和状态，删去空白、循环和无信息重复。机械正确性、技术音频和连续视听各用相应证据。真实首次理解及平台增长需要实际反馈。
+已固定 v1 的正式任务保留 120–300 秒及原有审查。无此字段的任务按各自历史版本恢复。已交付资产及其证据原样保留。需要迁移时，由用户明确授权后开新版制作记录，从原任务复用哈希一致的资产，重新编排、合成和审片。旧账本持续指向旧片，旧 QA 继续绑定原片字节。
+
+Producer 在 Treatment 用 `pacing_brief` 明确 `phenomenon`、`opening`、`first_result`、`first_answer`、`essential_scenes`、`decorative_scenes` 和 `shortest_complete_seconds`。前 2 秒优先让观众看到可辨认的物件发生功能动作。前 5 秒给首个可见结果或一段可观察的因果推进。复杂原理按实际观察需要展开。导演可在独立 QA 中说明某次开场取舍及相应可见证据。
+
+`pacing_brief.operations` 记录来源 `source`、`platform_observation`、`shot_observation`、`hypothesis`、`edit_decision` 和 `follow_up`。新任务默认固定 [11 月 23 日运营复盘](plans/operations-growth-review-20261123.md)。可用 `produce --operations-review REPORT.md` 固定后续复盘。该次抖音账号观察为 2 秒跳出 32.73%、5 秒完播 40.25%、平均观看 11.24 秒和总览完播 2.9%。皂液泵数据为抖音 38.24% 跳出、3.44% 完播及小红书前 5 秒流失超过 68%。门把手数据为抖音 30.10% 跳出、0.71% 完播及小红书 14.8 秒均看、0.9% 完播。使用相近发布年龄、平台和数据口径复测改动。账号观察、具体镜头证据及可能影响留存的假设分别记录。
+
+Director 在 Blueprint 的 `pacing` 中按 Joint Timeline 镜头 ID 写 `watch_task`、`mechanical_event`、`camera_reason` 和 `exit_condition`。半开帧区间 `increments` 用稳定 ID 描述新增关系与可见依据，正式 Blueprint 使用核实的 `knowledge_id`。静态对照或教学停顿记入 `observation`，附观看任务和可见证据。`events` 绑定 `action_id`，含输入、接触、传动、输出、复位与首次答案。首次答案连接信息增量。可用 `state_id` 引用同镜头动作的 Blender 数值检查，以及 `speech_id` 关联实测 Neil。必须紧贴动作起点的句子可给出 `onset_tolerance_frames`。未声明时检查语句与动作是否重叠，保留跨镜头解释所需的音画关系。
+
+通过 `uv run python -m mechanical_video_next.pacing INPUT.mp4 BLUEPRINT.json --output AUDIT.json` 审计完整影片。历史版或草案可用 `--states STATE_MANIFEST.json` 提供已绑定的原生轨迹。正式预览和成品在现有 Video Review 读取 Remotion props、Blender 帧检查、Neil 实测及精确 MP4。结果包括逐镜头时码、信息增量、实际运动窗口、旁白相对时差和待审发现。修复依次考虑剪掉空等、删重复、合并无信息运镜、调序、调整旁白、调整合法动画时序及必要的重渲染。保留源动作顺序、真实接触、状态连续性、观察时间和音效同步，优先复用素材。
+
+现有独立 QA 的 `pacing_checks` 逐项记录首两秒事件、首次结果与答案、等待、运镜、重复、动作速度、音画同步和整片知识推进。每项含 `status`、`observation` 与半开 `frames` 区间，审看同一 MP4。完整观看和实听具备时方可通过正式审查。技术检测与感知覆盖分别记录，缺少感知证据时状态为 UNKNOWN。像素变化、字幕、波形和解码可定位时间，观众能否理解取决于实际观察。Treatment 的 `growth_design` 继续记录 retention、like、save、comment、follow，增长报告纳入精确媒体的时码和独立 QA。发布后的变化由真实平台数据验证。
 
 交付包含三个标题候选，两种使用本片画面的封面方案，简洁简介及手动评论素材。使用 [抖音发布后复盘模板](douyin-post-review.md) 记录实际数据与评论，Audience Review 保持手动，生产阶段记录设计证据。发布与平台交互由用户操作。

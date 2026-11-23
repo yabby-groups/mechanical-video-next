@@ -96,4 +96,4 @@ Remotion 许可见 remotion/UPSTREAM-LICENSE.md；使用资格需按实际组织
 
 ## 正式影片与抖音增长
 
-新立项的正式作品为 120–300 秒，Full Animatic 覆盖完整影片。1920×1080、30 fps、H.264/AAC 的最终影片保留同一机械问题和原生三维证据。Shot Test、Mechanism Preview 和 Social Cutdown 各自使用适合用途的时长。按 [正式生产契约](docs/production-contract.md) 开发留存与完播、点赞、收藏、评论和关注价值，发布后用 [实际数据复盘模板](docs/douyin-post-review.md) 回到选题、分镜和科学复查。
+新正式任务采用 `formal_duration_version: 2`。由机械因果、观察时间和 Neil 实测确定最短完整时长，上限 300 秒。已固定 v1 的任务按原有 120–300 秒执行。Full Animatic 覆盖完整影片。Final Film 使用 1920×1080、30 fps、H.264/AAC。立项时可用 `--operations-review` 固定最新的运营复盘证据。逐镜头复查和独立审查见 [节奏与时长契约](docs/production-contract.md#正式作品时长节奏和五项增长目标)。

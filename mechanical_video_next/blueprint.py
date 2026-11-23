@@ -35,7 +35,19 @@ def validate_story_preview(data, media, *, treatment=None, task=None):
         raise ValueError('Story preview needs a joint picture clock')
     joint.validate(plan)
     from .production_contract import validate_formal_duration
-    validate_formal_duration(task if task is not None else data, plan['frame_count'] / joint.FPS)
+    policy = task if task is not None else data
+    validate_formal_duration(policy, plan['frame_count'] / joint.FPS)
+    from . import pacing
+    if pacing.enabled(policy):
+        if (not pacing.enabled(data) or not data.get('measured_timeline')
+                or (treatment is not None and data.get('pacing_brief') != treatment['pacing_brief'])):
+            raise ValueError('Formal draft must carry the pinned pacing policy, brief and measured speech')
+        pacing.validate(plan, data.get('pacing'))
+        if treatment is not None:
+            scenes = {cut.get('scene_id') for cut in plan['shots']}
+            if (not scenes <= {scene['id'] for scene in treatment['scenes']}
+                    or not set(treatment['pacing_brief']['essential_scenes']) <= scenes):
+                raise ValueError('Formal draft cuts must match the Treatment and cover essential scenes')
     if treatment is not None:
         core = {scene['id'] for scene in treatment['scenes'] if scene['mechanical_role'] == 'core'}
         picture = {shot['id'] for shot in plan['shots']}
@@ -77,6 +89,7 @@ def validate(data):
             joint.receipt(data['timeline'], data['measured_timeline'])
     validate_direction(data)
     director.validate(data)
+    director.validate_pacing(data)
     from . import director_audio
     if director_audio.enabled(data):
         if not shared:
@@ -282,7 +295,7 @@ def compile_config(blueprint, base, output, draft=False):
         FIELD as CONTRACT_FIELD, STORY_DEVELOPMENT, enabled as science_contract, mechanism_first,
         flexible_story, producer_directed, FORMAL_DURATION_FIELD,
     )
-    for key in (FORMAL_DURATION_FIELD, 'growth_design'):
+    for key in (FORMAL_DURATION_FIELD, 'growth_design', 'pacing_brief', 'pacing'):
         if key in data:
             result[key] = copy.deepcopy(data[key])
         else:

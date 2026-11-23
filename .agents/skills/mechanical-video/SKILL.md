@@ -3,7 +3,7 @@ name: mechanical-video
 description: 为「君哥拆机器」制作原创机械设计故事，使用三维拆解、Neil、Remotion 和 FFmpeg。
 ---
 
-新正式节目按任务版本制作 120–300 秒的 Full Animatic 和 Final Film。Treatment 记录留存、点赞、收藏、评论和关注的创作决定，从实际预演和最终 MP4 核对落点。交接同时提供片内知识回报、发布包装与真实数据复盘依据。
+新正式任务按时长 v2 制作完整 Full Animatic 和 Final Film。片长由机械因果、观察时间和 Neil 实测决定，上限 300 秒。固定 v1 的历史任务使用 120–300 秒。Treatment 记录留存、点赞、收藏、评论和关注的创作决定，从实际预演和最终 MP4 核对落点。交接同时提供片内知识回报、发布包装与真实数据复盘依据。
 
 # mechanical-video
 

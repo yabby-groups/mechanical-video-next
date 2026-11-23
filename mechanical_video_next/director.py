@@ -226,6 +226,16 @@ def validate_measured_edit(document, measured):
                     raise ValueError('The measured Neil utterance does not cross the selected cut')
 
 
+def validate_pacing(document, research=None):
+    from . import pacing
+    if not pacing.enabled(document):
+        return
+    facts = None
+    if research is not None:
+        facts = {row['id'] for row in research['science']['facts'] if row['status'] == 'VERIFIED'}
+    pacing.validate(document['timeline'], document.get('pacing'), facts=facts)
+
+
 def mechanical_digest(shot):
     """Fingerprint the verified driver, contact constraints and immutable source tracks."""
     science = shot.get('science', {})

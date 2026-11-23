@@ -112,10 +112,11 @@ def shot_requirements(shot, document=None):
 
 
 def duration_bounds(data):
-    """Keep the longform default; trace an explicitly requested concise recut."""
-    from .production_contract import FORMAL_DURATION, formal_duration_enabled
-    if formal_duration_enabled(data):
-        return FORMAL_DURATION
+    """Use the pinned formal policy before consulting historical defaults."""
+    from .production_contract import formal_duration_bounds
+    formal = formal_duration_bounds(data)
+    if formal:
+        return formal
     from .joint_timeline import enabled as joint
     if joint(data):
         return 1 / 30, math.inf

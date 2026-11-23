@@ -9,7 +9,7 @@ import fcntl
 import hashlib
 import json
 from pathlib import Path
-from . import video_review
+from . import pacing, video_review
 import re
 import math
 import subprocess
@@ -1158,12 +1158,20 @@ def producer_prompt(data, task):
     identity, topic = data['id'], data['topic']
     if mechanism_first(data):
         question = data.get('core_question') or 'Frame a question within the requested mechanical object.'
-        formal_instruction = '''Develop one 120–300 s Full Animatic and one 120–300 s Final Film.
+        formal_instruction = '''Develop one complete Full Animatic and one complete Final Film.
 Reserve shot tests, mechanism previews and social cutdowns for their own purposes.
 Plan retention, like, save, comment and follow in the Treatment, and carry each
 decision into the Blueprint and package. Use the actual MP4 to review the design.
 Use the post-publication template only with real platform evidence.
 ''' if formal_duration_enabled(data) else ''
+        if data.get(FORMAL_DURATION_FIELD) == 1:
+            formal_instruction += 'This historical task requires 120–300 seconds.\n'
+        if pacing.enabled(data):
+            formal_instruction += (
+                'Answer the pacing brief in the Treatment before asset work. Use the pinned operations '
+                'review to choose a testable editorial decision. Budget for verified knowledge, source motion, '
+                'observation and measured Neil speech. Aim for a visible functional event by 2 s and '
+                'a result or causal advance by 5 s. Maximum 300 s.\n')
         return f'''You are the sole native Producer for {identity} ({topic}).
 Read {task}/task.json and docs/production-contract.md. 君哥拆机器 is 「{POSITIONING}」
 Requested mechanical object: {data['mechanical_object']}
@@ -1642,11 +1650,11 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1,
                 media_policy_version=0, presentation_style='natural_science', contract_version=None,
                 *, skill_driven_pilot=False, story_development_version=2,
-                mechanical_object=None, core_question=None):
+                mechanical_object=None, core_question=None, operations_review=None):
     from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
                                       CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION,
                                       DISCOVERY_VERSION, CREATIVE_SELECTION_VERSION, CREATIVE_DURATION,
-                                      FORMAL_DURATION, FORMAL_DURATION_VERSION)
+                                      FORMAL_DURATION, FORMAL_DURATION_POLICIES, FORMAL_DURATION_VERSION)
     if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
         raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
@@ -1691,6 +1699,12 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         raise ValueError('Visual production needs protocol 2')
     formal_duration = directed and story_development_version == 2 and not skill_driven_pilot
     minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else FORMAL_DURATION
+    if formal_duration:
+        minimum_duration, maximum_duration = FORMAL_DURATION_POLICIES[FORMAL_DURATION_VERSION]
+        from .joint_timeline import binding
+        feedback_source = binding(operations_review or ROOT / pacing.OPERATIONS_REVIEW)
+    elif operations_review is not None:
+        raise ValueError('Operations review applies to new formal tasks')
     if creative and not formal_duration:
         minimum_duration, maximum_duration = CREATIVE_DURATION[0], None
     if duration is None:
@@ -1772,6 +1786,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         if formal_duration:
             value[FORMAL_DURATION_FIELD] = FORMAL_DURATION_VERSION
             value['growth_policy_version'] = 2
+            value['operations_review'] = feedback_source
         value['production_method'] = 'reference-grounded-3d'
         if hybrid:
             value['production_method'] = 'asset-first-hybrid'
@@ -1895,7 +1910,8 @@ def previous_creative_input(task, ledger, review_name, input_name, statuses):
 
 
 def treatment_content(payload):
-    return {key: payload[key] for key in ('question', *editorial_policy.TREATMENT_FIELDS, 'scenes', 'growth_design')
+    return {key: payload[key] for key in ('question', *editorial_policy.TREATMENT_FIELDS, 'scenes', 'growth_design',
+                                        'pacing_brief')
             if key in payload}
 
 
@@ -1912,6 +1928,13 @@ def validate_development_handoff(task, data, name, payload):
         if formal_duration_enabled(data):
             from .growth import validate_growth_design
             validate_growth_design(payload.get('growth_design'))
+        if pacing.enabled(data):
+            brief = payload.get('pacing_brief')
+            pacing.validate_brief(brief, data)
+            scenes = {row['id'] for row in payload['scenes']}
+            core = {row['id'] for row in payload['scenes'] if row['mechanical_role'] == 'core'}
+            if not core <= set(brief['essential_scenes']) <= scenes or not set(brief['decorative_scenes']) <= scenes:
+                raise ValueError('Pacing brief scene IDs must match the Treatment and retain all core scenes')
         if 'document' in payload:
             from .joint_timeline import bound
             bound(payload['document'])
@@ -1958,6 +1981,14 @@ def validate_development_handoff(task, data, name, payload):
             film = next(row['path'] for row in draft['media'] if Path(row['path']).suffix.lower() == '.mp4')
             duration = float(probe(film)['format']['duration'])
             editorial_policy.validate_creative_gate(data, payload, duration=duration)
+            if pacing.enabled(data):
+                from .joint_timeline import binding
+                report = draft['pacing_review']
+                if report['media'] != binding(film):
+                    raise ValueError('Diagnostic pacing review must bind the exact MP4')
+                if (payload.get('creative_decision', {}).get('status') == 'PASS'
+                        and pacing.review_status(report, payload) != 'PASS'):
+                    raise ValueError('A passing diagnostic needs independent, exact-media pacing review')
 
 
 def creative_next_action(data, valid):
@@ -2161,6 +2192,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     validate_formal_duration(data, payload['timeline']['frame_count'] / joint.FPS)
                     measured = joint.receipt(payload['timeline'], payload['measured_timeline'])
                     director.validate_measured_edit(payload, measured)
+                    if pacing.enabled(data):
+                        director.validate_pacing(payload, artifact(task, 'research'))
                 validate_direction(payload, artifact(task, 'research'))
                 if development:
                     treatment = artifact(task, 'story-treatment')
@@ -2168,6 +2201,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
                         raise ValueError('Formal Blueprint must follow the approved Treatment question')
                     if formal_duration_enabled(data) and payload.get('growth_design') != treatment['growth_design']:
                         raise ValueError('Blueprint must carry the five approved growth decisions')
+                    if pacing.enabled(data) and payload.get('pacing_brief') != treatment['pacing_brief']:
+                        raise ValueError('Blueprint must carry the approved pacing brief')
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
         if story and name == 'creative-blueprint':
             required = {'diagnostic-animatic'}
@@ -2384,6 +2419,19 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 from .blueprint import validate_story_preview
                 treatment = artifact(task, 'story-treatment') if mechanism_first(data) else None
                 validate_story_preview(draft_plan, payload['media'], treatment=treatment, task=data)
+                if pacing.enabled(data):
+                    from . import joint_timeline as joint
+                    film = next(row for row in payload['media'] if Path(row['path']).suffix.lower() == '.mp4')
+                    plan = draft_plan['timeline']
+                    measured = joint.receipt(plan, draft_plan['measured_timeline'])
+                    inputs = {'blueprint': evidence, 'measured_timeline': draft_plan['measured_timeline']}
+                    states = []
+                    if 'pacing_states' in draft_plan:
+                        inputs['state_manifest'] = draft_plan['pacing_states']
+                        states = pacing.load_states(inputs['state_manifest'])
+                    payload = dict(payload, pacing_review=pacing.analyze(
+                        joint.binding(film['path']), plan, draft_plan['pacing'], measured=measured,
+                        inputs=inputs, states=states))
             if competition:
                 if any(row['outcome'] == 'RESELECT_STORY' and row['story_id'] == draft_plan['story_id']
                        for row in history):
@@ -2567,7 +2615,7 @@ def check_qa(task, name, *, acceptance=True):
     if data.get(video_review.FIELD) and name in {'preview-qa', 'final-qa'}:
         production_name = 'animation-manifest' if name == 'preview-qa' else 'timeline'
         production = artifact(task, production_name)
-        video_review.require_current(production)
+        video_review.require_current(production, pacing_required=pacing.enabled(data))
     directed = producer_directed(data)
     # A Producer preview is a working edit. Final QA reviews the complete film.
     workprint_review = name == 'preview-qa' and directed_story(data)
@@ -2616,6 +2664,9 @@ def check_qa(task, name, *, acceptance=True):
             raise ValueError('Final music and mechanical sound require full independent listening on the exact MP4')
     if mechanism_first(data) and name in {'preview-qa', 'final-qa'}:
         video_review.require_mechanical_positioning(data, qa, production)
+    if pacing.enabled(data) and name in {'preview-qa', 'final-qa'}:
+        if pacing.review_status(production['video_review']['pacing'], qa) != 'PASS':
+            raise ValueError('Independent pacing review requires full timed picture and sound observations')
     from . import joint_timeline as joint
     if joint.integrity(data) and name in {'preview-qa', 'final-qa'}:
         blueprint = artifact(task, 'creative-blueprint')
@@ -3018,7 +3069,7 @@ def advance(task, target):
             timeline = artifact(task, 'timeline')
             check_media(timeline.get('media'))
             if data.get(video_review.FIELD):
-                video_review.require_current(timeline)
+                video_review.require_current(timeline, pacing_required=pacing.enabled(data))
             if timeline.get('technical_pass') is not True:
                 raise ValueError('Technical validation missing')
         if target == 'COMPLETED':
@@ -3812,7 +3863,8 @@ def main():
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['reference-first','existing-media','autonomous-cad','verified-existing','illustrated'], default='reference-first')
-    p.add_argument('--duration', type=int, default=None, help='Optional target seconds. New formal tasks use a measured story length of 120–300 seconds.')
+    p.add_argument('--duration', type=int, default=None, help='Optional target seconds. New formal tasks derive duration from measured speech and the complete story, up to 300 seconds.')
+    p.add_argument('--operations-review', type=Path, help='Dated operations review to pin for a new formal task.')
     p.add_argument('--voice')
     p.add_argument('--config', type=Path)
     p.add_argument('--task-id')
@@ -3922,7 +3974,7 @@ def main():
                            visual_policy_version=visual_policy, media_policy_version=media_policy,
                            presentation_style=args.presentation_style, contract_version=args.production_contract,
                            skill_driven_pilot=args.skill_driven, mechanical_object=args.mechanical_object,
-                           core_question=args.core_question)
+                           core_question=args.core_question, operations_review=args.operations_review)
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')

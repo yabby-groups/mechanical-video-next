@@ -8,6 +8,7 @@ from mechanical_video_next import creative_selection as creative
 from mechanical_video_next import joint_timeline as joint
 from mechanical_video_next import production_contract as contract
 from mechanical_video_next import workflow
+from mechanical_video_next import pacing
 
 
 class StoryDevelopmentTests(unittest.TestCase):
@@ -167,6 +168,12 @@ class StoryDevelopmentTests(unittest.TestCase):
                               positioning=contract.POSITIONING,
                               growth_design={key: 'Watch the latch test' for key in
                                              ('retention', 'like', 'save', 'comment', 'follow')})
+        self.treatment['pacing_brief'] = dict.fromkeys(pacing.BRIEF, 'See the latch retract')
+        self.treatment['pacing_brief'].update(
+            essential_scenes=['counter'], decorative_scenes=[], shortest_complete_seconds=12,
+            operations=dict(source=ledger['operations_review'], platform_observation='Early loss is measurable',
+                            shot_observation='UNKNOWN', hypothesis='Earlier motion may help',
+                            edit_decision='Open on the latch retracting', follow_up='Compare same-age snapshots'))
         core = self.treatment['scenes'][0]
         core.update(mechanical_role='core', render_engine='remotion')
         with self.assertRaisesRegex(ValueError, 'source-supported Blender'):
@@ -189,6 +196,6 @@ class StoryDevelopmentTests(unittest.TestCase):
         findings['internal_3d']['status'] = 'PASS'
         review['creative_decision']['status'] = 'PASS'
         self.put('QA', 'story-qa', review, 'story-treatment')
-        with self.assertRaisesRegex(ValueError, 'native Blender scenes'):
+        with self.assertRaisesRegex(ValueError, 'pinned pacing policy'):
             self.put('Producer', 'diagnostic-animatic', self.draft('red', frames=3600),
                      'research', 'story-treatment', 'story-qa')

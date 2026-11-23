@@ -51,13 +51,26 @@ def require_technical_pass(report):
                          + '; '.join(row['code'] for row in report['findings']))
 
 
-def require_current(production):
+def require_current(production, *, pacing_required=False):
     report = production.get('video_review', {})
     films = [row for row in production.get('media', []) if Path(row['path']).suffix.lower() == '.mp4']
     if (report.get('schema_version') != VERSION or len(films) != 1
             or report.get('media') != films[0]):
         raise ValueError('Current exact-media Video Review is missing')
     joint.bound(films[0])
+    if pacing_required:
+        from . import pacing
+        audit = report.get('pacing', {})
+        if audit.get('schema_version') != pacing.VERSION or audit.get('media') != films[0]:
+            raise ValueError('Current exact-media pacing audit is missing')
+        inputs = report.get('inputs', {})
+        for key in ('composition', 'render_sources', 'measured_timeline'):
+            if key not in inputs:
+                raise ValueError('Current pacing audit source is missing: ' + key)
+            joint.bound(inputs[key])
+        for shot in audit.get('shots', []):
+            for track in shot['native_tracks']:
+                joint.bound(track['source'])
     require_technical_pass(report)
 
 
@@ -381,7 +394,8 @@ def for_composition(media, blueprint, research, config, public):
                 action = actions[action_id]
                 for check in action.get('state_checks', {}).get(cut['id'], []):
                     try:
-                        state = dict(check, shot_id=cut['id'],
+                        state = dict(check, shot_id=cut['id'], action_id=action_id,
+                                     source=rendered.get('blender_checks'),
                                      samples=constraint_samples(rendered, check['constraint_index']),
                                      frame_range=[max(first, action['start_frame']),
                                                   min(last, action['end_frame'])])
@@ -401,6 +415,10 @@ def for_composition(media, blueprint, research, config, public):
     report['inputs'] = inputs
     report['findings'].extend(findings)
     report['technical_status'] = status(report['findings'])
+    from . import pacing
+    if pacing.enabled(blueprint):
+        report['pacing'] = pacing.analyze(media, plan, blueprint['pacing'], measured=measured,
+                                          inputs=inputs, states=states)
     return report
 
 

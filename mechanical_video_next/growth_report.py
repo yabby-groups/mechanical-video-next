@@ -13,6 +13,9 @@ import time
 
 from .multiroute import ROUTES, probe, sha, write
 from .growth import finite
+from . import pacing
+
+PRE_PACING_GENERATOR = '349eed75643ea4fdd1ad0e2f5c6f43e7c183901ba06b833aad4bb52beb1e1e6f'
 
 DIMENSIONS = {
     'product_opening': '首五秒产品识别与真实操作', 'counterintuitive_observation': '真实反直觉现象',
@@ -135,6 +138,29 @@ def qa_views(docs, route, digest):
         if data.get('route') in (None, route) and any(m.get('sha256') == digest for m in media if isinstance(m, dict)):
             rows.append((doc, data))
     return rows
+
+
+def pacing_evidence(task, data, media_sha):
+    from .workflow import artifact
+
+    result = {'status': 'UNKNOWN', 'audit': None, 'independent_review': None}
+    try:
+        report = artifact(task, 'timeline')['video_review']
+        audit = report['pacing']
+        if audit['media']['sha256'] != media_sha or not source_valid(report):
+            return result
+        result['audit'] = audit
+        qa = artifact(task, 'final-qa')
+        if (qa.get('independent_reviewer') is not True or not qa.get('reviewer_thread_id')
+                or not any(media['sha256'] == media_sha for media in qa['media']) or not source_valid(qa)):
+            return result
+        source = task / data['handoffs']['final-qa']['path']
+        result.update(status=pacing.review_status(audit, qa),
+                      independent_review={'source': {'path': str(source), 'sha256': sha(source)},
+                                          'checks': qa.get('pacing_checks')})
+    except (KeyError, OSError, ValueError):
+        pass
+    return result
 
 
 def evaluate(views, dimension, duration):
@@ -260,6 +286,8 @@ def render_markdown(report):
                   '', '实际媒体QA观察与问题：','```json',json.dumps(data['qa_observations'],ensure_ascii=False,indent=2),'```',
                   '', '五类目标落实与缺口：','```json',json.dumps(data['optimization_goals'],ensure_ascii=False,indent=2),'```',
                   '', '修复前后：','```json',json.dumps(data['repairs'],ensure_ascii=False,indent=2),'```']
+        if 'pacing' in data:
+            lines.extend(['', f"独立节奏审查：{data['pacing']['status']}。逐镜头、动作、Neil 与时间码见 growth-report.json。"])
     lines += ['', '封面交付：cover/cover-report.md（两种比例；独立视觉检查见cover-qa.json）。']
     lines += ['', '## 结论', ''] + [f'{i}. {s}' for i,s in enumerate(report['conclusions'],1)]
     lines += ['', '## 发布后真实数据', '', '```json',json.dumps(report['post_publish'],ensure_ascii=False,indent=2),'```',
@@ -339,6 +367,8 @@ def generate(task, paths=None, comparison=None):
                               'observed_rates': {'like':None, 'save':None, 'comment':None, 'follow':None},
                               'scope':'没有发布后数据，不计算虚假增长；不把异平台或异流量当严格A/B'}}
     evidence_dir = task/'growth-evidence'; evidence_dir.mkdir(exist_ok=True)
+    if pacing.enabled(task_data):
+        report['design']['operations'] = blueprint.get('pacing_brief', {}).get('operations')
     evidence = []
     for route in routes:
         path = Path(paths[route]).resolve(); digest = sha(path)
@@ -399,6 +429,8 @@ def generate(task, paths=None, comparison=None):
         entry = {'media':media,'duration_seconds':duration,'timing':timing,'dimensions':dimensions,
                  'optimization_goals':optimization_goals, 'qa_observations':observation_rows,'issues':issues,'metrics':route_metrics(docs,route,digest),
                  'repairs':repair_history(docs,route,media)}
+        if pacing.enabled(task_data):
+            entry['pacing'] = pacing_evidence(task, task_data, digest)
         report['routes'][route]=entry
         # Small, content-addressed samples. Extraction is not perceptual review.
         samples = [0.0, max(0,duration-1)]
@@ -433,6 +465,8 @@ def generate(task, paths=None, comparison=None):
     report['acceptance_dimensions'] = sorted(acceptance_dimensions)
     all_pass=(all(r['dimensions'][key]['status']=='PASS' for r in report['routes'].values() for key in acceptance_dimensions)
               and all(g['status']=='PASS' for r in report['routes'].values() for g in r['optimization_goals'].values()))
+    if pacing.enabled(task_data):
+        all_pass = all_pass and all(r['pacing']['status'] == 'PASS' for r in report['routes'].values())
     if all_pass:
         report['status']='QA_VERIFIED_DELIVERY'
         report['recommendation']['reason']='三版现有独立媒体检查均通过；缺少可比优劣证据，不强行指定单一版本。'
@@ -479,7 +513,10 @@ def validate(task):
     if not bound(report.get('covers', {})):
         raise ValueError('Growth report STALE: covers changed or missing')
     validate_covers(task)
-    if report['generator_sha256']!=sha(__file__) or report['sources']!=snapshot(task):
+    generators = {sha(__file__)}
+    if not pacing.enabled(data):
+        generators.add(PRE_PACING_GENERATOR)
+    if report['generator_sha256'] not in generators or report['sources'] != snapshot(task):
         raise ValueError('Growth report STALE: inputs/QA/subtitles/config or generator changed')
     for ref in [*([report['comparison']] if report.get('comparison') else []),*[d['media'] for d in report['routes'].values()],*report['artifacts']]:
         if not bound(ref): raise ValueError('Growth report STALE: media/evidence/report changed: '+ref['path'])
