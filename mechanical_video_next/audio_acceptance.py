@@ -26,7 +26,7 @@ MUSIC_LISTENING = {'story_fit', 'neil_clarity', 'mechanical_sync', 'opening',
                    'reveal', 'transitions', 'ending'}
 
 
-def music_review(report, media):
+def music_review(report, media, *, require_continuity=False):
     """A listening conclusion needs observations against the complete exact MP4."""
     review = report.get('music_listening_review')
     if review is None:
@@ -35,11 +35,14 @@ def music_review(report, media):
     if len(films) != 1 or review.get('media_sha256') != films[0]['sha256']:
         raise ValueError('Music listening review must bind the exact production MP4')
     checks = review.get('checks', {})
-    if set(checks) != MUSIC_LISTENING or any(
+    expected = MUSIC_LISTENING | {'bgm_continuity'}
+    if not MUSIC_LISTENING <= checks.keys() <= expected or any(
             row.get('status') not in {'PASS', 'FAIL', 'UNKNOWN'}
             or not isinstance(row.get('observation'), str) or not row['observation'].strip()
             for row in checks.values()):
         raise ValueError('Music listening review needs observed story fit, clarity, sync, entry, reveal, transitions and ending')
+    if require_continuity and 'bgm_continuity' not in checks:
+        return 'UNKNOWN'
     statuses = {row['status'] for row in checks.values()}
     if statuses != {'UNKNOWN'}:
         span = review.get('time_range')
@@ -405,7 +408,9 @@ def verify(timeline, blueprint):
     config, props, build_inputs = verify_build(media, timeline, blueprint, measured)
     if music != director_audio.enabled(config):
         raise ValueError('Final build changed the pinned music policy')
-    arrangement = director_audio.validate_arrangement(config, blueprint=blueprint, measured=measured, require_ready=True)
+    windows = []
+    arrangement = director_audio.validate_arrangement(config, blueprint=blueprint, measured=measured,
+                                                       require_ready=True, analysis=windows)
     if arrangement is not None:
         design, audio_inputs = arrangement
         inputs.extend(audio_inputs)
@@ -427,6 +432,10 @@ def verify(timeline, blueprint):
         raise ValueError('Final AAC exceeds the configured true-peak ceiling')
     if filehash(final) != media['sha256']:
         raise ValueError('Final MP4 changed during audio verification')
+    adaptive_evidence = {}
+    if arrangement and design.get('ducking'):
+        from .ducking import review_metrics
+        adaptive_evidence = dict(ducking=design['ducking'], **review_metrics(windows))
     return dict(identity, **comparison, media_sha256=media['sha256'], verified_sample_range=[0, sample_count],
                 integrated_lufs=float(levels['input_i']), reference_loudness_lufs=reference_lufs,
                 true_peak_dbtp=float(levels['input_tp']),
@@ -436,7 +445,8 @@ def verify(timeline, blueprint):
                            'minimum_speech_to_mix_db': MIN_MIX_MARGIN_DB if mix_inputs else None,
                            **({'music_status': design['status'],
                                'music_cues': len(design['selections']),
-                               'direction': config['audio_direction']} if arrangement else {})},
+                               'direction': config['audio_direction']} if arrangement else {}),
+                           **adaptive_evidence},
                 inputs=inputs, utterances=speech)
 
 

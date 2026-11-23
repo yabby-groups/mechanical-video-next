@@ -2447,7 +2447,6 @@ def put_handoff(task, role, name, payload, dependencies=None):
             if director_audio.enabled(data):
                 from .audio_acceptance import music_review
                 film = artifact(task, 'timeline')
-                payload = dict(payload, audio_perceptual_review=music_review(payload, film['media']))
                 try:
                     evidence = verify(film, artifact(task, 'creative-blueprint'))
                 except (OSError, ValueError, RuntimeError, KeyError, TypeError,
@@ -2455,6 +2454,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
                     payload.update(audio_technical_status='FAIL', audio_technical_evidence={'reason': str(error)})
                 else:
                     payload.update(audio_technical_status='PASS', audio_technical_evidence=evidence)
+                require_continuity = bool(payload['audio_technical_evidence'].get('mix_check', {}).get('ducking'))
+                payload = dict(payload, audio_perceptual_review=music_review(
+                    payload, film['media'], require_continuity=require_continuity))
             elif directed and data.get('audio_acceptance_policy') == MODE and payload.get('full_audio_listened') is not True:
                 if payload.get('audio_perceptual_review', 'NOT_PERFORMED') != 'NOT_PERFORMED':
                     raise ValueError('Record actual listening results only with the corresponding observations')
@@ -2595,7 +2597,8 @@ def check_qa(task, name, *, acceptance=True):
         from .audio_acceptance import check_evidence, music_review
         films = [row for row in production['media'] if Path(row['path']).suffix.lower() == '.mp4']
         check_evidence(qa, films, require_music=True)
-        if music_review(qa, films) != 'PASS':
+        require_continuity = bool(qa['audio_technical_evidence']['mix_check'].get('ducking'))
+        if music_review(qa, films, require_continuity=require_continuity) != 'PASS':
             raise ValueError('Final music and mechanical sound require full independent listening on the exact MP4')
     if mechanism_first(data) and name in {'preview-qa', 'final-qa'}:
         video_review.require_mechanical_positioning(data, qa, production)
