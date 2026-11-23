@@ -282,7 +282,7 @@ def apply_envelope(samples, first, gain, points):
 
 
 def process_mix(stem_rows, master_path, expected_samples, *, destination=None, reference=None,
-                check_masking=True, output_gain_db=0):
+                check_masking=True, output_gain_db=0, observe=None):
     """Stream the same declared source windows and gain law for rendering and verification."""
     from .audio_library import open_pcm
     if type(output_gain_db) not in (int, float) or not -3 <= output_gain_db <= 0:
@@ -312,7 +312,8 @@ def process_mix(stem_rows, master_path, expected_samples, *, destination=None, r
             cue = row.get('cue_id') if row['kind'] == 'bgm' else None
             if cue is not None:
                 music_peaks[cue] = 0.
-            stems.append((wav, start, end, offset, 10 ** (gain / 20), envelope_points(row, start, end), cue))
+            stems.append((wav, start, end, offset, 10 ** (gain / 20), envelope_points(row, start, end),
+                          cue, row['kind']))
         stems.sort(key=lambda stem: stem[1])
         active, cursor = [], 0
         for start in range(0, expected_samples, WINDOW):
@@ -324,22 +325,35 @@ def process_mix(stem_rows, master_path, expected_samples, *, destination=None, r
                 active.append(stems[cursor])
                 cursor += 1
             independent_background_power = 0.
-            for wav, left, right, offset, gain, points, cue in active:
+            music = [0.] * len(voice) if observe else None
+            music_norm = effects_norm = 0.
+            for wav, left, right, offset, gain, points, cue, kind in active:
                 first, stop = max(left, start), min(right, end)
                 wav.setpos(offset + first - left)
                 stem = apply_envelope(wav_samples(wav, stop - first), first, gain, points)
                 if cue is not None:
                     music_peaks[cue] = max(music_peaks[cue], max(map(abs, stem)))
-                independent_background_power += math.sumprod(stem, stem)
+                stem_power = math.sumprod(stem, stem)
+                independent_background_power += stem_power
+                if observe:
+                    if kind == 'bgm':
+                        music_norm += math.sqrt(stem_power)
+                        for index, sample in enumerate(stem, first - start):
+                            music[index] += sample
+                    else:
+                        effects_norm += math.sqrt(stem_power)
                 for index, sample in enumerate(stem, first - start):
                     background[index] += sample
             power = math.sumprod(voice, voice)
+            if observe:
+                observe(start, end, power, math.sumprod(music, music), music_norm, effects_norm,
+                        max(independent_background_power, math.sumprod(background, background)))
             if (check_masking and power / len(voice) > (32768 * .01) ** 2
                     and max(independent_background_power, math.sumprod(background, background))
                     > power / (10 ** (MIN_MIX_MARGIN_DB / 10))):
                 raise ValueError(f'Potential BGM or effect masking near {start / joint.SAMPLE_RATE:.3f}s requires audio review')
             values = [(speech + bed) * output_gain for speech, bed in zip(voice, background, strict=True)]
-            if (any(abs(value) >= 32767 for value in values)
+            if ((not observe or output or mixed) and any(abs(value) >= 32767 for value in values)
                     or (mixed and any(abs(actual - expected) > 2 for actual, expected
                                      in zip(wav_samples(mixed, end - start), values, strict=True)))):
                 raise ValueError(f'Bound mix clips or differs from the declared stem gains near {start / joint.SAMPLE_RATE:.3f}s')

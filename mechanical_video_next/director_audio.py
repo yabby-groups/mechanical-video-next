@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 import wave
 
 from scripts.common import ROOT, check_output, digest, execute, writejson
-from . import audio_library, joint_timeline as joint
+from . import audio_library, ducking, joint_timeline as joint
 from .audio_acceptance import (check_levels, narration_module, process_mix, verify_mix)
 from .media_policy import bound, validate_rights
 
@@ -94,7 +94,7 @@ def sound_stems(plan, events, *, mechanical=False):
     return stems
 
 
-def plan_direction(document):
+def plan_direction(document, *, ducking_version=ducking.VERSION):
     """Score the approved story and keep an uninterrupted action under one cue."""
     plan = joint.validate(document['timeline'])
     authored = document.get('music_direction', {})
@@ -106,6 +106,10 @@ def plan_direction(document):
     result = dict(schema_version=VERSION, topic=document.get('original_topic', document.get('title', '')),
                   question=document.get('core_question'), frame_count=plan['frame_count'], fps=joint.FPS,
                   mode=status, segments=[])
+    if ducking_version == ducking.VERSION:
+        result['ducking'] = dict(ducking.DEFAULT)
+    elif ducking_version != 1:
+        raise ValueError('Unsupported music ducking version')
     if status == 'silence':
         if not isinstance(authored.get('reason'), str) or not authored['reason'].strip():
             raise ValueError('Intentional silence requires a concrete story reason')
@@ -165,10 +169,14 @@ def plan_direction(document):
         if mode != 'silence':
             mood, energy, bpm, target, style_description = MODES[mode]
             target += cue['gain_adjustment_db']
+            adaptive = ducking_version == ducking.VERSION
+            if adaptive:
+                target += 7 if mode == 'mechanical_asmr' else 5
             cue.update(style=[mode], mood=mood, energy=energy, bpm=bpm, rhythm=style_description,
                        target_lufs=target, fade_in_seconds=.35,
                        fade_out_seconds=.85 if cue['end_frame'] == plan['frame_count'] else .35,
-                       speech_duck_db=max(17, target + 54), action_duck_db=9)
+                       speech_duck_db=0 if adaptive else max(17, target + 54),
+                       action_duck_db=6 if adaptive else 9)
     if all(row['mode'] == 'silence' for row in result['segments']):
         raise ValueError('Use whole-film intentional silence with an explicit reason')
     return result
@@ -251,7 +259,8 @@ def lay_music(cue, track, source_lufs, speech, effects):
     gain = min(3., max(-72., cue['target_lufs'] - source_lufs))
     left, right = (cue[key] * joint.SAMPLES_PER_FRAME for key in ('start_frame', 'end_frame'))
     tail = round(.08 * RATE)
-    holds = [(row['start_sample'] - tail, row['end_sample'] + tail, cue['speech_duck_db']) for row in speech]
+    holds = [(row['start_sample'] - tail, row['end_sample'] + tail, cue['speech_duck_db'])
+             for row in speech if cue['speech_duck_db']]
     holds.extend((row['start_sample'], row['end_sample'], cue['action_duck_db']) for row in effects)
     offset, stop = (0, track['sample_count']) if track['sample_count'] >= right - left else track['loop_samples']
     loop = min(round(.18 * RATE), (stop - offset) // 4)
@@ -300,13 +309,16 @@ def resolve_music(direction, measured, effects, profile, directory, catalog):
     return stems, selections, missing, rejected
 
 
-def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False):
+def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, ducking_settings=None):
     from .workflow import lock, write
     ref = joint.binding(narration)
     recipe = [{key: row[key] for key in ('start_sample', 'end_sample', 'source_start_sample', 'gain_db', 'kind')}
               | {'source': row['source']['sha256'], 'envelope': row.get('envelope')} for row in stems]
-    key = digest({'version': VERSION, 'encoder': AAC_ARGS, 'headroom': 1,
-                  'narration': ref['sha256'], 'stems': recipe, 'samples': expected})
+    identity = {'version': VERSION, 'encoder': AAC_ARGS, 'headroom': 1,
+                'narration': ref['sha256'], 'stems': recipe, 'samples': expected}
+    if ducking_settings:
+        identity['ducking'] = ducking_settings
+    key = digest(identity)
     folder = Path(cache) / key
     if joint.pcm_frames(narration) != expected:
         raise ValueError('Director mix requires a complete measured narration master')
@@ -367,19 +379,24 @@ def render_with_headroom(stems, narration, expected, output, *, check_masking):
     raise ValueError('AAC true peak cannot be brought within target with a 3 dB mix-bus trim')
 
 
-def arrange(document, measured, *, directory, catalog=audio_library.LIBRARY, cache=CACHE):
-    direction = plan_direction(document)
+def arrange(document, measured, *, directory, catalog=audio_library.LIBRARY, cache=CACHE,
+            ducking_version=ducking.VERSION):
+    direction = plan_direction(document, ducking_version=ducking_version)
     effects = sound_stems(document['timeline'], document.get('sound_events', []), mechanical=True)
     profile = narration_module().effective_profile({'narration_profile': 'config/narration-neil.json'})
     music, selections, missing, rejected = resolve_music(direction, measured, effects, profile, directory, catalog)
+    narration = joint.bound(measured['narration_audio'])
+    samples = direction['frame_count'] * joint.SAMPLES_PER_FRAME
+    settings = direction.get('ducking')
+    if settings:
+        music = ducking.apply(music, effects, narration, samples, measured['speech'], settings)
     add_sound_events(direction, effects)
     arrangement = dict(direction, status='BLOCKED' if missing else
                        ('SILENCE_DESIGNED' if direction['mode'] == 'silence' else 'READY'),
                        selections=selections, missing=missing, rejected_records=rejected,
                        speech=[{k: row[k] for k in ('id', 'start_sample', 'end_sample')} for row in measured['speech']],
                        narration=measured['narration_audio'], audio_perceptual_review='UNKNOWN')
-    mix_receipt, hit = cache_mix(joint.bound(measured['narration_audio']),
-                                 direction['frame_count'] * joint.SAMPLES_PER_FRAME, music + effects, cache=cache)
+    mix_receipt, hit = cache_mix(narration, samples, music + effects, cache=cache, ducking_settings=settings)
     arrangement['mix'] = mix_receipt
     folder = Path(directory) / digest(arrangement)
     path = folder / 'audio_direction.json'
@@ -397,7 +414,7 @@ def add_sound_events(direction, effects):
             and row['end_sample'] > cue['start_frame'] * joint.SAMPLES_PER_FRAME]
 
 
-def validate_arrangement(config, *, blueprint=None, measured=None, require_ready=False):
+def validate_arrangement(config, *, blueprint=None, measured=None, require_ready=False, analysis=None):
     """Check the exact design and source bindings before final rendering or acceptance."""
     if not enabled(config):
         return None
@@ -439,7 +456,10 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
                 ('id', 'asset_id'), ('source', 'source'), ('license', 'license'), ('catalog_record', 'catalog_record'))):
             raise ValueError('Music stem differs from its selection record')
     if blueprint is not None:
-        expected = plan_direction(blueprint)
+        settings = direction.get('ducking')
+        if settings is not None and settings != ducking.DEFAULT:
+            raise ValueError('Unexpected adaptive ducking parameters')
+        expected = plan_direction(blueprint, ducking_version=ducking.VERSION if settings else 1)
         verified_effects = sound_stems(blueprint['timeline'], blueprint.get('sound_events', []), mechanical=True)
         add_sound_events(expected, verified_effects)
         if effects != verified_effects or any(direction[key] != value for key, value in expected.items()):
@@ -453,6 +473,15 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
             track = audio_library.inspect(json.loads(bound(decision['catalog_record']).read_text()))
             track['catalog_record'] = row['catalog_record']
             expected_stems.extend(lay_music(cue, track, decision['measured_lufs'], direction['speech'], effects))
+        if settings:
+            narration = joint.bound(direction['narration'])
+            samples = direction['frame_count'] * joint.SAMPLES_PER_FRAME
+            dry_stems = expected_stems
+            expected_stems = ducking.apply(dry_stems, verified_effects, narration, samples, direction['speech'], settings)
+            if analysis is not None and music:
+                analysis.extend(ducking.describe(
+                    ducking.measurements(dry_stems, narration, samples),
+                    ducking.measurements(music + effects, narration, samples), direction['speech']))
         if music != expected_stems:
             raise ValueError('BGM placement or gain envelope differs from the measured sound design')
     inputs.extend(row['trigger_evidence'] for row in effects)

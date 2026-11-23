@@ -9,7 +9,7 @@ from unittest.mock import patch
 import wave
 
 from mechanical_video_next import audio_acceptance, audio_library, director_audio as music
-from mechanical_video_next import joint_timeline as joint, workflow
+from mechanical_video_next import ducking, joint_timeline as joint, workflow
 from scripts import clean
 from scripts import produce
 from scripts.common import execute, filehash, writejson
@@ -70,15 +70,57 @@ class MusicDirectionTests(unittest.TestCase):
         bed = config['audio_mix']['stems']
         self.assertTrue(all(row['kind'] == 'bgm' for row in bed))
         first, second = bed
-        self.assertLess(float(audio_acceptance.apply_envelope([1], 85000, 1, first['envelope'])[0]), .1)
-        self.assertLess(float(audio_acceptance.apply_envelope([1], 110000, 1, second['envelope'])[0]), .1)
-        self.assertEqual(audio_acceptance.apply_envelope([1], 165000, 1, second['envelope']), [1.])
+        self.assertGreater(ducking.interpolate(first['envelope'], 85000), .1)
+        self.assertGreater(ducking.interpolate(second['envelope'], 120000), .1)
+        self.assertLess(ducking.interpolate(second['envelope'], 120000), .75)
+        self.assertEqual(ducking.interpolate(second['envelope'], 184000), 1.)
         self.assertEqual(second['envelope'][-1], [180 * 1600 - 1, 0])
         self.assertEqual(music.validate_arrangement(config, blueprint=self.blueprint, measured=self.measured,
                                                     require_ready=True)[0]['status'], 'READY')
         with patch.object(audio_library, 'choose', side_effect=AssertionError('Selection must stay cached')):
             self.measured['speech'][0]['subtitle'] = '新字幕'
             self.assertTrue(self.arrange()[2])
+
+    def test_short_pause_and_source_silence(self):
+        music_source = self.root / 'music.wav'
+        voice = self.root / 'voice.wav'
+        count = 3 * joint.SAMPLE_RATE
+        tone = array('h', [1000, -1000]) * (count // 2)
+        bed = tone[:]
+        bed[48000:67200] = array('h', [0]) * 19200
+        foreground = array('h', [0]) * count
+        foreground[24000:48000] = (array('h', [16000, -16000]) * 12000)
+        foreground[57600:96000] = (array('h', [16000, -16000]) * 19200)
+        for path, data in [(music_source, bed), (voice, foreground)]:
+            with wave.open(str(path), 'wb') as wav:
+                wav.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+                wav.writeframes(data.tobytes())
+        speech = [{'start_sample': 24000, 'end_sample': 48000},
+                  {'start_sample': 57600, 'end_sample': 96000}]
+        rights = audio_library.records()[0][0]
+        stem = dict(rights, source=joint.binding(music_source), kind='bgm', gain_db=0.,
+                    cue_id='cue', start_sample=0, end_sample=count, source_start_sample=0,
+                    envelope=[[0, 0.], [1000, 1.], [count-1000, 1.], [count-1, 0.]])
+        adaptive = ducking.apply([stem], [], voice, count, speech)
+        points = adaptive[0]['envelope']
+        self.assertEqual(points[0], [0, 0.])
+        self.assertEqual(points[-1], [count-1, 0.])
+        self.assertLess(ducking.interpolate(points, 18000), 1.)
+        self.assertAlmostEqual(ducking.interpolate(points, 52800), ducking.amplitude(-4))
+        self.assertGreater(ducking.interpolate(points, 120000), ducking.amplitude(-4))
+        self.assertGreater(min(gain for _, gain in points[1:-1]), 0)
+        evidence = ducking.describe(ducking.measurements([stem], voice, count),
+                                   ducking.measurements(adaptive, voice, count), speech)
+        self.assertGreater(ducking.review_metrics(evidence)['bgm_continuity']['speech_windows_with_quiet_source'], 0)
+
+    def test_legacy_automation_and_cache_keys(self):
+        ref, old, _ = music.arrange(self.blueprint, self.measured, directory=self.root / 'design',
+                                   cache=self.cache, ducking_version=1)
+        config, current, _ = self.arrange()
+        self.assertNotEqual(old['cache_key'], config['audio_mix']['cache_key'])
+        self.assertEqual(current['ducking'], ducking.DEFAULT)
+        music.validate_arrangement({music.FIELD: 1, 'audio_direction': ref, 'audio_mix': old},
+                                   blueprint=self.blueprint, measured=self.measured, require_ready=True)
 
     def test_persistent_action_and_multiple_effects(self):
         source = self.root / 'contact.json'
