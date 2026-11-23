@@ -405,6 +405,21 @@ def complete_media(data, media, final=True):
     return dict(duration=duration, fps=fps, chapter_ids=coverage)
 
 
+def source_supported_stage_media(data, config, config_sha256):
+    row = next((stage for stage in reversed(data.get('stages', []))
+                if stage.get('command_success') and stage.get('phase') == 'final'
+                and stage.get('config_sha256') == config_sha256), {})
+    media = row.get('media')
+    return dict(media, chapter_ids=[shot['id'] for shot in config['storyboard']]) if media else None
+
+
+def source_supported_route_data(data, review, media):
+    exact = (Path(media['path']).resolve(), media['sha256'])
+    if not any((Path(item['path']).resolve(), item['sha256']) == exact for item in review['media']):
+        raise ValueError('Final QA must review the current source-supported stage media')
+    return dict(data, route_runs=dict(data.get('route_runs', {}), **{'3d': {'outputs': media}}))
+
+
 def continuation(task, persist=True):
     """Reconcile evidence, not child/session exit codes, into a Producer action.
 
@@ -413,6 +428,8 @@ def continuation(task, persist=True):
     """
     task = Path(task)
     data = load(task)
+    source_supported = None
+    scoped_film = False
     # Independent verified shots precede global research/handoff dependencies.
     # Keep this branch task-opt-in; historical ledgers retain their semantics.
     if data.get('shot_production'):
@@ -420,7 +437,8 @@ def continuation(task, persist=True):
         full_config = Path(data.get('config') or '')
         if full_config.is_file():
             cfg = json.loads(full_config.read_text())
-            if cfg.get('production_scope') == 'source-supported-film' and cfg.get('shot_evidence_version') == 1:
+            scoped_film = cfg.get('production_scope') == 'source-supported-film' and cfg.get('shot_evidence_version') == 1
+            if scoped_film:
                 # Reuse the existing render stages; this authorizes media production,
                 # never independent mechanical/sensory acceptance or delivery.
                 try:
@@ -431,18 +449,12 @@ def continuation(task, persist=True):
                     # successful stage instead of raising after it completed.
                     pass
                 else:
+                    config_sha256 = filehash(full_config)
                     done = {s['phase'] for s in data.get('stages', [])
-                            if s.get('command_success') and s.get('config_sha256') == filehash(full_config)}
-                    final = ROOT/'output'/(cfg['id']+'-final.mp4')
-                    recorded = next((s.get('media') for s in reversed(data.get('stages', []))
-                        if s.get('command_success') and s.get('phase') == 'final'
-                        and s.get('config_sha256') == filehash(full_config)), None)
-                    media = dict(recorded, chapter_ids=[s['id'] for s in cfg['storyboard']]) if recorded else None
+                            if s.get('command_success') and s.get('config_sha256') == config_sha256}
+                    media = source_supported_stage_media(data, cfg, config_sha256)
                     if media:
-                        complete_media(data, media)
-                        status = 'FINAL_QA_PENDING'
-                        action = dict(owner='Producer/QA', kind='REASONING_REQUIRED', command=None,
-                            action='Full 3D MP4 exists. Complete remaining delivery artifacts and independent exact-media mechanical/comprehension/viewing/listening QA; preserve completed media, provenance, covers and reports.')
+                        source_supported = media
                     else:
                         phase = 'final' if 'preview' in done else 'preview'
                         status = 'PRODUCTION_IN_PROGRESS'
@@ -452,19 +464,19 @@ def continuation(task, persist=True):
                                      phase,'--config',str(full_config)])
                         failure = data.get('production_execution_failure', {})
                         if (failure.get('status') == 'OPEN'
-                                and failure.get('config_sha256') == filehash(full_config)):
+                                and failure.get('config_sha256') == config_sha256):
                             action = dict(owner='Producer', kind='REASONING_REQUIRED', command=None,
                                 action='Diagnose the preserved failed full-film command and change its inputs or strategy before retrying', evidence=failure)
-                    result = dict(schema_version=1, milestone=status, production_status=status,
-                        lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
-                        next_action=action, rendered_routes={'3d':media} if media else {},
-                        background_execution=False, execution_mode='current_native_codex_session')
-                    if persist:
-                        with lock(task / '.ledger.lock', wait=True):
-                            current = load(task)
-                            current.update(continuation=result, production_status=status, next_step=action['action'])
-                            write(task / 'task.json', current)
-                    return result
+                        result = dict(schema_version=1, milestone=status, production_status=status,
+                            lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
+                            next_action=action, rendered_routes={},
+                            background_execution=False, execution_mode='current_native_codex_session')
+                        if persist:
+                            with lock(task / '.ledger.lock', wait=True):
+                                current = load(task)
+                                current.update(continuation=result, production_status=status, next_step=action['action'])
+                                write(task / 'task.json', current)
+                        return result
         rows = data['shot_production']
         ready, pending, rendered_shots, invalid_shots = [], [], {}, {}
         for name, row in rows.items():
@@ -497,7 +509,7 @@ def continuation(task, persist=True):
                 action='Resolve the evidence gaps for the listed shots or assess a supported alternative. Prepare narration and continue QA on independently rendered shots.',
                 research_required=pending)
         # Hand back to the existing full-film workflow once a full plan is bound.
-        if ready or not data.get('production_plan'):
+        if source_supported is None and (ready or not data.get('production_plan')):
             status = 'PARTIAL_3D_RENDERED' if rendered_shots else 'PRODUCTION_IN_PROGRESS' if ready else 'RESEARCH_PARTIAL'
             result = dict(schema_version=1, milestone=status, production_status=status,
                 lifecycle='WORKING', delivered=False, blockers=[], workflow_state=data['state'],
@@ -599,7 +611,8 @@ def continuation(task, persist=True):
     routes = data.get('requested_routes', [data.get('render_route', '3d')])
     rendered, route_previews = {}, {}
     for route in routes:
-        media = data.get('route_runs', {}).get(route, {}).get('outputs', {})
+        media = ((source_supported or {}) if route == '3d' and scoped_film
+                 else data.get('route_runs', {}).get(route, {}).get('outputs', {}))
         candidate = media.get('candidate')
         if candidate:
             try:
@@ -652,8 +665,10 @@ def continuation(task, persist=True):
     if milestone == 'FINAL_RENDERED' and data['state'] == 'COMPLETED' and not unresolved_content:
         try:
             check_qa(task, 'preview-qa')
-            check_qa(task, 'final-qa')
-            check_requested_routes(task, data)
+            final_qa = check_qa(task, 'final-qa')
+            route_data = (source_supported_route_data(data, final_qa, source_supported)
+                          if source_supported is not None else data)
+            check_requested_routes(task, route_data)
             accepted = True
             milestone = 'QA_ACCEPTED'
         except (ValueError, OSError, KeyError, TypeError) as error:
@@ -1024,9 +1039,6 @@ def delivery_files(task, data, routes):
 def record_delivery(task, files, reason):
     """Record an explicit post-acceptance handoff; never infer it from an exit."""
     task = Path(task)
-    report = continuation(task, persist=False)
-    if report['milestone'] not in {'QA_ACCEPTED', 'DELIVERED'}:
-        raise ValueError('Actual complete route MP4s and independent QA acceptance required before delivery')
     if not reason.strip():
         raise ValueError('Delivery description required')
     bindings = []
@@ -1036,12 +1048,14 @@ def record_delivery(task, files, reason):
             raise ValueError('Delivery file missing: ' + str(path))
         bindings.append(dict(path=str(path.resolve()), sha256=filehash(path)))
     provided = {(item['path'], item['sha256']) for item in bindings}
-    data = load(task)
-    for media in delivery_files(task, data, report['rendered_routes']):
-        if (str(Path(media['path']).resolve()), media['sha256']) not in provided:
-            raise ValueError('Every required delivery file must be provided to the user: ' + media['path'])
     with lock(task / '.ledger.lock'):
+        report = continuation(task, persist=False)
+        if report['milestone'] not in {'QA_ACCEPTED', 'DELIVERED'}:
+            raise ValueError('Actual complete route MP4s and independent QA acceptance required before delivery')
         data = load(task)
+        for media in delivery_files(task, data, report['rendered_routes']):
+            if (str(Path(media['path']).resolve()), media['sha256']) not in provided:
+                raise ValueError('Every required delivery file must be provided to the user: ' + media['path'])
         data['delivery_receipt'] = dict(provided_to_user=True, routes=report['rendered_routes'],
                                        files=bindings, reason=reason, epoch=time.time())
         write(task / 'task.json', data)
@@ -2057,7 +2071,16 @@ def put_handoff(task, role, name, payload, dependencies=None):
             required = ({'research', 'asset-plan', 'cad-model', 'mechanical-diagnostics'}
                         if name == 'animation-manifest' else
                         {'research', 'animation-manifest', 'audio-preparation'})
-            if payload.get('config') != data['reference_remake']['production_binding']['config']:
+            config_path = Path(data['config'])
+            config = json.loads(config_path.read_text())
+            if (data.get('shot_production') and config.get('production_scope') == 'source-supported-film'
+                    and config.get('shot_evidence_version') == 1):
+                binding = payload.get('config') or {}
+                config_matches = (Path(binding.get('path', '')).resolve() == config_path.resolve()
+                                  and binding.get('sha256') == filehash(config_path))
+            else:
+                config_matches = payload.get('config') == data['reference_remake']['production_binding']['config']
+            if not config_matches:
                 raise ValueError('Technical media handoff requires the exact current film config')
             check_media(payload.get('media'))
         if data.get('reference_policy_version') == 1:
@@ -2847,7 +2870,21 @@ def advance(task, target):
         if target == 'COMPLETED':
             check_qa(task, 'preview-qa')
             review = check_qa(task, 'final-qa')
-            check_requested_routes(task, data)
+            route_data = data
+            if data.get('shot_production') and data.get('config'):
+                config_path = Path(data['config'])
+                if config_path.is_file():
+                    contents = config_path.read_bytes()
+                    config = json.loads(contents)
+                    if (config.get('production_scope') == 'source-supported-film'
+                            and config.get('shot_evidence_version') == 1):
+                        require_source_supported_render(task, config_path)
+                        media = source_supported_stage_media(data, config, hashlib.sha256(contents).hexdigest())
+                        if media is None:
+                            raise ValueError('Current source-supported final stage media is missing')
+                        complete_media(data, media)
+                        route_data = source_supported_route_data(data, review, media)
+            check_requested_routes(task, route_data)
             reviewed_shots = review.get('shot_acceptance', {})
             for shot_id, record in data.get('shot_production', {}).items():
                 if record.get('status') not in {'RENDERED', 'QA_PENDING'}:

@@ -92,3 +92,70 @@ class SourceSupportedRenderTests(unittest.TestCase):
         w.write(self.task/'task.json', data)
         with self.assertRaisesRegex(ValueError, 'substitute'):
             w.require_source_supported_render(self.task)
+
+
+class HistoricalScopedDeliveryTests(unittest.TestCase):
+    def test_final_stage_rejoins_exact_qa_and_delivery_reconciliation(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task = w.create_task('delivery fixture', root=root, protocol_version=1)
+            config = root / 'film.json'
+            w.write(config, dict(production_scope='source-supported-film', shot_evidence_version=1,
+                                 storyboard=[{'id': 'core'}]))
+            timeline = root / 'measured.json'
+            w.write(timeline, dict(shots=[{'id': 'core'}], duration_seconds=1))
+            final = root / 'final.mp4'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=1920x1080:r=30:d=1',
+                            '-f', 'lavfi', '-i', 'sine=d=1', '-c:v', 'libx264', '-preset', 'ultrafast',
+                            '-c:a', 'aac', str(final)], check=True)
+            media = dict(path=str(final), sha256=w.filehash(final))
+            w.write(task / '3d-provenance.json', {'build': {}})
+            w.write(task / 'growth-report.json', {})
+            (task / 'reference.txt').write_text('synthetic reference')
+            from mechanical_video_next.covers import SIZES
+            covers = []
+            for name in SIZES:
+                cover = task / name
+                cover.write_bytes(b'cover delivery binding fixture')
+                covers.append(dict(path=str(cover), sha256=w.filehash(cover)))
+            data = w.load(task)
+            data.update(config=str(config), state='FINAL_CHECKING', duration_policy={'minimum': 1, 'maximum': 1},
+                        shot_production={'core': {'status': 'RESEARCH_REQUIRED'}},
+                        shared_production={'timeline': dict(path=str(timeline), sha256=w.filehash(timeline))},
+                        stages=[dict(phase='final', command_success=True, config_sha256=w.filehash(config), media=media)],
+                        reference_model_report=dict(path=str(task / 'reference.txt'),
+                                                    sha256=w.filehash(task / 'reference.txt')))
+            w.write(task / 'task.json', data)
+
+            def submit(role, name, payload, *deps):
+                return w.put_handoff(task, role, name, payload, deps)
+
+            qa = dict(media=[media], checks=dict.fromkeys(w.QA_CHECKS, 'PASS'),
+                      independent_reviewer=True, reviewer_thread_id='fixture-reviewer',
+                      route_checks={'3d': {'media': media, 'checks': dict.fromkeys(w.QA_CHECKS, 'PASS')}})
+            with patch.object(w, 'require_source_supported_render', return_value=True), \
+                    patch('mechanical_video_next.provenance.validate'), \
+                    patch('mechanical_video_next.growth_report.validate', return_value={}), \
+                    patch('mechanical_video_next.covers.validate', return_value={'artifacts': covers}):
+                self.assertEqual(w.continuation(task)['production_status'], 'FINAL_QA_PENDING')
+                submit('Research', 'research', dict(task_id=data['id'], topic=data['topic']))
+                submit('Research', 'script', {'text': 'fixture'}, 'research')
+                submit('Asset', 'asset-plan', {'qualified': False})
+                submit('Animation', 'animation-manifest', {'media': [media]}, 'research', 'asset-plan')
+                submit('QA', 'preview-qa', qa, 'animation-manifest')
+                submit('Editor', 'timeline', {'media': [media]}, 'script', 'animation-manifest')
+                submit('QA', 'final-qa', dict(qa, checks=dict(qa['checks'], mechanics='FAIL')), 'timeline')
+                self.assertFalse(w.continuation(task)['delivered'])
+                with self.assertRaisesRegex(ValueError, 'QA FAIL'):
+                    w.advance(task, 'COMPLETED')
+                submit('QA', 'final-qa', qa, 'timeline')
+                w.advance(task, 'COMPLETED')
+                self.assertEqual(w.continuation(task)['milestone'], 'QA_ACCEPTED')
+                with self.assertRaisesRegex(ValueError, 'Every required delivery file'):
+                    w.record_delivery(task, [], 'fixture delivery')
+                files = w.delivery_files(task, w.load(task), w.continuation(task)['rendered_routes'])
+                self.assertTrue(w.record_delivery(task, [item['path'] for item in files], 'fixture delivery')['delivered'])
+                submit('Research', 'script', {'text': 'updated dependency'}, 'research')
+                self.assertFalse(w.continuation(task)['delivered'])
+                self.assertEqual(w.continuation(task)['production_status'], 'FINAL_QA_PENDING')
