@@ -140,10 +140,14 @@ def shot_key(shot, quality, render=None, assembly_path=None, *, model=None):
         inputs['visual_style_source']=codehash('blender/studio_style.py')
     if shot.get('science'):
         science_files = ['blender/scene.py', 'blender/science_scene.py', 'mechanical_video_next/science_shots.py']
+        if shot['science'].get('assembly_reveal'):
+            science_files.append('mechanical_video_next/product_assembly.py')
         if {'camera_path', 'stage_rotation', 'guides', 'print_marks', 'constraints'} & shot['science'].keys():
             science_files.append('blender/science_guides.py')
+        native_reveal = any(shot['science'].get(key)
+                            for key in ('disassembly', 'assembly_reveal', 'reveal_views'))
         inputs['science_renderer'] = codehash(
-            *science_files, equivalents=False, render_media=not shot['science'].get('disassembly'))
+            *science_files, equivalents=False, render_media=not native_reveal)
     return digest(inputs)
 
 def prepare_shot_evidence(folder):
@@ -676,7 +680,7 @@ def compose(cfg, quality, media, metrics):
         bindings = {}
         for shot in cfg['storyboard']:
             cut = picture[shot['id']]
-            if not cut.get('action_views'):
+            if not video_review.needs_source_clip(cut, cfg['shots'][shot['shot']]):
                 continue
             path, kind, _ = media[shot['shot']]
             if kind != 'video':

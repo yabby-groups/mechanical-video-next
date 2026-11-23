@@ -294,6 +294,118 @@ MEDIA_ORIGINS = {'project', 'local', 'third_party', 'stock', '3d'}
 VIDEO_SUFFIXES = {'.mp4', '.mov', '.webm'}
 MODEL_SUFFIXES = {'.glb', '.gltf', '.blend', '.step', '.stp', '.stl', '.obj'}
 
+PRODUCT_QUERIES = {
+    'zh': ('官方 产品参数 使用说明书', '拆机 维修 零件 装配 运动原理', 'CAD 三维模型 授权'),
+    'en': ('official product specifications manual', 'teardown repair service manual mechanism assembly',
+           'CAD 3D model license'),
+    'ja': ('製品 仕様 取扱説明書', '分解 修理 部品 構造 動作', 'CAD 3D モデル ライセンス'),
+    'ko': ('제품 사양 사용 설명서', '분해 수리 부품 구조 작동', 'CAD 3D 모델 라이선스'),
+}
+PRODUCT_COVERAGE = {'exterior', 'parts', 'assembly', 'motion'}
+
+
+def product_search_plan(product, question, *, model=None, model_locked=False, localized=None, seeds=(),
+                        root=Path('references')):
+    """Prepare bounded public lookups and reuse intact inspected sources first."""
+    from .source_policy import FIELD, NO_PATENT_POLICY_VERSION, validate_sources
+
+    if not all(isinstance(value, str) and value.strip() for value in (product, question)):
+        raise ValueError('Product search needs a product and question')
+    if model_locked and not model:
+        raise ValueError('Locked product search needs a model')
+    subject = model or product
+    variants = localized or {lang: product for lang in ('zh', 'en', 'ja')}
+    queries = [dict(language='en', category='ifixit', query=subject)]
+    if not set(variants) <= PRODUCT_QUERIES.keys() or any(not phrase.strip() for phrase in variants.values()):
+        raise ValueError('Product search needs supported languages and localized names')
+    for index, kind in enumerate(('official', 'repair', 'cad')):
+        for lang, phrase in variants.items():
+            terms = PRODUCT_QUERIES[lang][index]
+            context = question if kind == 'repair' and lang == next(iter(variants)) else None
+            query = ' '.join(dict.fromkeys(filter(None, (model, phrase, context, terms))))
+            queries.append(dict(language=lang, category=kind, query=query,
+                                url='https://www.google.com/search?' + urlencode({'q': query})))
+    if model and not model_locked:
+        queries.extend(dict(language=lang, category='repair', query=phrase + ' ' + PRODUCT_QUERIES[lang][1])
+                       for lang, phrase in variants.items())
+    cached = {(row['canonical_id'], row['model']): row
+              for term in dict.fromkeys([subject, product, *variants.values()])
+              for row in find_product_sources(term, root)}
+    known = {row['canonical_id'] for row in cached.values()}
+    unique = {}
+    for url in seeds:
+        validate_sources({'url': url}, policy={FIELD: NO_PATENT_POLICY_VERSION})
+        source_id = canonical_video_id(url)
+        if source_id not in known:
+            unique.setdefault(source_id, url)
+    return dict(product=product, question=question, model=model, model_locked=model_locked,
+                cached=list(cached.values()), seeds=list(unique.values()), queries=queries,
+                budget=dict(initial_queries=min(6, len(queries)), total_queries=len(queries),
+                            distinct_sources=18),
+                stop_when=['selected model supports exterior, parts, assembly and motion',
+                           'query and source budget used with named evidence gaps'])
+
+
+def ingest_product_source(row, root=Path('references')):
+    """Record an actually inspected product source or an explicit unresolved lead."""
+    from .source_policy import FIELD, NO_PATENT_POLICY_VERSION, validate_sources
+    from .visual_narrative import located
+
+    validate_sources(row, policy={FIELD: NO_PATENT_POLICY_VERSION})
+    identity = canonical_video_id(row['url'])
+    status = row['status']
+    if status not in {'INSPECTED', 'UNKNOWN'} or not all(
+            isinstance(row.get(key), str) and row[key].strip()
+            for key in ('title', 'model', 'category', 'scope', 'license')):
+        raise ValueError('Product sources need model, category, observed scope and rights status')
+    coverage = row.get('coverage', [])
+    if not isinstance(coverage, list) or not set(coverage) <= PRODUCT_COVERAGE:
+        raise ValueError('Unsupported product evidence coverage')
+    if status == 'INSPECTED':
+        located(row.get('evidence'))
+    elif coverage:
+        raise ValueError('An unresolved product lead cannot support coverage')
+    record = dict(row, canonical_id=identity)
+    with _lock(root):
+        relative = f'product-observations/{_key(identity)}/{digest(record)}.json'
+        _write(root, relative, record, immutable=True)
+    return dict(record, record_path=str((Path(root) / relative).resolve()))
+
+
+def find_product_sources(query, root=Path('references')):
+    from .visual_narrative import located
+
+    records = {}
+    for path in sorted((Path(root) / 'product-observations').glob('*/*.json')):
+        record = _read(path)
+        if path.stem != digest(record):
+            raise ValueError('Cached product observation hash mismatch: ' + str(path))
+        fields = ' '.join(record[key] for key in ('title', 'model', 'scope'))
+        if query.casefold() not in fields.casefold() or record['status'] != 'INSPECTED':
+            continue
+        try:
+            located(record['evidence'])
+        except (OSError, ValueError):
+            continue
+        key = record['canonical_id'], record['model']
+        if key not in records or len(record['coverage']) > len(records[key]['coverage']):
+            records[key] = dict(record, record_path=str(path.resolve()))
+    return list(records.values())
+
+
+def product_implementations(records, *, pinned_model=None):
+    """Rank only intact observations from the same concrete model."""
+    models = {}
+    for record in records:
+        model = record['model']
+        if record['status'] != 'INSPECTED' or (pinned_model and model.casefold() != pinned_model.casefold()):
+            continue
+        models.setdefault(model, set()).update(record['coverage'])
+    choices = [dict(model=model, coverage=sorted(coverage),
+                    missing=sorted(PRODUCT_COVERAGE - coverage))
+               for model, coverage in models.items()]
+    return sorted(choices, key=lambda row: ('exterior' in row['missing'], len(row['missing']), row['model']))
+
 
 def _file_sha(path):
     h = hashlib.sha256()
@@ -687,6 +799,10 @@ def main():
     command = sub.add_parser('media-match')
     command.add_argument('--input', required=True, type=Path)
     command.add_argument('--root', type=Path, default=Path('references'))
+    for name in ('product-plan', 'product-ingest'):
+        command = sub.add_parser(name)
+        command.add_argument('--input', required=True, type=Path)
+        command.add_argument('--root', type=Path, default=Path('references'))
     args = parser.parse_args()
     if args.command == 'search':
         result = search(args.query, args.root, args.limit)
@@ -697,6 +813,11 @@ def main():
         result = ingest_media(json.loads(args.input.read_text()), args.path, args.root)
     elif args.command == 'media-search':
         result = search_media(args.query, args.root)
+    elif args.command == 'product-plan':
+        result = product_search_plan(**_read(args.input), root=args.root)
+    elif args.command == 'product-ingest':
+        records = [ingest_product_source(row, args.root) for row in _read(args.input)]
+        result = dict(records=records, implementations=product_implementations(records))
     else:
         result = match_media(json.loads(args.input.read_text()), args.root)
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))

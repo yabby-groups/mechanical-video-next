@@ -167,10 +167,13 @@ def retime_data(shot, parts, count):
             fcurve.update()
 
 
-def disassembly(scene, parts, plan, count):
+def disassembly(scene, parts, plan, count, linear_action):
     """Animate editorial offsets from the existing installed mesh transforms."""
     from mechanical_video_next.science_shots import disassembly_frames
 
+    from mechanical_video_next.product_assembly import path_clock
+
+    paths = path_clock(plan) if 'paths' in plan else None
     scene.frame_set(1)
     anchor = target(parts, plan['anchor'])
     moved = [target(parts, name) for name in plan['parts']]
@@ -184,10 +187,21 @@ def disassembly(scene, parts, plan, count):
     for obj in moved:
         installed = obj.location.copy()
         displacement = Vector(plan['parts'][obj.name])
-        for progress, amount in program:
+        keys = [(progress, amount * displacement) for progress, amount in program]
+        if paths:
+            world_axes = obj.matrix_world.to_3x3() @ obj.matrix_basis.to_3x3().inverted()
+            keys = [(progress, world_axes.inverted() @ Vector(offset)) for progress, offset in paths[obj.name]]
+            key_frames = [round(1 + progress * (count - 1)) for progress, _ in keys]
+            if len(set(key_frames)) != len(keys):
+                raise ValueError('Shot clock cannot resolve all removal waypoints')
+        for progress, offset in keys:
             frame = 1 + progress * (count - 1)
-            obj.location = installed + amount * displacement
+            if 'separated_hold' in plan:
+                frame = round(frame)
+            obj.location = installed + offset
             obj.keyframe_insert('location', frame=frame)
+        if paths:
+            linear_action(obj.animation_data)
     frames = sorted({1, count, *(round(1 + t * (count - 1)) for t, _ in program)})
     samples = []
     for frame in frames:
@@ -202,16 +216,58 @@ def disassembly(scene, parts, plan, count):
             'scope': 'Editorial separation relative to the installed pose'}
 
 
+def check_removal(scene, parts, plan, count):
+    """Check evaluated source meshes at every rendered pose before framing."""
+    from itertools import combinations
+    from mathutils.bvhtree import BVHTree
+
+    groups = {name: index for index, group in enumerate(plan['groups']) for name in group}
+    meshes = [part for part in parts if part.type == 'MESH']
+    pairs = [(a.name, b.name) for a, b in combinations(meshes, 2)
+             if groups.get(a.name) != groups.get(b.name)]
+    clock = range(count, 0, -1) if plan['operation'] == 'reassemble' else range(1, count + 1)
+    collisions, installed = [], None
+    for frame in clock:
+        scene.frame_set(frame)
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        trees = {}
+        for obj in meshes:
+            evaluated = obj.evaluated_get(depsgraph)
+            mesh = evaluated.data
+            trees[obj.name] = BVHTree.FromPolygons(
+                [evaluated.matrix_world @ vertex.co for vertex in mesh.vertices],
+                [polygon.vertices[:] for polygon in mesh.polygons])
+        counts = {pair: len(trees[pair[0]].overlap(trees[pair[1]])) for pair in pairs}
+        if installed is None:
+            installed = counts
+        else:
+            collisions.extend(dict(frame=frame, pair=pair, triangle_pairs=hits,
+                                   installed_triangle_pairs=installed[pair])
+                              for pair, hits in counts.items() if hits > installed[pair])
+    scene.frame_set(1)
+    return dict(status='INTERSECTION_CANDIDATES' if collisions else 'NO_NEW_SURFACE_OVERLAP',
+                checked_frames=count, compared_pairs=len(pairs), samples=collisions[:20],
+                candidate_count=len(collisions), scope='Sampled triangle surfaces compared with installed contact')
+
+
 def check_disassembly_targets(scene, camera, parts, plan, frames):
     """Check declared retained-part datums against evaluated render geometry."""
     targets = plan.get('reveal_targets', {})
     if not targets:
         return []
-    reveal_frames = frames[-1:] if plan['operation'] == 'disassemble' else frames[1:-1]
+    if plan['operation'] == 'cycle':
+        reveal_frames = (range(frames[1], frames[-2] + 1) if 'separated_hold' in plan
+                         else frames[1:-1])
+    else:
+        reveal_frames = frames[-1:] if plan['operation'] == 'disassemble' else frames[:1]
     if not reveal_frames:
         return []
+    return check_reveal_targets(scene, camera, parts, targets, reveal_frames)
+
+
+def check_reveal_targets(scene, camera, parts, targets, frames):
     results = []
-    for frame in reveal_frames:
+    for frame in frames:
         scene.frame_set(frame)
         depsgraph = bpy.context.evaluated_depsgraph_get()
         camera_pos = camera.matrix_world.translation
@@ -230,6 +286,41 @@ def check_disassembly_targets(scene, camera, parts, plan, frames):
                 raise ValueError(f'Disassembly target {name} is occluded by {blocker.name} at {frame}')
             results.append({'frame': frame, 'part': name, 'projection': [screen.x, screen.y]})
     return results
+
+
+def select_reveal_view(scene, parts, shot, count, fit_camera, linear_action):
+    """Fit and test the supplied presentations, then retain the first usable one."""
+    spec = shot['science']
+    plan = spec.get('disassembly')
+    originals = {target(parts, name): target(parts, name).location.copy() for name in plan['parts']} if plan else {}
+    rejected = []
+    for index, view in enumerate(spec['reveal_views']):
+        if plan:
+            candidate = dict(plan, parts=view.get('parts', plan['parts']))
+            result = disassembly(scene, parts, candidate, count, linear_action)
+            frames = result['frames']
+            # Check the actual uncut clock throughout the separated hold.
+            clear_frames = (range(frames[1], frames[-2] + 1) if plan['operation'] == 'cycle'
+                            else [count if plan['operation'] == 'disassemble' else 1])
+        else:
+            frames = clear_frames = range(1, count + 1)
+            result = None
+        camera = fit_camera(frames, view['direction'])
+        try:
+            observations = check_reveal_targets(scene, camera, parts,
+                                                (plan or spec)['reveal_targets'], clear_frames)
+        except ValueError as error:
+            rejected.append(str(error))
+            data = camera.data
+            bpy.data.objects.remove(camera, do_unlink=True)
+            bpy.data.cameras.remove(data)
+            for obj, position in originals.items():
+                obj.animation_data_clear()
+                obj.location = position
+        else:
+            return camera, frames, result, {'index': index, 'direction': view['direction'],
+                                            'rejected': rejected, 'targets': observations}
+    raise ValueError('No authored view exposes the retained parts: ' + ' | '.join(rejected))
 
 
 def opacity_tracks(parts, tracks, count, linear_action):

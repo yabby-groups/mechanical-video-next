@@ -140,6 +140,29 @@ class VideoReviewTests(unittest.TestCase):
         report = video_review.for_composition(media, blueprint, research, cfg, public)
         self.assert_blocked(report, 'composition_evidence_unavailable')
 
+    def test_composition_verifies_editorial_separation_without_action_views(self):
+        film = self.encode('disassembly-reversed', filters=('-vf', 'reverse'))
+        media = joint.binding(film)
+        measured = self.root / 'separation-measured.json'
+        measured.write_text(json.dumps(self.measured))
+        blueprint = self.blueprint | {'timeline': self.plan, 'measured_timeline': joint.binding(measured)}
+        cfg = {'timeline': self.plan, 'no_patent_policy_version': 1,
+               'storyboard': [dict(id='lever', shot='reveal'), dict(id='return', shot='other')],
+               'shots': {'reveal': {'science': {'disassembly': {'operation': 'cycle'}}}, 'other': {}}}
+        props = film.with_suffix('.props.json')
+        props.write_text(json.dumps({'cues': joint.cues(self.measured), 'shots': [
+            {'id': 'lever', 'seconds': 1, 'media': self.baseline.name}, {'id': 'return', 'seconds': 1}]}))
+        receipt = film.with_suffix('.review-sources.json')
+        payload = {'media': media, 'props': joint.binding(props), 'shots': {}}
+        research = {'science': {'facts': [{'id': 'stroke', 'status': 'VERIFIED'}]}}
+        receipt.write_text(json.dumps(payload))
+        report = video_review.for_composition(media, blueprint, research, cfg, self.root)
+        self.assert_blocked(report, 'composition_evidence_unavailable')
+        payload['shots']['lever'] = {'video': joint.binding(self.baseline)}
+        receipt.write_text(json.dumps(payload))
+        report = video_review.for_composition(media, blueprint, research, cfg, self.root)
+        self.assert_blocked(report, 'picture_source_mismatch')
+
 
 if __name__ == '__main__':
     unittest.main()

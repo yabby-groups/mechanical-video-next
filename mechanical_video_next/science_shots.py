@@ -60,13 +60,24 @@ def validate(shot, *, files=False):
     if driver not in {'static', 'asset_motion', 'data_tracks'}:
         raise ValueError('Unknown science motion driver')
     disassembly = spec.get('disassembly')
+    request = spec.get('assembly_reveal')
+    if request is not None:
+        if (template != 'exploded_view' or driver != 'static' or not isinstance(request, dict)
+                or not name(request.get('anchor')) or not isinstance(request.get('connections'), list)
+                or not request['connections'] or not all(map(name, request['connections']))
+                or not isinstance(request.get('targets'), dict) or not 1 <= len(request['targets']) <= 8
+                or any(not name(key) or not vector(point, 3) for key, point in request['targets'].items())
+                or request.get('operation', 'cycle') not in {'disassemble', 'reassemble', 'cycle'}):
+            raise ValueError('Assembly reveal needs a fixed part, removal connections and observation datums')
     if (template not in TEMPLATES and driver != 'static'
             or template == 'state_transition' and driver != 'data_tracks'
-            or template == 'exploded_view' and not disassembly and driver != 'data_tracks'
+            or template == 'exploded_view' and not (disassembly or request) and driver != 'data_tracks'
             or template == 'motion_trace' and driver == 'static'):
         raise ValueError('Motion driver does not match the template')
     if disassembly is not None:
         validate_disassembly(shot, disassembly)
+    if 'reveal_views' in spec:
+        validate_reveal_views(shot)
     if driver == 'data_tracks' and not (shot.get('tracks') or shot.get('mesh_tracks')):
         raise ValueError('Data tracks require prescribed poses')
     if template == 'exploded_view' and mode != 'conceptual':
@@ -369,8 +380,16 @@ def validate_disassembly(shot, plan):
             or any(not name(key) or not vector(offset, 3) or not any(offset)
                    for key, offset in plan['parts'].items())):
         raise ValueError('Disassembly needs an unmoved assembly anchor and explicit nonzero part offsets')
-    if shot.get('tracks') or shot.get('mesh_tracks') or shot.get('section_plane'):
-        raise ValueError('Disassembly paths must be separate from the mechanical action and section tracks')
+    if shot.get('tracks') or shot.get('mesh_tracks'):
+        raise ValueError('Disassembly paths must be separate from the mechanical action tracks')
+    if 'separated_hold' in plan:
+        hold = plan['separated_hold']
+        if plan['operation'] != 'cycle' or not vector(hold, 2) or not 0 < hold[0] < hold[1] < 1:
+            raise ValueError('A disassembly cycle hold needs two ordered fractions inside the shot')
+        last = round(shot['seconds'] * 30) - 1
+        begin, end = (round(fraction * last) for fraction in hold)
+        if not 0 < begin < end < last:
+            raise ValueError('The shot needs distinct installed, separation, hold and return frames')
     targets = plan.get('reveal_targets', {})
     if (not isinstance(targets, dict) or len(targets) > 8
             or any(not name(key) or key in plan['parts'] or not vector(point, 3)
@@ -379,9 +398,44 @@ def validate_disassembly(shot, plan):
     return plan
 
 
+def validate_reveal_views(shot):
+    spec = shot['science']
+    views = spec['reveal_views']
+    plan = spec.get('disassembly', {})
+    targets = plan.get('reveal_targets', spec.get('reveal_targets', {}))
+    if (not isinstance(targets, dict) or not targets or len(targets) > 8
+            or any(not name(part) or not vector(point, 3) for part, point in targets.items())):
+        raise ValueError('Reveal views need retained part datums')
+    if (not isinstance(views, list) or not 1 <= len(views) <= 8
+            or any(not isinstance(view, dict) or view.keys() - {'direction', 'parts'}
+                   or not vector(view.get('direction'), 3) or not any(view['direction']) for view in views)):
+        raise ValueError('Reveal views need one to eight authored fixed camera directions')
+    for view in views:
+        if 'parts' not in view:
+            continue
+        parts = view['parts']
+        if (not plan or not isinstance(parts, dict) or parts.keys() != plan['parts'].keys()
+                or any(not vector(offset, 3) or not any(offset) for offset in parts.values())):
+            raise ValueError('Alternate offsets must move only the same specified disassembly parts')
+    if (set(spec) & {'camera_path', 'camera_rig', 'follow', 'camera_path_follow', 'opacity_tracks'}
+            or shot.get('camera_focus_region') or shot.get('visible_parts')):
+        raise ValueError('Reveal views use full assembly framing and fixed opaque geometry')
+    if plane := shot.get('section_plane'):
+        protected = set(targets)
+        if plan:
+            protected.update([plan['anchor'], *plan['parts']])
+        if not plane.get('parts') or protected.intersection(plane['parts']):
+            raise ValueError('Reveal section must name shell geometry separate from the target and assembly references')
+
+
 def disassembly_frames(plan):
+    if 'paths' in plan:
+        return {'disassemble': ((0, 0), (.08, 0), (.78, 1), (1, 1)),
+                'reassemble': ((0, 1), (.22, 1), (.92, 0), (1, 0)),
+                'cycle': ((0, 0), (.40, 1), (.60, 1), (1, 0))}[plan['operation']]
+    start, stop = plan.get('separated_hold', (.4, .6))
     return {'disassemble': ((0, 0), (1, 1)), 'reassemble': ((0, 1), (1, 0)),
-            'cycle': ((0, 0), (.4, 1), (.6, 1), (1, 0))}[plan['operation']]
+            'cycle': ((0, 0), (start, 1), (stop, 1), (1, 0))}[plan['operation']]
 
 
 def referenced_parts(shot):
@@ -403,6 +457,8 @@ def referenced_parts(shot):
         parts.update(shot['section_plane'].get('parts', []))
     if plan := spec.get('disassembly'):
         parts.update([plan['anchor'], *plan['parts'], *plan.get('reveal_targets', {})])
+    if spec.get('reveal_views'):
+        parts.update(spec.get('reveal_targets', {}))
     return parts
 
 
@@ -446,6 +502,9 @@ def validate_asset(assembly, mechanism_id=None):
 
 
 def validate_assembly_shot(shot, assembly):
+    from .product_assembly import compile_reveal
+
+    shot = compile_reveal(shot, assembly)
     spec = shot.get('science')
     if not spec:
         return

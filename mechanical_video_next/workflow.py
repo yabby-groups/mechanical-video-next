@@ -969,6 +969,16 @@ def continuation(task, persist=True):
         action = dict(owner='QA', action='Resolve exact-media acceptance gaps; rendered media is not accepted delivery', command=None)
     else:
         action = dict(owner='Producer', action='Provide the accepted actual files and report to the user, then record delivery', command=None)
+    if action.get('handoff') == 'research' and data.get('product_search_plan'):
+        action = dict(action)
+        plan = task / data['product_search_plan']
+        discovery = plan.with_name('product-discovery.json')
+        action['product_search_plan'] = str(plan)
+        action['product_discovery'] = str(discovery)
+        if not discovery.is_file() or read_input_json(discovery).get('plan_sha256') != digest(read_input_json(plan)):
+            action.update(kind='EXECUTABLE', command=['uv', 'run', 'python', '-m',
+                          'mechanical_video_next.product_research', str(task.resolve())])
+        action['action'] += '. Use the cached sources and bounded multilingual public lookups in the product search plan.'
     # A QA gap is work, not proof that every possible production step is blocked.
     blockers = [row for row in data.get('production_blockers', []) if row.get('status') == 'OPEN'
                 and row.get('kind') in {'permission', 'login', 'technical-evidence', 'resource', 'EXTERNAL_BLOCKED'}
@@ -1183,6 +1193,12 @@ Requested mechanical object: {data['mechanical_object']}
 Core question: {question}
 {formal_instruction}
 Keep the requested object and question throughout research, treatment and edit.
+Use the product_search_plan in task.json to inspect cached evidence and run public
+lookups for uncovered parts and actions. Register located observations in the reference library.
+For selective native reveals, attach product_assembly to the existing assembly
+config and use science.assembly_reveal to select the installed connection and
+retained part datums. Use verified component geometry and the existing motion,
+section and camera settings for the causal action.
 Use mechanical-research to verify the exact source-backed implementation, appearance,
 key parts and contacts. Show a continuous cycle from input through transmission,
 output and reset. Explain the scientific cause and return to ordinary use.
@@ -1655,7 +1671,8 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 protocol_version=2, asset_strategy='reference-first', routes='3d', visual_policy_version=1,
                 media_policy_version=0, presentation_style='natural_science', contract_version=None,
                 *, skill_driven_pilot=False, story_development_version=2,
-                mechanical_object=None, core_question=None, operations_review=None):
+                mechanical_object=None, core_question=None, operations_review=None,
+                product_model=None, product_references=(), lock_product_model=False):
     from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
                                       CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION,
                                       DISCOVERY_VERSION, CREATIVE_SELECTION_VERSION, CREATIVE_DURATION,
@@ -1681,6 +1698,11 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     if (mechanical_object is not None or core_question is not None) and not (
             development and story_development_version == 2):
         raise ValueError('Mechanical scope options require a new mechanism-first task')
+    if (product_model or product_references or lock_product_model) and not (
+            development and story_development_version == 2):
+        raise ValueError('Product search options require a new mechanism-first task')
+    if lock_product_model and not product_model:
+        raise ValueError('Locking the product requires a model')
     if any(value is not None and not value.strip() for value in (mechanical_object, core_question)):
         raise ValueError('Mechanical scope options require nonempty text')
     if directed:
@@ -1770,6 +1792,14 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 supplied_question = core_question or (topic if topic.rstrip().endswith(('?', '？')) else None)
                 if supplied_question:
                     value['core_question'] = supplied_question.strip()
+                if lock_product_model:
+                    value['requested_product_model'] = product_model.strip()
+                from .reference_library import product_search_plan
+                value['product_search_plan'] = 'research/product-search-plan.json'
+                write(task / value['product_search_plan'],
+                      product_search_plan(value['mechanical_object'], supplied_question or topic,
+                                          model=product_model, model_locked=lock_product_model, seeds=product_references,
+                                          root=Path(root) / 'references'))
         value[INTEGRITY] = 1
         value[video_review.FIELD] = video_review.VERSION
         value['audio_acceptance_policy'] = MODE
@@ -1841,6 +1871,13 @@ def validate_production_sources(task, config, *, policy, require_reveal=False):
     if require_reveal:
         validate_native_reveal(config)
     source_ids = source_policy.require_source_ids(assembly, refs, 'render assembly')
+    if 'product_assembly' in assembly:
+        from .product_assembly import validate as validate_product_assembly
+
+        validate_product_assembly(assembly['product_assembly'], assembly['required_parts'],
+                                  source_ids=source_ids,
+                                  model=research['product_identity'].get('model',
+                                        research['product_identity']['model_scope']))
     if 'asset-plan' in policy['handoffs']:
         asset = artifact(task, 'asset-plan')
         candidate = next(row for row in asset['candidates'] if row['id'] == asset['selected_candidate_id'])
@@ -2199,6 +2236,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 raise ValueError('Handoff Producer direction differs from task creation policy')
             if name == 'research':
                 match_mechanical_scope(data, payload, payload.get('science', {}).get('question'))
+                if data.get('requested_product_model') and (
+                        payload.get('product_identity', {}).get('model') != data['requested_product_model']):
+                    raise ValueError('Research must use the locked product model')
                 if discovery(data) and contract_version(payload) != contract_version(data):
                     raise ValueError('Research must use the task discovery policy')
                 if creative_first(data) and not directed and not (competition and
@@ -3916,6 +3956,9 @@ def main():
     p.add_argument('--topic')
     p.add_argument('--mechanical-object', help='Pin the user-requested object when the topic contains a full brief')
     p.add_argument('--core-question', help='Pin the user-requested question verbatim')
+    p.add_argument('--lock-product-model', action='store_true', help='Disallow substitution of --product-model')
+    p.add_argument('--product-model', help='Preferred brand/model for initial product research')
+    p.add_argument('--product-reference', action='append', default=[], help='Public reference URL to inspect')
     p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
     p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
     p.add_argument('--asset-strategy', choices=['reference-first','existing-media','autonomous-cad','verified-existing','illustrated'], default='reference-first')
@@ -4030,7 +4073,9 @@ def main():
                            visual_policy_version=visual_policy, media_policy_version=media_policy,
                            presentation_style=args.presentation_style, contract_version=args.production_contract,
                            skill_driven_pilot=args.skill_driven, mechanical_object=args.mechanical_object,
-                           core_question=args.core_question, operations_review=args.operations_review)
+                           core_question=args.core_question, operations_review=args.operations_review,
+                           product_model=args.product_model, product_references=args.product_reference,
+                           lock_product_model=args.lock_product_model)
         print(task)
         if args.codex:
             event(task, 'codex_launch', dispatch_mode='native_codex')

@@ -199,6 +199,8 @@ def compile_config(blueprint, base, output, draft=False):
     story = science_story(data)
     directed = directed_story(data)
     creative = director.enabled(data)
+    assembly_path = cfg.get('assembly_config')
+    assembly = None
     if creative and not visual:
         raise ValueError('Creative direction requires the visual Blueprint renderer')
     if PRESENTATION_STYLE in data:
@@ -242,6 +244,16 @@ def compile_config(blueprint, base, output, draft=False):
                 configure_blender(shot, directed=directed)
         if creative:
             shot = director.apply_strategy(shot, s['director'], s['render_engine'], source=original)
+        if 'assembly_reveal' in shot.get('science', {}):
+            from .product_assembly import compile_reveal
+            from .science_shots import validate_assembly_shot
+
+            if not assembly_path:
+                raise ValueError('Assembly reveal requires the existing native assembly configuration')
+            if assembly is None:
+                assembly = json.loads((ROOT / assembly_path).read_text())
+            shot = compile_reveal(shot, assembly)
+            validate_assembly_shot(shot, assembly)
         sid = s['shot_id']; shots[sid] = shot
         inherited = next((x for x in cfg.get('storyboard', []) if x['shot'] == key), {})
         editor_fields = dict(inherited)

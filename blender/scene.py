@@ -765,6 +765,11 @@ def render_shot(args):
     cfg = json.loads(args.assembly_config.read_text())
     shot_bytes = args.shot.read_bytes()
     shot = json.loads(shot_bytes)
+    if 'assembly_reveal' in shot.get('science', {}):
+        sys.path.insert(0, str(ROOT))
+        from mechanical_video_next.product_assembly import compile_reveal
+
+        shot = compile_reveal(shot, cfg)
     count = max(2,round(shot['seconds']*args.fps))
     setup_render(args.width,args.height,args.fps)
     scene = bpy.context.scene
@@ -774,6 +779,12 @@ def render_shot(args):
         for obj in parts:
             obj.hide_render=obj.name not in shot['visible_parts']
     original = {o.name:o.matrix_world.copy() for o in parts}
+    if 'assembly_reveal' in shot.get('science', {}):
+        for part in cfg['product_assembly']['parts'].values():
+            actual = [value for row in original[part['object']] for value in row]
+            expected = part['geometry']['installed_matrix']
+            if any(abs(a - b) > 1e-5 for a, b in zip(actual, expected, strict=True)):
+                raise ValueError('Native installed pose differs from product assembly: ' + part['object'])
     report = {'shot': {k: v for k, v in shot.items() if k not in {'tracks', 'mesh_tracks'}},
               'source_shot': {'path': str(args.shot), 'sha256': hashlib.sha256(shot_bytes).hexdigest()},
               'checks':{},'unverified':cfg['unverified']}
@@ -828,8 +839,8 @@ def render_shot(args):
         raise ValueError('Unknown shot template: '+template)
     visible = [o for o in parts if not o.hide_render]
     disassembly = None
-    if science and science.get('disassembly'):
-        disassembly = science_scene.disassembly(scene, visible, science['disassembly'], count)
+    if science and science.get('disassembly') and not science.get('reveal_views'):
+        disassembly = science_scene.disassembly(scene, visible, science['disassembly'], count, linear_action)
         report['checks']['disassembly'] = disassembly
     if shot.get('section_plane'):
         # An explicit local teaching section, applied after deformation. It is
@@ -877,10 +888,34 @@ def render_shot(args):
     frames = sorted(set([1,count//2,count])) if template in ['explode','assemble','exploded','motion'] or science else [1]
     if disassembly:
         frames = disassembly['frames']
-    cam = frame_camera(visible, [1] if template == 'camera_follow' else frames,
-                       top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
-                       direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0),
-                       focus_region=shot.get('camera_focus_region'))
+    reveal_view = None
+    if science and science.get('reveal_views'):
+        cam, frames, disassembly, reveal_view = science_scene.select_reveal_view(
+            scene, visible, shot, count,
+            lambda sample_frames, direction: frame_camera(
+                visible, sample_frames, direction=direction, roll=shot.get('camera_roll', 0)),
+            linear_action)
+        report['checks']['reveal_view'] = reveal_view
+        if disassembly:
+            report['checks']['disassembly'] = disassembly
+            if 'assembly_reveal' in science:
+                sections = [modifier for obj in visible for modifier in obj.modifiers
+                            if modifier.type == 'BOOLEAN' and modifier.object == cutter] if shot.get('section_plane') else []
+                for modifier in sections:
+                    modifier.show_viewport = False
+                try:
+                    clearance = science_scene.check_removal(scene, visible, science['disassembly'], count)
+                finally:
+                    for modifier in sections:
+                        modifier.show_viewport = True
+                report['checks']['removal_clearance'] = clearance
+                if clearance['candidate_count'] and cfg.get('source_ids'):
+                    raise ValueError('DISASSEMBLY_PATH_INTERSECTION: ' + str(clearance['samples'][0]))
+    else:
+        cam = frame_camera(visible, [1] if template == 'camera_follow' else frames,
+                           top=template in ['motion','detail'] and shot.get('camera_view')!='oblique',
+                           direction=shot.get('camera_direction'),roll=shot.get('camera_roll',0),
+                           focus_region=shot.get('camera_focus_region'))
     if shot.get('check_pairs'):
         overlaps=[]
         checked_frames=range(1,count+1) if shot.get('check_all_frames') else frames
@@ -981,7 +1016,7 @@ def render_shot(args):
         report['checks']['camera_framing'] = {'version': 1, 'frames': count,
                                              'parts': [part.name for part in framing_parts],
                                              'min_subject_extent': min_subject_extent}
-    if disassembly:
+    if disassembly and reveal_view is None:
         disassembly['reveal_targets'] = science_scene.check_disassembly_targets(
             scene, cam, visible, science['disassembly'], frames)
     if shot.get('camera_focus_region'):

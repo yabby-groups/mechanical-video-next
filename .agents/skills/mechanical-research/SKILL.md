@@ -7,14 +7,16 @@ description: 为「君哥拆机器」探索机械设计故事，核实机构、�
 
 ## 默认机构研究
 
-保留用户指定的机械对象与核心问题。核实具体实施例、内外装配、关键零件、接触、输入到输出和复位。用原厂手册、实物拆检、专利图文或可定位的原始资料记录证据范围。可见外观只支持外部判断，缺少盒内证据时标明范围。只能在同一机械对象上选有据的实施例，并交代选择。历史与设计背景按本集机械发现取用。
+保留用户指定的机械对象与核心问题。核实具体实施例、内外装配、关键零件、接触、输入到输出和复位。用原厂手册、实物拆检、维修资料或可定位的原始资料记录证据范围。新制作遵守任务固定的专利禁用策略。可见外观只支持外部判断，缺少盒内证据时标明范围。只能在同一机械对象上选有据的实施例，并交代选择。历史与设计背景按本集机械发现取用。
+
+机制优先任务从账本的产品检索计划开始。读取 `product-discovery.json` 中的实查候选和预算，复用哈希有效的观察。对缺口用品牌或型号及相关语言查原厂、维修、实拍和三维资产。打开原始来源，核对型号、具体图号或时间段、可见部件、装配、动作和使用许可。通过现有 reference_library 的 product-ingest 保存观察，再提交按同型号核实的研究交接。只有实证支持的部件、连接和动作进入现有装配配置。
 
 First read [the effective production contract](../../../docs/production-contract.md).
 Its task-version rules resolve historical conflicts. The original instructions are
 archived in `docs/history/production-instructions-20261118/.agents/skills/mechanical-research/SKILL.md` for historical tasks.
 
 For `skill-driven`, start with the questions that could change the story. Use
-patents, period catalogs or museum records for invention and attribution,
+period catalogs or museum records for invention and attribution,
 installation instructions for the exact implementation, and direct observation
 or a bounded derivation for causal motion. For an evolution story, look for
 evidence of adoption or lineage between designs. An older and a newer artifact

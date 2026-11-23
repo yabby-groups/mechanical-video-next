@@ -218,6 +218,11 @@ def contiguous_ranges(indices):
     return intervals
 
 
+def needs_source_clip(cut, shot):
+    science = shot.get('science', {})
+    return bool(cut.get('action_views') or science.get('disassembly'))
+
+
 def inspect(media, plan, *, measured=None, playback=None, mix=False, blueprint=None,
             required_ids=(), sources=None, states=(), rendered_cues=None):
     path = joint.bound(media)
@@ -323,6 +328,7 @@ def require_mechanical_positioning(task, review, production):
 def for_composition(media, blueprint, research, config, public):
     """Read the actual Remotion inputs and compare them with the frozen edit."""
     from .director import validate_action_programs
+    from .source_policy import enabled as restricted_sources
 
     plan = blueprint['timeline']
     end = plan['frame_count']
@@ -366,6 +372,7 @@ def for_composition(media, blueprint, research, config, public):
         cues = props['cues']
         rows = props['shots']
         actions = {action['id']: action for action in plan['actions']}
+        shot_specs = {row['id']: config['shots'][row['shot']] for row in config.get('storyboard', [])}
         film = next(stream for stream in probe(media['path'])['streams'] if stream['codec_type'] == 'video')
         if [row['id'] for row in rows] != [cut['id'] for cut in plan['shots']]:
             findings.append(finding('picture_composition_order', 0, end, 'Remotion cut order differs'))
@@ -373,13 +380,17 @@ def for_composition(media, blueprint, research, config, public):
             first, last = cut['start_frame'], cut['end_frame']
             if round(row['seconds'] * joint.FPS) != last - first:
                 findings.append(finding('picture_composition_cut', first, last, cut['id'], shot=cut['id']))
-            if not cut.get('action_views'):
+            if not needs_source_clip(cut, shot_specs.get(cut['id'], {})):
+                continue
+            rendered = receipt['shots'].get(cut['id'])
+            if rendered is None:
+                if cut.get('action_views') or restricted_sources(config):
+                    raise ValueError('Missing mechanical source receipt: ' + cut['id'])
                 continue
             source = (public / row['media']).resolve()
             if not source.is_relative_to(public.resolve()):
                 raise ValueError('Composition source must stay within the local media cache')
             ref = joint.binding(source)
-            rendered = receipt['shots'][cut['id']]
             if ref['sha256'] != rendered['video']['sha256']:
                 findings.append(finding('mechanical_render_source', first, last, cut['id'], shot=cut['id']))
             ref['source_start_frame'] = row.get('mediaStartFrame', 0)
@@ -390,7 +401,7 @@ def for_composition(media, blueprint, research, config, public):
                 ref['region'] = [(1 - width) / 2, (1 - height) / 2, width, height]
                 ref['source_region'] = [0, 0, 1, 1]
             sources[cut['id']] = ref
-            for action_id in cut['action_views']:
+            for action_id in cut.get('action_views', []):
                 action = actions[action_id]
                 for check in action.get('state_checks', {}).get(cut['id'], []):
                     try:
