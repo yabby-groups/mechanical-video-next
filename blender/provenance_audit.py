@@ -1,6 +1,7 @@
 """Run inside Blender against the actual saved render scene, never a JSON claim."""
 import argparse
 import hashlib
+from itertools import combinations
 import json
 import math
 from pathlib import Path
@@ -29,18 +30,81 @@ def renderable_objects(layer):
         yield from renderable_objects(child)
 
 
+def convex_hull(points):
+    def chain(ordered):
+        boundary = []
+        for point in ordered:
+            while len(boundary) >= 2:
+                a, b = boundary[-2:]
+                cross = (b[0] - a[0]) * (point[1] - a[1]) - (b[1] - a[1]) * (point[0] - a[0])
+                if cross > 0:
+                    break
+                boundary.pop()
+            boundary.append(point)
+        return boundary
+
+    ordered = sorted(set(points))
+    return chain(ordered)[:-1] + chain(reversed(ordered))[:-1]
+
+
+def clip_to_picture(points):
+    """Intersect the projected hull with the normalized picture rectangle."""
+    for axis, limit, sign in ((0, 0, 1), (0, 1, -1), (1, 0, 1), (1, 1, -1)):
+        if not points:
+            break
+        clipped = []
+        for a, b in zip(points[-1:] + points[:-1], points, strict=True):
+            inside_a = sign * (a[axis] - limit) >= 0
+            inside_b = sign * (b[axis] - limit) >= 0
+            if inside_a != inside_b:
+                fraction = (limit - a[axis]) / (b[axis] - a[axis])
+                other = a[1-axis] + fraction * (b[1-axis] - a[1-axis])
+                clipped.append((limit, other) if axis == 0 else (other, limit))
+            if inside_b:
+                clipped.append(b)
+        points = clipped
+    return points
+
+
+def project_object_bounds(scene, camera, view, obj, near, far):
+    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    depths = [-(view @ corner).z for corner in corners]
+    if (len(corners) != 8 or not all(math.isfinite(depth) for depth in depths)
+            or any(not all(map(math.isfinite, corner)) for corner in corners)):
+        raise ValueError(f'Cannot determine finite witness bounds for {obj.name}')
+    if max(depths) < near or min(depths) > far:
+        return None
+    visible = [corner for corner, depth in zip(corners, depths, strict=True) if near <= depth <= far]
+    if len(visible) < len(corners):
+        # The pairs include every box edge. Diagonal intersections stay inside
+        # the clipped convex box and avoid relying on Blender's corner order.
+        for (a, depth_a), (b, depth_b) in combinations(zip(corners, depths, strict=True), 2):
+            for plane in (near, far):
+                if min(depth_a, depth_b) < plane < max(depth_a, depth_b):
+                    visible.append(a.lerp(b, (plane - depth_a) / (depth_b - depth_a)))
+    pixels = [world_to_camera_view(scene, camera, corner) for corner in visible]
+    if not pixels or any(not all(map(math.isfinite, point)) or point.z <= 0 for point in pixels):
+        raise ValueError(f'Cannot determine finite witness projection for {obj.name}')
+    hull = convex_hull([(point.x, 1 - point.y) for point in pixels])
+    if len(hull) < 3:
+        return None
+    picture = clip_to_picture(hull)
+    if len(picture) < 3:
+        return None
+    x, y = zip(*picture)
+    left, top, right, bottom = min(x), min(y), max(x), max(y)
+    if left < right and top < bottom:
+        return left, top, right, bottom
+    return None
+
+
 def witness_bounds(scene, camera, objects):
-    projected = []
-    for obj in objects:
-        corners = [world_to_camera_view(scene, camera, obj.matrix_world @ Vector(corner))
-                   for corner in obj.bound_box]
-        if any(not all(map(math.isfinite, point)) or not camera.data.clip_start <= point.z <= camera.data.clip_end
-               for point in corners):
-            continue
-        left, right = min(p.x for p in corners), max(p.x for p in corners)
-        top, bottom = 1 - max(p.y for p in corners), 1 - min(p.y for p in corners)
-        if right > 0 and left < 1 and bottom > 0 and top < 1:
-            projected.append((max(0, left), max(0, top), min(1, right), min(1, bottom)))
+    near, far = camera.data.clip_start, camera.data.clip_end
+    if camera.data.type not in {'PERSP', 'ORTHO'} or not (math.isfinite(far) and 0 < near < far):
+        raise ValueError('Witness bounds need a perspective or orthographic camera with finite clipping planes')
+    view = camera.matrix_world.normalized().inverted()
+    projected = [bounds for obj in objects
+                 if (bounds := project_object_bounds(scene, camera, view, obj, near, far)) is not None]
     if not projected:
         return None
     return [min(row[0] for row in projected), min(row[1] for row in projected),
@@ -114,7 +178,10 @@ def inspect_scene(scene, collection='Assembly', *, witnesses=None, intervals=Non
         evaluated = [obj.evaluated_get(deps) for obj in objects]
         if frame in witnesses:
             camera = scene.camera.evaluated_get(deps)
-            bounds[str(frame)] = witness_bounds(scene, camera, evaluated)
+            try:
+                bounds[str(frame)] = witness_bounds(scene, camera, [obj for obj in evaluated if not obj.hide_render])
+            except ValueError as error:
+                raise ValueError(f'Witness frame {frame}: {error}') from error
         snapshot = {}
         for original, obj in zip(objects, evaluated, strict=True):
             transform = matrix_values(obj)

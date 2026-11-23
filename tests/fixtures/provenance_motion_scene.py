@@ -42,5 +42,45 @@ subject.location.x = 50
 offscreen = inspect_scene(scene, witnesses=[1, 8, 31])
 one_frame = inspect_scene(scene, witnesses=[8], intervals=[(8, 9)])
 out = Path(sys.argv[sys.argv.index('--') + 1])
-out.write_text(json.dumps(dict(loop=loop, trimmed=trimmed, camera_only=camera_only,
-                               offscreen=offscreen, one_frame=one_frame)))
+report = dict(loop=loop, trimmed=trimmed, camera_only=camera_only, offscreen=offscreen, one_frame=one_frame)
+if '--render-clipped-witness' in sys.argv:
+    from render_preflight import render_frame
+
+    scene.render.engine = 'BLENDER_EEVEE'
+    scene.render.image_settings.file_format = 'PNG'
+    camera.rotation_euler = (0, 0, 0)
+    camera.data.lens = 35
+    camera.data.clip_start = 1
+    camera.data.clip_end = 3
+    for frame, height in ((1, .35), (8, 0), (9, 0)):
+        camera.location = (0, 0, height)
+        camera.keyframe_insert('location', frame=frame)
+    subject.location = (-.24, 0, -1.02)
+    subject.scale = (.45, .52, .8)
+    other = subject.copy()
+    other.data = subject.data.copy()
+    group.objects.link(other)
+    other.location = (.38, 0, -1.8)
+    other.scale = (.4, .5, .4)
+
+    def emissive(obj, color):
+        material = bpy.data.materials.new(obj.name + ' fixture')
+        material.use_nodes = True
+        tree = material.node_tree
+        emission = tree.nodes.new('ShaderNodeEmission')
+        emission.inputs['Color'].default_value = color
+        tree.links.new(emission.outputs[0], tree.nodes.get('Material Output').inputs['Surface'])
+        obj.data.materials.clear()
+        obj.data.materials.append(material)
+
+    emissive(subject, (1, 0, 0, 1))
+    emissive(other, (0, 1, 0, 1))
+    for frame, hidden in ((1, False), (8, False), (9, True)):
+        subject.hide_render = hidden
+        subject.keyframe_insert('hide_render', frame=frame)
+    scene.frame_set(1)
+    report['clipped'] = inspect_scene(scene, witnesses=[1, 8, 9], intervals=[(1, 10)])
+    render_frame(scene, 8, out.parent/'witness.png', preflight=True)
+    render_frame(scene, 8, out.parent/'repeat.png')
+    render_frame(scene, 9, out.parent/'replacement.png')
+out.write_text(json.dumps(report))
