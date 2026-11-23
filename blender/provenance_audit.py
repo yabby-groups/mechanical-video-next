@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 import bpy
@@ -9,11 +10,50 @@ from mathutils import Vector
 from bpy_extras.object_utils import world_to_camera_view
 
 
-def inspect_scene(scene, collection='Assembly'):
+def matrix_values(obj):
+    return tuple(value for row in obj.matrix_world for value in row)
+
+
+def mesh_digest(obj):
+    digest = hashlib.sha256()
+    for vertex in obj.data.vertices:
+        digest.update(str(tuple(vertex.co)).encode())
+    return digest.hexdigest()
+
+
+def renderable_objects(layer):
+    if layer.exclude or layer.collection.hide_render:
+        return
+    yield from layer.collection.objects
+    for child in layer.children:
+        yield from renderable_objects(child)
+
+
+def witness_bounds(scene, camera, objects):
+    projected = []
+    for obj in objects:
+        corners = [world_to_camera_view(scene, camera, obj.matrix_world @ Vector(corner))
+                   for corner in obj.bound_box]
+        if any(not all(map(math.isfinite, point)) or not camera.data.clip_start <= point.z <= camera.data.clip_end
+               for point in corners):
+            continue
+        left, right = min(p.x for p in corners), max(p.x for p in corners)
+        top, bottom = 1 - max(p.y for p in corners), 1 - min(p.y for p in corners)
+        if right > 0 and left < 1 and bottom > 0 and top < 1:
+            projected.append((max(0, left), max(0, top), min(1, right), min(1, bottom)))
+    if not projected:
+        return None
+    return [min(row[0] for row in projected), min(row[1] for row in projected),
+            max(row[2] for row in projected), max(row[3] for row in projected)]
+
+
+def inspect_scene(scene, collection='Assembly', *, witnesses=None, intervals=None, motion_frames=()):
+
     group = bpy.data.collections.get(collection)
     if group is None or scene.camera is None:
         raise ValueError('Mechanical collection and three-dimensional camera required')
-    objects = [o for o in group.all_objects if o.type == 'MESH' and not o.hide_render]
+    visible = set(renderable_objects(bpy.context.view_layer.layer_collection))
+    objects = [obj for obj in group.all_objects if obj.type == 'MESH' and not obj.hide_render and obj in visible]
     geometry, positions, bounds = [], {}, {}
     for obj in objects:
         vertices = [v.co for v in obj.data.vertices]
@@ -35,41 +75,103 @@ def inspect_scene(scene, collection='Assembly'):
         raise ValueError('Pseudo-3D: mechanical subject is planar')
     if any(o['textured'] and not o['spatial'] for o in geometry):
         raise ValueError('Mechanical image-textured planes are not accepted as 3D subjects')
-    frames = sorted({scene.frame_start, round((scene.frame_start+scene.frame_end)/2), scene.frame_end})
-    for frame in frames:
+    first, last = scene.frame_start, scene.frame_end
+    witnesses = sorted(set(witnesses or (first, round((first + last) / 2), last)))
+    intervals = intervals or [(first, last + 1)]
+    if any(not first <= start < stop <= last + 1 for start, stop in intervals):
+        raise ValueError('Motion interval outside actual scene timeline')
+    spans = []
+    for start, stop in sorted(intervals):
+        if spans and start <= spans[-1][1]:
+            spans[-1][1] = max(stop, spans[-1][1])
+        else:
+            spans.append([start, stop])
+    origins = {frame: start for start, stop in spans for frame in range(start, stop)}
+    clock = list(origins)
+    starts = {start for start, _ in spans}
+    if not set(witnesses) <= set(clock):
+        raise ValueError('Render witness outside actual scene timeline or source intervals')
+
+    # Rigid tracks and inherited/constraint transforms are cheap to inspect at
+    # native frame times. Shape keys use evaluated meshes when weights change.
+    # Modifiers with external dependencies are sampled at witnesses and
+    # numerical states, with bounded additional mesh evaluations.
+    local_modifiers = {'BEVEL', 'WEIGHTED_NORMAL', 'EDGE_SPLIT', 'TRIANGULATE', 'SUBSURF'}
+    modifiers = {obj.name for obj in objects if any(
+        modifier.show_render and (modifier.type not in local_modifiers
+                                  or obj.animation_data is not None)
+        for modifier in obj.modifiers)}
+    modifier_frames = set(witnesses) | starts | (set(motion_frames) & set(clock))
+    modifier_frames.update(clock[round(i * (len(clock) - 1) / 15)] for i in range(16))
+    clock_order = list(dict.fromkeys([*sorted(starts), *sorted(modifier_frames), *clock]))
+    references, shape_cache = {}, {}
+    moved = False
+    for frame in clock_order:
+        if moved and frame not in witnesses:
+            continue
         scene.frame_set(frame)
-        bpy.context.view_layer.update()
         deps = bpy.context.evaluated_depsgraph_get()
-        positions[str(frame)] = {
-            o.name: {'matrix': [v for row in o.matrix_world for v in row],
-                     'geometry': hashlib.sha256(b''.join(
-                         str(tuple(v.co)).encode() for v in o.evaluated_get(deps).data.vertices)).hexdigest()}
-            for o in objects}
-        projected=[world_to_camera_view(scene,scene.camera,o.matrix_world @ Vector(c))
-                   for o in objects for c in o.bound_box]
-        bounds[str(frame)]=[max(0,min(p.x for p in projected)),
-                            max(0,1-max(p.y for p in projected)),
-                            min(1,max(p.x for p in projected)),
-                            min(1,1-min(p.y for p in projected))]
-    moved = any(positions[str(f)] != positions[str(frames[0])] for f in frames[1:])
-    return dict(geometry=geometry, camera={'type':scene.camera.data.type,
-                'matrix':[v for row in scene.camera.matrix_world for v in row],
-                'lens':scene.camera.data.lens, 'ortho_scale':scene.camera.data.ortho_scale},
-                motion_samples=positions, subject_bounds=bounds, spatial_motion=moved, frame_range=frames,
-                engine=scene.render.engine, resolution=[scene.render.resolution_x,scene.render.resolution_y],
+        evaluated = [obj.evaluated_get(deps) for obj in objects]
+        if frame in witnesses:
+            camera = scene.camera.evaluated_get(deps)
+            bounds[str(frame)] = witness_bounds(scene, camera, evaluated)
+        snapshot = {}
+        for original, obj in zip(objects, evaluated, strict=True):
+            transform = matrix_values(obj)
+            geometry_hash = None
+            if original.name in modifiers:
+                if frame in modifier_frames:
+                    geometry_hash = mesh_digest(obj)
+            elif original.data.shape_keys:
+                keys = original.data.shape_keys
+                weights = tuple(key.value for key in keys.key_blocks) if keys.use_relative else (keys.eval_time,)
+                shape_key = (original.name, weights)
+                if shape_key not in shape_cache:
+                    shape_cache[shape_key] = mesh_digest(obj)
+                geometry_hash = shape_cache[shape_key]
+            snapshot[obj.name] = {'matrix': transform, 'geometry': geometry_hash}
+        changed = False
+        if frame in starts:
+            references[frame] = snapshot
+        else:
+            reference = references[origins[frame]]
+            changed = any(row['matrix'] != reference[name]['matrix']
+                          or (row['geometry'] is not None and row['geometry'] != reference[name]['geometry'])
+                          for name, row in snapshot.items())
+        if frame in witnesses or frame in starts or (changed and not moved):
+            positions[str(frame)] = snapshot
+        moved |= changed
+    if moved:
+        motion_status = 'MOTION_FOUND'
+    elif not any(stop - start >= 2 for start, stop in spans):
+        motion_status = 'INSUFFICIENT_SAMPLES'
+    elif modifiers and not set(clock) <= modifier_frames:
+        motion_status = 'NO_CHANGE_IN_SAMPLES'
+    else:
+        motion_status = 'STATIC_ON_RENDERED_FRAMES'
+    camera = scene.camera
+    resolution = [pixels * scene.render.resolution_percentage // 100
+                  for pixels in (scene.render.resolution_x, scene.render.resolution_y)]
+    return dict(geometry=geometry, camera={'type': camera.data.type, 'matrix': matrix_values(camera),
+                'lens': camera.data.lens, 'ortho_scale': camera.data.ortho_scale},
+                motion_samples=positions, subject_bounds=bounds, spatial_motion=moved,
+                motion_status=motion_status, frame_range=[first, last],
+                engine=scene.render.engine, resolution=resolution,
                 fps=scene.render.fps / scene.render.fps_base)
 
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True)
     p.add_argument('--frames',type=int,nargs='*');p.add_argument('--render-dir',type=Path)
+    p.add_argument('--interval', nargs=2, type=int, action='append')
+    p.add_argument('--motion-frames', type=int, nargs='*', default=[])
     a=p.parse_args(sys.argv[sys.argv.index('--')+1:])
-    report=inspect_scene(bpy.context.scene)
+    report=inspect_scene(bpy.context.scene, witnesses=a.frames, intervals=a.interval, motion_frames=a.motion_frames)
     if a.render_dir:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         from render_preflight import render_frame
         a.render_dir.mkdir(parents=True,exist_ok=True)
-        for i, frame in enumerate(a.frames or report['frame_range']):
+        for i, frame in enumerate(a.frames or sorted(map(int, report['subject_bounds']))):
             render_frame(bpy.context.scene, frame, a.render_dir/f'{frame:05d}.png', preflight=i == 0)
     a.output.write_text(json.dumps(report,indent=2)+'\n')
 

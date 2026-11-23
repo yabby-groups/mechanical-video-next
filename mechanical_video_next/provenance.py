@@ -206,13 +206,14 @@ def write_remotion_proof(path, final, props_path, config, media, assembly, model
         checks = json.loads(checks_file.read_text())
         raw_ref = binding(raw)
         if shot_id not in shots:
-            trim = segment.get('source_start_frame', 0)
             shots[shot_id] = dict(shot_id=shot_id, render_output=raw_ref, scene=checks['scene_artifact'],
                 motion_data=binding(checks_file), executable_shot=checks['source_shot'], cache_key=cache_key,
                 model_assets=model_assets,
                 product_references=[dict(binding(ROOT/ref['path']), position=ref['position']) for ref in basis],
                 shot_role=spec.get('science', {}).get('role', 'core'),
-                verification_frames=sorted({trim+1, trim+round((1+count)/2), trim+count}))
+                verification_frames=[])
+        shots[shot_id]['verification_frames'] = sorted(
+            set(shots[shot_id]['verification_frames']) | set(segment_witnesses(segment)))
         segment['render_output'] = raw_ref
     build = dict(renderer='remotion-v1', frame_count=cursor, segments=segments,
                  props=binding(props_path), render_sources=[binding(ROOT/name) for name in sources_for(config)])
@@ -309,15 +310,50 @@ def verify_remotion_replay(original, replayed, frames):
             'threshold_db': threshold, 'minimum_db': lowest if math.isfinite(lowest) else None}
 
 
+def segment_witnesses(segment):
+    first = segment.get('source_start_frame', 0) + 1
+    count = segment['frame_count']
+    return first, first + (count - 1) // 2, first + count - 1
+
+
 def frame_rgb(path, frame, crop=None):
     region=''
     if crop:
         x,y,right,bottom=crop
-        width,height=round((right-x)*1920)//2*2,round((bottom-y)*1080)//2*2
-        if min(width,height)<8:raise ValueError('Mechanical subject is not visibly framed')
-        region=f'crop={width}:{height}:{round(x*1920)//2*2}:{round(y*1080)//2*2},'
-    return subprocess.check_output(['ffmpeg','-v','error','-i',str(path),'-vf',
+        region=f'crop=iw*{right-x}:ih*{bottom-y}:iw*{x}:ih*{y}:exact=1,'
+    return subprocess.check_output(['ffmpeg','-v','error','-xerror','-i',str(path),'-vf',
         f'select=eq(n\\,{frame}),{region}scale=320:320','-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','-'])
+
+
+def require_witness_bounds(audit, frame):
+    bounds = audit['subject_bounds'].get(str(frame))
+    if (not isinstance(bounds, list) or len(bounds) != 4
+            or any(type(value) not in (int, float) or not math.isfinite(value) for value in bounds)):
+        raise ValueError(f'Missing visible subject bounds for render witness frame {frame}')
+    left, top, right, bottom = bounds
+    width, height = audit['resolution']
+    if (not 0 <= left < right <= 1 or not 0 <= top < bottom <= 1
+            or (right - left) * width < 8 or (bottom - top) * height < 8):
+        raise ValueError(f'Mechanical subject is not visibly framed at witness frame {frame}')
+    return bounds
+
+
+def motion_witness_frames(checks):
+    """Prioritize authored numerical states while still checking the native scene."""
+    frames = set()
+    for item in checks.get('checks', {}).get('numerical_constraints', {}).get('samples', []):
+        values = item.get('review_samples', [])
+        if values and all(type(value) in (int, float) and math.isfinite(value) for value in values):
+            frames.update([values.index(min(values)) + 1, values.index(max(values)) + 1])
+    return sorted(frames)
+
+
+def require_shot_motion(audit, shot, build):
+    planned_core = (build.get('visual_policy_version') == 2
+                    and build['visual_config']['shots'][shot['shot_id']]['visual']['mechanical_role'] == 'core')
+    if not audit['spatial_motion'] and (planned_core or shot.get('shot_role') != 'structural_detail'):
+        raise ValueError(f"Core mechanical shot has no evidenced spatial motion: {shot['shot_id']} "
+                         f"({audit['motion_status']})")
 
 
 def validate(path, media=None, *, replay=True, stage='final'):
@@ -400,7 +436,7 @@ def _validate(path, media=None, *, replay=True, stage='final'):
             raise ValueError('Insufficient temporary disk space for provenance replay')
         for i,shot in enumerate(shots):
             scene=bound(shot['scene']);raw=bound(shot['render_output'])
-            bound(shot['motion_data'])
+            checks_path = bound(shot['motion_data'])
             if not shot.get('model_assets') or not shot.get('product_references'):
                 raise ValueError('Traceable model and product reference evidence required')
             for asset in shot['model_assets']:
@@ -411,31 +447,36 @@ def _validate(path, media=None, *, replay=True, stage='final'):
                 if (segment.get('media_kind','mechanical-3d')=='mechanical-3d'
                         and segment['shot_id']==shot['shot_id'] and segment['render_output']!=shot['render_output']):
                     raise ValueError('Timeline substituted another video for verified 3D render')
-            frames=shot['verification_frames']
+            uses = [segment for segment in segments if segment['shot_id'] == shot['shot_id']
+                    and segment.get('media_kind', 'mechanical-3d') == 'mechanical-3d']
+            intervals = [(first, last + 1) for first, _, last in map(segment_witnesses, uses)]
+            frames = shot['verification_frames']
             if len(set(frames))<3:raise ValueError('At least three distinct actual render witness frames required')
+            frames = sorted(set(frames).union(*(segment_witnesses(segment) for segment in uses)))
             output=temp/f'{i}.json';renders=temp/str(i)
             cmd=[str(scene),'--python-exit-code','1','--python',str(ROOT/'blender/provenance_audit.py'),
                  '--','--output',str(output),'--frames',*[str(f) for f in frames]]
+            for first, stop in intervals:
+                cmd.extend(['--interval', str(first), str(stop)])
+            if checks_path.suffix == '.json':
+                motion_frames = motion_witness_frames(json.loads(checks_path.read_text()))
+                cmd.extend(['--motion-frames', *map(str, motion_frames)])
             if replay:cmd+=['--render-dir',str(renders)]
             run_blender(cmd, name='provenance-audit')
             audit=json.loads(output.read_text())
             if min(frames)<audit['frame_range'][0] or max(frames)>audit['frame_range'][-1]:
                 raise ValueError('Render witness outside actual scene timeline')
-            if not audit['spatial_motion'] and shot.get('shot_role') != 'structural_detail':
-                raise ValueError('Core mechanical shot has no evidenced spatial motion: '+shot['shot_id'])
-            if visual and build['visual_config']['shots'][shot['shot_id']]['visual']['mechanical_role'] == 'core' and not audit['spatial_motion']:
-                raise ValueError('Planned core shot lacks real spatial motion: '+shot['shot_id'])
+            require_shot_motion(audit, shot, build)
             if audit['resolution']!=expected[:2] or audit['fps']!=expected[2]:
                 raise ValueError('Actual 3D scene must render native 1920x1080/30')
             errors=[]
+            witness_regions = {f: require_witness_bounds(audit, f) for f in frames}
             if replay:
                 for f in frames:
                     # Compare the mechanical region, so a large plain studio
                     # background cannot conceal a different or missing mechanism.
-                    bounds=audit['subject_bounds'].get(str(f))
-                    if bounds is None:
-                        bounds=audit['subject_bounds'][str(audit['frame_range'][1])]
-                    actual=frame_rgb(raw,f-1,bounds);witness=frame_rgb(renders/f'{f:05d}.png',0,bounds)
+                    bounds = witness_regions[f]
+                    actual=frame_rgb(raw,f-audit['frame_range'][0],bounds);witness=frame_rgb(renders/f'{f:05d}.png',0,bounds)
                     if not actual or len(actual)!=len(witness):raise ValueError('Missing/mismatched rendered witness')
                     mae=sum(abs(a-b) for a,b in zip(actual,witness))/len(actual)
                     if mae>3:raise ValueError(f'Raw MP4 not from claimed scene: {shot["shot_id"]} frame {f}, MAE={mae}')
