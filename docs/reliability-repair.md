@@ -111,3 +111,54 @@ git diff --check
 镜头授权专项 11 项通过，可靠性与排队专项 11 项通过，历史成片专项 5 项通过，原生来源见证专项 8 项通过。最终完整原生回归用时 109.599 秒，共 569 项，564 项通过、5 项跳过、0 项失败、0 项报错。跳过项为 1 项可选 Remotion 浏览器测试和 4 项缺少历史本地产物的测试。F821 与 Git 差异检查通过。[完整日志](/private/tmp/mvn-followup-verified.log)
 
 本轮范围为工具回归与隔离原生渲染。实际成片连续视听、真实 TTS、外部平台、可选 Remotion 浏览器回归和 Linux 运行环境未验证。本轮未改动 Remotion 代码。
+
+## 1a4872d 复核补修
+
+开始时 HEAD 为 `1a4872db47d6693a49669f7fb369253c36aced36`，分支为 `main`，对齐 `origin/main`，工作区与暂存区均干净。运行环境为 macOS 27.3 arm64、uv 0.9.16、锁定的 Python 3.14.2、FFmpeg 9.0.2 和 Blender 5.3.0。基线复现使用同一 HEAD 的隔离源码副本。Producer 执行复现、修改与测试，原生 QA 子会话 `/root/r8_review` 独立审阅 R8 差异，未重复运行测试。子会话 token、费用及额外干预计数未取得。
+
+### R8 配置替换后的旧成片失效
+
+隔离历史账本绑定真实 FFmpeg 生成的 1920×1080/30 H.264/AAC 成片、10 秒来源技术预览、来源摘录、部件清单、当前配置、测量章节和通过 `continue --plan` 登记的计划。通过 `put_handoff` 写入合成独立 QA 数据，执行真实 handoff、精确 MP4、封面、增长报告和状态校验。仅把最终 `provenance.validate` 的 Blender 来源重放替换为测试替代。夹具保留旧路线、阶段、媒体、交接和已登记场景的完整收据，并一次更新配置和全部镜头的配置绑定。新镜头此时等待研究。
+
+基线在旧成片已验收、尚未登记交付时，从配置切换后的 `FINAL_RENDERED` 回到重新生成增长报告后的 `QA_ACCEPTED`。已登记场景在刷新前后均为 `FINAL_RENDERED`，解析和状态仍引用旧 MP4。增长报告递归扫描任务台账时把旧收据引用的 `growth-report.json` 当成输入，重写报告后自身依赖过期，产生 `Growth report STALE: referenced evidence changed`。两种场景分别复现。 [R8 基线日志](/private/tmp/mvn-repair-1a4872/r8-baseline.log)
+
+`workflow.py` 将当前 scoped 配置识别、同配置成功阶段查找和历史媒体拒绝分开。当前阶段用配置哈希、实际来源、镜头绑定、真实文件和章节验证。后续阶段写入明确的 scoped 身份，旧账本沿用技术阶段的媒体哈希及技术预览或工作样片记录推断身份。历史判定对照实际候选路线的媒体，独立于变更后的镜头绑定。缺少当前成片时给出阶段未产出原因。失效时通过 `invalid_evidence` 指出旧阶段被替代，并返回未完成镜头的下一步。QA、默认封面、增长报告及交付共用该判断，历史账本无需补写记录。
+
+`growth_report.py` 将收据、账本中的增长报告指针作为历史输出处理。交付文件清单使用实际通过校验的当前增长报告及其哈希，旧收据仍须匹配原已提供文件。两个替换场景在生成入口、QA 校验和交付入口均拒绝旧媒体，状态保持 `RESEARCH_PARTIAL`，并保留原 MP4、阶段、handoff 和收据。测试还用正常 `route-run` 产生不同哈希的新 MP4，补齐当前 QA 和封面后通过验收与新登记，已登记场景的旧收据保留到新登记前。原有普通路线和 scoped 正常交付门禁通过回归。新路线 MP4 为 FFmpeg 重封装测试媒体，交付仅在隔离任务内登记。 [R8 专项日志](/private/tmp/mvn-repair-1a4872/r8-final.log)
+
+### R8 候选封面默认入口
+
+基线夹具用真实 MP4、当前来源、模型、配置、技术预览和章节，另有与当前配置哈希相同的成功 preview 阶段、已登记的 `outputs.candidate` 和有效封面计划。没有 final 阶段时，`covers.prepare` 经 `growth_report.paths_for` 先抛出 `Current source-supported final stage media is missing`，候选回退未执行。 [R8 基线日志](/private/tmp/mvn-repair-1a4872/r8-baseline.log)
+
+`covers.py` 通过 `current_source_supported_film` 的封面用途解析候选。成功的 final 优先。当前配置尚未成功生成 final 时，候选须有真实 MP4、有效路径和哈希、适用的音频和章节绑定，以及精确匹配当前配置的成功预览阶段。当前配置、来源或已登记媒体失效时给出错误。封面报告在实际来源上记载 `candidate: true`。显式 `source_overrides` 继续按原规则校验。已生成的旧封面报告沿用生成器哈希时效规则。
+
+专项从默认入口生成并校验两张候选封面。删除候选、修改候选、来源或配置都会拒绝。候选封面生成前后的协调状态一致，纯 candidate 的增长报告和正式交付入口均拒绝。有效 final 出现后默认解析使用其阶段媒体。测试全程使用真实 FFmpeg、Pillow 和封面校验。该段夹具无需 QA 或 Blender 替代。涉及 `workflow.py`、`covers.py`、`growth_report.py`、`test_source_supported_render.py` 和 `docs/cover-delivery.md`。 [R8 专项日志](/private/tmp/mvn-repair-1a4872/r8-final.log)
+
+### 来源见证关键部件局部比较
+
+新增 1920×1080 FFmpeg 夹具在两个对角各放置一个 192×108 的主体。按相同 H.264 参数编码完整、删除单个主体和替换其颜色三个版本。基线的总矩形 MAE 分别为 0.0395、2.5692、1.7307，三个版本都通过旧阈值。验证走真实帧解码和见证比较，测试替代仅供给 Blender 场景审计和静态 PNG 见证，并用同字节复制隔离最终合成重放。 [局部见证基线日志](/private/tmp/mvn-repair-1a4872/witness-baseline.log)
+
+`blender/provenance_audit.py` 保留 R6 的近远裁剪平面、投影凸包和画面边界计算。每个部件记录独立投影范围，并在裁剪区内采样相机射线，用首个表面命中确定局部可见范围。完全在画外、没有可见采样或尺寸不足的部件记录证据不足。某一见证帧没有可比较部件时明确拒绝。`provenance.py` 每个见证帧解码两次，在各部件的实际像素范围分别计算 MAE，沿用 3 的误差阈值。报告记录部件、像素区域、MAE 和比较结果，失败信息提供镜头、帧、部件、区域和阈值原因。总矩形仍参与检查。采样可见性体现首个几何表面，透明材质和不足 8×8 的小区域没有独立的像素级可见性证明。
+
+数值回归保留原有近远裁剪、相机移动、画面边界、不可见与非有限数据检查，并验证分离的部件区域。真实编码完整样片通过，删除和替换均由部件比较拒绝。原生 Blender Eevee 专项实际重渲染近裁剪主体与另一主体。相同场景的编码版通过，仅隐藏裁剪主体的版本定位该部件并拒绝，后置被遮挡部件报告证据不足。初次沙箱运行保留了 Metal 初始化失败，当前登录会话通过项目启动器及现有锁运行成功。专项 11 项全部通过。 [沙箱诊断](../output/render-diagnostics/provenance-clipped-witness-fixture-olc9vf7i/result.json) · [原生专项日志](/private/tmp/mvn-repair-1a4872/witness-native.log)
+
+见证版本加入验证缓存键及收据，累计矩形的旧 PASS 必须重新验证。缓存命中与重新验证采用同一个 MP4 路径和哈希检查，章节元数据不改变媒体身份。测试在隔离目录构造旧版本收据，验证它不会命中新比较。媒体、模型、镜头和合成的生产缓存键沿用原有定义。涉及 `blender/provenance_audit.py`、`mechanical_video_next/provenance.py`、`tests/test_provenance_witnesses.py` 和 `tests/fixtures/provenance_motion_scene.py`。
+
+### 回归命令与范围
+
+```sh
+export UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache
+uv run --locked python -m unittest discover -s tests -p test_source_supported_render.py -v
+uv run --locked python -m unittest discover -s tests -p test_provenance_witnesses.py -v
+RUN_BLENDER_TESTS=1 uv run --locked python -m unittest discover -s tests -p test_provenance_witnesses.py -v
+RUN_BLENDER_TESTS=1 uv run --locked python -m unittest discover -s tests -p test_three_d_only.py -v
+RUN_BLENDER_TESTS=1 uv run --locked python -m unittest discover -s tests -v
+uv run --locked --with ruff ruff check --select F821 mechanical_video_next scripts blender tests
+git diff --check
+```
+
+第一次完整原生回归在 `test_three_d_only.test_blender` 报错。Blender 嵌入式 Python 导入 `provenance.py` 的媒体合成函数时缺少 Pillow。将图像依赖移至宿主的帧比较函数内。三维专项复跑 10 项通过、1 项跳过，覆盖实际 Eevee 重渲染、全片来源重放、平面伪造和替换媒体拒绝。 [首次完整日志](/private/tmp/mvn-repair-1a4872/full-native.log) · [Blender stderr](../output/render-diagnostics/three-d-fixture-drozhyox/stderr.log) · [三维专项日志](/private/tmp/mvn-repair-1a4872/three-d-native.log)
+
+最终完整原生回归耗时 118.144 秒。572 项中 567 项通过、0 项失败、0 项报错、5 项跳过。跳过 1 项需要本地 Remotion 浏览器的测试和 4 项依赖历史本地交付、Blender 动作证据、冻结风格输入和旋转拖把缓存产物的测试。来源授权、文件变化、符号链接改指、父进程最终登记拒绝、媒体帧数和原有 R6 裁剪面回归均通过。F821 与 Git 差异检查通过。 [最终完整日志](/private/tmp/mvn-repair-1a4872/full-native-final.log) · [Ruff 日志](/private/tmp/mvn-repair-1a4872/ruff.log)
+
+实际机械成片的连续视听、真实 TTS、外部发布和 Linux 环境未验证。本轮测试使用隔离产物，代码与报告留在本地工作区。
