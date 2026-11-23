@@ -1,0 +1,39 @@
+{
+  "id": "quiet-link-mechanical-asmr",
+  "title": "Quiet Link · Mechanical Asmr",
+  "theme": "quiet-link",
+  "style": [
+    "mechanical_asmr"
+  ],
+  "mood": [
+    "precise",
+    "intimate"
+  ],
+  "energy": 0.18,
+  "bpm": 74,
+  "speech_fit": 0.85,
+  "sfx_fit": 0.9,
+  "loopable": true,
+  "tier": "original",
+  "source_type": "GENERATED",
+  "source_url": "repo:scripts/generate_starter_music.py",
+  "source": {
+    "path": "assets/audio/bgm/starter/quiet-link-mechanical-asmr.flac",
+    "sha256": "d54cf77b0c2a5ffda17c6ca62e8422785cbfad6bb30ee867806370c810e20cba"
+  },
+  "license_status": "VERIFIED",
+  "license": {
+    "status": "VERIFIED",
+    "name": "CC0 1.0 Universal",
+    "holder": "Original Quiet Link contribution",
+    "editing_and_distribution": true,
+    "commercial_use": true,
+    "proof": {
+      "path": "assets/audio/bgm/starter/CC0.md",
+      "sha256": "561df1fa5c26aaae3a4a8d4b9aece47245c290b7aa12b4ed1c7f115bb33642c5",
+      "position": "Quiet Link authorship and CC0 dedication"
+    }
+  },
+  "credit": "Quiet Link · Mechanical Video Next",
+  "usage_restrictions": []
+}

@@ -13,7 +13,13 @@ references/.library.lock
 .env.*.local
 
 # Generated media stays local; retain only the exact default-voice approval evidence.
-assets/audio/
+/assets/audio/*
+!/assets/audio/bgm/
+/assets/audio/bgm/*
+!/assets/audio/bgm/starter/
+!/assets/audio/metadata/
+/assets/audio/metadata/*
+!/assets/audio/metadata/quiet-link-*.json
 # Per-video inputs, CAD sources/exports, provenance and diagnostics stay local.
 /assets/assemblies/
 /assets/media/

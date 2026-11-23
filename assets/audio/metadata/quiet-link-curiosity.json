@@ -1,0 +1,39 @@
+{
+  "id": "quiet-link-curiosity",
+  "title": "Quiet Link · Curiosity",
+  "theme": "quiet-link",
+  "style": [
+    "curiosity"
+  ],
+  "mood": [
+    "mysterious",
+    "anticipation"
+  ],
+  "energy": 0.3,
+  "bpm": 88,
+  "speech_fit": 0.85,
+  "sfx_fit": 0.9,
+  "loopable": true,
+  "tier": "original",
+  "source_type": "GENERATED",
+  "source_url": "repo:scripts/generate_starter_music.py",
+  "source": {
+    "path": "assets/audio/bgm/starter/quiet-link-curiosity.flac",
+    "sha256": "02afba52defb1de7555aa96c2cf36ea0a0ea22fec01ad7cd347b1f8547b49b24"
+  },
+  "license_status": "VERIFIED",
+  "license": {
+    "status": "VERIFIED",
+    "name": "CC0 1.0 Universal",
+    "holder": "Original Quiet Link contribution",
+    "editing_and_distribution": true,
+    "commercial_use": true,
+    "proof": {
+      "path": "assets/audio/bgm/starter/CC0.md",
+      "sha256": "561df1fa5c26aaae3a4a8d4b9aece47245c290b7aa12b4ed1c7f115bb33642c5",
+      "position": "Quiet Link authorship and CC0 dedication"
+    }
+  },
+  "credit": "Quiet Link · Mechanical Video Next",
+  "usage_restrictions": []
+}
