@@ -1,4 +1,4 @@
-"""Build and measure the sample-clock music gain used by the existing mixer."""
+"""Calibrate fixed BGM gain and reproduce the historical automatic ducking."""
 from bisect import bisect_right
 import math
 
@@ -6,6 +6,10 @@ from .audio_acceptance import MIN_MIX_MARGIN_DB, WINDOW, process_mix
 from .joint_timeline import SAMPLE_RATE
 
 VERSION = 2
+CONSTANT_BED = 'constant_bed'
+ADAPTIVE_V2 = 'adaptive_ducking_v2'
+CONSTANT_SETTINGS = {'mode': CONSTANT_BED, 'version': 1, 'margin_reserve_db': .1,
+                     'minimum_bed_lufs': -44., 'minimum_relative_bed_db': -28.}
 DEFAULT = {
     'version': VERSION,
     'target_margin_db': 15,
@@ -25,11 +29,57 @@ def amplitude(db):
     return 10 ** (db / 20)
 
 
-def measurements(stems, narration, expected):
+def measurements(stems, narration, expected, *, diagnostic_bgm=None):
     rows = []
     process_mix(stems, narration, expected, check_masking=False,
-                observe=lambda *values: rows.append(values))
+                observe=lambda *values: rows.append(values), diagnostic_bgm=diagnostic_bgm)
     return rows
+
+
+def constant_bed(stems, effects, narration, expected, *, neil_lufs, cue_lufs, diagnostic_bgm=None):
+    """Bound one static score trim by the same independent and summed masking budgets."""
+    cap, limiting_sample = 1., None
+    settings = CONSTANT_SETTINGS
+    minimum = settings['minimum_bed_lufs']
+    if neil_lufs is not None:
+        minimum = max(minimum, neil_lufs + settings['minimum_relative_bed_db'])
+
+    def measure(left, right, voice, music, sfx, summed_music, summed_sfx, cross):
+        nonlocal cap, limiting_sample
+        if voice <= (right - left) * (32768 * .01) ** 2:
+            return
+        budget = voice / 10 ** (MIN_MIX_MARGIN_DB / 10)
+        if max(sfx, summed_sfx) > budget:
+            raise ValueError(f'Mechanical SFX alone exceeds the speech masking budget near '
+                             f'{left / SAMPLE_RATE:.3f}s. Review its gain or placement.')
+        if not music:
+            return
+        reserve = voice / 10 ** ((MIN_MIX_MARGIN_DB + settings['margin_reserve_db']) / 10)
+        # Keep the reserve where music can create it. SFX may already occupy that headroom.
+        target = reserve if max(sfx, summed_sfx) < reserve else budget
+        ceiling = math.sqrt(max(0., target - sfx) / music)
+        if summed_music:
+            # Solve E_music * gain² + 2 * cross * gain + E_sfx <= target.
+            ceiling = min(ceiling, (-cross + math.sqrt(cross**2 + summed_music *
+                          max(0., target - summed_sfx))) / summed_music)
+        if ceiling < cap:
+            cap, limiting_sample = ceiling, left
+
+    if stems or effects:
+        process_mix(stems + effects, narration, expected, check_masking=False, observe_masking=measure,
+                    diagnostic_bgm=diagnostic_bgm)
+    # Round down so recomputation cannot exceed the exact masking bound.
+    masking_trim = math.floor(2000 * math.log10(cap)) / 100 if cap else None
+    fixed_lufs = {cue: round(level + masking_trim, 3) if masking_trim is not None else None
+                  for cue, level in cue_lufs.items()}
+    usable = masking_trim is not None and all(fixed_lufs[cue] >= min(minimum, level)
+                                              for cue, level in cue_lufs.items())
+    evidence = {'settings': dict(settings), 'neil_lufs': neil_lufs, 'masking_trim_db': masking_trim,
+                'minimum_bed_lufs': minimum, 'limiting_sample': limiting_sample, 'usable': usable,
+                'cues': {cue: {'calibrated_lufs': round(level, 3), 'fixed_lufs': fixed_lufs[cue]}
+                         for cue, level in cue_lufs.items()}}
+    fixed = [dict(row, gain_db=round(row['gain_db'] + masking_trim, 6)) for row in stems] if usable else []
+    return fixed, evidence
 
 
 def ramp(point, left, right, attack, release):

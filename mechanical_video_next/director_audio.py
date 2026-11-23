@@ -14,6 +14,12 @@ from .audio_acceptance import (check_levels, narration_module, process_mix, veri
 from .media_policy import bound, validate_rights
 
 FIELD = 'music_direction_version'
+MIX_MODE_FIELD = 'music_mix_mode'
+DEFAULT_BGM_FIELD = 'default_bgm'
+DEFAULT_BGM = 'junge-theme-v4'
+POLICY_FIELDS = (FIELD, MIX_MODE_FIELD, DEFAULT_BGM_FIELD)
+DEFAULT_FADE_IN = .4
+DEFAULT_FADE_OUT = 1.
 VERSION = 1
 CACHE = ROOT / 'assets/audio/mixes'
 MODES = {
@@ -36,15 +42,41 @@ def enabled(document):
     return version == VERSION
 
 
-def story_intent(treatment):
+def mix_mode(document):
+    mode = document.get(MIX_MODE_FIELD, ducking.ADAPTIVE_V2)
+    if mode not in (ducking.CONSTANT_BED, ducking.ADAPTIVE_V2):
+        raise ValueError('Unsupported music mix mode')
+    return mode
+
+
+def policy(document):
+    return (document[FIELD], mix_mode(document), default_bgm(document)) if enabled(document) else None
+
+
+def asset_id(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_-]+', value):
+        raise ValueError('Music asset ID must match a catalog filename')
+    return value
+
+
+def default_bgm(document):
+    if DEFAULT_BGM_FIELD not in document:
+        return None
+    if mix_mode(document) != ducking.CONSTANT_BED:
+        raise ValueError('A pinned default BGM requires the constant bed mix mode')
+    return asset_id(document[DEFAULT_BGM_FIELD])
+
+
+def story_intent(treatment, *, bgm=None):
     """Plan from the authored Treatment before any audio or rendering is needed."""
     rows = []
     for scene in treatment.get('scenes', []):
         basis = ' '.join(str(scene.get(key, '')) for key in ('story_purpose', 'visible_change', 'causal_link'))
-        mode = scene.get('music_mode') or ('curiosity' if QUESTION.search(basis) else 'discovery' if REVEAL.search(basis)
+        mode = scene.get('music_mode') or ('constant_bed' if bgm else
+                'curiosity' if QUESTION.search(basis) else 'discovery' if REVEAL.search(basis)
                 else 'technology' if STRUCTURE.search(basis) else
                 'mechanical_asmr' if scene.get('mechanical_role') == 'core' else 'technology')
-        if mode not in {*MODES, 'silence'}:
+        if mode not in {*MODES, 'silence'} and not (bgm and mode == 'constant_bed'):
             raise ValueError('Unknown Treatment music mode')
         rows.append({'scene_id': scene['id'], 'mode': mode, 'reason': basis.strip()})
     return rows
@@ -106,10 +138,17 @@ def plan_direction(document, *, ducking_version=ducking.VERSION):
     result = dict(schema_version=VERSION, topic=document.get('original_topic', document.get('title', '')),
                   question=document.get('core_question'), frame_count=plan['frame_count'], fps=joint.FPS,
                   mode=status, segments=[])
-    if ducking_version == ducking.VERSION:
+    mode_policy = mix_mode(document)
+    constant = mode_policy == ducking.CONSTANT_BED
+    if constant:
+        result[MIX_MODE_FIELD] = mode_policy
+    elif ducking_version == ducking.VERSION:
         result['ducking'] = dict(ducking.DEFAULT)
     elif ducking_version != 1:
         raise ValueError('Unsupported music ducking version')
+    default = default_bgm(document)
+    if default:
+        result[DEFAULT_BGM_FIELD] = default
     if status == 'silence':
         if not isinstance(authored.get('reason'), str) or not authored['reason'].strip():
             raise ValueError('Intentional silence requires a concrete story reason')
@@ -118,6 +157,8 @@ def plan_direction(document, *, ducking_version=ducking.VERSION):
     ids = {cut['id'] for cut in plan['shots']}
     if not isinstance(notes, dict) or not notes.keys() <= ids:
         raise ValueError('Music overrides must identify existing shot IDs')
+    if default:
+        return plan_fixed_track(result, plan, authored, notes)
     shots = {row['shot_id']: row for row in document.get('shots', [])}
     moments = document.get('narrative', {}).get('moments', {})
     choices = []
@@ -149,12 +190,23 @@ def plan_direction(document, *, ducking_version=ducking.VERSION):
                             shot_ids=[sid], story_node_ids=beat_ids, action_ids=action_ids,
                             reason=override.get('reason') or basis.strip() or f'Carry the explanation through {sid}',
                             suggested_assets=suggested, gain_adjustment_db=adjustment))
+    if constant:
+        durations = {}
+        for choice in choices:
+            if choice['shot_ids'][0] not in notes:
+                mode = choice['mode']
+                durations[mode] = durations.get(mode, 0) + choice['end_frame'] - choice['start_frame']
+        if durations:
+            bed_mode = max(durations, key=durations.get)
+            for choice in choices:
+                if choice['shot_ids'][0] not in notes:
+                    choice.update(mode=bed_mode, reason='Continuous score for this story')
     for cue in choices:
         previous = result['segments'][-1] if result['segments'] else None
         shared_action = previous and set(previous['action_ids']) & set(cue['action_ids'])
         if shared_action and any(row['mode'] == 'silence' for row in (previous, cue)) and previous['mode'] != cue['mode']:
             raise ValueError('Design silence across the entire continuous mechanical action')
-        if shared_action or (previous and all(previous[key] == cue[key]
+        if (shared_action and not constant) or (previous and all(previous[key] == cue[key]
                                                for key in ('mode', 'suggested_assets', 'gain_adjustment_db'))):
             previous['end_frame'] = cue['end_frame']
             for key in ('shot_ids', 'story_node_ids', 'action_ids'):
@@ -169,14 +221,66 @@ def plan_direction(document, *, ducking_version=ducking.VERSION):
         if mode != 'silence':
             mood, energy, bpm, target, style_description = MODES[mode]
             target += cue['gain_adjustment_db']
-            adaptive = ducking_version == ducking.VERSION
+            adaptive = ducking_version == ducking.VERSION or constant
             if adaptive:
                 target += 7 if mode == 'mechanical_asmr' else 5
             cue.update(style=[mode], mood=mood, energy=energy, bpm=bpm, rhythm=style_description,
                        target_lufs=target, fade_in_seconds=.35,
                        fade_out_seconds=.85 if cue['end_frame'] == plan['frame_count'] else .35,
                        speech_duck_db=0 if adaptive else max(17, target + 54),
-                       action_duck_db=6 if adaptive else 9)
+                       action_duck_db=0 if constant else (6 if adaptive else 9))
+            if constant:
+                cue['constant_bed'] = True
+    if constant:
+        for outgoing, incoming in zip(result['segments'], result['segments'][1:]):
+            if 'target_lufs' not in outgoing or 'target_lufs' not in incoming:
+                continue
+            frames = min(round(.35 * joint.FPS),
+                         (outgoing['end_frame'] - outgoing['start_frame']) // 3,
+                         (incoming['end_frame'] - incoming['start_frame']) // 3)
+            if frames:
+                outgoing['crossfade_out_frames'] = incoming['crossfade_in_frames'] = frames
+    if all(row['mode'] == 'silence' for row in result['segments']):
+        raise ValueError('Use whole-film intentional silence with an explicit reason')
+    return result
+
+
+def plan_fixed_track(result, plan, authored, notes):
+    selected = asset_id(authored.get('asset_id', result[DEFAULT_BGM_FIELD]))
+    adjustment = authored.get('gain_adjustment_db', 0.)
+    if type(adjustment) not in (int, float) or not -12 <= adjustment <= 3:
+        raise ValueError('Fixed-track gain adjustment must be between -12 and 3 dB')
+    result.update(asset_id=selected, volume_strategy='fixed_gain', preserve_narration=True,
+                  preserve_mechanical_sfx=True)
+    for shot in plan['shots']:
+        sid = shot['id']
+        note = notes.get(sid, {})
+        if (not isinstance(note, dict) or note and
+                (set(note) != {'mode', 'reason'} or note['mode'] != 'silence'
+                 or not isinstance(note['reason'], str) or not note['reason'].strip())):
+            raise ValueError('Fixed-track shot overrides require silence and a story reason')
+        mode = 'silence' if note else ducking.CONSTANT_BED
+        previous = result['segments'][-1] if result['segments'] else None
+        actions = list(shot.get('action_views', {}))
+        if previous and previous['mode'] == mode:
+            previous['end_frame'] = shot['end_frame']
+            previous['shot_ids'].append(sid)
+            previous['action_ids'] = list(dict.fromkeys(previous['action_ids'] + actions))
+            if note and note['reason'] not in previous['reason']:
+                previous['reason'] += ' / ' + note['reason']
+        else:
+            if previous and set(previous['action_ids']).intersection(actions):
+                raise ValueError('Design silence across the entire continuous mechanical action')
+            result['segments'].append(dict(mode=mode, start_frame=shot['start_frame'], end_frame=shot['end_frame'],
+                                           shot_ids=[sid], action_ids=actions,
+                                           reason=note.get('reason', 'Continuous fixed-gain theme')))
+    for index, cue in enumerate(result['segments'], 1):
+        cue.update(id=f'music-{index:02d}', time_range=[cue[key] / joint.FPS
+                   for key in ('start_frame', 'end_frame')])
+        if cue['mode'] != 'silence':
+            cue.update(asset_id=selected, constant_bed=True, target_lufs=-28. + adjustment,
+                       fade_in_seconds=DEFAULT_FADE_IN, fade_out_seconds=DEFAULT_FADE_OUT,
+                       film_samples=plan['frame_count'] * joint.SAMPLES_PER_FRAME)
     if all(row['mode'] == 'silence' for row in result['segments']):
         raise ValueError('Use whole-film intentional silence with an explicit reason')
     return result
@@ -231,7 +335,7 @@ def music_stems(direction, available, measured, effects, profile):
             sha = track['source']['sha256']
             if sha not in levels:
                 try:
-                    with audio_library.pcm_path(bound(track['source'])) as pcm:
+                    with audio_library.pcm_path(bound(track['source']), downmix=track.get('pcm_downmix')) as pcm:
                         # Analyze the same downmix used by the mixer, including stereo cancellation.
                         levels[sha] = measured_lufs(pcm, profile)
                 except (ValueError, OSError, RuntimeError, SubprocessError) as error:
@@ -243,7 +347,8 @@ def music_stems(direction, available, measured, effects, profile):
         else:
             track = None
         if track is None:
-            missing.append({'cue_id': cue['id'], 'mode': cue['mode'], 'mood': cue['mood'],
+            missing.append({'cue_id': cue['id'], 'mode': cue['mode'], 'mood': cue.get('mood', []),
+                            **({'asset_id': cue['asset_id']} if 'asset_id' in cue else {}),
                             'shot_ids': cue['shot_ids'], 'reason': 'No rights-verified and audible music fits the cue',
                             'analysis_errors': [value for value in levels.values() if isinstance(value, str)]})
             continue
@@ -251,12 +356,22 @@ def music_stems(direction, available, measured, effects, profile):
         selections.append({'cue_id': cue['id'], 'asset_id': track['id'], 'theme': track['theme'],
                            'scores': scores, 'source': track['source'], 'license': track['license'],
                            'catalog_record': track['catalog_record'], 'measured_lufs': levels[sha]})
+        if 'loop_analysis' in track:
+            selections[-1]['loop_analysis'] = track['loop_analysis']
+        if 'pcm_downmix' in track:
+            selections[-1]['pcm_downmix'] = track['pcm_downmix']
         stems.extend(lay_music(cue, track, levels[sha], measured['speech'], effects))
     return stems, selections, missing
 
 
 def lay_music(cue, track, source_lufs, speech, effects):
     gain = min(3., max(-72., cue['target_lufs'] - source_lufs))
+    if 'asset_id' in cue:
+        yield from lay_fixed_track(cue, track, gain)
+        return
+    if cue.get('constant_bed'):
+        yield from lay_constant_music(cue, track, gain)
+        return
     left, right = (cue[key] * joint.SAMPLES_PER_FRAME for key in ('start_frame', 'end_frame'))
     tail = round(.08 * RATE)
     holds = [(row['start_sample'] - tail, row['end_sample'] + tail, cue['speech_duck_db'])
@@ -278,12 +393,118 @@ def lay_music(cue, track, source_lufs, speech, effects):
         cursor = end if end == right else end - loop
 
 
+def constant_envelope(left, right, fade_in, fade_out, *, cross_in=False, cross_out=False):
+    """Sample equal-power overlaps for the existing linear-amplitude interpolator."""
+    last = right - 1
+    fade_in = min(fade_in, last - left)
+    fade_out = min(fade_out, last - left)
+    points = {left, left + fade_in, last - fade_out, last}
+    step = RATE // 500
+    if cross_in:
+        points.update(range(left, left + fade_in, step))
+    if cross_out:
+        points.update(range(last - fade_out, last, step))
+    envelope = []
+    for point in sorted(points):
+        rise = min(1., (point - left) / fade_in) if fade_in else 1.
+        fall = min(1., (last - point) / fade_out) if fade_out else 1.
+        if cross_in:
+            rise = math.sin(rise * math.pi / 2)
+        if cross_out:
+            fall = math.sin(fall * math.pi / 2)
+        envelope.append([point, round(rise * fall, 10)])
+    return envelope
+
+
+def lay_constant_music(cue, track, gain):
+    cross_in = cue.get('crossfade_in_frames', 0) * joint.SAMPLES_PER_FRAME
+    cross_out = cue.get('crossfade_out_frames', 0) * joint.SAMPLES_PER_FRAME
+    left = cue['start_frame'] * joint.SAMPLES_PER_FRAME - cross_in
+    right = cue['end_frame'] * joint.SAMPLES_PER_FRAME
+    if track['sample_count'] >= right - left:
+        offset, stop = 0, track['sample_count']
+    elif track['loopable']:
+        offset, stop = track['loop_samples']
+    else:
+        raise ValueError('Selected music is too short for the constant bed and its crossfade')
+    loop = min(round(.18 * RATE), (stop - offset) // 4)
+    if stop - offset < right - left and loop < 2:
+        raise ValueError('Selected music has no room for a loop crossfade')
+    cursor = left
+    while cursor < right:
+        end = min(right, cursor + stop - offset)
+        if end < right and cross_out:
+            # Reserve the whole authored crossfade if the last loop would be too short.
+            end = min(end, right - cross_out)
+        first, final = cursor == left, end == right
+        incoming = cross_in if first else loop
+        outgoing = cross_out if final else loop
+        fade_in = incoming - 1 if incoming else round(cue['fade_in_seconds'] * RATE)
+        fade_out = outgoing - 1 if outgoing else round(cue['fade_out_seconds'] * RATE)
+        length = end - cursor - 1
+        if fade_in + fade_out > length:
+            if incoming:
+                fade_out = max(1, length - fade_in)
+            elif outgoing:
+                fade_in = max(1, length - fade_out)
+            else:
+                fade_in, fade_out = min(fade_in, length // 2), min(fade_out, length // 2)
+        envelope = constant_envelope(cursor, end, fade_in, fade_out,
+                                     cross_in=bool(incoming), cross_out=bool(outgoing))
+        yield dict(track, kind='bgm', cue_id=cue['id'], start_sample=cursor, end_sample=end,
+                   source_start_sample=offset, envelope=envelope, gain_db=gain)
+        cursor = end if final else end - loop
+
+
+def lay_fixed_track(cue, track, gain):
+    left, right = (cue[key] * joint.SAMPLES_PER_FRAME for key in ('start_frame', 'end_frame'))
+    film = cue['film_samples']
+    count = track['sample_count']
+    repeats = film > count
+    if repeats and not track['loopable']:
+        raise ValueError('Selected music is too short for the full picture clock')
+    start, stop = track['loop_samples'] if repeats else (0, count)
+    overlap = track.get('loop_crossfade_samples', min(round(.18 * RATE), (stop - start) // 4))
+    phase_aligned = 'loop_analysis' in track
+    limit = (right - left - 1) // 2
+    fade_in = min(limit, round(cue['fade_in_seconds'] * RATE))
+    fade_out = min(limit, round(cue['fade_out_seconds'] * RATE))
+    cue_envelope = constant_envelope(left, right, fade_in, fade_out)
+    cursor, offset = 0, 0
+    while cursor < right:
+        end = cursor + stop - offset
+        incoming = overlap - 1 if cursor else 0
+        outgoing = overlap - 1 if end < film else 0
+        first, last = max(left, cursor), min(right, end)
+        if first < last:
+            loop_envelope = constant_envelope(cursor, end, incoming, outgoing,
+                                             cross_in=bool(incoming and not phase_aligned),
+                                             cross_out=bool(outgoing and not phase_aligned))
+            points = {first, last - 1}
+            points.update(point for point, _ in cue_envelope + loop_envelope if first <= point < last)
+            for start_fade, end_fade in ((cursor, cursor + incoming), (end - outgoing, end)):
+                if start_fade < end_fade:
+                    points.update(range(max(first, start_fade), min(last, end_fade), RATE // 500))
+            envelope = [[point, round(ducking.interpolate(cue_envelope, point)
+                                      * ducking.interpolate(loop_envelope, point), 10)] for point in sorted(points)]
+            yield dict(track, kind='bgm', cue_id=cue['id'], start_sample=first, end_sample=last,
+                       source_start_sample=offset + first - cursor, envelope=envelope, gain_db=gain)
+        if end >= film:
+            break
+        cursor, offset = end - overlap, start
+
+
 def resolve_music(direction, measured, effects, profile, directory, catalog):
     if direction['mode'] == 'silence':
         return [], [], [], []
     cues = [row for row in direction['segments'] if row['mode'] != 'silence']
-    music_intent = [{key: row[key] for key in ('id', 'style', 'mood', 'energy', 'bpm', 'suggested_assets')}
+    keys = ('id', 'asset_id', 'film_samples') if 'asset_id' in direction else (
+        'id', 'style', 'mood', 'energy', 'bpm', 'suggested_assets')
+    music_intent = [{key: row[key] for key in keys}
                     | {'frames': row['end_frame'] - row['start_frame']} for row in cues]
+    if direction.get(MIX_MODE_FIELD) == ducking.CONSTANT_BED:
+        for row, cue in zip(music_intent, cues, strict=True):
+            row['crossfade_in_frames'] = cue.get('crossfade_in_frames', 0)
     catalog_snapshot = [joint.binding(path) for path in sorted(Path(catalog).glob('*.json'))]
     selection_path = Path(directory) / 'selections' / (digest([VERSION, music_intent, catalog_snapshot]) + '.json')
     try:
@@ -292,15 +513,18 @@ def resolve_music(direction, measured, effects, profile, directory, catalog):
         stems = []
         for cue, decision in zip(cues, selections, strict=True):
             ref = decision['catalog_record']
-            track = audio_library.inspect(json.loads(bound(ref).read_text()))
-            if cue['id'] != decision['cue_id'] or track['source'] != decision['source']:
+            raw = json.loads(bound(ref).read_text())
+            audio_library.require_active(raw)
+            track = audio_library.inspect(raw)
+            if (cue['id'] != decision['cue_id'] or track['source'] != decision['source']
+                    or ('asset_id' in cue and cue['asset_id'] != track['id'])):
                 raise ValueError('Cached music source changed')
             stems.extend(lay_music(cue, dict(track, catalog_record=ref), decision['measured_lufs'],
                                    measured['speech'], effects))
         return stems, selections, [], cached['rejected']
     except (OSError, ValueError, KeyError, TypeError, EOFError, wave.Error, SubprocessError):
         pass
-    available, rejected = audio_library.records(catalog)
+    available, rejected = audio_library.records(catalog, selected=direction.get('asset_id'))
     stems, selections, missing = music_stems(direction, available, measured, effects, profile)
     if not missing:
         from .workflow import lock, write
@@ -309,15 +533,32 @@ def resolve_music(direction, measured, effects, profile, directory, catalog):
     return stems, selections, missing, rejected
 
 
-def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, ducking_settings=None):
+def calibrate_constant(music, effects, narration, samples, speech, selections, profile, *, diagnostic_bgm=None):
+    neil_lufs = measured_lufs(narration, profile) if speech else None
+    shift = 0. if neil_lufs is None else neil_lufs - profile['loudness']['integrated_lufs']
+    levels = {row['cue_id']: row['measured_lufs'] for row in selections}
+    calibrated = [dict(row, gain_db=min(3., max(-72., row['gain_db'] + shift))) for row in music]
+    cue_lufs = {row['cue_id']: levels[row['cue_id']] + row['gain_db'] for row in calibrated}
+    return ducking.constant_bed(calibrated, effects, narration, samples,
+                                neil_lufs=neil_lufs, cue_lufs=cue_lufs, diagnostic_bgm=diagnostic_bgm)
+
+
+def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, ducking_settings=None,
+              constant=False, preserve_levels=False):
     from .workflow import lock, write
     ref = joint.binding(narration)
     recipe = [{key: row[key] for key in ('start_sample', 'end_sample', 'source_start_sample', 'gain_db', 'kind')}
               | {'source': row['source']['sha256'], 'envelope': row.get('envelope')} for row in stems]
+    for row, item in zip(stems, recipe, strict=True):
+        item.update({key: row[key] for key in ('pcm_downmix', 'loop_analysis') if key in row})
     identity = {'version': VERSION, 'encoder': AAC_ARGS, 'headroom': 1,
                 'narration': ref['sha256'], 'stems': recipe, 'samples': expected}
     if ducking_settings:
         identity['ducking'] = ducking_settings
+    if constant:
+        identity['constant_bed'] = ducking.CONSTANT_SETTINGS
+    if preserve_levels:
+        identity['preserve_levels'] = True
     key = digest(identity)
     folder = Path(cache) / key
     if joint.pcm_frames(narration) != expected:
@@ -329,7 +570,9 @@ def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, d
         if complete.is_file():
             try:
                 receipt = json.loads(complete.read_text())
-                if receipt['cache_key'] == key:
+                if (receipt['cache_key'] == key
+                        and receipt.get(MIX_MODE_FIELD) == (ducking.CONSTANT_BED if constant else None)
+                        and (not preserve_levels or receipt['output_gain_db'] == 0)):
                     receipt['stems'] = stems
                     if bool(receipt['master']) != bool(stems or receipt.get('output_gain_db')):
                         raise ValueError('Cached master receipt is incomplete')
@@ -341,17 +584,20 @@ def cache_mix(narration, expected, stems, *, cache=CACHE, check_masking=False, d
                 pass
         with TemporaryDirectory(dir=folder) as temp:
             candidate = Path(temp) / 'mix.wav'
-            headroom = render_with_headroom(stems, narration, expected, candidate, check_masking=check_masking)
+            headroom = render_with_headroom(stems, narration, expected, candidate, check_masking=check_masking,
+                                            preserve_levels=preserve_levels)
             if stems or headroom:
                 candidate.replace(output)
         receipt = {'schema_version': 1, 'master': joint.binding(output) if stems or headroom else None,
                    'stems': stems, 'output_gain_db': headroom, 'cache_key': key}
+        if constant:
+            receipt[MIX_MODE_FIELD] = ducking.CONSTANT_BED
         write(complete, receipt)
         (folder / '.last-used').touch()
         return (receipt if receipt['master'] else None), False
 
 
-def render_with_headroom(stems, narration, expected, output, *, check_masking):
+def render_with_headroom(stems, narration, expected, output, *, check_masking, preserve_levels=False):
     """Measure the actual codec overshoot and record modest uniform bus attenuation."""
     module = narration_module()
     profile = module.effective_profile({'narration_profile': 'config/narration-neil.json'})
@@ -373,6 +619,8 @@ def render_with_headroom(stems, narration, expected, output, *, check_masking):
             raise
         if true_peak <= peak_limit:
             return gain
+        if preserve_levels:
+            raise ValueError(f'AAC true peak {true_peak} dBTP exceeds {peak_limit} dBTP at fixed narration/SFX gain')
         gain = round(gain - (true_peak - peak_limit) - .25, 2)
         if gain < -3:
             break
@@ -388,6 +636,18 @@ def arrange(document, measured, *, directory, catalog=audio_library.LIBRARY, cac
     narration = joint.bound(measured['narration_audio'])
     samples = direction['frame_count'] * joint.SAMPLES_PER_FRAME
     settings = direction.get('ducking')
+    constant = direction.get(MIX_MODE_FIELD) == ducking.CONSTANT_BED
+    preserve_levels = bool(default_bgm(document))
+    blocked_default = preserve_levels and bool(missing)
+    if constant and not blocked_default:
+        music, calibration = calibrate_constant(music, effects, narration, samples, measured['speech'],
+                                                selections, profile)
+        if not calibration['usable']:
+            limiting_time = (calibration['limiting_sample'] or 0) / RATE
+            levels = ', '.join(f'{cue}: {row["fixed_lufs"]} LUFS' for cue, row in calibration['cues'].items())
+            raise ValueError(f'BGM does not fit the speech masking budget near {limiting_time:.3f}s at an '
+                             f'audible fixed level ({levels}). Select a different licensed track or review the conflict.')
+        direction['constant_bed_calibration'] = calibration
     if settings:
         music = ducking.apply(music, effects, narration, samples, measured['speech'], settings)
     add_sound_events(direction, effects)
@@ -396,7 +656,10 @@ def arrange(document, measured, *, directory, catalog=audio_library.LIBRARY, cac
                        selections=selections, missing=missing, rejected_records=rejected,
                        speech=[{k: row[k] for k in ('id', 'start_sample', 'end_sample')} for row in measured['speech']],
                        narration=measured['narration_audio'], audio_perceptual_review='UNKNOWN')
-    mix_receipt, hit = cache_mix(narration, samples, music + effects, cache=cache, ducking_settings=settings)
+    mix_receipt, hit = None, False
+    if not blocked_default:
+        mix_receipt, hit = cache_mix(narration, samples, music + effects, cache=cache, ducking_settings=settings,
+                                     constant=constant, check_masking=constant, preserve_levels=preserve_levels)
     arrangement['mix'] = mix_receipt
     folder = Path(directory) / digest(arrangement)
     path = folder / 'audio_direction.json'
@@ -420,11 +683,23 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
         return None
     ref = config.get('audio_direction')
     direction = json.loads(bound(ref).read_text())
+    constant = mix_mode(config) == ducking.CONSTANT_BED
+    default = default_bgm(config)
+    blocked_default = bool(default and direction['status'] == 'BLOCKED')
+    if (constant != (direction.get(MIX_MODE_FIELD) == ducking.CONSTANT_BED)
+            or (constant and (direction.get('ducking') is not None
+                              or (not blocked_default and not direction.get('constant_bed_calibration'))
+                              or (direction['mix'] and direction['mix'].get(MIX_MODE_FIELD) != ducking.CONSTANT_BED)))):
+        raise ValueError('Music direction or mix receipt differs from the pinned mix mode')
     if direction['status'] not in {'READY', 'SILENCE_DESIGNED', 'BLOCKED'} or direction['mix'] != config.get('audio_mix'):
         raise ValueError('Music direction differs from the executable mix')
     if direction['status'] == 'BLOCKED' and require_ready:
         raise ValueError('BGM BLOCKED at ' + ref['path'] + ' for '
-                         + ', '.join(row['cue_id'] + '/' + row['mode'] for row in direction['missing']))
+                         + ', '.join(row['cue_id'] + '/' + row.get('asset_id', row['mode']) for row in direction['missing'])
+                         + ' (' + ', '.join(row['reason'] for row in direction['rejected_records']) + ')')
+    if direction.get(DEFAULT_BGM_FIELD) != default or (default and
+            (direction['mix'] or {}).get('output_gain_db', 0) != 0):
+        raise ValueError('Fixed BGM policy or narration/SFX gain differs from the pinned defaults')
     inputs = [ref]
     stems = (direction['mix'] or {}).get('stems', [])
     music = [row for row in stems if row['kind'] == 'bgm']
@@ -446,9 +721,15 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
         path = bound(selection['catalog_record'])
         raw = json.loads(path.read_text())
         validate_rights(raw)
+        if default:
+            audio_library.require_active(raw)
         if any(selection[key] != raw[field] for key, field in (
                 ('asset_id', 'id'), ('theme', 'theme'), ('source', 'source'), ('license', 'license'))):
             raise ValueError('Selected music differs from its registered source and rights')
+        if default and selection['asset_id'] != direction.get('asset_id'):
+            raise ValueError('Selected music differs from the pinned or explicitly overridden asset')
+        if selection.get('pcm_downmix') != raw.get('pcm_downmix'):
+            raise ValueError('Selected music conversion differs from the catalog')
         inputs.extend((selection['catalog_record'], raw['license']['proof'], raw['source']))
     for row in music:
         decision = selections[row['cue_id']]
@@ -456,14 +737,19 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
                 ('id', 'asset_id'), ('source', 'source'), ('license', 'license'), ('catalog_record', 'catalog_record'))):
             raise ValueError('Music stem differs from its selection record')
     if blueprint is not None:
+        if policy(blueprint) != policy(config):
+            raise ValueError('Music mix mode differs from the frozen Blueprint')
         settings = direction.get('ducking')
         if settings is not None and settings != ducking.DEFAULT:
             raise ValueError('Unexpected adaptive ducking parameters')
         expected = plan_direction(blueprint, ducking_version=ducking.VERSION if settings else 1)
         verified_effects = sound_stems(blueprint['timeline'], blueprint.get('sound_events', []), mechanical=True)
         add_sound_events(expected, verified_effects)
-        if effects != verified_effects or any(direction[key] != value for key, value in expected.items()):
+        if ((not blocked_default and effects != verified_effects)
+                or any(direction[key] != value for key, value in expected.items())):
             raise ValueError('Sound design differs from the frozen story and verified action triggers')
+        if blocked_default:
+            return direction, inputs
         expected_stems = []
         for cue in cues:
             decision = selections.get(cue['id'])
@@ -471,13 +757,27 @@ def validate_arrangement(config, *, blueprint=None, measured=None, require_ready
                 continue
             row = next(stem for stem in music if stem['cue_id'] == cue['id'])
             track = audio_library.inspect(json.loads(bound(decision['catalog_record']).read_text()))
+            if track.get('loop_analysis') != decision.get('loop_analysis'):
+                raise ValueError('Music loop differs from the decoded source evidence')
             track['catalog_record'] = row['catalog_record']
             expected_stems.extend(lay_music(cue, track, decision['measured_lufs'], direction['speech'], effects))
-        if settings:
+        if settings or constant:
             narration = joint.bound(direction['narration'])
             samples = direction['frame_count'] * joint.SAMPLES_PER_FRAME
             dry_stems = expected_stems
-            expected_stems = ducking.apply(dry_stems, verified_effects, narration, samples, direction['speech'], settings)
+            if constant:
+                profile = narration_module().effective_profile({'narration_profile': 'config/narration-neil.json'})
+                for decision in selections.values():
+                    with audio_library.pcm_path(bound(decision['source']), downmix=decision.get('pcm_downmix')) as pcm:
+                        if measured_lufs(pcm, profile) != decision['measured_lufs']:
+                            raise ValueError('Constant bed source loudness differs from the measured music')
+                expected_stems, calibration = calibrate_constant(dry_stems, verified_effects, narration, samples,
+                                                                 direction['speech'], list(selections.values()), profile)
+                if not calibration['usable'] or direction['constant_bed_calibration'] != calibration:
+                    raise ValueError('Constant bed calibration differs from the measured audio')
+            else:
+                expected_stems = ducking.apply(dry_stems, verified_effects, narration, samples, direction['speech'],
+                                               settings)
             if analysis is not None and music:
                 analysis.extend(ducking.describe(
                     ducking.measurements(dry_stems, narration, samples),
@@ -524,7 +824,8 @@ def postprocess(source, blueprint, output, *, catalog=audio_library.LIBRARY, cac
     source_ref = joint.binding(source)
     ref, mixture, hit = arrange(blueprint, measured, directory=output.parent / 'audio-direction',
                                 catalog=catalog, cache=cache)
-    config = {FIELD: VERSION, 'audio_direction': ref, 'audio_mix': mixture}
+    config = {key: blueprint[key] for key in POLICY_FIELDS if key in blueprint}
+    config.update({FIELD: VERSION, 'audio_direction': ref, 'audio_mix': mixture})
     arrangement, _ = validate_arrangement(config, blueprint=blueprint, measured=measured, require_ready=True)
     track = joint.bound(mixture['master'] if mixture else measured['narration_audio'])
     if mixture:

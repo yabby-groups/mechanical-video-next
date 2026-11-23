@@ -285,9 +285,12 @@ def apply_envelope(samples, first, gain, points):
 
 
 def process_mix(stem_rows, master_path, expected_samples, *, destination=None, reference=None,
-                check_masking=True, output_gain_db=0, observe=None):
+                check_masking=True, output_gain_db=0, observe=None, observe_masking=None,
+                diagnostic_bgm=None):
     """Stream the same declared source windows and gain law for rendering and verification."""
-    from .audio_library import open_pcm
+    from .audio_library import RIGHTS_REVIEW_REQUIRED, open_pcm
+    if diagnostic_bgm is not None and reference is not None:
+        raise ValueError('A diagnostic music source cannot be used to verify a formal mix')
     if type(output_gain_db) not in (int, float) or not -3 <= output_gain_db <= 0:
         raise ValueError('Mix headroom trim must be between -3 and 0 dB')
     output_gain = 10 ** (output_gain_db / 20)
@@ -300,18 +303,24 @@ def process_mix(stem_rows, master_path, expected_samples, *, destination=None, r
             output.setparams((1, 2, joint.SAMPLE_RATE, 0, 'NONE', 'not compressed'))
         sources, stems, music_peaks = {}, [], {}
         for row in stem_rows:
-            validate_rights(row)
+            pending = (diagnostic_bgm is not None and row['kind'] == 'bgm' and row['source'] == diagnostic_bgm
+                       and row['license_status'] == RIGHTS_REVIEW_REQUIRED)
+            if not pending:
+                validate_rights(row)
             source = bound(row['source'])
-            if source not in sources:
-                sources[source] = stack.enter_context(open_pcm(source))
-            wav = sources[source]
+            decode_key = (source, row.get('pcm_downmix'))
+            if decode_key not in sources:
+                sources[decode_key] = stack.enter_context(open_pcm(source, downmix=decode_key[1]))
+            wav = sources[decode_key]
             start, end, offset, gain = (row[key] for key in ('start_sample','end_sample','source_start_sample','gain_db'))
             if (row['kind'] not in {'bgm', 'sfx'} or not all(type(v) is int for v in (start, end, offset))
                     or not 0 <= start < end <= expected_samples or offset < 0
                     or offset + end - start > wav.getnframes()
                     or type(gain) not in {int, float} or not math.isfinite(gain) or not -80 <= gain <= 12):
                 raise ValueError('Unverified audio stem interval, format or gain')
-            inputs.extend((row['source'], row['license']['proof']))
+            inputs.append(row['source'])
+            if not pending:
+                inputs.append(row['license']['proof'])
             cue = row.get('cue_id') if row['kind'] == 'bgm' else None
             if cue is not None:
                 music_peaks[cue] = 0.
@@ -328,7 +337,8 @@ def process_mix(stem_rows, master_path, expected_samples, *, destination=None, r
                 active.append(stems[cursor])
                 cursor += 1
             independent_background_power = 0.
-            music = [0.] * len(voice) if observe else None
+            music = [0.] * len(voice) if observe or observe_masking else None
+            music_power = effects_power = 0.
             music_norm = effects_norm = 0.
             for wav, left, right, offset, gain, points, cue, kind in active:
                 first, stop = max(left, start), min(right, end)
@@ -338,16 +348,23 @@ def process_mix(stem_rows, master_path, expected_samples, *, destination=None, r
                     music_peaks[cue] = max(music_peaks[cue], max(map(abs, stem)))
                 stem_power = math.sumprod(stem, stem)
                 independent_background_power += stem_power
-                if observe:
+                if music is not None:
                     if kind == 'bgm':
                         music_norm += math.sqrt(stem_power)
+                        music_power += stem_power
                         for index, sample in enumerate(stem, first - start):
                             music[index] += sample
                     else:
                         effects_norm += math.sqrt(stem_power)
+                        effects_power += stem_power
                 for index, sample in enumerate(stem, first - start):
                     background[index] += sample
             power = math.sumprod(voice, voice)
+            if observe_masking:
+                effects = [total - bed for total, bed in zip(background, music, strict=True)]
+                observe_masking(start, end, power, music_power, effects_power,
+                                math.sumprod(music, music), math.sumprod(effects, effects),
+                                math.sumprod(music, effects))
             if observe:
                 observe(start, end, power, math.sumprod(music, music), music_norm, effects_norm,
                         max(independent_background_power, math.sumprod(background, background)))
@@ -356,7 +373,8 @@ def process_mix(stem_rows, master_path, expected_samples, *, destination=None, r
                     > power / (10 ** (MIN_MIX_MARGIN_DB / 10))):
                 raise ValueError(f'Potential BGM or effect masking near {start / joint.SAMPLE_RATE:.3f}s requires audio review')
             values = [(speech + bed) * output_gain for speech, bed in zip(voice, background, strict=True)]
-            if ((not observe or output or mixed) and any(abs(value) >= 32767 for value in values)
+            if (((not observe and not observe_masking) or output or mixed)
+                    and any(abs(value) >= 32767 for value in values)
                     or (mixed and any(abs(actual - expected) > 2 for actual, expected
                                      in zip(wav_samples(mixed, end - start), values, strict=True)))):
                 raise ValueError(f'Bound mix clips or differs from the declared stem gains near {start / joint.SAMPLE_RATE:.3f}s')
@@ -406,7 +424,7 @@ def verify(timeline, blueprint):
         raise ValueError('Final AAC ends before the last measured Neil utterance')
     master = joint.bound(measured['narration_audio'])
     config, props, build_inputs = verify_build(media, timeline, blueprint, measured)
-    if music != director_audio.enabled(config):
+    if director_audio.policy(blueprint) != director_audio.policy(config):
         raise ValueError('Final build changed the pinned music policy')
     windows = []
     arrangement = director_audio.validate_arrangement(config, blueprint=blueprint, measured=measured,
@@ -433,9 +451,16 @@ def verify(timeline, blueprint):
     if filehash(final) != media['sha256']:
         raise ValueError('Final MP4 changed during audio verification')
     adaptive_evidence = {}
-    if arrangement and design.get('ducking'):
+    if arrangement and (design.get('ducking') or design.get('constant_bed_calibration')):
         from .ducking import review_metrics
-        adaptive_evidence = dict(ducking=design['ducking'], **review_metrics(windows))
+        adaptive_evidence = review_metrics(windows)
+        if 'ducking' in design:
+            adaptive_evidence['ducking'] = design['ducking']
+        else:
+            adaptive_evidence['constant_bed_calibration'] = design['constant_bed_calibration']
+            adaptive_evidence['music_loop_analysis'] = [
+                {'cue_id': row['cue_id'], **row['loop_analysis']} for row in design['selections']
+                if 'loop_analysis' in row]
     return dict(identity, **comparison, media_sha256=media['sha256'], verified_sample_range=[0, sample_count],
                 integrated_lufs=float(levels['input_i']), reference_loudness_lufs=reference_lufs,
                 true_peak_dbtp=float(levels['input_tp']),
