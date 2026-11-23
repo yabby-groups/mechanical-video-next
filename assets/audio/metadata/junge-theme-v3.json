@@ -1,0 +1,40 @@
+{
+  "id": "junge-theme-v3",
+  "title": "《君哥拆机器》V3",
+  "theme": "junge-theme",
+  "source": {
+    "path": "assets/audio/bgm/君哥拆机器-V3.wav",
+    "sha256": "718ead7e057ecad8d2f848d874f51d867c9fafe849481b3adedfd1e4b302ec8b"
+  },
+  "source_url": "https://chatgpt.com/",
+  "production_source": "用户选定的本地 V3 WAV。macOS 下载元数据记录 ChatGPT，具体制作工程及导出记录待核实。",
+  "author": null,
+  "duration_seconds": 80.0,
+  "channels": 2,
+  "sample_rate": 48000,
+  "codec": "pcm_s16le",
+  "style": ["light game electronic"],
+  "mood": ["playful", "gentle"],
+  "use_cases": ["机械拆解", "生活科学", "知识科普"],
+  "energy": 0.45,
+  "bpm": 120,
+  "speech_fit": 0.7,
+  "sfx_fit": 0.7,
+  "tier": "original",
+  "loopable": true,
+  "loop_samples": [960000, 3269760],
+  "loop_crossfade_samples": 5760,
+  "source_type": "REFERENCE_ONLY",
+  "license_status": "RIGHTS_REVIEW_REQUIRED",
+  "credit": "《君哥拆机器》V3（作者及署名要求待核实）",
+  "usage_restrictions": ["仅本地技术测试和内部试听。正式交付需要核实商业编辑、音乐同步和分发权利。"],
+  "license": {
+    "status": "RIGHTS_REVIEW_REQUIRED",
+    "holder": null,
+    "name": null,
+    "commercial_use": null,
+    "editing_and_distribution": null,
+    "proof": null
+  },
+  "rights_evidence": "docs/junge-theme-v3-rights.md"
+}

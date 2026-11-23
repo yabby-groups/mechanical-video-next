@@ -1,0 +1,42 @@
+{
+  "id": "junge-theme-v4",
+  "title": "《君哥拆机器》V4 · 动感增强版",
+  "theme": "junge-theme",
+  "source": {
+    "path": "assets/audio/bgm/君哥拆机器-V4.wav",
+    "sha256": "dee1879199239573889bfddba5fa3bfeb07c7a9398127c6893a80e70db3a18c3"
+  },
+  "source_url": "https://chatgpt.com/",
+  "production_source": "用户选定的本地 V4 WAV，基于先前版本制作。macOS 下载元数据记录 ChatGPT，制作工程和音色清单待核实。",
+  "author": null,
+  "duration_seconds": 80.0,
+  "channels": 2,
+  "sample_rate": 48000,
+  "codec": "pcm_s16le",
+  "source_loudness_lufs": -17.02,
+  "source_true_peak_dbtp": -1.72,
+  "pcm_downmix": "stereo_average",
+  "style": ["light game electronic"],
+  "mood": ["playful", "energetic"],
+  "use_cases": ["机械拆解", "生活科学", "知识科普"],
+  "energy": 0.6,
+  "bpm": 120,
+  "speech_fit": 0.7,
+  "sfx_fit": 0.7,
+  "loopable": true,
+  "loop_samples": [960000, 3269760],
+  "loop_crossfade_samples": 5760,
+  "source_type": "REFERENCE_ONLY",
+  "license_status": "RIGHTS_REVIEW_REQUIRED",
+  "credit": "《君哥拆机器》V4（作者及署名要求待核实）",
+  "usage_restrictions": ["仅本地技术测试和内部试听。正式交付需要核实商业编辑、音乐同步和分发权利。"],
+  "license": {
+    "status": "RIGHTS_REVIEW_REQUIRED",
+    "holder": null,
+    "name": null,
+    "commercial_use": null,
+    "editing_and_distribution": null,
+    "proof": null
+  },
+  "rights_evidence": "docs/junge-theme-v4-rights.md"
+}
