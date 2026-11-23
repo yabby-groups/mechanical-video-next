@@ -564,10 +564,13 @@ gates follow the pinned task policies. Unknown capabilities stay UNKNOWN.
 
 ### Technical audio acceptance for verified Neil narration
 
-New Producer-directed tasks pin `music_direction_version=1`. The Producer
-directs music from the Treatment, story observations and action clock. The
-existing Editor uses the registered rights-verified catalog and measured Neil
-to produce the score, action effects and sample-verifiable mix. Formal delivery
+New Producer-directed tasks pin `music_direction_version=1` and
+`music_mix_mode=constant_bed` with `default_bgm=junge-theme-v4`. The Producer
+directs intentional music silence or an explicit, rights-verified track override.
+The Editor uses the measured Neil timeline and original mechanical effects at
+their authored levels. The continuous score has one base gain with authored fades
+and waveform-verified loop transitions. A missing or unverified selected track
+blocks the mix from formal delivery. Formal delivery
 requires technical audio PASS and independent continuous listening on the exact
 MP4. Documented intentional silence follows the same review. See
 [automatic music direction](audio-direction.md) for the inputs and outputs.
