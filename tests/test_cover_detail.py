@@ -10,6 +10,8 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw
 from mechanical_video_next import covers
 
+from fixture_fonts import test_font
+
 
 class CoverDetailTests(unittest.TestCase):
     def setUp(self):
@@ -18,7 +20,7 @@ class CoverDetailTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.main = self.image('main.png', (170, 20, 20), (255, 220, 10))
         self.detail = self.image('detail.png', (20, 140, 20), (10, 230, 240))
-        self.plan = {'title':['机械原理'], 'series':'科普系列', 'portrait_detail_label':'局部细节'}
+        self.plan = {'font_path': test_font(), 'title':['机械原理'], 'series':'科普系列', 'portrait_detail_label':'局部细节'}
         self.box = [0, 0, 1, 1]
 
     def image(self, name, bg, marker):

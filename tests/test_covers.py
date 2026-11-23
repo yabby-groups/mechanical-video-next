@@ -7,6 +7,8 @@ import unittest
 from unittest.mock import patch
 from mechanical_video_next import covers as c
 
+from fixture_fonts import test_font
+
 
 class CoverTests(unittest.TestCase):
     def setUp(self):
@@ -19,7 +21,7 @@ class CoverTests(unittest.TestCase):
         self.paths = {r:video for r in c.ROUTES}
         self.data = {'topic':'测试齿轮','route_runs':{r:{'outputs':{'path':str(video)}} for r in c.ROUTES}}
         c.write(self.task/'task.json', self.data)
-        self.plan = dict(topic='测试齿轮', recommended_route='3d', recommendation_reason='空间关系清晰',
+        self.plan = dict(font_path=test_font(), topic='测试齿轮', recommended_route='3d', recommendation_reason='空间关系清晰',
             route_analysis={r:dict(suitability='UNKNOWN',reason='待实际审查') for r in c.ROUTES},
             title=['齿轮如何传动？'], series='拆开机器', copy_rationale='讲解传动关系',frame_rationale='可见输入输出',
             selected_candidate='main', candidates=[dict(id='main', route='3d', seconds=0, shot_id='s1',

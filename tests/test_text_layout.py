@@ -1,5 +1,6 @@
 import copy
 import unittest
+from fixture_fonts import require_approved_font
 from mechanical_video_next.text_layout import (load_style, measure_text, split_text,
                                                normalize_cues, scaled_style, validate_layout, prepare_text_props,
                                                resolved_font_family, font_path, measured_font)
@@ -7,6 +8,7 @@ from mechanical_video_next.text_layout import (load_style, measure_text, split_t
 
 class TextLayoutTests(unittest.TestCase):
     def test_moving_anchor_in_subtitle_reports_located_frame(self):
+        require_approved_font()
         from mechanical_video_next.science_information import observation_overlay_findings
 
         props = dict(width=1920, height=1080, fps=30, duration=2,
@@ -19,13 +21,15 @@ class TextLayoutTests(unittest.TestCase):
                                   for index in (58, 59)])
 
     def test_original_font_collection_resolves_correct_family(self):
+        require_approved_font()
         style = load_style()
         path = font_path(style)
-        if 'PingFang' in path:
-            self.assertEqual(measured_font(64, style).getname(), ('PingFang SC', 'Medium'))
-            self.assertEqual(resolved_font_family(style), 'PingFang SC')
+        self.assertIn('PingFang', path)
+        self.assertEqual(measured_font(64, style).getname(), ('PingFang SC', 'Medium'))
+        self.assertEqual(resolved_font_family(style), 'PingFang SC')
 
     def test_measured_split_exact_text_and_terms(self):
+        require_approved_font()
         text = '推块持续把订书钉向前顶，回位弹簧让整个机构回到初始位置。'
         chunks = split_text(text)
         self.assertEqual(''.join(chunks), text)
@@ -34,6 +38,7 @@ class TextLayoutTests(unittest.TestCase):
         self.assertTrue(any('回位弹簧' in c for c in chunks))
 
     def test_actual_font_width_blocks_overflow(self):
+        require_approved_font()
         style = load_style()
         style['subtitle']['safe_box'][2] = 350
         chunks = split_text('金属零件持续向前运动', style=style)
@@ -42,6 +47,7 @@ class TextLayoutTests(unittest.TestCase):
             split_text('回位弹簧', style=style)
 
     def test_no_guessed_timing_or_audio_mutation(self):
+        require_approved_font()
         cues = [{'start': 0., 'end': 5., 'text': '推块持续把订书钉向前顶，弹簧推动整个机构回到初始位置，然后开始下一个动作。'}]
         original = copy.deepcopy(cues)
         with self.assertRaisesRegex(ValueError, 'verified segment alignment'):
@@ -82,6 +88,7 @@ class TextLayoutTests(unittest.TestCase):
             scaled_style(390, 390)
 
     def test_prepare_all_routes_and_credit_share_region_by_time(self):
+        require_approved_font()
         props = {'title': '02 从送料到折脚', 'duration': 6., 'fps': 30,
                  'shots': [{'seconds': 3}, {'seconds': 3}],
                  'fullframe_caption': '尺寸按比例简化', 'fullframe_credit': '资料来源已记录',
@@ -99,6 +106,7 @@ class TextLayoutTests(unittest.TestCase):
         self.assertEqual(props, original)
 
     def test_prepare_rejects_crowding_and_unmeasured_text(self):
+        require_approved_font()
         props = {'title': '机械原理', 'duration': 6., 'cues': [], 'annotations': [
             {'layer': 'part', 'text': '推块', 'start': 0, 'end': 4},
             {'layer': 'part', 'text': '钉条', 'start': 3, 'end': 6}]}

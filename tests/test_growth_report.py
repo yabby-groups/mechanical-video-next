@@ -5,6 +5,8 @@ import unittest
 import subprocess
 from mechanical_video_next import growth_report as gr
 
+from fixture_fonts import test_font
+
 
 class GrowthReportTests(unittest.TestCase):
     def setUp(self):
@@ -20,7 +22,7 @@ class GrowthReportTests(unittest.TestCase):
         gr.write(self.task/'cover-plan.json', dict(topic='gear', recommended_route='3d',
             recommendation_reason='Synthetic test recommendation',
             route_analysis={r: dict(suitability='UNKNOWN', reason='Not reviewed') for r in gr.ROUTES},
-            title=['Gear motion'], series='Mechanisms', copy_rationale='Test copy', frame_rationale='Test frame',
+            font_path=test_font(), title=['Gear motion'], series='Mechanisms', copy_rationale='Test copy', frame_rationale='Test frame',
             selected_candidate='main', candidates=[dict(id='main', route='3d', seconds=0,
                 shot_id='s1', mechanical_moment='Test motion', subject_box=[0, 0, 1, 1])]))
         gr.generate(self.task, paths, video)
