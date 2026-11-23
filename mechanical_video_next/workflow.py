@@ -460,7 +460,7 @@ def continuation(task, persist=True):
                         next_action=action, rendered_routes={'3d':media} if media else {},
                         background_execution=False, execution_mode='current_native_codex_session')
                     if persist:
-                        with lock(task / '.ledger.lock'):
+                        with lock(task / '.ledger.lock', wait=True):
                             current = load(task)
                             current.update(continuation=result, production_status=status, next_step=action['action'])
                             write(task / 'task.json', current)
@@ -505,7 +505,7 @@ def continuation(task, persist=True):
                 rendered_shots=rendered_shots, invalid_evidence=invalid_shots, background_execution=False,
                 execution_mode='current_native_codex_session')
             if persist:
-                with lock(task / '.ledger.lock'):
+                with lock(task / '.ledger.lock', wait=True):
                     current = load(task)
                     current.update(continuation=result, production_status=status, next_step=action['action'])
                     write(task / 'task.json', current)
@@ -582,7 +582,7 @@ def continuation(task, persist=True):
                                       'produce', '--resume', str(task)],
                       execution_mode='current_native_codex_session', background_execution=False)
         if persist:
-            with lock(task / '.ledger.lock'):
+            with lock(task / '.ledger.lock', wait=True):
                 current = load(task)
                 current['continuation'] = result
                 current['next_step'] = action['action']
@@ -898,7 +898,7 @@ def continuation(task, persist=True):
                   resume_command=resume, execution_mode='current_native_codex_session',
                   background_execution=False)
     if persist:
-        with lock(task / '.ledger.lock'):
+        with lock(task / '.ledger.lock', wait=True):
             current = load(task)
             current['continuation'] = result
             current['next_step'] = action['action']
@@ -1901,10 +1901,53 @@ def retire_creative_direction(data, name, verdict):
                         stage_offset=len(data['stages'])))
 
 
+def prepare_handoff(task, envelope):
+    """Recover a sealed orphan or reserve the next unused immutable version."""
+    folder = Path(task) / 'handoffs'
+    while True:
+        name, version = envelope['name'], envelope['version']
+        path = folder / f'{name}.v{version}.json'
+        expected = dict(envelope, sha256=digest(envelope))
+        if not path.exists() and not path.is_symlink():
+            write(path, expected)
+            return path, expected, False
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f'Invalid immutable handoff path: {path}')
+        try:
+            existing = json.loads(path.read_text())
+        except (UnicodeError, json.JSONDecodeError) as error:
+            raise ValueError(f'Invalid orphan handoff; preserved at {path}') from error
+        if (not isinstance(existing, dict) or existing.get('schema_version') != 1
+                or existing.get('name') != name or type(existing.get('version')) is not int
+                or existing['version'] != version
+                or not isinstance(existing.get('role'), str)
+                or not isinstance(existing.get('dependencies'), dict)
+                or not isinstance(existing.get('payload'), dict)
+                or not isinstance(existing.get('visual_evidence'), dict)
+                or not isinstance(existing['visual_evidence'].get('images'), list)
+                or any(not isinstance(image, dict) for image in existing['visual_evidence']['images'])
+                or existing.get('sha256') != digest({k: v for k, v in existing.items() if k != 'sha256'})):
+            raise ValueError(f'Invalid orphan handoff identity or hash; preserved at {path}')
+        if handoff_identity(existing) == handoff_identity(expected):
+            return path, existing, True
+        envelope['version'] += 1
+
+
+def handoff_identity(envelope):
+    content = {key: value for key, value in envelope.items() if key != 'sha256'}
+    visuals = content['visual_evidence']
+    # Preparation time and cache telemetry can change during a retry.
+    content['visual_evidence'] = dict(visuals, images=[
+        {key: value for key, value in image.items() if key not in {'elapsed_seconds', 'cache_hit'}}
+        for image in visuals['images']
+    ])
+    return digest(content)
+
+
 def put_handoff(task, role, name, payload, dependencies=None):
     if not isinstance(payload, dict):
         raise ValueError('Handoff payload must be an object')
-    with lock(Path(task) / '.ledger.lock'):
+    with lock(Path(task) / '.ledger.lock', wait=True):
         data = load(task)
         competition = editorial_policy.enabled(data)
         directed = producer_directed(data)
@@ -2302,11 +2345,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
                         dependencies=deps, payload=payload, visual_evidence=visual_evidence)
         if competition and name == 'research' and 'research' in data['handoffs']:
             envelope['previous_research'] = dict(data['handoffs']['research'])
-        envelope['sha256'] = digest(envelope)
-        path = f'handoffs/{name}.v{version}.json'
-        if (Path(task) / path).exists():
-            raise ValueError('Immutable handoff already exists')
-        write(Path(task) / path, envelope)
+        path, envelope, recovered = prepare_handoff(task, envelope)
+        version = envelope['version']
+        path = str(path.relative_to(task))
         if data.get('reference_policy_version') == 1 and name == 'asset-plan':
             data['asset_strategy'] = payload['strategy']
         if directed and name == 'creative-blueprint':
@@ -2320,9 +2361,11 @@ def put_handoff(task, role, name, payload, dependencies=None):
             versions[name] = version
         if verdict and verdict['outcome'] in editorial_policy.STORY_FAILURE:
             retire_creative_direction(data, name, verdict)
-        write(Path(task) / 'task.json', data)
+        # Journal the sealed version before moving the ledger pointer. If a
+        # retry is needed the recovery event shares the same immutable hash.
         event(task, 'handoff', role=role, name=name, version=version,
-              sha256=envelope['sha256'])
+              sha256=envelope['sha256'], recovered=recovered)
+        write(Path(task) / 'task.json', data)
     continuation(task)
     return envelope
 
