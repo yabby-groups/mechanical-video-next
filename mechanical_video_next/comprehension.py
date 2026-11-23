@@ -3,11 +3,11 @@
 Planning validates traceability; media acceptance additionally requires an independent
 reviewer's observations of the exact encoded video and narration. Neither generates PASS.
 """
-import hashlib
 import math
 from pathlib import Path
 import json
 import subprocess
+from scripts.common import filehash, read_input_json
 
 PRODUCT_FIELDS = ('product_id', 'name', 'type', 'model_scope', 'appearance', 'purpose',
                   'operation', 'observable_action', 'mechanism_id')
@@ -47,7 +47,7 @@ def _interval(value, outer=None):
 
 def _binding(row, label):
     path = Path(row.get('path', ''))
-    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != row.get('sha256'):
+    if not path.is_file() or filehash(path) != row.get('sha256'):
         raise ValueError(label + ': missing or stale file binding')
     return path
 
@@ -274,7 +274,7 @@ def validate_media_qa(blueprint, report, media=None):
             for binding in receipts:
                 receipt_path = _binding(binding, 'Actual comprehension review receipt')
                 try:
-                    receipt = json.loads(receipt_path.read_text())
+                    receipt = read_input_json(receipt_path)
                 except (ValueError, UnicodeError) as exc:
                     raise ValueError('Comprehension review receipt must be structured observation JSON') from exc
                 expected_receipt = dict(reviewer_thread_id=reviewer, category=category)

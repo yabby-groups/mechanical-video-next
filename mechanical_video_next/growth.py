@@ -311,12 +311,11 @@ def _validate_observation_receipts(row, plan, reviewer):
     A hash-bound unrelated photograph or note cannot attest continuous viewing.
     These are independent-review receipts, not an automated perceptual oracle.
     """
-    import json
-    from pathlib import Path
+    from scripts.common import read_input_json
     covered = []
     for ref in row['actual_media_evidence']:
         try:
-            receipt = json.loads(Path(ref['path']).read_text())
+            receipt = read_input_json(ref['path'])
         except (OSError, ValueError, UnicodeError):
             raise ValueError('Growth evidence must be a readable actual-media review receipt') from None
         t = receipt.get('time_range') if isinstance(receipt,dict) else None

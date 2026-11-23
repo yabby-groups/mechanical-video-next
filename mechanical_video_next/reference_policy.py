@@ -6,6 +6,7 @@ watched a source, reviewed geometry, or acquired rights on an agent's behalf.
 import hashlib
 import json
 from pathlib import Path
+from scripts.common import filehash, read_input_json, read_input_bytes
 from .growth import finite
 
 STRATEGIES = ('existing-media', 'verified-existing', 'autonomous-cad')
@@ -16,7 +17,7 @@ CONTENT_CHECKS = ('reliable_sources', 'specific_mechanism', 'no_model_mixing',
 
 def model_program_digest(config):
     """Mechanical QA identity excludes narration, charts and composition metadata."""
-    from .workflow import digest, filehash
+    from .workflow import digest
     native={name:{k:v for k,v in shot.items() if k!='visual'}
             for name,shot in config.get('shots',{}).items() if shot.get('template')!='editorial'}
     assembly=Path(config['assembly_config'])
@@ -39,7 +40,7 @@ def validate_reference_model(report, mechanism_id):
     program=report.get('model_program')
     if program is not None:
         config=Path(program.get('path',''))
-        if (not config.is_file() or program.get('program_sha256') != model_program_digest(json.loads(config.read_text()))):
+        if (not config.is_file() or program.get('program_sha256') != model_program_digest(read_input_json(config))):
             raise ValueError('Mechanical model/motion program changed after independent review')
     from .media_policy import enabled as asset_first, validate_shot
     observed_footage = asset_first(report) and report.get('depicted_type') == 'licensed-real-mechanism'
@@ -53,7 +54,7 @@ def validate_reference_model(report, mechanism_id):
             validate_shot(row, row['duration'])
     for binding in report['bindings']:
         path = Path(binding.get('path', ''))
-        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != binding.get('sha256'):
+        if not path.is_file() or filehash(path) != binding.get('sha256'):
             raise ValueError('Reference-to-model source/model/animation binding missing or stale')
     seen = set()
     for part in report['parts']:
@@ -106,7 +107,7 @@ def validate_shot_evidence(shot, mechanism_id):
         for source in claim['sources']:
             _required(source, ('path', 'sha256', 'position', 'evidence', 'type'), 'Located shot source')
             path = Path(source['path'])
-            if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != source['sha256']:
+            if not path.is_file() or filehash(path) != source['sha256']:
                 raise ValueError('Scoped source missing or stale')
             if source['type'] == 'video':
                 if source.get('observation_status') != 'VIDEO_INSPECTED' or not source.get('viewed_ranges'):
@@ -118,7 +119,7 @@ def validate_shot_evidence(shot, mechanism_id):
             raise ValueError('REFERENCE_VIEW_UNKNOWN cannot support a depicted claim')
     for model in shot['model_bindings']:
         path = Path(model.get('path', ''))
-        if (not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != model.get('sha256')
+        if (not path.is_file() or filehash(path) != model.get('sha256')
                 or not model.get('license')):
             raise ValueError('Scoped model missing, stale or unlicensed')
     return shot
@@ -247,7 +248,7 @@ def validate_asset(research, asset):
     if selected[0] != 'autonomous-cad':
         for source in candidate['source_files']:
             path = Path(source.get('path', ''))
-            if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != source.get('sha256'):
+            if not path.is_file() or filehash(path) != source.get('sha256'):
                 raise ValueError('Existing asset source missing or changed')
         if selected[0] == 'verified-existing' and asset.get('model') not in candidate['source_files']:
             raise ValueError('Selected assembly must bind the actual asset model')
@@ -331,17 +332,17 @@ def plan_digest(blueprint, research, asset):
 
 def validate_route_plan(path, binding):
     path = Path(path)
-    if (Path(binding.get('path', '')).resolve() != path.resolve()
-            or binding.get('sha256') != hashlib.sha256(path.read_bytes()).hexdigest()):
+    contents = read_input_bytes(path) if Path(binding.get('path', '')).resolve() == path.resolve() else None
+    if contents is None or binding.get('sha256') != hashlib.sha256(contents).hexdigest():
         raise ValueError('Route plan must bind exact independently reviewed commands and inputs')
-    plan = json.loads(path.read_text())
+    plan = json.loads(contents)
     produced = set()
     external = {str(Path(p).resolve()) for p in plan.get('prerequisite_inputs', [])}
     for step in plan['steps']:
         external.update(str(Path(p).resolve()) for p in step.get('inputs', [])
                         if str(Path(p).resolve()) not in produced)
         produced.update(str(Path(p).resolve()) for p in step['outputs'])
-    actual = {p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in external}
+    actual = {p: filehash(p) for p in external}
     if binding.get('input_hashes') != actual:
         raise ValueError('Route plan external inputs differ from independent review')
 

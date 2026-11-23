@@ -10,7 +10,7 @@
     "reason": "Reviewed legacy no-science/no-context paths against pinned 86bd9b6: only guarded opt-in branches, conditional report fields and new-template camera handling differ. The explicit science.camera_clip branch also leaves these legacy paths unchanged. Science shots still use actual source hashes, including camera clipping changes. Evidence: docs/productions/cache-equivalence-audit-20261118.md"
   },
   "scripts/produce.py": {
-    "current_sha256": "ff8aac65fd80e5115e3421ade60be60883cd9ce49a589cb8292fde34179ab097",
+    "current_sha256": "4dbca226c1709b9c68242357739d543b3d0e9e0729490e23967e52a0652504e7",
     "media_equivalent_sha256": "cef6c56223c3ff59d19d6860d910321ccf59d8b603a50ce15ad399a9386554b9",
     "reason": "Stage authorization, cancellation and metrics retain the same completed composition inputs, renderer invocation and media recipe."
   },

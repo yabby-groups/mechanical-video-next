@@ -24,7 +24,7 @@ from .production_contract import (
     directed_story, flexible_story, match_mechanical_scope, mechanism_first, producer_directed,
     skill_driven, story_development,
 )
-from scripts.common import CleanupBusy, filehash, hashed_inputs, input_hashes
+from scripts.common import CleanupBusy, filehash, input_hashes, read_input_bytes, read_input_json
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLES = {'Research': {'research', 'script'}, 'Asset': {'asset-plan'},
@@ -171,7 +171,7 @@ def require_current_scheme(data, candidate_preview=False):
             if technical_basis:
                 expected = {'research', 'asset-plan'}
             # Compare against the preserved ledger, not a mutable readiness label.
-            before = json.loads(Path(remake['previous_task_snapshot']).read_text())
+            before = read_input_json(remake['previous_task_snapshot'])
             if ((remake.get('primary_reference') or technical_basis)
                     and (candidate_preview or remake.get('preview_accepted') is True or technical_basis)
                     and expected <= set(handoffs)
@@ -203,7 +203,7 @@ def require_source_supported_render(task, config=None):
     config = Path(config or data.get('config') or '')
     if not config.is_file():
         return False
-    cfg = json.loads(config.read_text())
+    cfg = read_input_json(config)
     from .visual_narrative import VERSION, match_policy, version
     match_policy(data, cfg)
     if version(cfg) == VERSION and any(
@@ -236,7 +236,7 @@ def require_source_supported_render(task, config=None):
             assembly = Path(cfg['assembly_config']).resolve()
             if bound.get(assembly) != filehash(assembly):
                 raise ValueError('Scoped assembly is not the evidenced model')
-            assembly_data = json.loads(assembly.read_text())
+            assembly_data = read_input_json(assembly)
             validate_asset(assembly_data, data.get('mechanism_id'))
             if assembly_data.get('model_source'):
                 model_source = assembly_data['model_source']
@@ -255,7 +255,7 @@ def require_source_supported_render(task, config=None):
             inventory = row.get('inventory', {})
             if filehash(inventory.get('path', '')) != inventory.get('sha256'):
                 raise ValueError('Scoped numerical inventory missing or stale')
-            solids = json.loads(Path(inventory['path']).read_text())
+            solids = read_input_json(inventory['path'])
             inspected = {s['name'] for s in solids if s.get('valid') is True and s.get('solids') == 1 and s.get('volume_mm3', 0) > 0}
             if not allowed_parts <= inspected:
                 raise ValueError('Scoped geometry has invalid or unknown solids')
@@ -275,7 +275,7 @@ def require_source_supported_render(task, config=None):
             if (filehash(preview['config']['path']) != preview['config']['sha256']
                     or preview.get('assembly_sha256') != filehash(cfg['assembly_config'])):
                 raise ValueError('Full film cannot substitute the source-bound preview assembly')
-            preview_cfg = json.loads(Path(preview['config']['path']).read_text())
+            preview_cfg = read_input_json(preview['config']['path'])
             if filehash(preview_cfg['assembly_config']) != preview['assembly_sha256']:
                 raise ValueError('Actual preview must use the same source-bound assembly')
             info = json.loads(subprocess.check_output(['ffprobe','-v','error','-show_format',
@@ -317,7 +317,7 @@ def require_source_supported_render(task, config=None):
     inventory = candidate.get('validation_evidence', {})
     if not isinstance(inventory, dict) or filehash(inventory.get('path', '')) != inventory.get('sha256'):
         raise ValueError('Current CAD numerical inventory binding required')
-    rows = json.loads(Path(inventory['path']).read_text())
+    rows = read_input_json(inventory['path'])
     if not isinstance(rows, list) or not rows or any(
             row.get('valid') is not True or row.get('solids') != 1 or row.get('volume_mm3', 0) <= 0 for row in rows):
         raise ValueError('Invalid/UNKNOWN CAD solids prevent technical rendering')
@@ -334,7 +334,7 @@ def require_source_supported_render(task, config=None):
     if not any(row.get('phase') == 'local' and row.get('command_success') is True
                and row.get('config_sha256') == preview_config['sha256'] for row in data.get('stages', [])):
         raise ValueError('Successful actual new preview stage evidence required')
-    old_cfg = json.loads(Path(preview_config['path']).read_text())
+    old_cfg = read_input_json(preview_config['path'])
     def assembly(value):
         path = Path(value['assembly_config'])
         return path if path.is_absolute() else ROOT / path
@@ -1569,7 +1569,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
         raise ValueError('3D-only production rejects illustrated assets')
     progression = visual_policy_version == VERSION
     if config:
-        cfg = json.loads(Path(config).read_text())
+        cfg = read_input_json(config)
         validate_config(cfg)
         policy = {FIELD: visual_policy_version}
         if hybrid:
@@ -1690,9 +1690,7 @@ def artifact(task, name):
     if not entry:
         raise ValueError('Missing handoff: ' + name)
     path = Path(task) / entry['path']
-    contents = path.read_bytes()
-    hashed_inputs(path, hashlib.sha256(contents).hexdigest())
-    envelope = json.loads(contents)
+    envelope = read_input_json(path)
     body = {k: v for k, v in envelope.items() if k != 'sha256'}
     if digest(body) != entry['sha256'] or envelope['sha256'] != entry['sha256']:
         raise ValueError('Handoff hash mismatch: ' + name)
@@ -1714,7 +1712,7 @@ def artifact(task, name):
                 raise ValueError('Creative draft edit plan missing or changed')
             if mechanism_first(data):
                 from .joint_timeline import bound
-                for shot in json.loads(plan_path.read_text())['core_3d']:
+                for shot in read_input_json(plan_path)['core_3d']:
                     bound(shot['source'])
     return payload
 
@@ -1729,7 +1727,7 @@ def require_visual_story_review(task):
     if not scene_direction_enabled(data):
         return
     draft = artifact(task, 'diagnostic-animatic')
-    plan = json.loads(Path(draft['blueprint_evidence']['path']).read_text())
+    plan = read_input_json(draft['blueprint_evidence']['path'])
     if validate_scene_direction(plan, draft['media']):
         raise ValueError('Resolve the recorded visual capability gaps before formal production')
     review = artifact(task, 'diagnostic-qa')
@@ -2477,7 +2475,7 @@ def check_qa(task, name, *, acceptance=True):
         if not data.get(video_review.FIELD):
             plan = blueprint['timeline']
             measured = joint.receipt(plan, blueprint['measured_timeline'])
-            config = json.loads(Path(data['config']).read_text())
+            config = read_input_json(data['config'])
             mix = config.get('audio_mix')
             playback = None
             if mix:
@@ -2534,7 +2532,7 @@ def check_qa(task, name, *, acceptance=True):
                 ref=latest['revision']
                 if filehash(ref['path']) != ref['sha256']:
                     raise ValueError('Revision evidence changed')
-                revision_report=json.loads(Path(ref['path']).read_text())
+                revision_report=read_input_json(ref['path'])
                 claimed=revision_claims(revision_report.get('changes', []))
                 if claimed != request.get('changes'):
                     raise ValueError('Revision evidence must address the declared defect intervals')
@@ -2642,7 +2640,7 @@ def check_cad(task):
         raise ValueError('CAD primary artifact must be STEP')
     if Path(files['glb']['path']).suffix.lower() != '.glb':
         raise ValueError('CAD independent mesh export must be GLB')
-    report = json.loads(Path(files['validation']['path']).read_text())
+    report = read_input_json(files['validation']['path'])
     if report.get('numerical_status', report.get('status')) != 'PASS':
         raise ValueError('CAD numerical validation not PASS')
     asset = check_asset(task)
@@ -2755,7 +2753,7 @@ def check_production_config(task, config=None):
         return
     from .three_d import validate_config
     if config or data.get('config'):
-        validate_config(json.loads(Path(config or data['config']).read_text()))
+        validate_config(read_input_json(config or data['config']))
     if protocol_version(data) == 1:
         return
     blueprint = artifact(task, 'creative-blueprint')
@@ -2783,7 +2781,7 @@ def check_production_config(task, config=None):
         raise ValueError('Production config path differs from frozen blueprint/task config')
     if not expected.is_file() or filehash(expected) != binding['sha256']:
         raise ValueError('Production config missing or changed after blueprint freeze')
-    compiled = json.loads(expected.read_text())
+    compiled = read_input_json(expected)
     from . import director, joint_timeline as joint
     if not director.enabled(data) == director.enabled(blueprint) == director.enabled(compiled):
         raise ValueError('Executable config differs from the task creative direction policy')
@@ -2917,7 +2915,7 @@ def check_requested_routes(task, data):
         match_policy(data, build)
         if version(data) == VERSION:
             config = ROOT / data['config']
-            if build.get('visual_config') != json.loads(config.read_text()):
+            if build.get('visual_config') != read_input_json(config):
                 raise ValueError('Final provenance differs from the exact approved visual config')
         validate_provenance(proof, output)
     if len(routes) <= 1 and data.get('three_d_policy_version') != 1:
@@ -3132,7 +3130,7 @@ def require_hd_workprint_request(task, config, *, record=True):
     source = Path(binding.get('path', ''))
     if not source.is_file() or filehash(source) != binding.get('sha256'):
         raise ValueError('HD workprint requires a bound explicit user request')
-    request = json.loads(source.read_text())
+    request = read_input_json(source)
     if (request.get('kind') != 'explicit-user-native-hd-candidate'
             or not request.get('user_request', '').strip()
             or request.get('formal_acceptance') is not False
@@ -3142,7 +3140,7 @@ def require_hd_workprint_request(task, config, *, record=True):
     baseline_path = Path(baseline.get('path', ''))
     if not baseline_path.is_file() or filehash(baseline_path) != baseline.get('sha256'):
         raise ValueError('HD workprint source config binding is invalid')
-    expected_config = json.loads(baseline_path.read_text())
+    expected_config = read_input_json(baseline_path)
     expected_config['render']['preview_native'] = True
     # Native frame sampling can change the studio's derived AABB floor anchor.
     # Permit only a small, evidenced scalar correction, never motion/geometry edits.
@@ -3158,7 +3156,7 @@ def require_hd_workprint_request(task, config, *, record=True):
         if lighting.get('floor_gap') != old:
             raise ValueError('Native-HD floor correction source changed')
         lighting['floor_gap'] = new
-    candidate_config = json.loads(Path(config).read_text())
+    candidate_config = read_input_json(config)
     if (candidate_config != expected_config
             or tuple(candidate_config['render'].get(k) for k in ('width', 'height', 'fps')) != (1920, 1080, 30)):
         raise ValueError('HD workprint may only enable native resolution on the reviewed source')
@@ -3215,9 +3213,7 @@ def require_animatic_diagnostic(task, config, qa_path, *, record=True):
         states.add('REPAIRING')
     if data['state'] not in states or qa_path is None:
         raise ValueError('Low-cost full animatic requires RESEARCHING and independent preproduction QA')
-    qa_contents = Path(qa_path).read_bytes()
-    hashed_inputs(qa_path, hashlib.sha256(qa_contents).hexdigest())
-    qa = json.loads(qa_contents)
+    qa = read_input_json(qa_path)
     if (qa.get('task_id') != data['id'] or qa.get('reviewer_role') != 'QA'
             or qa.get('independent') is not True or not qa.get('reviewer_thread_id')
             or qa['reviewer_thread_id'] in {row['thread_id'] for row in data['agent_runs'] if row['role'] != 'QA'}):
@@ -3236,7 +3232,7 @@ def require_animatic_diagnostic(task, config, qa_path, *, record=True):
         bound[str(path.resolve())] = item['sha256']
     if bound.get(str(Path(config).resolve())) != filehash(config):
         raise ValueError('Low-cost animatic QA must bind the exact executable config')
-    cfg = json.loads(Path(config).read_text())
+    cfg = read_input_json(config)
     render = cfg.get('render', {})
     if render.get('preview_native') or render.get('framing') != 'fullframe':
         raise ValueError('Animatic diagnostic requires downsampled fullframe preview')
@@ -3252,7 +3248,7 @@ def require_animatic_diagnostic(task, config, qa_path, *, record=True):
     assembly_path = Path(cfg.get('assembly_config', ''))
     if bound.get(str(assembly_path.resolve())) != filehash(assembly_path):
         raise ValueError('QA must bind the exact assembly dependencies')
-    assembly = json.loads(assembly_path.read_text())
+    assembly = read_input_json(assembly_path)
     for item in assembly.get('source_files', []):
         if not Path(item['path']).is_file() or filehash(item['path']) != item['sha256']:
             raise ValueError('Stale assembly source for full animatic: ' + item['path'])
@@ -3287,9 +3283,7 @@ def validate_stage(task, phase, config, *, workprint=False, diagnostic=False,
     from .three_d import validate_config
     if not Path(config).is_file():
         raise ValueError('Actual 3D production config file required')
-    contents = Path(config).read_bytes()
-    hashed_inputs(config, hashlib.sha256(contents).hexdigest())
-    cfg = json.loads(contents)
+    cfg = read_input_json(config)
     validate_config(cfg)
     technical_render = require_source_supported_render(task, config)
     scoped_render = cfg.get('production_scope') == 'verified-shots'
@@ -3305,7 +3299,7 @@ def validate_stage(task, phase, config, *, workprint=False, diagnostic=False,
         if asset.get('mechanism_id') != research.get('mechanism_id'):
             raise ValueError('Candidate asset and research must identify the same mechanism')
         assembly_path = ROOT / cfg['assembly_config']
-        assembly = json.loads(assembly_path.read_text())
+        assembly = read_input_json(assembly_path)
         sources = assembly.get('source_files', [])
         model = asset['model']
         direct_model = any(Path(row['path']).resolve() == Path(model['path']).resolve()
@@ -3410,9 +3404,7 @@ def validate_stage(task, phase, config, *, workprint=False, diagnostic=False,
         check_qa(task, 'preview-qa', acceptance=False)
     assembly_path = ROOT / (cfg.get('assembly_config') or 'config/assembly.json')
     if assembly_path.is_file():
-        contents = assembly_path.read_bytes()
-        hashed_inputs(assembly_path, hashlib.sha256(contents).hexdigest())
-        assembly = json.loads(contents)
+        assembly = read_input_json(assembly_path)
         for source in assembly.get('source_files', []):
             if filehash(ROOT / source['path']) != source['sha256']:
                 raise ValueError('Assembly source hash mismatch: ' + source['path'])
@@ -3449,7 +3441,13 @@ def verify_stage_authorization(binding, task, phase, config, contents, data):
             or binding['files'].get(path) != hashlib.sha256(contents).hexdigest()):
         raise ValueError('Stage input differs from the authorized task, phase or config')
     for source, expected in binding['files'].items():
-        if source != path and filehash(source) != expected:
+        if source == path:
+            continue
+        try:
+            current = filehash(source)
+        except OSError as error:
+            raise ValueError('Authorized stage dependency unreadable: ' + source) from error
+        if current != expected:
             raise ValueError('Authorized stage dependency changed: ' + source)
 
 
@@ -3495,7 +3493,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
         previous_media=None
         if phase=='final' and science_contract(data):
             import shutil
-            cfg=json.loads(Path(config).read_text())
+            cfg=read_input_json(config)
             target=ROOT/'output'/(cfg['id']+'-final.mp4')
             request=data.get('revision_request',{})
             previous_media=request.get('previous_media') or next(
@@ -3536,7 +3534,7 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
                     current = load(task)
                     current.setdefault('candidate_failures', []).append(dict(
                         phase=phase, config=str(Path(config).resolve()), config_sha256=config_sha,
-                        route=json.loads(Path(config).read_text()).get('render_route'),
+                        route=read_input_json(config).get('render_route'),
                         status='REPAIRING', log=str(logfile), epoch=time.time()))
                     write(Path(task) / 'task.json', current)
             else:
@@ -3549,8 +3547,14 @@ def run_stage(task, phase, config, env_file=None, workprint=False, diagnostic=Fa
             raise
         with lock(Path(task) / '.ledger.lock', wait=True):
             data = load(task)
-            config_contents = Path(config).read_bytes()
-            verify_stage_authorization(authorized, task, phase, config, config_contents, data)
+            try:
+                config_contents = Path(config).read_bytes()
+                verify_stage_authorization(authorized, task, phase, config, config_contents, data)
+            except (ValueError, OSError) as error:
+                event(task, 'stage_output_rejected', phase=phase, reason=str(error), log=str(logfile),
+                      authorization=str(authorization_path), config_sha256=config_sha,
+                      command_success=False)
+                raise
             observations = []
             for line in logfile.read_text().splitlines():
                 try:

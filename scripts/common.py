@@ -23,9 +23,24 @@ def hashed_inputs(path, sha256):
     observed = input_hashes.get()
     if observed is None:
         return
-    path = str(Path(path).resolve())
-    if observed.setdefault(path, sha256) != sha256:
-        raise ValueError('Production dependency changed during stage validation: ' + path)
+    source = Path(path)
+    # Recheck the path the caller will open as well as the resolved identity,
+    # so replacing a symlink cannot leave an old target authorized.
+    for name in {str(source.absolute()), str(source.resolve())}:
+        if observed.setdefault(name, sha256) != sha256:
+            raise ValueError('Production dependency changed during stage validation: ' + name)
+
+
+def read_input_bytes(path):
+    contents = Path(path).read_bytes()
+    if input_hashes.get() is not None:
+        hashed_inputs(path, hashlib.sha256(contents).hexdigest())
+    return contents
+
+
+def read_input_json(path):
+    return json.loads(read_input_bytes(path))
+
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()

@@ -117,7 +117,6 @@ def qa_candidates(older_hours=168):
                 continue
             if max(marker.stat().st_mtime, image.stat().st_mtime) >= time.time()-older_hours*3600:
                 continue
-            from common import filehash
             if filehash(image) == data['qa_sha256']:
                 result.extend([image, marker])
         except (ValueError, KeyError, OSError):

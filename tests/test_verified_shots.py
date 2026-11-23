@@ -3,7 +3,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from mechanical_video_next import workflow as w
+from scripts import clean
 
 
 class VerifiedShotsTests(unittest.TestCase):
@@ -17,7 +19,7 @@ class VerifiedShotsTests(unittest.TestCase):
         model=save('assembly.json',dict(required_parts=['handle'],source_files=[]))
         inventory=save('inventory.json',[dict(name='handle',valid=True,solids=1,volume_mm3=5)])
         self.shot=dict(template='motion',seconds=1,visible_parts=['handle'],tracks=[])
-        self.config=dict(production_scope='verified-shots',assembly_config=model['path'],
+        self.config=dict(id='scoped-stage-fixture', production_scope='verified-shots',assembly_config=model['path'],
             local_preview_shots=['exterior'],shots=dict(exterior=self.shot))
         self.row=dict(shot_id='exterior',mechanism_id='fixture-A',status='RENDER_READY',
             verified_parts=['handle'],inventory=inventory,
@@ -41,6 +43,82 @@ class VerifiedShotsTests(unittest.TestCase):
         self.assertEqual(report['production_status'],'PRODUCTION_IN_PROGRESS')
         self.assertFalse(report['delivered'])
         self.assertEqual(report['lifecycle'],'WORKING')
+
+    def test_stage_authorization_binds_actual_claim_source_and_model(self):
+        config = Path(self.row['config']['path'])
+        _, authorized = w.stage_authorization(self.task, 'local', config)
+        for ref in [*self.row['claims'][0]['sources'], *self.row['model_bindings'], self.row['inventory']]:
+            self.assertEqual(authorized['files'].get(str(Path(ref['path']).resolve())), ref['sha256'])
+        source = Path(self.row['claims'][0]['sources'][0]['path'])
+        original = source.read_bytes()
+        for change in (lambda: source.write_bytes(b'edited source'), source.unlink):
+            with self.subTest(change=change):
+                change()
+                with self.assertRaisesRegex(ValueError, 'Authorized stage dependency.*manual.json'):
+                    w.verify_stage_authorization(authorized, self.task, 'local', config, config.read_bytes(),
+                                                 w.load(self.task))
+                source.write_bytes(original)
+
+    def test_source_symlink_retargeting_invalidates_queued_authorization(self):
+        config = Path(self.row['config']['path'])
+        source = self.row['claims'][0]['sources'][0]
+        link = self.task / 'manual-link.json'
+        link.symlink_to(source['path'])
+        source['path'] = str(link)
+        self.bind()
+        _, authorized = w.stage_authorization(self.task, 'local', config)
+        other = self.save('other.json', {'operation': 'different'})
+        link.unlink()
+        link.symlink_to(other['path'])
+        with self.assertRaisesRegex(ValueError, 'Authorized stage dependency.*manual-link.json'):
+            w.verify_stage_authorization(authorized, self.task, 'local', config,
+                                         config.read_bytes(), w.load(self.task))
+
+    def test_successful_child_receipt_is_rejected_after_claim_change(self):
+        root = Path(self.tmp.name)
+        config = Path(self.row['config']['path'])
+        source = Path(self.row['claims'][0]['sources'][0]['path'])
+        original = source.read_bytes()
+        output = root / 'output' / self.config['id']
+        output.mkdir()
+        rendered = {}
+        for kind, name in (('media', 'shot.mp4'), ('scene', 'source.blend'), ('checks', 'checks.json')):
+            path = output / name
+            path.write_bytes(b'synthetic scope receipt input')
+            rendered[kind] = dict(path=str(path), sha256=w.filehash(path))
+
+        for changed in (True, False):
+            def child(args, *, stdout, **kwargs):
+                binding = json.loads(Path(args[args.index('--stage-authorization')+1]).read_text())
+                w.verify_stage_authorization(binding, self.task, 'local', config,
+                                             config.read_bytes(), w.load(self.task))
+                stdout.write('synthetic subprocess completed\n')
+                w.write(output/'verified-shots.json',
+                        dict(config_sha256=w.filehash(config), shots={'exterior': rendered}))
+                if changed:
+                    source.write_bytes(b'changed during child execution')
+
+            with self.subTest(changed=changed), patch.object(w, 'ROOT', root), \
+                    patch.dict('sys.modules', {'clean': clean}), patch.object(clean, 'cleanup'), \
+                    patch.object(w.subprocess, 'run', side_effect=child):
+                if changed:
+                    with self.assertRaisesRegex(ValueError, 'Authorized stage dependency.*manual.json'):
+                        w.run_stage(self.task, 'local', config)
+                    data = w.load(self.task)
+                    self.assertEqual(data['stages'], [])
+                    self.assertEqual(data['shot_production']['exterior']['status'], 'RENDER_READY')
+                    self.assertTrue((output/'verified-shots.json').is_file())
+                    self.assertIn('synthetic subprocess completed', next(self.task.glob('stage-local-*.log')).read_text())
+                    events = [json.loads(line) for line in (self.task/'events.jsonl').read_text().splitlines()]
+                    self.assertTrue(any(event['event'] == 'stage_output_rejected' and 'manual.json' in event['reason']
+                                        for event in events))
+                    source.write_bytes(original)
+                else:
+                    with patch('mechanical_video_next.multiroute.probe', return_value={'streams': [{'codec_type': 'video'}]}):
+                        w.run_stage(self.task, 'local', config)
+                    data = w.load(self.task)
+                    self.assertTrue(data['stages'][-1]['command_success'])
+                    self.assertEqual(data['shot_production']['exterior']['status'], 'QA_PENDING')
 
     def test_unverified_claim_and_unobserved_video_cannot_support_motion(self):
         self.row['claims'][0]['status']='UNKNOWN';self.bind()

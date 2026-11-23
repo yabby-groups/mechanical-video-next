@@ -14,14 +14,13 @@ import re
 import shutil
 import sys
 import time
-from common import ROOT
 
 # Direct script execution otherwise exposes only scripts/, while diagnostic
 # stages also need the project's evidence helpers without a duration import.
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+if __package__ in (None, ''):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.common import (BudgetExceeded, Metrics, budget, budgeted_stage, check_budget, check_output,
+from scripts.common import (ROOT, BudgetExceeded, Metrics, budget, budgeted_stage, check_budget, check_output,
                             codehash, digest, filehash, probe, run, writejson, work_budget_limit)
 from mechanical_video_next.blender_runtime import BlenderFailure, run_blender
 from mechanical_video_next.render_diagnostics import render_engine_fallback

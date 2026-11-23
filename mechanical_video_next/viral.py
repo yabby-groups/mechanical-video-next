@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime, timedelta, timezone
 import hashlib
+from scripts.common import filehash
 import json
 import math
 from pathlib import Path
@@ -53,8 +54,7 @@ def evidence_exists(items):
             return False
         p = Path(e['path'])
         try:
-            with p.open('rb') as stream:
-                actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+            actual = filehash(p)
         except OSError:
             return False
         if actual != e['sha256']:

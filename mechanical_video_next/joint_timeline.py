@@ -6,7 +6,7 @@ from fractions import Fraction
 from pathlib import Path
 import wave
 
-from scripts.common import ROOT, check_output, filehash, probe
+from scripts.common import ROOT, check_output, filehash, probe, read_input_json
 
 FIELD = 'timeline_policy_version'
 VERSION = 1
@@ -247,7 +247,7 @@ def measure(plan, sentence, output):
 
 def receipt(plan, ref):
     path = bound(ref)
-    data = json.loads(path.read_text())
+    data = read_input_json(path)
     source = bound(data['narration_audio'])
     if (data.get('plan') != plan or data.get('voice') != 'Neil'
             or len(data['speech']) != len(plan['narration'])

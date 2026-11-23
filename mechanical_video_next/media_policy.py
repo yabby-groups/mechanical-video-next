@@ -8,7 +8,7 @@ import math
 from pathlib import Path
 import subprocess
 
-from scripts.common import ROOT, filehash, probe, writejson
+from scripts.common import ROOT, filehash, probe, read_input_json, writejson
 
 FIELD = 'media_policy_version'
 VERSION = 1
@@ -104,7 +104,7 @@ def validate_shot(row, seconds, *, footage=None, graphic=None, flexible=False):
             raise ValueError('Reusable input must match its native animation renderer')
         if 'receipt' not in match:
             raise ValueError('Model reuse requires the actual asset matching receipt')
-        receipt = json.loads(bound(match['receipt']).read_text())
+        receipt = read_input_json(bound(match['receipt']))
         entries = receipt.get('shots', {})
         sid = match.get('receipt_shot', row.get('shot_id'))
         entry = entries.get(sid,{}) if isinstance(entries,dict) else next((e for e in entries if e.get('shot_id') == sid),{})
@@ -128,7 +128,7 @@ def validate_shot(row, seconds, *, footage=None, graphic=None, flexible=False):
     else:
         src = bound(row['selected_asset'])
         if 'receipt' in match:
-            receipt = json.loads(bound(match['receipt']).read_text())
+            receipt = read_input_json(bound(match['receipt']))
             entries = receipt.get('shots', {})
             sid = match.get('receipt_shot', row.get('shot_id'))
             entry = (entries.get(sid, {}) if isinstance(entries, dict)
@@ -140,7 +140,7 @@ def validate_shot(row, seconds, *, footage=None, graphic=None, flexible=False):
                 raise ValueError('Selected source differs from the bound library matching receipt')
         if row.get('render_engine') == 'remotion':
             if (row.get('mechanical_role') == 'core' or row['source_time_range'] is not None or not row['source_url']
-                    or src.suffix != '.json' or graphic is None or json.loads(src.read_text()) != graphic):
+                    or src.suffix != '.json' or graphic is None or read_input_json(src) != graphic):
                 raise ValueError('Reused native information animation must bind its exact graphic definition')
             return row
         if not row['source_url'] or not interval(row['source_time_range']):
