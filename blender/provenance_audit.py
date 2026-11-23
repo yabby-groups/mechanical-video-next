@@ -98,17 +98,69 @@ def project_object_bounds(scene, camera, view, obj, near, far):
     return None
 
 
-def witness_bounds(scene, camera, objects):
+def projected_regions(scene, camera, objects):
     near, far = camera.data.clip_start, camera.data.clip_end
     if camera.data.type not in {'PERSP', 'ORTHO'} or not (math.isfinite(far) and 0 < near < far):
         raise ValueError('Witness bounds need a perspective or orthographic camera with finite clipping planes')
     view = camera.matrix_world.normalized().inverted()
-    projected = [bounds for obj in objects
-                 if (bounds := project_object_bounds(scene, camera, view, obj, near, far)) is not None]
+    return {obj.name: project_object_bounds(scene, camera, view, obj, near, far)
+            for obj in objects}
+
+
+def union_bounds(regions):
+    projected = [bounds for bounds in regions if bounds is not None]
     if not projected:
         return None
     return [min(row[0] for row in projected), min(row[1] for row in projected),
             max(row[2] for row in projected), max(row[3] for row in projected)]
+
+
+def witness_bounds(scene, camera, objects):
+    return union_bounds(projected_regions(scene, camera, objects).values())
+
+
+def witness_regions(scene, camera, objects, deps):
+    projected = projected_regions(scene, camera, objects)
+    view_frame = camera.data.view_frame(scene=scene)
+    x_min, x_max = min(v.x for v in view_frame), max(v.x for v in view_frame)
+    y_min, y_max = min(v.y for v in view_frame), max(v.y for v in view_frame)
+    matrix = camera.matrix_world.normalized()
+    near, far = camera.data.clip_start, camera.data.clip_end
+    grid = 12
+    regions = {}
+    for obj in objects:
+        bounds = projected[obj.name]
+        if bounds is None:
+            regions[obj.name] = dict(status='INSUFFICIENT_EVIDENCE', reason='Outside camera frustum')
+            continue
+        left, top, right, bottom = bounds
+        dx, dy = (right - left) / grid, (bottom - top) / grid
+        hits = []
+        # The clipped projection can include geometry hidden by another mesh.
+        # Sample actual first surface hits between the camera clipping planes.
+        for j in range(grid):
+            for i in range(grid):
+                x = x_min + (left + (i + .5) * dx) * (x_max - x_min)
+                y = y_max - (top + (j + .5) * dy) * (y_max - y_min)
+                if camera.data.type == 'PERSP':
+                    ray = Vector((x, y, view_frame[0].z)) / -view_frame[0].z
+                    start, end = matrix @ (ray * near), matrix @ (ray * far)
+                else:
+                    start, end = matrix @ Vector((x, y, -near)), matrix @ Vector((x, y, -far))
+                direction = end - start
+                hit, _, _, _, surface, _ = scene.ray_cast(deps, start, direction.normalized(),
+                                                           distance=direction.length)
+                if hit and surface.original == obj.original:
+                    hits.append((i, j))
+        if not hits:
+            regions[obj.name] = dict(status='INSUFFICIENT_EVIDENCE', projected_bounds=bounds,
+                                     reason='No visible surface in camera-ray samples')
+            continue
+        xs, ys = zip(*hits)
+        regions[obj.name] = dict(status='VISIBLE', projected_bounds=bounds, visible_samples=len(hits),
+            bounds=[left + min(xs) * dx, top + min(ys) * dy,
+                    min(right, left + (max(xs) + 1) * dx), min(bottom, top + (max(ys) + 1) * dy)])
+    return union_bounds(projected.values()), regions
 
 
 def inspect_scene(scene, collection='Assembly', *, witnesses=None, intervals=None, motion_frames=()):
@@ -118,7 +170,7 @@ def inspect_scene(scene, collection='Assembly', *, witnesses=None, intervals=Non
         raise ValueError('Mechanical collection and three-dimensional camera required')
     visible = set(renderable_objects(bpy.context.view_layer.layer_collection))
     objects = [obj for obj in group.all_objects if obj.type == 'MESH' and not obj.hide_render and obj in visible]
-    geometry, positions, bounds = [], {}, {}
+    geometry, positions, bounds, regions = [], {}, {}, {}
     for obj in objects:
         vertices = [v.co for v in obj.data.vertices]
         if len(vertices) < 4:
@@ -179,7 +231,8 @@ def inspect_scene(scene, collection='Assembly', *, witnesses=None, intervals=Non
         if frame in witnesses:
             camera = scene.camera.evaluated_get(deps)
             try:
-                bounds[str(frame)] = witness_bounds(scene, camera, [obj for obj in evaluated if not obj.hide_render])
+                bounds[str(frame)], regions[str(frame)] = witness_regions(
+                    scene, camera, [obj for obj in evaluated if not obj.hide_render], deps)
             except ValueError as error:
                 raise ValueError(f'Witness frame {frame}: {error}') from error
         snapshot = {}
@@ -221,7 +274,7 @@ def inspect_scene(scene, collection='Assembly', *, witnesses=None, intervals=Non
                   for pixels in (scene.render.resolution_x, scene.render.resolution_y)]
     return dict(geometry=geometry, camera={'type': camera.data.type, 'matrix': matrix_values(camera),
                 'lens': camera.data.lens, 'ortho_scale': camera.data.ortho_scale},
-                motion_samples=positions, subject_bounds=bounds, spatial_motion=moved,
+                motion_samples=positions, subject_bounds=bounds, subject_regions=regions, spatial_motion=moved,
                 motion_status=motion_status, frame_range=[first, last],
                 engine=scene.render.engine, resolution=resolution,
                 fps=scene.render.fps / scene.render.fps_base)

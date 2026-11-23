@@ -4,6 +4,7 @@ import importlib.util
 from itertools import product
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -38,7 +39,7 @@ class CameraTransformFixture:
 
 
 def box(x, y, depth):
-    return SimpleNamespace(name='fixture box', matrix_world=CameraTransformFixture(),
+    return SimpleNamespace(name=f'fixture box {x} {y}', matrix_world=CameraTransformFixture(),
                            bound_box=list(product(x, y, (-depth[1], -depth[0]))))
 
 
@@ -55,6 +56,7 @@ class NumericalWitnessTests(unittest.TestCase):
                                        'bpy_extras.object_utils': SimpleNamespace(world_to_camera_view=project)}):
             spec.loader.exec_module(audit)
         self.bounds = audit.witness_bounds
+        self.parts = audit.projected_regions
         self.camera = SimpleNamespace(matrix_world=CameraTransformFixture(),
                                       data=SimpleNamespace(type='ORTHO', clip_start=1, clip_end=3))
 
@@ -62,8 +64,12 @@ class NumericalWitnessTests(unittest.TestCase):
         other = box((.2, .3), (-.1, .1), (1.5, 2))
         for depth in ((.5, 1.5), (2.5, 4)):
             with self.subTest(depth=depth):
-                visible = self.bounds(None, self.camera, [box((-.45, -.15), (-.1, .1), depth), other])
+                subject = box((-.45, -.15), (-.1, .1), depth)
+                visible = self.bounds(None, self.camera, [subject, other])
                 self.assertEqual([round(x, 2) for x in visible], [.05, .4, .8, .6])
+                parts = self.parts(None, self.camera, [subject, other])
+                self.assertEqual([round(x, 2) for x in parts[subject.name]], [.05, .4, .35, .6])
+                self.assertEqual([round(x, 2) for x in parts[other.name]], [.7, .4, .8, .6])
 
     def test_each_screen_boundary_and_invisible_subject(self):
         for x, y, expected in [
@@ -113,6 +119,109 @@ class NumericalWitnessTests(unittest.TestCase):
 
 
 class ProvenanceWitnessTests(unittest.TestCase):
+    def test_unusable_witness_regions_are_reported(self):
+        audit = dict(resolution=[1920, 1080], subject_regions={'7': {
+            'edge': {'bounds': [.9, .9, 1, 1], 'status': 'VISIBLE'},
+            'tiny': {'bounds': [0, 0, .001, .001], 'status': 'VISIBLE'},
+            'covered': {'status': 'INSUFFICIENT_EVIDENCE', 'reason': 'No visible surface in camera-ray samples'},
+        }})
+        parts = provenance.witness_regions(audit, 7)
+        self.assertEqual(parts['edge']['region_pixels'], [1728, 972, 1920, 1080])
+        self.assertRegex(parts['tiny']['reason'], 'smaller than')
+        self.assertEqual(parts['covered']['status'], 'INSUFFICIENT_EVIDENCE')
+        del audit['subject_regions']['7']['edge']
+        with self.assertRaisesRegex(ValueError, 'frame 7.*tiny.*covered'):
+            provenance.witness_regions(audit, 7)
+        with self.assertRaisesRegex(ValueError, 'frame 8.*missing part regions'):
+            provenance.witness_regions(audit, 8)
+
+    def test_aggregate_only_cache_requires_fresh_part_verification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root/'blender').mkdir()
+            shutil.copyfile(ROOT/'blender/provenance_audit.py', root/'blender/provenance_audit.py')
+            clip = root/'film.mp4'
+            clip.write_text('cache identity fixture')
+            media = provenance.binding(clip)
+            path = root/'proof.json'
+            doc = dict(media=media, shots=[dict(model_assets=[media], product_references=[media])])
+            path.write_text(json.dumps(doc))
+            with patch.object(provenance, 'ROOT', root), \
+                 patch.object(provenance, 'blender_version_output', return_value='cache fixture'), \
+                 patch.object(provenance, '_validate', return_value={'status': 'PASS'}) as verify:
+                def key():
+                    return provenance.digest(dict(inputs=provenance.verification_key(doc, 'final', True),
+                                                  provenance=str(path.resolve())))
+                with patch.object(provenance, 'WITNESS_VERSION', 1):
+                    old_key = key()
+                new_key = key()
+                self.assertNotEqual(old_key, new_key)
+                cache = root/'work/cache/provenance'
+                cache.mkdir(parents=True)
+                for old_receipt_key in (old_key, new_key):
+                    provenance.writejson(cache/(old_receipt_key+'.json'),
+                                         dict(status='PASS', verification_key=old_receipt_key))
+                result = provenance.validate(path, dict(media, chapter_ids=['core']))
+                self.assertFalse(result['cache_hit'])
+                self.assertEqual(result['witness_version'], provenance.WITNESS_VERSION)
+                self.assertTrue(provenance.validate(path, dict(media, chapter_ids=['core']))['cache_hit'])
+                verify.assert_called_once()
+
+    def test_separated_subjects_validate_independently_in_encoded_media(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            witness = root/'witness.png'
+            width, height = 1920, 1080
+            left = 'drawbox=x=0:y=0:w=192:h=108:color=white:t=fill'
+            right = 'drawbox=x=1728:y=972:w=192:h=108:color=white:t=fill'
+            source = f'color=black:s={width}x{height}:r=30'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', f'{source},{left},{right}',
+                            '-frames:v', '1', '-update', '1', str(witness)], check=True)
+            audit = dict(resolution=[width, height], fps=30, frame_range=[1, 3], spatial_motion=True,
+                         subject_bounds={str(f): [0, 0, 1, 1] for f in (1, 2, 3)},
+                         subject_regions={str(f): {
+                             'fixed': {'bounds': [0, 0, .1, .1], 'status': 'VISIBLE'},
+                             'clipped': {'bounds': [.9, .9, 1, 1], 'status': 'VISIBLE'},
+                         } for f in (1, 2, 3)})
+
+            def audit_fixture(command, **kwargs):
+                Path(command[command.index('--output') + 1]).write_text(json.dumps(audit))
+                frames = Path(command[command.index('--render-dir') + 1])
+                frames.mkdir()
+                for frame in (1, 2, 3):
+                    shutil.copyfile(witness, frames/f'{frame:05d}.png')
+
+            source_binding = provenance.binding(witness)
+            path = root/'proof.json'
+            for name, filter_, should_pass in [
+                ('complete', f'{source},{left},{right}', True),
+                ('deleted', f'{source},{left}', False),
+                ('replaced', f'{source},{left},{right.replace("white", "red")}', False),
+            ]:
+                with self.subTest(name=name):
+                    raw = root/f'{name}.mp4'
+                    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', filter_,
+                                    '-f', 'lavfi', '-i', 'sine=d=0.1', '-frames:v', '3',
+                                    '-c:v', 'libx264', '-crf', '23', '-c:a', 'aac', str(raw)], check=True)
+                    binding = provenance.binding(raw)
+                    path.write_text(json.dumps(dict(media=binding, shots=[dict(shot_id='core', scene=source_binding,
+                        render_output=binding, motion_data=source_binding, model_assets=[dict(source_binding, source='fixture')],
+                        product_references=[source_binding], verification_frames=[1, 2, 3])],
+                        build=dict(frame_count=3, segments=[dict(shot_id='core', start_frame=0,
+                                                               frame_count=3, render_output=binding)]))))
+                    original = provenance.frame_rgb(witness, 0, [0, 0, 1, 1])
+                    sample = provenance.frame_rgb(raw, 0, [0, 0, 1, 1])
+                    union_mae = sum(abs(a-b) for a, b in zip(original, sample, strict=True))/len(original)
+                    self.assertLessEqual(union_mae, 3)
+                    print(f'{name}: total rectangle MAE={union_mae:.4f}')
+                    with patch.object(provenance, 'run_blender', side_effect=audit_fixture), \
+                         patch.object(provenance, 'compose', side_effect=lambda build, dst: shutil.copyfile(raw, dst)):
+                        if should_pass:
+                            self.assertEqual(provenance._validate(path)['status'], 'PASS')
+                        else:
+                            with self.assertRaisesRegex(ValueError, 'clipped.*MAE='):
+                                provenance._validate(path)
+
     def test_same_background_cannot_hide_replaced_subject(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -169,7 +278,8 @@ class ProvenanceWitnessTests(unittest.TestCase):
             blender_runtime.run_blender(['--factory-startup', '--python-exit-code', '1', '--python',
                                         ROOT / 'tests/fixtures/provenance_motion_scene.py', '--', report_path,
                                         '--render-clipped-witness'], name='provenance-clipped-witness-fixture')
-            audit = json.loads(report_path.read_text())['clipped']
+            report = json.loads(report_path.read_text())
+            audit = report['clipped']
             before = provenance.require_witness_bounds(audit, 1)
             after = provenance.require_witness_bounds(audit, 8)
             other = provenance.require_witness_bounds(audit, 9)
@@ -182,3 +292,21 @@ class ProvenanceWitnessTests(unittest.TestCase):
             self.assertEqual(len(image), 320 * 320 * 3)
             self.assertEqual(image, repeat)
             self.assertGreater(sum(abs(a-b) for a, b in zip(image, replacement, strict=True)) / len(image), 3)
+            part = audit['subject_regions']['8']['Clipped part']
+            self.assertEqual(part['status'], 'VISIBLE')
+            self.assertLess(part['bounds'][2], .5)
+            self.assertEqual(report['occluded']['subject_regions']['8']['Clipped part']['status'],
+                             'INSUFFICIENT_EVIDENCE')
+            self.assertEqual(report['occluded']['subject_regions']['8']['Fixed part']['status'], 'VISIBLE')
+            single_frame = dict(audit, frame_range=[8, 8])
+            for name, should_pass in (('repeat', True), ('replacement', False)):
+                clip = root/f'{name}.mp4'
+                subprocess.run(['ffmpeg', '-v', 'error', '-i', str(root/f'{name}.png'), '-c:v', 'libx264',
+                                '-crf', '23', '-pix_fmt', 'yuv420p', str(clip)], check=True)
+                if should_pass:
+                    result = provenance.compare_witness_frame(clip, root/'witness.png', single_frame, 8, 'core')
+                    self.assertEqual({name: part['status'] for name, part in result['parts'].items()},
+                                     {'Clipped part': 'PASS', 'Fixed part': 'PASS'})
+                else:
+                    with self.assertRaisesRegex(ValueError, 'Clipped part.*ROI=.*MAE='):
+                        provenance.compare_witness_frame(clip, root/'witness.png', single_frame, 8, 'core')

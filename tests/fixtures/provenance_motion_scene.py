@@ -57,7 +57,9 @@ if '--render-clipped-witness' in sys.argv:
         camera.keyframe_insert('location', frame=frame)
     subject.location = (-.24, 0, -1.02)
     subject.scale = (.45, .52, .8)
+    subject.name = 'Clipped part'
     other = subject.copy()
+    other.name = 'Fixed part'
     other.data = subject.data.copy()
     group.objects.link(other)
     other.location = (.38, 0, -1.8)
@@ -83,4 +85,11 @@ if '--render-clipped-witness' in sys.argv:
     render_frame(scene, 8, out.parent/'witness.png', preflight=True)
     render_frame(scene, 8, out.parent/'repeat.png')
     render_frame(scene, 9, out.parent/'replacement.png')
+    scene.frame_set(8)
+    subject.animation_data_clear()
+    camera.data.type = 'ORTHO'
+    camera.data.ortho_scale = 2
+    subject.location, subject.scale = (.3, 0, -2), (.25, .25, .25)
+    other.location, other.scale = (.3, 0, -1.5), (.6, .6, .6)
+    report['occluded'] = inspect_scene(scene, witnesses=[8], intervals=[(8, 9)])
 out.write_text(json.dumps(report))

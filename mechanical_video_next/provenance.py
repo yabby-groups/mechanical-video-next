@@ -17,6 +17,9 @@ import shutil
 from scripts.common import ROOT, filehash, probe, digest, writejson
 from .blender_runtime import blender_version_output, run_blender
 
+WITNESS_VERSION = 2
+WITNESS_MAE_LIMIT = 3
+
 
 def verification_key(doc, stage, replay):
     """Rehash every bound dependency, including inputs nested in receipts."""
@@ -28,7 +31,7 @@ def verification_key(doc, stage, replay):
         elif isinstance(value, list):
             for item in value: visit(item)
     visit(doc)
-    return digest(dict(document=doc, stage=stage, replay=replay,
+    return digest(dict(document=doc, stage=stage, replay=replay, witness_version=WITNESS_VERSION,
         verifier=filehash(__file__), audit=filehash(ROOT/'blender/provenance_audit.py'),
         remotion_build=filehash(ROOT/'mechanical_video_next/remotion_build.py') if doc.get('build', {}).get('renderer') == 'remotion-v1' else None,
         blender=blender_version_output(),
@@ -316,26 +319,92 @@ def segment_witnesses(segment):
     return first, first + (count - 1) // 2, first + count - 1
 
 
-def frame_rgb(path, frame, crop=None):
-    region=''
+def frame_rgb(path, frame, crop=None, *, native=False):
+    filters = [f'select=eq(n\\,{frame})']
     if crop:
         x,y,right,bottom=crop
-        region=f'crop=iw*{right-x}:ih*{bottom-y}:iw*{x}:ih*{y}:exact=1,'
+        filters.append(f'crop=iw*{right-x}:ih*{bottom-y}:iw*{x}:ih*{y}:exact=1')
+    if not native:
+        filters.append('scale=320:320')
     return subprocess.check_output(['ffmpeg','-v','error','-xerror','-i',str(path),'-vf',
-        f'select=eq(n\\,{frame}),{region}scale=320:320','-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','-'])
+        ','.join(filters),'-frames:v','1','-pix_fmt','rgb24','-f','rawvideo','-'])
+
+
+def finite_region(bounds):
+    return (isinstance(bounds, list) and len(bounds) == 4
+            and all(type(value) in (int, float) and math.isfinite(value) for value in bounds)
+            and 0 <= bounds[0] < bounds[2] <= 1 and 0 <= bounds[1] < bounds[3] <= 1)
 
 
 def require_witness_bounds(audit, frame):
     bounds = audit['subject_bounds'].get(str(frame))
-    if (not isinstance(bounds, list) or len(bounds) != 4
-            or any(type(value) not in (int, float) or not math.isfinite(value) for value in bounds)):
+    if not finite_region(bounds):
         raise ValueError(f'Missing visible subject bounds for render witness frame {frame}')
     left, top, right, bottom = bounds
     width, height = audit['resolution']
-    if (not 0 <= left < right <= 1 or not 0 <= top < bottom <= 1
-            or (right - left) * width < 8 or (bottom - top) * height < 8):
+    if (right - left) * width < 8 or (bottom - top) * height < 8:
         raise ValueError(f'Mechanical subject is not visibly framed at witness frame {frame}')
     return bounds
+
+
+def witness_regions(audit, frame):
+    parts = audit.get('subject_regions', {}).get(str(frame), {})
+    width, height = audit['resolution']
+    results = {}
+    for name, part in parts.items():
+        if part.get('status') == 'INSUFFICIENT_EVIDENCE' and part.get('reason'):
+            results[name] = dict(part)
+            continue
+        bounds = part.get('bounds')
+        if part.get('status') != 'VISIBLE' or not finite_region(bounds):
+            raise ValueError(f'Invalid visible region for witness part {name}, frame {frame}')
+        left, top, right, bottom = bounds
+        if (right - left) * width < 8 or (bottom - top) * height < 8:
+            results[name] = dict(part, status='INSUFFICIENT_EVIDENCE', reason='Visible region is smaller than 8×8 pixels')
+            continue
+        # Keep all pixels intersecting the normalized region, including the
+        # last row and column for subjects clipped by the picture boundary.
+        pixels = [math.floor(left * width), math.floor(top * height),
+                  math.ceil(right * width), math.ceil(bottom * height)]
+        results[name] = dict(part, region_pixels=pixels)
+    if not any(p['status'] == 'VISIBLE' for p in results.values()):
+        reasons = ', '.join(f'{name}: {part["reason"]}' for name, part in results.items())
+        raise ValueError(f'No comparable visible witness parts at frame {frame}: {reasons or "missing part regions"}')
+    return results
+
+
+def compare_witness_frame(raw, rendered, audit, frame, shot_id):
+    from PIL import Image, ImageChops, ImageStat
+
+    size = tuple(audit['resolution'])
+    parts = witness_regions(audit, frame)
+    raw_pixels = frame_rgb(raw, frame - audit['frame_range'][0], native=True)
+    rendered_pixels = frame_rgb(rendered, 0, native=True)
+    if len(raw_pixels) != len(rendered_pixels) or len(raw_pixels) != size[0] * size[1] * 3:
+        raise ValueError(f'Missing/mismatched rendered witness: {shot_id} frame {frame}')
+    actual, expected = (Image.frombytes('RGB', size, pixels) for pixels in (raw_pixels, rendered_pixels))
+
+    def compare(region):
+        a, b = (image.crop(region).resize((320, 320), Image.Resampling.BILINEAR)
+                for image in (actual, expected))
+        return sum(ImageStat.Stat(ImageChops.difference(a, b)).mean) / 3
+
+    for name, part in parts.items():
+        if part['status'] != 'VISIBLE':
+            continue
+        region = part['region_pixels']
+        mae = compare(region)
+        if mae > WITNESS_MAE_LIMIT:
+            raise ValueError(f'Raw MP4 not from claimed scene: {shot_id} frame {frame}, part {name}, '
+                             f'ROI={region}, MAE={mae:.4f} exceeds {WITNESS_MAE_LIMIT}')
+        part.update(status='PASS', mae=mae)
+    bounds = require_witness_bounds(audit, frame)
+    union = [round(value * size[index % 2]) for index, value in enumerate(bounds)]
+    aggregate_mae = compare(union)
+    if aggregate_mae > WITNESS_MAE_LIMIT:
+        raise ValueError(f'Raw MP4 not from claimed scene: {shot_id} frame {frame}, '
+                         f'aggregate ROI={union}, MAE={aggregate_mae:.4f} exceeds {WITNESS_MAE_LIMIT}')
+    return dict(frame=frame, aggregate_mae=aggregate_mae, parts=parts)
 
 
 def motion_witness_frames(checks):
@@ -363,7 +432,10 @@ def validate(path, media=None, *, replay=True, stage='final'):
     if stage not in {'preview', 'workprint', 'final'}:
         raise ValueError('Unknown provenance verification stage')
     if stage != 'final': replay = False
-    bound(document['media'])
+    final = bound(document['media'])
+    if media is not None and (Path(media['path']).resolve() != final.resolve()
+                              or media['sha256'] != document['media']['sha256']):
+        raise ValueError('3D proof belongs to a different final MP4')
     from .media_policy import enabled as asset_first
     if not document.get('shots') and not asset_first(document):
         raise ValueError('Unique core mechanical shots required')
@@ -377,14 +449,12 @@ def validate(path, media=None, *, replay=True, stage='final'):
     receipt = ROOT/'work/cache/provenance'/(key+'.json')
     if receipt.is_file():
         cached = json.loads(receipt.read_text())
-        if cached.get('verification_key') == key:
-            if media is not None and media != document['media']:
-                raise ValueError('3D proof belongs to a different final MP4')
+        if cached.get('verification_key') == key and cached.get('witness_version') == WITNESS_VERSION:
             return dict(cached, cache_hit=True)
     # Cache hits never start Blender and must not contend with a real render.
     with lock(ROOT/'work/production.lock'):
         result = _validate(path,media,replay=replay,stage=stage)
-        result.update(verification_key=key, cache_hit=False, stage=stage)
+        result.update(verification_key=key, witness_version=WITNESS_VERSION, cache_hit=False, stage=stage)
         writejson(receipt,result)
         return result
 
@@ -469,19 +539,16 @@ def _validate(path, media=None, *, replay=True, stage='final'):
             require_shot_motion(audit, shot, build)
             if audit['resolution']!=expected[:2] or audit['fps']!=expected[2]:
                 raise ValueError('Actual 3D scene must render native 1920x1080/30')
-            errors=[]
-            witness_regions = {f: require_witness_bounds(audit, f) for f in frames}
+            comparisons = []
             if replay:
                 for f in frames:
-                    # Compare the mechanical region, so a large plain studio
-                    # background cannot conceal a different or missing mechanism.
-                    bounds = witness_regions[f]
-                    actual=frame_rgb(raw,f-audit['frame_range'][0],bounds);witness=frame_rgb(renders/f'{f:05d}.png',0,bounds)
-                    if not actual or len(actual)!=len(witness):raise ValueError('Missing/mismatched rendered witness')
-                    mae=sum(abs(a-b) for a,b in zip(actual,witness))/len(actual)
-                    if mae>3:raise ValueError(f'Raw MP4 not from claimed scene: {shot["shot_id"]} frame {f}, MAE={mae}')
-                    errors.append(mae)
-            checks.append(dict(shot_id=shot['shot_id'],audit=audit,witness_mae=errors))
+                    comparisons.append(compare_witness_frame(raw, renders/f'{f:05d}.png', audit, f, shot['shot_id']))
+            else:
+                for f in frames:
+                    require_witness_bounds(audit, f)
+                    witness_regions(audit, f)
+            checks.append(dict(shot_id=shot['shot_id'], audit=audit, witness_parts=comparisons,
+                               witness_mae=[row['aggregate_mae'] for row in comparisons]))
             print('Verified 3D scene/render: '+shot['shot_id'],flush=True)
         if not any(row['audit']['spatial_motion'] and
                    shot.get('shot_role')!='structural_detail' for row,shot in zip(checks,shots)) and not (
