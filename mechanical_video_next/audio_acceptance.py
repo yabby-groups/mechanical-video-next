@@ -9,7 +9,7 @@ import re
 import sys
 import wave
 
-from scripts.common import ROOT, check_output, digest, filehash, probe
+from scripts.common import ROOT, check_output, codehash, digest, filehash, probe
 from . import joint_timeline as joint
 from .media_policy import binding, bound, validate_rights
 
@@ -55,7 +55,11 @@ def verified_sentence(row, narration, profile):
     request = json.loads((raw / 'request.json').read_text())
     response = json.loads((raw / 'response.json').read_text())
     payload = narration.request_payload(row['text'], profile)
-    endpoint = profile['base_url'].rstrip('/') + '/audio/speech'
+    endpoint = narration.validate_endpoint(profile, request.get('endpoint'))
+    effective = narration.synthesis_config(profile, endpoint)
+    if any('effective_synthesis' in entry and entry['effective_synthesis'] != effective
+           for entry in (cache, processing)):
+        raise ValueError('Neil effective synthesis configuration differs from the sealed request')
     if (request != {'endpoint': endpoint, 'payload': payload} or digest(request) != raw_key
             or response.get('http_status') != 200):
         raise ValueError('Neil source does not match the approved endpoint, voice or exact text')

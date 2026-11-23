@@ -307,12 +307,12 @@ def make_shot(shot, quality, model, metrics, render=None, assembly_path=None):
     prepare_shot_evidence(folder)
     return folder/filename,kind,key
 
-def tts(shot, voice, metrics):
+def tts(shot, voice, metrics, *, endpoint=None):
     check_budget()
     start=time.time()
     if isinstance(voice,dict):
         from narration import synthesize_shot
-        path,cues,key,hit=synthesize_shot(shot,voice)
+        path,cues,key,hit=synthesize_shot(shot,voice,endpoint=endpoint)
         metrics.record('tts:'+shot['id'],start,hit,key=key,model=voice['model'],voice=voice['voice'])
         return path,cues,key
     key=digest({'cues':shot['narration'],'voice':voice,'seconds':shot['seconds'],'rate':235,'audio_pipeline':1,
@@ -431,7 +431,7 @@ def composition_cached_media(folder):
 
 def compose(cfg, quality, media, metrics):
     check_budget()
-    from narration import effective_profile
+    from narration import effective_endpoint, effective_profile
     from mechanical_video_next.science_information import information_props, observation_overlay_findings
     from mechanical_video_next.remotion_build import render
     from mechanical_video_next.knowledge_progression import FIELD, enabled
@@ -457,6 +457,7 @@ def compose(cfg, quality, media, metrics):
         voice = None
     else:
         voice=effective_profile(cfg) or cfg['voice']
+    endpoint = effective_endpoint(voice) if isinstance(voice, dict) else None
     start=time.time()
     render_shots=[]
     audio_sources=[]
@@ -468,7 +469,7 @@ def compose(cfg, quality, media, metrics):
         row = {k:s[k] for k in ['id','label','note','seconds','accent']} | {
             'formula':s.get('formula'), 'kind':kind}
         if not shared:
-            audio,sc,_=tts(s,voice,metrics)
+            audio,sc,_=tts(s,voice,metrics,endpoint=endpoint)
             audio_sha = filehash(audio)
             audio_sources.append(audio_sha)
             row['audio'] = expose(audio,audio_sha)

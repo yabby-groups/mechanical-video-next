@@ -434,14 +434,14 @@ class ProductionContractTests(unittest.TestCase):
                 ('natural_science', '原理示意', None),
                 (None, '模型示意｜仅比较运动方向', '仅比较运动方向'),
                 ('legacy', '原理示意', '原理示意')):
-            cfg = dict(title='A concrete question', subtitle='A causal answer', voice={},
+            cfg = dict(title='A concrete question', subtitle='A causal answer', voice='Ting-Ting',
                        presentation='mechanism-fullframe',
                        fullframe_caption=caption, fullframe_credit='Source: original evidence',
                        render=dict(width=1920, height=1080), storyboard=[], shots={})
             if style:
                 cfg['presentation_style'] = style
             with self.subTest(style=style, caption=caption), \
-                    patch('narration.effective_profile', return_value={}), \
+                    patch('narration.effective_profile', return_value=None), \
                     patch('mechanical_video_next.style_lock.verify_lock', return_value={'status': 'PASS'}), \
                     patch('mechanical_video_next.text_layout.prepare_text_props', side_effect=PropsReady) as prepare:
                 with self.assertRaises(PropsReady):

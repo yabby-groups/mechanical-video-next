@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
@@ -65,19 +65,65 @@ class NarrationTests(unittest.TestCase):
                 http.assert_not_called()
 
     def test_subtitle_or_shot_id_edit_does_not_regenerate_speech(self):
-        with tempfile.TemporaryDirectory() as d,patch.object(n,'STORE',Path(d)):
+        with tempfile.TemporaryDirectory() as d,patch.object(n,'STORE',Path(d)), \
+                patch.dict(n.os.environ, {'OPENAI_BASE_URL': ''}):
             # Cache a completed local shot; no provider invoked.
             s={'id':'one','seconds':4,'narration':['说明文字。'],'subtitles':['修改字幕前']}
             key=n.digest({'narration':s['narration'],'seconds':s['seconds'],'profile':self.profile,'processing':n.codehash('scripts/narration.py')})
             folder=Path(d)/'shots'/key
             folder.mkdir(parents=True)
-            for f in ['narration.wav','audio.m4a','processing.json']: (folder/f).write_bytes(b'fixture')
+            for f in ['narration.wav','audio.m4a']: (folder/f).write_bytes(b'fixture')
+            raw_key = n.digest({'endpoint': n.effective_endpoint(self.profile),
+                                'payload': n.request_payload(s['narration'][0], self.profile)})
+            writejson(folder/'processing.json', {'sentences': [{'raw_key': raw_key}]})
             writejson(folder/'cues.json',[{'start':0.15,'end':3,'text':'说明文字。'}])
             n.seal(folder,['narration.wav','audio.m4a','processing.json','cues.json'])
             s['id']='two';s['subtitles']=['只修改字幕']
             with patch.object(n,'sentence') as provider:
                 _,_,actual,hit=n.synthesize_shot(s,self.profile)
                 self.assertTrue(hit);self.assertEqual(key,actual);provider.assert_not_called()
+
+    def test_sealed_endpoint_is_shared_by_generation_reuse_and_historical_acceptance(self):
+        from mechanical_video_next.audio_acceptance import verified_sentence
+        from mechanical_video_next.joint_timeline import binding
+        profile = n.load_profile(ROOT/'config/narration-neil.json')
+        line = 'Fixture utterance'
+        with tempfile.TemporaryDirectory() as tmp, patch.object(n, 'STORE', Path(tmp)), \
+                patch.object(n, 'budget'), patch.dict(n.os.environ, {'OPENAI_API_KEY': 'secret-fixture'}):
+            root = Path(tmp)
+            source = root / 'fixture.wav'
+            subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                            'sine=f=400:r=48000:d=1.1', '-c:a', 'pcm_s16le', str(source)], check=True)
+            response = MagicMock(status=200, headers={})
+            response.read.return_value = source.read_bytes()
+            opener = MagicMock()
+            opener.open.return_value.__enter__.return_value = response
+            with patch.object(n.urllib.request, 'build_opener', return_value=opener):
+                with patch.dict(n.os.environ, {'OPENAI_BASE_URL': ''}):
+                    default = n.effective_endpoint(profile)
+                    first, default_receipt = n.sentence(line, profile)
+                with patch.dict(n.os.environ, {'OPENAI_BASE_URL': 'https://example.invalid/v1///'}):
+                    custom, receipt = n.sentence(line, profile)
+                    self.assertEqual(n.sentence(line, profile)[0], custom)
+                self.assertNotEqual(first, custom)
+                self.assertNotEqual(default_receipt['raw_key'], receipt['raw_key'])
+                self.assertEqual([call.args[0].full_url for call in opener.open.call_args_list],
+                                 [default, 'https://example.invalid/v1/audio/speech'])
+                with patch.dict(n.os.environ, {'OPENAI_BASE_URL': 'https://another.invalid/v1'}):
+                    row = dict(id='n1', text=line, audio=binding(custom), cache=receipt,
+                               start_sample=0, end_sample=48000)
+                    self.assertEqual(verified_sentence(row, n, profile)['id'], 'n1')
+                    with self.assertRaisesRegex(ValueError, 'forbids an endpoint override'):
+                        n.sentence(line, dict(profile, allow_base_url_override=False))
+                self.assertEqual(opener.open.call_count, 2)
+                raw = root/'raw'/receipt['raw_key']
+                self.assertNotIn('secret-fixture', (raw/'request.json').read_text())
+                request = json.loads((raw/'request.json').read_text())
+                request['endpoint'] = default
+                writejson(raw/'request.json', request)
+                n.seal(raw, ['source.wav', 'request.json', 'response.json'])
+                with self.assertRaisesRegex(ValueError, 'effective synthesis|approved endpoint'):
+                    verified_sentence(row, n, profile)
 
     def test_unconfirmed_profile_cannot_be_used_in_production(self):
         with tempfile.TemporaryDirectory() as d:

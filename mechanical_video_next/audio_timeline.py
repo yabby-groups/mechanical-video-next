@@ -39,7 +39,7 @@ def speech_phrases(narration):
 
 def prepare(task, script, env_file=None):
     sys.path.insert(0,str(ROOT/'scripts'))
-    from narration import effective_profile, load_env, sentence, synthesize_shot
+    from narration import effective_endpoint, effective_profile, load_env, sentence, synthesize_shot
     from .workflow import load, require_visual_story_review
     from .production_contract import NATURAL_SCIENCE, PRESENTATION_STYLE, validate_audience_copy, creative_first
     data=load(task)
@@ -60,7 +60,8 @@ def prepare(task, script, env_file=None):
         if profile['voice'] != 'Neil' or profile['target_speed'] != 1:
             raise ValueError('Joint timeline requires unmodified Neil speech')
         shared = Path(task) / 'shared'
-        result = joint_timeline.measure(plan, lambda line: sentence(line, profile), shared / 'narration.wav')
+        endpoint = effective_endpoint(profile)
+        result = joint_timeline.measure(plan, lambda line: sentence(line, profile, endpoint=endpoint), shared / 'narration.wav')
         result['task_id'] = data['id']
         result['script'] = joint_timeline.binding(script)
         writejson(shared / 'timeline.json', result)
@@ -73,18 +74,19 @@ def prepare(task, script, env_file=None):
             validate_audience_copy(chapter, creative=creative_first(data))
     load_env(env_file)
     profile=effective_profile({'narration_profile':'config/narration-neil.json'})
+    endpoint=effective_endpoint(profile)
     rows=[]; cursor=0
     for chapter in chapters:
         phrases=speech_phrases(chapter['narration'])
         durations=[]
         for text in phrases:
-            clip,_=sentence(text,profile)
+            clip,_=sentence(text,profile,endpoint=endpoint)
             durations.append(float(probe(clip)['format']['duration']))
         needed=(profile['leading_silence_seconds']+sum(durations)
                 +profile['pause_between_sentences_seconds']*(len(phrases)-1)
                 +profile['trailing_silence_seconds'])
         seconds=math.ceil(needed*30)/30
-        audio,cues,key,hit=synthesize_shot(dict(id=chapter['id'],narration=phrases,seconds=seconds),profile)
+        audio,cues,key,hit=synthesize_shot(dict(id=chapter['id'],narration=phrases,seconds=seconds),profile,endpoint=endpoint)
         count=round(seconds*30)
         rows.append(dict(id=chapter['id'],start_frame=cursor,frame_count=count,seconds=seconds,
                          narration=phrases,subtitles=phrases,cues=cues,

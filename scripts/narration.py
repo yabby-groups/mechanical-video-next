@@ -16,11 +16,12 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.common import ROOT, budget, codehash, digest, execute, filehash, probe, run, writejson
+from scripts.common import ROOT, budget, check_budget, codehash, digest, execute, filehash, probe, run, writejson
 
 STORE = ROOT/'assets/audio/narration'
 DEFAULTS = ROOT/'config/narration-default.json'
@@ -91,15 +92,40 @@ def request_payload(text, profile):
     return {'model':profile['model'],'voice':profile['voice'],'input':text,'response_format':'wav'}
 
 
-def raw_sentence(text, profile):
+def normalize_endpoint(base):
+    parsed = urlsplit(base)
+    if (not base.startswith('https://') or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or '?' in base or '#' in base or '\\' in base
+            or any(character.isspace() or ord(character) < 32 for character in base)):
+        raise ValueError('Use an HTTPS speech endpoint without credentials, query or fragment')
+    return base.rstrip('/') + '/audio/speech'
+
+
+def validate_endpoint(profile, endpoint):
+    suffix = '/audio/speech'
+    if not isinstance(endpoint, str) or not endpoint.endswith(suffix) or (
+            normalize_endpoint(endpoint.removesuffix(suffix)) != endpoint):
+        raise ValueError('Invalid effective speech endpoint')
+    if profile.get('allow_base_url_override', True) is not True and endpoint != normalize_endpoint(profile['base_url']):
+        raise ValueError('Approved narration profile forbids an endpoint override')
+    return endpoint
+
+
+def effective_endpoint(profile):
+    base = os.environ.get('OPENAI_BASE_URL') or profile['base_url']
+    return validate_endpoint(profile, normalize_endpoint(base))
+
+
+def raw_sentence(text, profile, *, endpoint=None):
+    check_budget()
     payload=request_payload(text,profile)
-    base=os.environ.get('OPENAI_BASE_URL') or profile['base_url']
-    if not base.startswith('https://'):
-        raise ValueError('Use an HTTPS speech endpoint')
-    endpoint=base.rstrip('/')+'/audio/speech'
-    key=digest({'endpoint':endpoint,'payload':payload})
+    endpoint = effective_endpoint(profile) if endpoint is None else validate_endpoint(profile, endpoint)
+    request = {'endpoint': endpoint, 'payload': payload}
+    key=digest(request)
     folder=STORE/'raw'/key
     if valid(folder,['source.wav','request.json','response.json']):
+        if json.loads((folder/'request.json').read_text()) != request:
+            raise ValueError('Sealed speech request differs from its cache identity')
         return folder/'source.wav',True,key
     token=os.environ.get(profile['api_key_env'],'').strip()
     if not token: raise RuntimeError('Configure OPENAI_API_KEY or pass --env-file; never paste keys into chat')
@@ -112,7 +138,7 @@ def raw_sentence(text, profile):
             json.dump({'status':'submitted','time':time.time(),'request_sha256':digest(payload)},f)
     except FileExistsError:
         raise RuntimeError('Previous synthesis is unresolved; inspect submitted.json before any explicit recovery') from None
-    writejson(folder/'request.json',{'endpoint':endpoint,'payload':payload})
+    writejson(folder/'request.json',request)
     req=urllib.request.Request(endpoint,json.dumps(payload,ensure_ascii=False).encode(),headers={
         'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'audio/wav'},method='POST')
     try:
@@ -253,18 +279,18 @@ def silence_trim(source, output, profile):
             'alignment':'FFmpeg silence boundaries with consonant guard; not forced phoneme alignment'}
 
 
-def sentence(text, profile):
+def sentence(text, profile, *, endpoint=None):
     # Multiple audio/timeline consumers may request the same sentence. Serialize
     # synthesis and processing before raw marker creation or trimmed-file cleanup.
     from mechanical_video_next.workflow import lock
-    identity=digest({'payload':request_payload(text,profile),
-                     'endpoint':os.environ.get('OPENAI_BASE_URL') or profile['base_url']})
+    endpoint = effective_endpoint(profile) if endpoint is None else validate_endpoint(profile, endpoint)
+    identity=digest({'payload':request_payload(text,profile), 'endpoint':endpoint})
     with lock(STORE/'locks'/(identity+'.lock'),wait=True):
-        return _sentence_locked(text,profile)
+        return _sentence_locked(text,profile,endpoint)
 
 
-def _sentence_locked(text, profile):
-    raw,hit,rawkey=raw_sentence(text,profile)
+def _sentence_locked(text, profile, endpoint):
+    raw,hit,rawkey=raw_sentence(text,profile,endpoint=endpoint)
     key=digest({'raw':rawkey,'profile':profile,'processing':codehash('scripts/narration.py')})
     folder=STORE/'sentences'/key
     files=['narration.wav','processing.json']
@@ -274,22 +300,40 @@ def _sentence_locked(text, profile):
         temp=folder/'trimmed.wav'
         alignment=silence_trim(raw,temp,profile)
         levels=normalize(temp,folder/'narration.wav',profile)
-        writejson(folder/'processing.json',{'raw_key':rawkey,'alignment':alignment,'loudness':levels})
+        writejson(folder/'processing.json',{'raw_key':rawkey,'alignment':alignment,'loudness':levels,
+                                           'effective_synthesis': synthesis_config(profile, endpoint)})
         temp.unlink()
         seal(folder,files)
-    return folder/'narration.wav',{'raw_cache_hit':hit,'processed_cache_hit':processed_hit,'raw_key':rawkey,'key':key}
+    return folder/'narration.wav',{'raw_cache_hit':hit,'processed_cache_hit':processed_hit,'raw_key':rawkey,'key':key,
+                                   'effective_synthesis': synthesis_config(profile, endpoint)}
 
 
-def synthesize_shot(shot, profile):
-    key=digest({'narration':shot['narration'],'seconds':shot.get('seconds'),'profile':profile,'processing':codehash('scripts/narration.py')})
+def synthesis_config(profile, endpoint):
+    return {'endpoint': endpoint, 'profile_sha256': profile_hash(profile)}
+
+
+def synthesize_shot(shot, profile, *, endpoint=None):
+    endpoint = effective_endpoint(profile) if endpoint is None else validate_endpoint(profile, endpoint)
+    identity = {'narration':shot['narration'],'seconds':shot.get('seconds'),'profile':profile,
+                'processing':codehash('scripts/narration.py')}
+    key = digest(dict(identity, endpoint=endpoint))
     folder=STORE/'shots'/key
-    if valid(folder,['narration.wav','cues.json','audio.m4a','processing.json']):
-        return folder/'audio.m4a',json.loads((folder/'cues.json').read_text()),key,True
+    files = ['narration.wav','cues.json','audio.m4a','processing.json']
+    expected_keys = [digest({'endpoint': endpoint, 'payload': request_payload(text, profile)})
+                     for text in shot['narration']]
+    # Older shot cache keys omitted the endpoint. Reuse only when every
+    # sealed sentence identity matches the endpoint for this execution.
+    for candidate in (key, digest(identity)):
+        cached_folder = STORE/'shots'/candidate
+        if valid(cached_folder, files):
+            receipt = json.loads((cached_folder/'processing.json').read_text())
+            if [row.get('raw_key') for row in receipt.get('sentences', [])] == expected_keys:
+                return cached_folder/'audio.m4a',json.loads((cached_folder/'cues.json').read_text()),candidate,True
     folder.mkdir(parents=True,exist_ok=True)
     inputs=[]; filters=[]; cues=[]; records=[]
     cursor=profile['leading_silence_seconds']
     for i,text in enumerate(shot['narration']):
-        clip,receipt=sentence(text,profile)
+        clip,receipt=sentence(text,profile,endpoint=endpoint)
         seconds=float(probe(clip)['format']['duration'])
         inputs+=['-i',clip]
         filters.append(f'[{i}:a]adelay={round(cursor*1000)}:all=1[a{i}]')
@@ -309,8 +353,10 @@ def synthesize_shot(shot, profile):
     mixed.unlink()
     run(['ffmpeg','-v','error','-y','-i',folder/'narration.wav','-c:a','aac','-b:a','160k',folder/'audio.m4a'],folder/'aac.log')
     writejson(folder/'cues.json',cues)
-    writejson(folder/'processing.json',{'sentences':records,'loudness':levels,'seconds':duration,'target_speed':profile['target_speed']})
-    seal(folder,['narration.wav','cues.json','audio.m4a','processing.json'])
+    writejson(folder/'processing.json',{'sentences':records,'loudness':levels,'seconds':duration,
+                                       'target_speed':profile['target_speed'],
+                                       'effective_synthesis':synthesis_config(profile, endpoint)})
+    seal(folder,files)
     return folder/'audio.m4a',cues,key,False
 
 
@@ -321,11 +367,12 @@ def srt_time(seconds):
 
 def audition(config_path):
     cfg=json.loads(Path(config_path).read_text());profile=load_profile(ROOT/cfg['profile'])
+    endpoint = effective_endpoint(profile)
     folder=ROOT/'output/narration-audition'/cfg['id']
     folder.mkdir(parents=True,exist_ok=True)
     clips=[]; cues=[]; offset=0; timeline=[]
     for shot in cfg['shots']:
-        _,sc,key,hit=synthesize_shot(shot,profile)
+        _,sc,key,hit=synthesize_shot(shot,profile,endpoint=endpoint)
         source=STORE/'shots'/key/'narration.wav'
         name=shot['id']+'.wav'
         shutil.copy2(source,folder/name)
