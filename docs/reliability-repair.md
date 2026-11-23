@@ -64,3 +64,50 @@ MVN_TEST_AUDIENCE_RENDER=1 uv run --locked python -m unittest discover -s tests 
 - 配音和缓存涉及 `mechanical_video_next/audio_acceptance.py`、`mechanical_video_next/audio_timeline.py`、`scripts/narration.py` 和 `config/cache-code-equivalence.json`。
 - 新增回归和夹具为 `tests/test_reliability_repair.py`、`tests/test_provenance_witnesses.py`、`tests/fixtures/provenance_motion_scene.py` 和 `tests/fixture_fonts.py`。
 - 更新既有回归 `tests/test_asset_import_duration.py`、`tests/test_audio_timeline.py`、`tests/test_cleanup_lock.py`、`tests/test_cover_detail.py`、`tests/test_covers.py`、`tests/test_film_integrity.py`、`tests/test_growth_report.py`、`tests/test_hd_workprint.py`、`tests/test_media_revision.py`、`tests/test_narration.py`、`tests/test_production_contract.py`、`tests/test_qa_images.py`、`tests/test_remotion_editorial.py`、`tests/test_source_supported_render.py` 和 `tests/test_text_layout.py`。
+
+## 7157bb0 复核补修
+
+本轮从 `7157bb0d81f6f5623547179fdcc57a9d1c681981` 开始，工作区干净。使用 macOS 27.3 arm64、uv 0.9.16、锁定的 Python 3.14.2、FFmpeg 9.0.2 和 Blender 5.3.0。Linux FFmpeg 7.1.5 的复核结果来自外部环境。
+
+### R7 阶段授权覆盖来源文件
+
+修复前，真实镜头校验通过后，`manual.json` 缺席授权清单。模拟子进程通过启动前复核，在写好合成收据后修改来源，父进程未抛出授权错误。缺口涉及来源采集和执行完成登记。`verified-shots` 子进程原有的启动检查继续执行。
+
+`scripts/common.py` 负责文件哈希和 JSON 读取的授权采集。JSON 登记所解析字节的哈希，绑定校验与解析阶段再次读到不同内容时立即拒绝。来源、模型、数值清单、研究依据和适用的审核配置经现有校验器登记。采集保留调用方路径和解析后的路径，可识别符号链接改指。`produce.py` 与涉及门禁的验证器使用同一 `scripts.common` 上下文。来源或配置在执行期间改变时，`workflow.py` 拒绝登记有效成功，并在 `stage_output_rejected` 事件中记录原因、日志及授权凭据路径。镜头产物和执行日志留存。阶段日志和本次生成的收据属于执行产物。
+
+`test_verified_shots.py` 用真实来源、模型、清单和授权校验覆盖文件变化、缺失、符号链接改指和正常登记。执行中变化测试以合成收据代替昂贵渲染，走实际父进程登记代码。`test_reliability_repair.py` 继续覆盖排队期间配置、证据、QA 变化及真实锁行为。
+
+### R6 裁剪面的主体见证范围
+
+修复前，实际范围函数在近、远裁剪面相交的数值夹具中均只返回另一零件的 `[0.7, 0.4, 0.8, 0.6]`。同一相机移动夹具在主体由完整可见变为部分可见时返回空范围。非有限点也会被跳过。
+
+`blender/provenance_audit.py` 使用当帧求值的包围盒，在投影前计算近、远裁剪面的交点。透视或正交投影后的凸包与画面边界相交，范围由实际相交部分推导。完全不可见时返回空范围，无法得到可靠数值时带对象和帧位置拒绝。每个见证帧的算法只访问包围盒及有限交点。逐帧运动检查继续使用上一轮的求值策略。
+
+修复后，两种深度裁剪数值夹具都覆盖 `[0.05, 0.4, 0.8, 0.6]`。专项还验证了左右、上下画面边界、相机移动、不可见主体、非有限数值和完整可见物体。生成的真实 MP4 验证变更仅落在被裁剪主体时，ROI 仍能检出。原生 Blender 用 Eevee 重渲染同一见证帧并渲染隐藏该主体的替代版本，原帧和重渲染一致，替代帧超过现有 MAE 3 阈值。初次沙箱运行因 Metal 不可用退出，其后原生运行通过。[沙箱诊断](../output/render-diagnostics/provenance-clipped-witness-fixture-1zk_bdeg/result.json)
+
+### R8 历史成片默认路径
+
+修复前，真实短成片已经写在隔离项目的 `output/scoped-fixture-final.mp4`，`paths_for()` 却返回缺失的任务目录 `3d/final.mp4`。此前测试用替代的封面和增长验证器，未经过默认入口。
+
+`workflow.py` 的历史成片解析使用当前配置和真实来源门禁，核对成功 final 阶段的配置哈希、媒体哈希、时长、格式和章节覆盖。封面、增长报告、路线 QA 和交付校验共用派生绑定，磁盘台账保留原历史格式。配置、来源或媒体失效会拦截旧输出，已有路线绑定和显式封面来源覆盖保持各自的用途。现有独立 QA、封面、来源证明、增长报告和必交文件门禁继续执行。
+
+`test_source_supported_render.py` 运行真实来源验证、默认媒体解析、封面生成与校验、增长报告生成与校验、状态推进和交付登记。测试使用 FFmpeg 生成的 1920×1080/30 H.264/AAC MP4 和 10 秒技术预览。配置、媒体、来源变化和配置改换均使旧媒体失效。既有普通路线绑定由 `test_growth_report.py` 覆盖。历史交付夹具使用合成独立 QA 记录并替代昂贵的最终来源重放，真实原生重放由 Blender 专项及完整回归中的现有夹具执行。
+
+### 缓存与验证
+
+来源验证键继续包含审计脚本的实际哈希，因此旧 ROI 审计通过记录需要重新验证。仅为 `produce.py` 的公共模块导入调整更新媒体等价条目，保留既有合成键。镜头配方和付费缓存身份保持原有定义。封面与增长报告仍检查各自生成器版本和精确文件。原有历史媒体、资产、账本和失败证据没有移动。
+
+```sh
+export UV_CACHE_DIR=/private/tmp/mechanical-video-next-uv-cache
+uv run --locked python -m unittest discover -s tests -p test_verified_shots.py -v
+uv run --locked python -m unittest discover -s tests -p test_reliability_repair.py -v
+uv run --locked python -m unittest discover -s tests -p test_source_supported_render.py -v
+RUN_BLENDER_TESTS=1 uv run --locked python -m unittest discover -s tests -p test_provenance_witnesses.py -v
+RUN_BLENDER_TESTS=1 uv run --locked python -m unittest discover -s tests -v
+uv run --locked --with ruff ruff check --select F821 mechanical_video_next scripts blender tests
+git diff --check
+```
+
+镜头授权专项 11 项通过，可靠性与排队专项 11 项通过，历史成片专项 5 项通过，原生来源见证专项 8 项通过。最终完整原生回归用时 109.599 秒，共 569 项，564 项通过、5 项跳过、0 项失败、0 项报错。跳过项为 1 项可选 Remotion 浏览器测试和 4 项缺少历史本地产物的测试。F821 与 Git 差异检查通过。[完整日志](/private/tmp/mvn-followup-verified.log)
+
+本轮范围为工具回归与隔离原生渲染。实际成片连续视听、真实 TTS、外部平台、可选 Remotion 浏览器回归和 Linux 运行环境未验证。本轮未改动 Remotion 代码。
