@@ -207,7 +207,7 @@ def finishes():
         "basin": material("Glazed porcelain", (.79,.84,.82), .06, .2),
         "stone": material("Warm limestone", (.39,.34,.26), 0, .61),
         "wall": material("Matte moss", (.052,.13,.12), 0, .66),
-        "water": material("Water illustration", (.025,.54,.76), .26, .16, .13),
+        "water": material("Water illustration", (.009,.36,.72), .20, .18, .23),
         "spark": material("Water highlights", (.18,.74,.94), .17, .22, .32),
         "hot": material("Hot-side index", (.57,.13,.071), .15, .31),
     }
@@ -433,15 +433,15 @@ def main_cartridge_pose(cam, f, duration):
         handle.rotation_euler.z = .18*math.sin(min(1,t/1.32)*math.pi)
         housing.location = (HOT_X+.79*take_bonnet,.43*take_bonnet,.60*take_bonnet)
         cartridge.location.z = -.32+1.37*take_valve
-        target = (-.47-1.15*watch,-.08,.88+.41*take_valve)
+        target = (-.47-1.15*watch,-.08,.88+.49*take_valve+.11*take_handle)
         camera(cam,target,(4.1-1.7*watch,-9.9,4.6+1.1*watch),8.2-3.05*watch)
     return pose
 
 
 def wet_ports(f, root, *, tall=False):
     """Make geometry only for angular intersection of each pair of openings."""
-    bottom = .12 if tall else .485
-    top = 1.17 if tall else .895
+    bottom = .46 if tall else .485
+    top = .92 if tall else .895
     parts = [ring("Open area shared by both discs", ((.31,bottom),(.735,bottom),
         (.735,top),(.31,top)), f["water"], root, start=-PORT_HALF,
         end=PORT_HALF, sides=28) for _ in range(2)]
@@ -462,7 +462,8 @@ def wet_ports(f, root, *, tall=False):
 
 
 def cutaway(cam, f, shot, duration):
-    block("Studio sweep", (0,0,-.07), (180,180,.12), f["wall"], edge=0)
+    floor_z = -.76 if shot == 3 else -.07
+    block("Studio sweep", (0,0,floor_z), (180,180,.12), f["wall"], edge=0)
     root = group("Valve and discs on shared axis", (-.28,0,.12))
     fixed, moving = plate_set(f, root)
     shell = group("Cartridge body", parent=root)
@@ -473,17 +474,17 @@ def cutaway(cam, f, shot, duration):
     lever("Indexed handle", grip, f["chrome"], f["hot"])
     wet = wet_ports(f, root, tall=shot == 3)
     lower = group("Inlet centered below discs", parent=root)
-    tube = ring("Cutaway inlet", ((.52,.02),(.97,.02),(.97,.34),(.52,.34)),
+    tube = ring("Cutaway inlet", ((.68,-.55),(.97,-.55),(.97,.34),(.68,.34)),
                 f["brass"], lower, start=0,end=math.pi)
-    inlet = pipe("Water supply below fixed ceramic", [(0,0,.03),(0,0,.23),(.45,0,.49)],
+    inlet = pipe("Water supply below fixed ceramic", [(.52,0,-.55),(.52,0,.50)],
                  .10, f["water"], lower)
-    outlet = pipe("Side outlet toward spout", [(.53,0,1.08),(.78,-.04,1.13),
-                   (1.31,-.10,1.13),(1.76,-.10,1.13)], .10, f["water"], lower, bezier=True)
+    outlet = pipe("Side outlet toward spout", [(.52,0,.87),(.61,-.01,1.06),
+                   (1.13,-.06,1.13),(1.76,-.10,1.13)], .10, f["water"], lower, bezier=True)
     for part in (tube, inlet,outlet):
         part.hide_render = shot != 3
     drops = [bead("Water direction marker", (0,0,0), .067, f["spark"], lower) for _ in range(9)]
     next_cue = duration * {2: .61, 3: .495, 4: .463, 5: .446}[shot]
-    turn_start = 1.10
+    turn_start = .24
 
     def pose(t):
         angle = 0
@@ -497,7 +498,7 @@ def cutaway(cam, f, shot, duration):
             shell.location.x = .91*separate
             show_tree(grip, False)
             axis = (.20,-7,4.1+2.7*separate)
-            camera(cam,(.03,0,1.28),axis,5.65-.47*separate)
+            camera(cam,(.03,0,1.28+.17*separate),axis,5.65-.24*separate)
         elif shot == 3:
             show_tree(grip, False)
             separate = 1-ease(t,.05,1.55)
@@ -505,10 +506,12 @@ def cutaway(cam, f, shot, duration):
             driver.location.z = .65*separate
             shell.location.z = .20*separate
             shell.location.x = .91*separate
-            camera(cam,(.11,0,1.22),(.52,-7,3.25+2.7*separate),4.97)
+            flow_view = ease(t, next_cue-1.1, next_cue+.75)
+            camera(cam,(.11,0,1.37+.09*separate-.38*flow_view),
+                   (.52,-7,3.25+2.7*separate-1.67*flow_view),5.28+.61*flow_view)
         else:
             # Establish the shared axis from the side, then match the view to the faces.
-            dive = ease(t,.44,1.86) if shot == 4 else 1
+            dive = ease(t,.94,2.34) if shot == 4 else 1
             if shot == 4:
                 angle = TRAVEL*ease(t,turn_start, next_cue+.88)
             else:
@@ -533,9 +536,11 @@ def cutaway(cam, f, shot, duration):
             dot.hide_render = not enable_flow
             p = (t*.64+i/len(drops))%1
             if p < .59:
-                dot.location = (.52*ease(p,0,.16),0,.06+1.07*p/.59)
+                dot.location = (.52,0,-.55+1.48*p/.59)
             else:
-                dot.location = (.52+1.22*(p-.59)/.41,-.09,1.13)
+                progress = (p-.59)/.41
+                dot.location = (.52+1.24*progress,-.10*progress,
+                                .93+.20*ease(progress,0,.42))
             dot.scale = (1,1,1.16)
     return pose
 
