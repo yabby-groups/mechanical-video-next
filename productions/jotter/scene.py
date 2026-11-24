@@ -14,6 +14,8 @@ from mathutils import Vector
 
 FPS = 30
 PI = math.pi
+LATCH_ANGLE = 2.12
+GROOVE_ANGLE = LATCH_ANGLE - PI / 2
 
 
 def material(name, color, metal=0, roughness=.32):
@@ -155,17 +157,15 @@ def pen(materials, cut=False):
     plunger_teeth = [sector("Plunger indexing edge", 4.17, 4.43, .344, angle, .57, ivory)
                      for angle in (-.85, -.85 + PI, .72, .72 + PI)]
     cam = rod("Rotating cam body", [(3.76, .241), (4.08, .272), (4.37, .255)], orange)
-    latch_angle = 2.12
-    groove_angle = latch_angle - PI / 2
-    teeth = [ramp("Raised cam lug", 4.14, groove_angle + turn, .38, orange)
+    teeth = [ramp("Raised cam lug", 4.14, GROOVE_ANGLE + turn, .38, orange)
              for turn in (0, PI)]
-    teeth.extend(ramp("Low indexing ramp", 4.14, latch_angle + turn, .30, orange)
+    teeth.extend(ramp("Low indexing ramp", 4.14, LATCH_ANGLE + turn, .30, orange)
                  for turn in (0, PI))
     # Opposed fixed stop members interrupt the track at alternating cam positions.
     stops = [sector("Fixed stop and guide flank", 4.04, 5.16, .404, angle, .24, blue, inner=.315)
-             for angle in (latch_angle, latch_angle + PI)]
+             for angle in (LATCH_ANGLE, LATCH_ANGLE + PI)]
     stops.extend(sector("Guide slot flank", 4.03, 5.11, .405,
-                        groove_angle + turn + edge, .12, blue, inner=.34)
+                        GROOVE_ANGLE + turn + edge, .12, blue, inner=.34)
                  for turn in (0, PI) for edge in (-.43, .43))
     return dict(barrel=[barrel], cap=[upper, collar, clip, clip_mount, thread],
                 button=[button, sleeve, *plunger_teeth], refill=[refill, point],
@@ -196,7 +196,7 @@ def setup(shot):
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
     scene.eevee.taa_render_samples = 8
-    if shot in (2, 3):
+    if shot in (2, 3, 5):
         scene.eevee.taa_render_samples = 16
         scene.eevee.shadow_ray_count = 8
     scene.render.resolution_x = 1920
@@ -248,8 +248,45 @@ def animate_pen(pen_parts, offset, stroke, rotation):
     pen_parts["back"].scale.x = 1 - stroke / .79
 
 
+def cutaway_camera(cam, x, width):
+    camera(cam, (x, 0, .01), (.23, -1, .63), width, .12)
+
+
+def contact_arrow(cam):
+    """Draw a camera-facing arrow at the visible end of the stop or groove."""
+    # Coordinates are in pixels relative to the projected mechanical target.
+    points = [(-91, -80), (-11, -9), (-18, -33), (-11, -9), (-36, -12)]
+    paths = [
+        curve("Contact arrow outline", [(0, 0, 0)] * len(points), .013,
+              material("Contact arrow dark edge", (.018, .038, .05))),
+        curve("Contact arrow", [(0, 0, 0)] * len(points), .006,
+              material("Contact arrow white", (.92, .97, 1))),
+    ]
+    for obj in paths:
+        mat = obj.data.materials[0]
+        shader = mat.node_tree.nodes.new("ShaderNodeEmission")
+        shader.inputs["Color"].default_value = mat.diffuse_color
+        mat.node_tree.links.new(shader.outputs[0], mat.node_tree.nodes["Material Output"].inputs[0])
+
+    def point_to(angle):
+        for obj in paths:
+            obj.hide_render = angle is None
+        if angle is None:
+            return
+        target = Vector((4.04, .38 * math.cos(angle), .38 * math.sin(angle)))
+        rotation = cam.rotation_euler.to_matrix()
+        right, up, toward_cam = rotation.col
+        pixel = cam.data.ortho_scale / 1920
+        for index, obj in enumerate(paths):
+            origin = target + toward_cam * (12 + index * .02)
+            for point, (x, y) in zip(obj.data.splines[0].points, points):
+                point.co = (*(origin + pixel * (x * right + y * up)), 1)
+
+    return point_to
+
+
 def scene_pen(scene, cam, shot, mats):
-    cut = shot in (2, 3)
+    cut = shot in (2, 3, 5)
     parts = pen(mats, cut)
     if shot == 0:
         def pose(t):
@@ -261,10 +298,27 @@ def scene_pen(scene, cam, shot, mats):
             camera(cam, (-.1, 0, -.08), (.45 - .15 * ease(t, 0, 6), -1, .72),
                    14.05 - .65 * ease(t, 0, 5), .16)
     elif shot == 1:
+        section = pen(mats, cut=True)
+        solid_objects = [obj for group in parts.values()
+                         for obj in (group if isinstance(group, list) else [group])]
+        section_objects = [obj for group in section.values()
+                           for obj in (group if isinstance(group, list) else [group])]
+        # The open mechanism replaces the exploded assembly on the spoken reveal.
+        reveal = 5.93
         cap_parts = [*parts["cap"], *parts["button"], *parts["rotor"], *parts["stops"], parts["back"]]
         cap_origins = [(obj, obj.location.copy()) for obj in cap_parts]
 
         def pose(t):
+            for obj in solid_objects:
+                obj.hide_render = t >= reveal
+            for obj in section_objects:
+                obj.hide_render = t < reveal
+            if t >= reveal:
+                scene.eevee.taa_render_samples = 16
+                scene.eevee.shadow_ray_count = 8
+                pull_back = ease(t, 6.45, 8.45)
+                cutaway_camera(cam, 2.74 * (1 - pull_back), 8.6 + 4.9 * pull_back)
+                return
             unscrew = ease(t, .55, 1.65)
             withdraw = ease(t, 1.65, 3.65)
             arrange = ease(t, 4.52, 5.78)
@@ -279,11 +333,10 @@ def scene_pen(scene, cam, shot, mats):
             spring_display = ease(t, 4.91, 5.65)
             parts["front"].location = (-5.53 - 1.66 * spring_slide + 2.4 * spring_display,
                                        -1.08 * spring_display, 0)
-            close = ease(t, 6.2, 8.35)
             wide = ease(t, 1.65, 3.42) - arrange
-            camera(cam, (-1.2 * wide + 4.23 * close, -.22, 0),
-                   (.39, -1, .88), 14.7 + 10.4 * wide - 6.4 * close, .10)
-    elif cut:
+            camera(cam, (-1.2 * wide, -.22, 0), (.39, -1, .88), 14.7 + 10.4 * wide, .10)
+    elif shot in (2, 3):
+        point_to = contact_arrow(cam)
         # The second shot starts at the same locked pose, from the same side.
         if shot == 2:
             offset_keys = [(0, 0), (2.45, 0), (4.65, .38), (6.45, .38),
@@ -306,16 +359,34 @@ def scene_pen(scene, cam, shot, mats):
             else:
                 width = track(t, [(0, 13.5), (1.85, 4.45), (6.65, 4.45), (9.15, 13.5)])
                 x = track(t, [(0, 0), (1.85, 4.47), (6.65, 4.47), (9.15, 0)])
-            camera(cam, (x, 0, .01), (.23, -1, .63), width, .12)
+            cutaway_camera(cam, x, width)
+            stop = shot == 2 and 11.48 <= t < 12.98
+            groove = shot == 3 and 4.75 <= t < 6.65
+            point_to(LATCH_ANGLE if stop else GROOVE_ANGLE + PI if groove else None)
     else:
+        point_to = contact_arrow(cam)
+        tip_shell = shell("Barrel around writing tip", [(-6.05, .155), (-5.87, .213),
+                          (-5.15, .325), (-4, .424)], [.08, .138, .25, .349], mats[0])
+
         def pose(t):
-            click = track(t, [(0, 0), (.6, 0), (.84, .49), (1.13, .27),
-                              (3.0, .27), (3.22, .49), (3.57, 0)])
-            stroke = track(t, [(0, 0), (.6, 0), (.84, .49), (1.13, 0),
-                               (3.0, 0), (3.22, .49), (3.57, 0)])
-            animate_pen(parts, click, stroke, 0)
-            camera(cam, (.05, 0, -.02), (.38 - .14 * ease(t, 0, 6), -1, .68),
-                   13.2 + .35 * ease(t, 0, 6), .17)
+            offset = track(t, [(0, 0), (.40, 0), (.84, .49), (.96, .49), (1.16, .27),
+                               (2.75, .27), (3.22, .49), (4.13, .49), (4.52, 0)])
+            stroke = track(t, [(0, 0), (.40, 0), (.84, .49), (.96, .49), (1.16, 0),
+                               (2.75, 0), (3.22, .49), (4.13, .49), (4.52, 0)])
+            rotation = track(t, [(0, 0), (.76, 0), (.87, PI/4), (.96, PI/4),
+                                 (1.13, PI/2), (3.13, PI/2), (3.25, 3*PI/4),
+                                 (3.30, 3*PI/4), (3.48, PI)])
+            animate_pen(parts, offset, stroke, rotation)
+            stop = 1.13 <= t < 1.73
+            groove = 3.48 <= t < 4.10
+            tip_view = 1.73 <= t < 2.63 or t >= 4.10
+            tip_shell.hide_render = not tip_view
+            parts["barrel"][0].hide_render = tip_view
+            if tip_view:
+                cutaway_camera(cam, -5.82, 2.68)
+            else:
+                cutaway_camera(cam, 4.47, 4.45)
+            point_to(LATCH_ANGLE if stop else GROOVE_ANGLE + PI if groove else None)
     return pose
 
 
@@ -386,8 +457,8 @@ def main():
         scene.render.image_settings.file_format = "JPEG"
         scene.render.image_settings.quality = 92
         scene.render.resolution_percentage = 42 if args.preview else 100
-        sample_times = [(0.55, 2.72), (3.95, 6.75), (6.15, 8.08, 11.7, 15.3),
-                        (3.85, 5.6, 9.6), (2.2, 7.7, 12.35), (1.5, 4.2)]
+        sample_times = [(0.55, 2.72), (3.95, 5.97, 6.75), (6.15, 8.08, 11.7, 15.3),
+                        (3.85, 5.6, 9.6), (2.2, 7.7, 12.35), (1.35, 2.2, 3.8, 4.6)]
         frames = [round(FPS * t) for t in sample_times[shot]] if args.preview else range(timing[shot])
         for frame in frames:
             path = folder / f"{frame:05}.jpg"
