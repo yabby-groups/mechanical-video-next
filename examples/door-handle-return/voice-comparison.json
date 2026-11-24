@@ -1,0 +1,57 @@
+{
+  "original_timeline": "output/tasks/door-handle-return-formal-20261122/measured-neil.json",
+  "picture": "output/tasks/door-handle-return-formal-20261122/final/picture.mp4",
+  "source_frames": [0, 833],
+  "speech_slots": {
+    "hook-1": [3, 101],
+    "hook-2": [101, 180],
+    "reveal-1": [188, 249],
+    "mount-1": [392, 494],
+    "mount-2": [500, 590],
+    "explode-1": [591, 706],
+    "explode-2": [707, 829]
+  },
+  "beats": [
+    {
+      "story_purpose": "先让观众认出门把手回平的日常动作，再把疑问落到松手以后是谁还在推",
+      "emotion": "curious",
+      "emotion_intensity": 0.33,
+      "speaking_rate": 1.07,
+      "segments": [
+        {"segment_id": "hook-1", "delivery_style": "轻快地说出日常发现，松开之间留一点自然顿挫", "emphasis_words": ["松开"], "action_anchors": [{"action_id": "hook", "frame": 51, "phrase": "松开", "tolerance_ms": 450}]},
+        {"segment_id": "hook-2", "delivery_style": "前半句稍收，后半句像真在追问", "emphasis_words": ["谁还在推"]}
+      ]
+    },
+    {
+      "story_purpose": "把观看视线从门把手整体转到根部与露出的压簧",
+      "emotion": "suspense",
+      "emotion_intensity": 0.32,
+      "speaking_rate": 1.03,
+      "segments": [
+        {"segment_id": "reveal-1"},
+        {"segment_id": "reveal-2", "delivery_style": "平稳指向剖口，轻轻落在压簧上", "speaking_rate": 1.05}
+      ]
+    },
+    {
+      "story_purpose": "区分固定壳体与旋转把手，建立观察内部机构的空间参照",
+      "emotion": "explanatory",
+      "emotion_intensity": 0.20,
+      "speaking_rate": 1.05,
+      "segments": [
+        {"segment_id": "mount-1", "emphasis_words": ["固定"]},
+        {"segment_id": "mount-2", "emphasis_words": ["原处"], "speaking_rate": 1.03}
+      ]
+    },
+    {
+      "story_purpose": "引导观众沿轴线识别分开的三件零件，看懂共用一条转轴",
+      "emotion": "confident",
+      "emotion_intensity": 0.27,
+      "speaking_rate": 1.06,
+      "segments": [
+        {"segment_id": "explode-1", "emphasis_words": ["轴线"]},
+        {"segment_id": "explode-2", "delivery_style": "清晰读出零件名称，自然落在共用一条转轴", "emphasis_words": ["转轴"]}
+      ]
+    }
+  ],
+  "script_feedback": []
+}
