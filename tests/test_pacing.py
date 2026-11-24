@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -101,6 +102,58 @@ class PacingTests(unittest.TestCase):
         self.assertEqual(pacing.review_status(report, review), 'PASS')
         checks['opening_event']['status'] = 'FAIL'
         self.assertEqual(pacing.review_status(report, review), 'FAIL')
+
+    def test_opening_extracts_real_picture_and_default_audio_without_semantic_claim(self):
+        clip = self.root / 'actual.mp4'
+        subtitles = self.root / 'opening.srt'
+        subtitles.write_text('1\n00:00:00,150 --> 00:00:01,750\nVisible ports\n')
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=s=64x64:r=30',
+                        '-f', 'lavfi', '-i', 'sine=frequency=250',
+                        '-f', 'lavfi', '-i', 'sine=frequency=500', '-i', subtitles,
+                        '-map', '0:v', '-map', '1:a', '-map', '2:a', '-map', '3:s',
+                        '-disposition:a:0', '0', '-disposition:a:1', 'default',
+                        '-t', '3.4', '-c:v', 'libx264', '-c:a', 'aac', '-c:s', 'mov_text', clip], check=True)
+        with self.assertRaisesRegex(ValueError, 'SHA-256'):
+            pacing.opening_analysis(clip, expected_sha='wrong hash')
+        analysis = pacing.opening_analysis(clip)
+        self.assertEqual(analysis['audio_stream'], 2)
+        self.assertEqual(analysis['subtitle_streams'], [3])
+        self.assertEqual(analysis['retention_2s']['checkpoints'], [list(row) for row in pacing.OPENING_WINDOWS])
+        self.assertEqual(analysis['retention_5s']['time_range'], [0, 3.4])
+        pacing.extract_opening(analysis, self.root / 'excerpts')
+        for key, end in (('retention_2s', 2), ('retention_5s', 3.4)):
+            playback = joint.bound(analysis[key]['playback'])
+            info = pacing.opening_analysis(playback)
+            self.assertAlmostEqual(info['picture_duration'], end)
+            self.assertEqual(info['audio_stream'], 1)
+            self.assertEqual(info['subtitle_streams'], [2])
+            self.assertIsNone(analysis[key]['editorial_review'])
+        self.assertEqual(analysis['continuous_viewing'], 'UNKNOWN')
+        self.assertEqual(analysis['perceptual_listening'], 'UNKNOWN')
+
+    def test_two_second_review_cannot_cite_the_later_reveal_or_claim_missing_coverage(self):
+        evidence = [{'time_range': [0, .25], 'observation': 'Open ports are visible'}]
+        answers = dict.fromkeys(pacing.OPENING_QUESTIONS, 'UNKNOWN')
+        answers['third_second'] = 'The orange marker reveals which plate moves'
+        row = dict(coverage='sampled_picture', evidence=evidence, answers=answers,
+                   conclusion='The viewer can compare hidden parts at the start',
+                   third_second_evidence=[0])
+        review = dict(media_sha256=self.media['sha256'], retention_2s=row)
+        self.assertEqual(pacing.opening_review(review, self.media, 6), {'retention_2s': row})
+        with self.assertRaisesRegex(ValueError, 'exact MP4'):
+            pacing.opening_review(review | {'media_sha256': 'changed'}, self.media, 6)
+        row['third_second_evidence'] = [1]
+        with self.assertRaisesRegex(ValueError, 'Third-second'):
+            pacing.opening_review(review, self.media, 6)
+        row['third_second_evidence'] = [0]
+        for late in ([2, 2], [2.8, 2.8]):
+            evidence[0]['time_range'] = late
+            with self.assertRaisesRegex(ValueError, 'outside'):
+                pacing.opening_review(review, self.media, 6)
+        evidence[0]['time_range'] = [0, .25]
+        row['coverage'] = 'continuous_av'
+        with self.assertRaisesRegex(ValueError, 'spanning'):
+            pacing.opening_review(review, self.media, 6)
 
     def test_recomposition_or_replaced_source_cannot_reuse_current_qa(self):
         audit = self.audit()

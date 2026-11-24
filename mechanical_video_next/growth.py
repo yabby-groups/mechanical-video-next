@@ -18,6 +18,25 @@ GOALS_V2 = {
     'comment': ('grounded_discussion',),
     'follow': ('complete_answer', 'series_value'),
 }
+AUDIENCE_GOALS = {
+    'retention_2s': '2 秒留存专项检查',
+    'retention_5s': '5 秒留存检查',
+    'completion': '整片完播检查',
+    'like': '点赞检查',
+    'save': '收藏检查',
+    'comment': '评论检查',
+    'follow': '关注检查',
+}
+
+
+def opening_goals(duration, review=None):
+    """Represent editorial observations alongside empty platform metrics."""
+    review = review or {}
+    return {key: {'time_range': [0, min(seconds, duration)],
+                  'editorial_review': review.get(key), 'actual_platform_rate': None}
+            for key, seconds in (('retention_2s', 2), ('retention_5s', 5))}
+
+
 GOAL_FIELDS = ('goal_id', 'knowledge_point', 'reference_id', 'shot_id', 'time_range',
                'planned_action', 'visual_proof', 'narration', 'verification_method',
                'actual_media_evidence', 'qa_status')

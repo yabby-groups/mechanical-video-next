@@ -42,6 +42,18 @@ class CreativeDirectorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'distinct'):
             director.validate_treatments(plan)
 
+    def test_selected_treatment_can_describe_a_static_opening_with_a_specific_bridge(self):
+        treatments = {name: dict.fromkeys(director.TREATMENT, name) for name in director.APPROACHES}
+        plan = dict(treatments=treatments, selected='mystery', selection_reason='Compare the exposed ports')
+        direction = dict(phenomenon='Overlapping ceramic ports', first_frame='Hold on open and closed ports',
+                         product_cue='Keep the faucet silhouette', quiet_viewing='Blue overlap shows the passage',
+                         third_second='Which ceramic disc moves?', five_second_bridge='Follow the handle to the stem')
+        treatments['mystery']['opening_direction'] = direction
+        self.assertEqual(director.validate_treatments(plan)['opening_direction'], direction)
+        del direction['five_second_bridge']
+        with self.assertRaisesRegex(ValueError, 'bridge'):
+            director.validate_treatments(plan)
+
     def test_measured_speech_must_cross_the_j_cut(self):
         document = {director.FIELD: 1, 'shots': [
             {'director': {'edits': [dict(kind='j_cut', frame=15, speech_id='line')]}}

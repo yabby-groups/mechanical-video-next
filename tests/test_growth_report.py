@@ -4,6 +4,8 @@ import tempfile
 import unittest
 import subprocess
 from mechanical_video_next import growth_report as gr
+from mechanical_video_next import pacing
+from mechanical_video_next.growth import AUDIENCE_GOALS
 
 from fixture_fonts import test_font
 
@@ -51,6 +53,27 @@ class GrowthReportTests(unittest.TestCase):
                 gr.validate(self.task)
         finally:
             report_path.write_bytes(original)
+
+    def test_opening_goals_lead_and_only_import_observations_bound_to_route_media(self):
+        report = gr.read(self.task / 'growth-report.json')
+        route = report['routes']['3d']
+        text = gr.render_markdown(report)
+        positions = [text.index(f'### {label}') for label in AUDIENCE_GOALS.values()]
+        self.assertEqual(positions, sorted(positions))
+        review = {'media_sha256': route['media']['sha256'],
+                  'retention_2s': dict(coverage='sampled_picture', conclusion='The plate fills the frame',
+                                      evidence=[dict(time_range=[0, 0], observation='Two red ports')],
+                                      answers=dict.fromkeys(pacing.OPENING_QUESTIONS, 'UNKNOWN'),
+                                      third_second_evidence=[],
+                                      revision=dict(focus='Input', method='Show handle', candidate='Split view'))}
+        gr.write(self.task / 'opening-review.json', review)
+        gr.write(self.task / 'opening-review-stale.json', review | {'media_sha256': 'stale'})
+        goals = gr.opening_observations(gr.opening_documents(self.task), route['media'], route['duration_seconds'])
+        self.assertEqual(len(goals['retention_2s']['editorial_review']), 1)
+        self.assertEqual(goals['retention_2s']['editorial_review'][0]['revision']['candidate'], 'Split view')
+        self.assertIsNone(goals['retention_5s']['editorial_review'])
+        self.assertIsNone(goals['retention_2s']['actual_platform_rate'])
+        self.assertEqual(gr.snapshot(self.task), report['sources'])
 
     def test_missing_media_blocks_generation_before_frame_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:

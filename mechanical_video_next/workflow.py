@@ -3987,6 +3987,8 @@ def select_route(task, route, reason):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
+    from . import pacing
+    pacing.opening_arguments(sub.add_parser('opening-analysis', help='Inspect an actual two- and five-second opening'))
     p = sub.add_parser('produce', help='Render an authored episode to MP4')
     source = p.add_mutually_exclusive_group(required=True)
     source.add_argument('--episode', type=Path, help='Directory containing the scene, narration and edit')
@@ -4059,6 +4061,9 @@ def main():
             p.add_argument('--success', choices=['true', 'false'])
             p.add_argument('--retries', type=int)
     args = parser.parse_args()
+    if args.command == 'opening-analysis':
+        pacing.run_opening(args)
+        return
     if args.command == 'migrate-3d':
         from .three_d import migrate
         migrate(args.task,args.reason)

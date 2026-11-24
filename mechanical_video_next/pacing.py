@@ -4,8 +4,9 @@ import argparse
 import json
 import math
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from scripts.common import digest
+from scripts.common import digest, probe, run
 from . import joint_timeline as joint
 
 VERSION = 1
@@ -18,6 +19,153 @@ KINDS = {'input', 'contact', 'transmission', 'output', 'reset', 'answer'}
 # Earlier remedies preserve both the source clock and Neil's natural delivery.
 REPAIR_ORDER = ('trim_wait', 'remove_repetition', 'merge_camera_move', 'reorder',
                 'revise_narration', 'redistribute_animation', 'render_if_needed')
+
+
+OPENING_WINDOWS = ((0, .25), (.25, .5), (.5, 1), (1, 1.5), (1.5, 2))
+OPENING_QUESTIONS = {
+    'first_frame': '第一帧因为什么有或没有观看价值？',
+    'product': '第一眼靠什么识别产品？',
+    'attention': '视线首先落在哪里？',
+    'ordinary': '哪里像经常见到的普通展示？',
+    'phenomenon': '哪个现象值得追看，为什么？',
+    'hidden': '有哪些平时看不到的内容？',
+    'change': '有哪些反常状态、变化或有价值的静态关系？',
+    'narration': '旁白何时用哪个信息建立兴趣？',
+    'subtitles': '字幕建立了哪个具体的知识期待？',
+    'muted': '静音时什么信息仍然成立？',
+    'phone': '手机尺寸下哪个细节还能看清？',
+    'third_second': '仅依据 0–2 秒内已经出现在画面上的内容，为什么愿意或不愿意看第三秒？',
+}
+
+
+def opening_analysis(path, *, expected_sha=None):
+    """Locate the opening on the actual picture clock and identify its audio track."""
+    media = joint.binding(path)
+    if expected_sha is not None and media['sha256'] != expected_sha:
+        raise ValueError('Opening MP4 SHA-256 differs from the requested version')
+    info = probe(media['path'])
+    video = next((row for row in info['streams'] if row['codec_type'] == 'video'
+                  and not row.get('disposition', {}).get('attached_pic')), None)
+    if video is None:
+        raise ValueError('Opening MP4 needs a playable picture stream')
+    duration = float(video.get('duration') or info['format']['duration'])
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError('Opening MP4 needs a positive finite picture duration')
+    audio = [row for row in info['streams'] if row['codec_type'] == 'audio']
+    default_audio = next((row for row in audio if row.get('disposition', {}).get('default')),
+                         audio[0] if audio else None)
+    joint.bound(media)
+    return {
+        'media': media, 'picture_duration': duration, 'picture_stream': video['index'],
+        'audio_stream': default_audio['index'] if default_audio else None,
+        'subtitle_streams': [row['index'] for row in info['streams'] if row['codec_type'] == 'subtitle'],
+        'retention_2s': {
+            'time_range': [0, min(2, duration)],
+            'checkpoints': [[start, min(end, duration)] for start, end in OPENING_WINDOWS if start < duration],
+            'questions': OPENING_QUESTIONS.copy(), 'editorial_review': None,
+        },
+        'retention_5s': {'time_range': [0, min(5, duration)], 'editorial_review': None},
+        'continuous_viewing': 'UNKNOWN', 'perceptual_listening': 'UNKNOWN',
+    }
+
+
+def extract_opening(analysis, directory):
+    """Make time-aligned playback clips for review and verify their decoded streams."""
+    directory.mkdir(parents=True, exist_ok=True)
+    media = analysis['media']
+    path = joint.bound(media)
+    mapping = ['-map', f"0:{analysis['picture_stream']}"]
+    audio = analysis['audio_stream']
+    if audio is not None:
+        mapping.extend(['-map', f'0:{audio}'])
+    for stream in analysis['subtitle_streams']:
+        mapping.extend(['-map', f'0:{stream}'])
+    for key in ('retention_2s', 'retention_5s'):
+        end = analysis[key]['time_range'][1]
+        target = directory / f"{Path(path).stem}-{media['sha256'][:16]}-{key[-2:]}.mp4"
+        # Use the input clock and accurate encoding rather than keyframe-only stream copy.
+        with TemporaryDirectory(dir=directory) as staging:
+            clip = Path(staging) / target.name
+            run(['ffmpeg', '-v', 'error', '-xerror', '-i', path, *mapping,
+                 '-t', str(end), '-c:v', 'libx264', '-crf', '17', '-c:a', 'aac', '-c:s', 'copy',
+                 '-movflags', '+faststart', clip])
+            run(['ffmpeg', '-v', 'error', '-xerror', '-i', clip, '-map', '0:v:0',
+                 '-map', '0:a:0?', '-f', 'null', '-'])
+            joint.bound(media)
+            clip.replace(target)
+        analysis[key]['playback'] = joint.binding(target)
+
+
+def opening_review(review, media, duration):
+    """Check provenance and evidence limits of a supplied editorial observation."""
+    if not isinstance(review, dict) or review.get('media_sha256') != media['sha256']:
+        raise ValueError('Opening review must bind the exact MP4 hash')
+    result = {}
+    for key, limit in (('retention_2s', 2), ('retention_5s', 5)):
+        if key not in review:
+            continue
+        row = review[key]
+        if not text_fields(row, ('conclusion',)) or row.get('coverage') not in (
+                'continuous_picture', 'continuous_av', 'sampled_picture', 'UNKNOWN'):
+            raise ValueError(f'{key} requires an editorial conclusion and picture/listening coverage')
+        references = row.get('evidence', [])
+        if not isinstance(references, list) or (not references and row['coverage'] != 'UNKNOWN'):
+            raise ValueError(f'{key} requires timed evidence for observed coverage')
+        end = min(limit, duration)
+        for ref in references:
+            times = ref.get('time_range') if isinstance(ref, dict) else None
+            if (not text_fields(ref, ('observation',)) or not isinstance(times, list) or len(times) != 2
+                    or any(type(value) not in (float, int) or not math.isfinite(value) for value in times)
+                    or not 0 <= times[0] <= times[1] <= end
+                    or times[0] == times[1] == end):
+                raise ValueError(f'{key} evidence falls outside its review window')
+        if row['coverage'] in ('continuous_picture', 'continuous_av'):
+            covered = 0
+            for ref in sorted(references, key=lambda item: item['time_range']):
+                start, stop = ref['time_range']
+                if start > covered:
+                    break
+                covered = max(covered, stop)
+            if covered < end:
+                raise ValueError(f'{key} continuous coverage requires evidence spanning the window')
+        if key == 'retention_2s' and row['coverage'] != 'UNKNOWN':
+            if not text_fields(row.get('answers'), OPENING_QUESTIONS):
+                raise ValueError('Two-second review requires answers to the opening questions (UNKNOWN where needed)')
+            cited = row.get('third_second_evidence')
+            if (not isinstance(cited, list)
+                    or any(type(index) is not int or not 0 <= index < len(references) for index in cited)
+                    or not cited and row['answers']['third_second'] != 'UNKNOWN'):
+                raise ValueError('Third-second judgment must cite evidence from the two-second window')
+            if 'revision' in row and not text_fields(row['revision'], ('focus', 'method', 'candidate')):
+                raise ValueError('Opening revision requires a focus, method and candidate design')
+        result[key] = row
+    return result
+
+
+def opening_arguments(parser):
+    parser.add_argument('media', type=Path, help='Actual opening workprint or final MP4')
+    parser.add_argument('--sha256', help='Require this source version')
+    parser.add_argument('--clips', type=Path, help='Write playable two- and five-second excerpts')
+    parser.add_argument('--review', type=Path, help='Import a timed editorial observation for these exact bytes')
+    parser.add_argument('--output', type=Path, help='Write the analysis JSON here')
+
+
+def run_opening(args):
+    from .video_review import write_report
+
+    report = opening_analysis(args.media, expected_sha=args.sha256)
+    if args.review:
+        authored = json.loads(args.review.read_text())
+        for key, observation in opening_review(authored, report['media'], report['picture_duration']).items():
+            report[key]['editorial_review'] = observation
+    if args.clips:
+        extract_opening(report, args.clips)
+    if args.output:
+        if args.output.resolve() == joint.bound(report['media']).resolve():
+            raise ValueError('Analysis output must differ from input media')
+        write_report(args.output, report)
+    else:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 def enabled(document):
@@ -273,7 +421,7 @@ def analyze(media, plan, design, *, measured=None, states=(), inputs=None, wait_
 
     end = plan['frame_count']
     for code, seconds, candidates, detail in (
-        ('opening_event_missing', 2, early, 'Show a recognizable object performing a relevant function'),
+        ('opening_event_missing', 2, early, 'Locate the planned opening event or review the value of the opening state'),
         ('early_progress_missing', 5, advances, 'Show the first result or a meaningful causal step'),
     ):
         limit = min(seconds * joint.FPS, end)
@@ -283,6 +431,10 @@ def analyze(media, plan, design, *, measured=None, states=(), inputs=None, wait_
             'duration_seconds': end / joint.FPS, 'design_sha256': digest(design),
             'inputs': inputs or {}, 'shots': shots, 'findings': findings,
             'first_result': next(iter(results), None), 'first_answer': next(iter(answers), None),
+            'retention_2s': {'purpose': 'opening interest', 'status': 'UNKNOWN',
+                             'time_range': [0, min(2, end / joint.FPS)]},
+            'retention_5s': {'purpose': 'opening continuation', 'status': 'UNKNOWN',
+                             'time_range': [0, min(5, end / joint.FPS)]},
             'continuous_viewing': 'UNKNOWN', 'perceptual_listening': 'UNKNOWN',
             'sensory_status': 'UNKNOWN'}
 

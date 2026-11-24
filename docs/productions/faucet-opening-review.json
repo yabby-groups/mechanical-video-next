@@ -1,0 +1,87 @@
+{
+  "media_sha256": "ef42007f8a0a2a09c2b1263acdb9fd9132f19ed6c1aae4c655b63d8bd9d7dce7",
+  "retention_2s": {
+    "coverage": "sampled_picture",
+    "conclusion": "拱形龙头容易识别，蓝色水柱吸引视线。关水结果属于日常观察，开场尚无内部因果线索。",
+    "evidence": [
+      {
+        "time_range": [
+          0,
+          0
+        ],
+        "observation": "拱形龙头与蓝色水柱在整机画面中最显眼。"
+      },
+      {
+        "time_range": [
+          0.467,
+          0.467
+        ],
+        "observation": "左把手已偏转，水柱仍可见。画面字幕指出小幅转动。"
+      },
+      {
+        "time_range": [
+          0.833,
+          0.833
+        ],
+        "observation": "水柱可见，外观仍遮住内部动作。"
+      },
+      {
+        "time_range": [
+          1.467,
+          1.467
+        ],
+        "observation": "龙头下没有可见的连续水柱，外壳保持完整。"
+      },
+      {
+        "time_range": [
+          1.9,
+          1.9
+        ],
+        "observation": "镜头仍是已关水的整机，未出现新的结构线索。"
+      }
+    ],
+    "answers": {
+      "first_frame": "金属高光和水柱清楚，画面主要是熟悉的流理台。",
+      "product": "拱形出水嘴、水槽和两边把手。",
+      "attention": "蓝色水柱先于左把手获得注意。",
+      "ordinary": "全景开水和关水属于常见演示。",
+      "phenomenon": "左把手偏转后整股水停止，若观众注意到输入幅度才可能追问内部机制。",
+      "hidden": "前两秒的采样中未见内部。",
+      "change": "水柱在把手偏转后消失，未见反直觉状态。",
+      "narration": "UNKNOWN",
+      "subtitles": "「转这么一点，水就停了。」提示输入与结果，对内部动作的期待较弱。",
+      "muted": "仍可辨认关水，负责操作的左把手容易漏看。",
+      "phone": "约 299 px 宽的缩览中水柱清晰，左把手偏转易漏。手机实机 UNKNOWN。",
+      "third_second": "0.467 秒见左把手偏转、1.467 秒见整股水停。观众若把两者连起来，可能想知道一次转动如何截断整股水。日常结果已出现，内部线索仍弱。"
+    },
+    "third_second_evidence": [
+      1,
+      3
+    ],
+    "revision": {
+      "focus": "第一帧及 0–2 秒的内部通水线索",
+      "method": "用同一时轴展示左把手与陶瓷片的通水面积。",
+      "candidate": "B 整机和两片陶瓷片并列，保留水柱和橙色活动片标记。"
+    }
+  },
+  "retention_5s": {
+    "coverage": "sampled_picture",
+    "conclusion": "关水结束后出现内部提问，外观仍未推进到截口。",
+    "evidence": [
+      {
+        "time_range": [
+          2.833,
+          2.833
+        ],
+        "observation": "可见「水龙头里面，究竟是哪儿关上了？」"
+      },
+      {
+        "time_range": [
+          4.867,
+          4.867
+        ],
+        "observation": "整机外观仍占画面。"
+      }
+    ]
+  }
+}

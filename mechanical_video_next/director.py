@@ -10,6 +10,8 @@ VERSION = 1
 APPROACHES = {'mystery', 'failure_inference', 'direct_experiment'}
 TREATMENT = ('question', 'watch_reason', 'hook', 'tension', 'reveal', 'explanation',
              'payoff', 'dropoff_risk', 'rhythm', 'evaluation')
+OPENING_DIRECTION = ('phenomenon', 'first_frame', 'product_cue', 'quiet_viewing',
+                     'third_second', 'five_second_bridge')
 SHOT = ('narrative_purpose', 'audience_question', 'subject', 'visual_focus',
         'shot_type', 'framing', 'camera_position', 'camera_movement', 'object_movement',
         'reveal_strategy', 'lighting_style', 'visual_effects', 'transition',
@@ -177,7 +179,10 @@ def validate_treatments(direction):
             or not isinstance(direction.get('selected'), str)
             or direction['selected'] not in APPROACHES):
         raise ValueError('Director needs three distinct treatments and a reason for selecting one')
-    return treatments[direction['selected']]
+    selected = treatments[direction['selected']]
+    if 'opening_direction' in selected and not text_fields(selected['opening_direction'], OPENING_DIRECTION):
+        raise ValueError('Opening direction needs the phenomenon, framing, context, muted reading and bridge')
+    return selected
 
 
 def validate_edits(edits, picture, plan, *, stems=()):

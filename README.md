@@ -18,6 +18,16 @@ uv run python -m mechanical_video_next produce --episode productions/jotter
 
 成片和字幕输出至 `output/<本集目录名>/`。可用 `--work-dir` 指定逐镜头缓存来复用渲染结果，默认工作目录随运行清理。模型、已完成视频与生产缓存按 [配置边界](config/README.md) 保存。CAD 工具可用 `uv sync --extra cad --locked` 安装。
 
+## 先比较开场动稿
+
+从已核实的机械现象选第一帧与前两秒。复用现有场景、相机或缓存做低成本动稿，在手机尺寸下看关键部位，静音复看，并检查第 2–5 秒接到哪一步。拍板时记下画面已经提供的线索，以及它让观众想继续追问的具体问题。
+
+```sh
+uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --clips work/opening --output work/opening/analysis.json
+```
+
+命令绑定源文件 SHA-256，定位视频、默认音轨和字幕流，并提取可播放的两秒与五秒片段。用 `--sha256` 核对指定版本，用 `--review` 导入同一文件的具时码观察。观众体验判断由实际观察给出。成片的 `audience-review` 先独立检查两秒和五秒留存，再检查完播、点赞、收藏、评论和关注。查看导入格式、真实动稿及回归证据。[水龙头开场回归](docs/productions/faucet-opening-retention-regression.md)
+
 ## 导演式配音
 
 按剧情段落编排情绪、重音和留白，用联合时间轴放置逐句实测音频。CosyVoice 3.0 是显式启用的导演式引擎。Audiogen Neil 继续作为正式制作默认和整轨回退引擎。支持复用原句调整时间轴、重配单句及使用 SenseVoiceSmall 定位发音复核点。 [导演式配音](docs/voice-direction.md)

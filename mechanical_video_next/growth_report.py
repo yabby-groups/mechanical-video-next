@@ -5,6 +5,7 @@ adapter for existing QA, not another reviewer or a production renderer.
 """
 import argparse
 import copy
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -12,9 +13,10 @@ import tempfile
 import time
 
 from .multiroute import ROUTES, probe, sha, write
-from .growth import finite
+from .growth import AUDIENCE_GOALS, finite, opening_goals
 from . import pacing
 
+PRE_OPENING_GENERATOR = 'a28e9edae34afb4a70939473339111e5aa9e75e86cc5da9ce23d90c32689a196'
 PRE_PACING_GENERATOR = '349eed75643ea4fdd1ad0e2f5c6f43e7c183901ba06b833aad4bb52beb1e1e6f'
 
 DIMENSIONS = {
@@ -272,6 +274,32 @@ def frame(path, seconds, output):
                    check=True, capture_output=True)
 
 
+def opening_documents(task):
+    for path in sorted(task.glob('opening-review*.json')):
+        try:
+            raw = path.read_bytes()
+            data = json.loads(raw)
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict):
+            yield {'source': {'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest()}, 'data': data}
+
+
+def opening_observations(docs, media, duration):
+    observations = {}
+    for document in docs:
+        source = document['source']
+        if not source_valid(document['data']):
+            continue
+        try:
+            rows = pacing.opening_review(document['data'], media, duration)
+        except ValueError:
+            continue
+        for key, row in rows.items():
+            observations.setdefault(key, []).append(dict(row, source=source))
+    return opening_goals(duration, observations)
+
+
 def render_markdown(report):
     lines = ['# 视频增长目标优化报告', '', f"主题：{report['topic']}；状态：{report['status']}",
              '', '本报告评价制作目标落实情况，不证明完播率、点赞率或关注率提升。抽帧不代替连续观看或听审。',
@@ -279,8 +307,26 @@ def render_markdown(report):
     for route, data in report['routes'].items():
         lines += ['', f'## {route}', '', f"视频：{data['media']['path']}", f"SHA256：`{data['media']['sha256']}`",
                   f"实际时长：{data['duration_seconds']}秒；修复次数：{data['metrics']['repair_count']}；制作耗时：{data['metrics']['production_seconds']}秒（null表示未知）",
-                  '', '|检查维度|状态|', '|---|---|']
-        lines += [f"|{label}|{data['dimensions'][key]['status']}|" for key,label in DIMENSIONS.items()]
+                  '']
+        for key, goal in data.get('opening_retention', {}).items():
+            lines += [f'### {AUDIENCE_GOALS[key]}', '', '```json',
+                      json.dumps(goal, ensure_ascii=False, indent=2), '```', '']
+        audience_groups = {
+            'completion': GROUPS['retention'] + ('complete_answer',),
+            'like': GROUPS['like'] + GROUPS['engagement'],
+            'save': GROUPS['save'],
+            'comment': GROUPS['comment'],
+            'follow': GROUPS['follow'] + GROUPS['following'],
+        }
+        for key, dimensions in audience_groups.items():
+            lines += [f'### {AUDIENCE_GOALS[key]}', '', '|检查维度|状态|', '|---|---|']
+            lines += [f"|{DIMENSIONS[dim]}|{data['dimensions'][dim]['status']}|"
+                      for dim in dict.fromkeys(dimensions)]
+            lines.append('')
+        covered = {dim for dimensions in audience_groups.values() for dim in dimensions}
+        lines += ['### 制作检查', '', '|检查维度|状态|', '|---|---|']
+        lines += [f"|{label}|{data['dimensions'][key]['status']}|"
+                  for key, label in DIMENSIONS.items() if key not in covered]
         lines += ['', '时间点（设计时点与媒体观察分开）：', '```json',json.dumps(data['timing'],ensure_ascii=False,indent=2),'```',
                   '', '知识推进（脚本依据）：','```json',json.dumps(report['timeline'],ensure_ascii=False,indent=2),'```',
                   '', '实际媒体QA观察与问题：','```json',json.dumps(data['qa_observations'],ensure_ascii=False,indent=2),'```',
@@ -348,6 +394,7 @@ def generate(task, paths=None, comparison=None):
     covers = validate_covers(task, paths=paths)
     before = snapshot(task)
     docs = documents(task)
+    opening_docs = list(opening_documents(task))
     blueprint = next((d['data'] for d in docs if Path(d['source']['path']).name == 'creative-blueprint.json'), {})
     timeline = read(task/'shared/timeline.json') if (task/'shared/timeline.json').is_file() else {}
     for doc in reversed(docs):
@@ -429,6 +476,7 @@ def generate(task, paths=None, comparison=None):
         entry = {'media':media,'duration_seconds':duration,'timing':timing,'dimensions':dimensions,
                  'optimization_goals':optimization_goals, 'qa_observations':observation_rows,'issues':issues,'metrics':route_metrics(docs,route,digest),
                  'repairs':repair_history(docs,route,media)}
+        entry['opening_retention'] = opening_observations(opening_docs, media, duration)
         if pacing.enabled(task_data):
             entry['pacing'] = pacing_evidence(task, task_data, digest)
         report['routes'][route]=entry
@@ -513,7 +561,7 @@ def validate(task):
     if not bound(report.get('covers', {})):
         raise ValueError('Growth report STALE: covers changed or missing')
     validate_covers(task)
-    generators = {sha(__file__)}
+    generators = {sha(__file__), PRE_OPENING_GENERATOR}
     if not pacing.enabled(data):
         generators.add(PRE_PACING_GENERATOR)
     if report['generator_sha256'] not in generators or report['sources'] != snapshot(task):
