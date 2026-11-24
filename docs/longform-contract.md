@@ -1,6 +1,6 @@
-新建 reference_policy_version=1 任务同时执行 [Reference-First契约](reference-first-contract.md)：先核实知识与动作再锁定时长，证据不足不得凑时长。历史任务不迁移。
-
 # 可执行长视频契约
+
+下文记录旧账本的时长与内容字段。固定 `reference_policy_version=1` 的任务同时查阅 [Reference-First 契约](reference-first-contract.md)。新片使用[制作契约](production-contract.md)。
 
 新任务沿用 protocol_version=2，增加 content_policy_version=1。创建时 duration=null 表示待知识研究与 Neil 实测配音决定，不是零秒或90秒。冻结蓝图 duration_seconds 必须为120～300，指定时长须匹配。历史任务不迁移。
 

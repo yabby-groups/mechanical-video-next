@@ -1,5 +1,7 @@
 # Native Producer dispatch contract
 
+Applicable when resuming a ledger task whose pinned workflow uses the native Producer roles. New episodes follow the [production contract](production-contract.md).
+
 This contract governs the existing sole native Producer and its role agents; it does not introduce a dispatch service. Role configuration and session settings determine what can actually start. Configuration semantics: [OpenAI subagent configuration](https://learn.chatgpt.com/docs/agent-configuration/subagents).
 
 ## Routing and concurrency

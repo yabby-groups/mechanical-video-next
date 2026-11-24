@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 import tempfile
-import subprocess
 import sys
 import unittest
 from unittest.mock import patch
@@ -165,22 +164,16 @@ class WorkflowTests(unittest.TestCase):
             qa.assert_called_once_with(self.task, 'preview-qa')
         self.assertEqual(w.load(self.task)['state'], 'FINAL_CHECKING')
 
-    def test_native_launcher_failure_is_recorded_without_retry(self):
-        # No real CLI or production lock is touched by this failure-path test.
-        with patch.object(w, 'create_task', return_value=self.task):
-            with patch.object(sys, 'argv', ['mechanical_video_next', 'produce',
-                                           '--topic', '行星减速器', '--codex']):
-                with patch.object(w.subprocess, 'run', side_effect=FileNotFoundError('codex absent')) as run:
-                    with self.assertRaises(FileNotFoundError):
-                        w.main()
-                    self.assertEqual(run.call_count, 1)
-                    args, kwargs = run.call_args
-                    self.assertIn('--strict-config', args[0])
-                    self.assertEqual(kwargs['stdin'], subprocess.DEVNULL)
-        self.assertEqual(w.load(self.task)['state'], 'FAILED')
-        events = [json.loads(line) for line in (self.task / 'events.jsonl').read_text().splitlines()]
-        self.assertEqual(events[-1]['event'], 'codex_launch_failed')
-        self.assertTrue((self.task / 'codex.jsonl').exists())
+    def test_produce_dispatches_the_authored_episode(self):
+        episode = Path('productions/jotter')
+        output = Path('output/jotter/final.mp4')
+        with patch.object(sys, 'argv', ['mechanical_video_next', 'produce', '--episode', str(episode)]), \
+                patch('mechanical_video_next.episode.produce', return_value=output) as render, \
+                patch.object(w, 'create_task') as create, patch('builtins.print') as printed:
+            w.main()
+        render.assert_called_once_with(episode, work_dir=None, env_file=None)
+        create.assert_not_called()
+        printed.assert_called_once_with(output)
 
     def test_arbitrary_dependencies_cannot_create_cycle(self):
         self.research()

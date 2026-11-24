@@ -1,5 +1,7 @@
 # Producer 创意导演与视觉规划
 
+下文的候选方案、评分和 Blueprint 字段供复现采用旧导演版本的账本任务。新片使用[制作契约](production-contract.md)。
+
 新建的默认 Producer-directed 混合任务固定 `creative_direction_version=1`。现有实验和历史任务按创建时的版本继续。原生 Producer 负责创意取舍，原有角色按实际需要提供证据、资产、动画、剪辑和独立审查。没有新增调度器。
 
 使用项目级 [`$director`](../.agents/skills/director/SKILL.md) 设计镜头并复核实际动稿，执行字段沿用下列 Blueprint 和时间轴结构。

@@ -1,8 +1,4 @@
-"""Small evidence-gated ledger around the existing production scripts.
-
-The CLI never impersonates an agent. `produce` prepares a task for the current
-Codex session. `produce --codex` starts a new real Codex session instead.
-"""
+"""Production CLI and recovery commands for existing task ledgers."""
 import argparse
 from contextlib import contextmanager
 import fcntl
@@ -1202,7 +1198,7 @@ Use the post-publication template only with real platform evidence.
                 'playback for gaps in the verified cache. Record original execution and expected '
                 'visible effects on Treatment scenes, then verify the same effects on moving edits.\n')
         return f'''You are the sole native Producer for {identity} ({topic}).
-Read {task}/task.json and docs/production-contract.md. 君哥拆机器 is 「{POSITIONING}」
+Read {task}/task.json and docs/history/production-contract-20261124.md. 君哥拆机器 is 「{POSITIONING}」
 Requested mechanical object: {data['mechanical_object']}
 Core question: {question}
 {formal_instruction}
@@ -1234,7 +1230,7 @@ No platform publication or drafts.
 '''
     if story_development(data):
         return f'''You are the sole native Producer for {identity} ({topic}).
-Read {task}/task.json and docs/production-contract.md. The fixed positioning of
+Read {task}/task.json and docs/history/production-contract-20261124.md. The fixed positioning of
 君哥拆机器 is 「{POSITIONING}」. Combine invention and design history, real science
 and mechanics, and original visual storytelling. User authorization is needed to change that positioning.
 
@@ -1258,7 +1254,7 @@ verdicts on their own evidence. No publication or platform drafts.
 '''
     if skill_driven(data):
         return f'''You are the sole native Producer for {identity} ({topic}).
-Read {task}/task.json and the Skill-driven pilot section of docs/production-contract.md.
+Read {task}/task.json and the Skill-driven pilot section of docs/history/production-contract-20261124.md.
 Develop an original film for 君哥拆机器. Choose the Skills and the working order the subject needs.
 Use mechanical-research to ground history, use and mechanisms, and mechanical-video and director to
 explore materially different stories. Seek an independent editorial judgment before committing.
@@ -1309,7 +1305,7 @@ causal reveal and payoff. In preview-qa and final-qa, use continuous review_obse
 exact film. Identify mechanical_event_ids and source_comparison for mechanical_motion, and
 story_moment_ids for narrative_comprehension. Cover the full film and the entire bound interval
 of each event and moment. A technical check cannot establish these observations.
-Follow the film integrity fields and acceptance checks in docs/production-contract.md.
+Follow the film integrity fields and acceptance checks in docs/history/production-contract-20261124.md.
 '''
         if data.get(video_review.FIELD):
             story_direction += '''
@@ -1349,7 +1345,7 @@ Do the research yourself or assign an unresolved public viewing question to Vira
 the cache and active work. Save observations and attempted sources in `research/viral-analysis.json`
 as you go and reuse that work if interrupted. Register the task-bound `viral-analysis` handoff once,
 including a limitation with empty `selected_ids` when options are exhausted. Resume from an existing
-handoff. Follow the payload and cache instructions in the Producer-directed section of docs/production-contract.md.
+handoff. Follow the payload and cache instructions in the Producer-directed section of docs/history/production-contract-20261124.md.
 
 Carry useful techniques from the selection into the existing Blueprint `reference_principles` with the reference ID, technique,
 original execution decision and actual shot IDs. Author the resulting camera, action, staging or edit in those
@@ -1362,7 +1358,7 @@ public footage as REFERENCE_ONLY unless its reuse rights are verified independen
                                    'viewer_effect and implementation. Bind each adopted technique_id and expected '
                                    'observable effect to the original Blueprint shots.\n\n')
         return f'''You are the sole native Codex Producer for {identity} ({topic}).
-Task directory {task}. Read its ledger and the Producer-directed section of docs/production-contract.md.
+Task directory {task}. Read its ledger and the Producer-directed section of docs/history/production-contract-20261124.md.
 You make the complete film for 君哥拆机器. 拆开机器，看懂它怎么工作。用三维动画讲清身边的机械原理。
 
 {reference_work}Research the actual machine and find the story worth telling. Follow the subject into its invention,
@@ -1456,7 +1452,7 @@ and use local delivery only.
                 'Register the real QA run and preserve any sensory UNKNOWN. '
                 if editorial_policy.enabled(data) else '')
             return f'''You are the sole native Codex Producer for {identity}: {topic}.
-Task: {task}. Read docs/production-contract.md and the current ledger.
+Task: {task}. Read docs/history/production-contract-20261124.md and the current ledger.
 {positioning}
 Own the creative decision yourself. {research_instruction}
 {direction_instruction}
@@ -1489,7 +1485,7 @@ delivery reports. Preserve historical assets and tasks. No platform writes.
                                 if joint_timing(data) else 'Use measured Neil audio and the story to set duration.'
                                 if creative else 'Use measured Neil audio to determine knowledge-supported 120–300 s.')
         return f'''You are the sole native Codex Producer for {identity}: {topic}.
-Task: {task}. Read docs/production-contract.md as the effective contract, then only
+Task: {task}. Read docs/history/production-contract-20261124.md as the effective contract, then only
 the applicable role/tool details. This task explicitly uses {data['production_contract']};
 the compatible route remains 3d, but do not claim mixed media is 3D-only.
 {approach}
@@ -3989,35 +3985,14 @@ def select_route(task, route, reason):
 
 
 def main():
-    from .production_contract import CONTRACT_NAMES, CREATIVE_SELECTION_NAME
-
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
-    p = sub.add_parser('produce')
-    p.add_argument('--topic')
-    p.add_argument('--mechanical-object', help='Pin the user-requested object when the topic contains a full brief')
-    p.add_argument('--core-question', help='Pin the user-requested question verbatim')
-    p.add_argument('--lock-product-model', action='store_true', help='Disallow substitution of --product-model')
-    p.add_argument('--product-model', help='Preferred brand/model for initial product research')
-    p.add_argument('--product-reference', action='append', default=[], help='Public reference URL to inspect')
-    p.add_argument('--resume', type=Path, help='Resume existing task in current Producer session; no new service')
-    p.add_argument('--routes', choices=['all', '2d', '2.5d', '3d'], default=None)
-    p.add_argument('--asset-strategy', choices=['reference-first','existing-media','autonomous-cad','verified-existing','illustrated'], default='reference-first')
-    p.add_argument('--duration', type=int, default=None, help='Optional target seconds. New formal tasks derive duration from measured speech and the complete story, up to 300 seconds.')
-    p.add_argument('--operations-review', type=Path, help='Dated operations review to pin for a new formal task.')
-    p.add_argument('--voice')
-    p.add_argument('--config', type=Path)
-    p.add_argument('--task-id')
-    p.add_argument('--visual-policy', type=int, choices=(1, 2),
-                   help='New tasks default to 2. Policy 1 retains the all-3D timeline.')
-    p.add_argument('--media-policy', type=int, choices=(0, 1),
-                   help='New topic-only tasks default to asset-first hybrid v1; 0 retains prior media rules.')
-    p.add_argument('--presentation-style', choices=('natural_science', 'legacy'), default='natural_science')
-    p.add_argument('--production-contract', type=int, choices=tuple(CONTRACT_NAMES),
-                   help=f'Pin a historical workflow, including {CREATIVE_SELECTION_NAME} with candidate review. Omit for Producer-directed mixed production.')
-    p.add_argument('--skill-driven', action='store_true',
-                   help='Keep the skill-driven task label with the current mixed-media story gates')
-    p.add_argument('--codex', action='store_true', help='Start a NEW actual Codex Producer session')
+    p = sub.add_parser('produce', help='Render an authored episode to MP4')
+    source = p.add_mutually_exclusive_group(required=True)
+    source.add_argument('--episode', type=Path, help='Directory containing the scene, narration and edit')
+    source.add_argument('--resume', type=Path, help='Inspect the continuation of an existing ledger task')
+    p.add_argument('--work-dir', type=Path, help='Keep reusable picture clips in this directory')
+    p.add_argument('--env-file', type=Path, help='Use local speech credentials')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
     p.add_argument('--reason',required=True)
@@ -4091,52 +4066,14 @@ def main():
         return
     if args.command == 'produce':
         if args.resume:
-            if args.skill_driven or any(value is not None for value in (
-                    args.visual_policy, args.media_policy, args.production_contract,
-                    args.mechanical_object, args.core_question)):
-                raise ValueError('Resume preserves the existing production policies')
-            if args.codex:
-                raise ValueError('Resume uses current Producer; do not start another Producer')
-            data = load(args.resume)
-            if args.topic and args.topic != data['topic']:
-                raise ValueError('Resume topic differs from existing task')
-            if args.routes and (['2d', '2.5d', '3d'] if args.routes == 'all' else [args.routes]) != data.get('requested_routes', [data.get('render_route', '3d')]):
-                raise ValueError('Resume preserves requested routes; use extend-routes with the scope authorization to expand this existing task')
+            if args.work_dir or args.env_file:
+                parser.error('--work-dir and --env-file apply to --episode')
             event(args.resume, 'producer_resumed', dispatch_mode='current_native_codex_session')
             print(json.dumps(continuation(args.resume), ensure_ascii=False, indent=2))
-            return
-        if not args.topic:
-            parser.error('--topic is required unless --resume is supplied')
-        visual_policy = args.visual_policy if args.visual_policy is not None else (1 if args.config else 2)
-        media_policy = args.media_policy if args.media_policy is not None else (0 if args.config or visual_policy == 1 else 1)
-        task = create_task(args.topic, args.duration, args.voice, args.config, args.task_id,
-                           asset_strategy=args.asset_strategy, routes=args.routes or '3d',
-                           visual_policy_version=visual_policy, media_policy_version=media_policy,
-                           presentation_style=args.presentation_style, contract_version=args.production_contract,
-                           skill_driven_pilot=args.skill_driven, mechanical_object=args.mechanical_object,
-                           core_question=args.core_question, operations_review=args.operations_review,
-                           product_model=args.product_model, product_references=args.product_reference,
-                           lock_product_model=args.lock_product_model)
-        print(task)
-        if args.codex:
-            event(task, 'codex_launch', dispatch_mode='native_codex')
-            with (task / 'codex.jsonl').open('w') as log:
-                try:
-                    subprocess.run(['codex', 'exec', '--strict-config', '--json', '-C', str(ROOT),
-                                    (task / 'producer-prompt.md').read_text()], stdout=log,
-                                   stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, check=True)
-                except (subprocess.CalledProcessError, OSError) as error:
-                    advance(task, 'FAILED')
-                    event(task, 'codex_launch_failed', reason=str(error),
-                          log=str(task / 'codex.jsonl'))
-                    raise
-            result = continuation(task)
-            event(task, 'producer_session_ended', delivered=result['delivered'],
-                  milestone=result['milestone'], next_action=result['next_action'],
-                  background_execution=False)
-            if not result['delivered']:
-                print(json.dumps(result, ensure_ascii=False, indent=2))
-                raise SystemExit('Producer session ended without delivery; exact recovery action retained')
+        else:
+            from .episode import produce
+
+            print(produce(args.episode, work_dir=args.work_dir, env_file=args.env_file))
         return
     if args.command == 'extend-routes':
         from .three_d import require_route

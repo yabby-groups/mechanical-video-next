@@ -48,16 +48,6 @@ class ProducerContinuationTests(unittest.TestCase):
         self.assertEqual(sentinel.read_bytes(), b'existing paid narration')
         self.assertEqual(report['resume_command'][-1], str(self.task))
 
-    def test_successful_codex_exit_without_delivery_is_not_success(self):
-        with patch.object(w, 'create_task', return_value=self.task), patch.object(w.subprocess, 'run'):
-            with patch.object(sys, 'argv', ['workflow', 'produce', '--topic', 'fixture mechanism', '--codex']):
-                with self.assertRaisesRegex(SystemExit, 'ended without delivery'):
-                    w.main()
-        events = [json.loads(line) for line in (self.task / 'events.jsonl').read_text().splitlines()]
-        self.assertEqual(events[-1]['event'], 'producer_session_ended')
-        self.assertFalse(events[-1]['delivered'])
-        self.assertNotEqual(w.load(self.task)['state'], 'COMPLETED')
-
     def test_unaccepted_render_cannot_be_marked_delivered(self):
         video = self.task / 'final.mp4'
         video.write_bytes(b'fixture mp4 binding')

@@ -69,7 +69,7 @@ class MultiRouteTests(unittest.TestCase):
             self.assertEqual(evidence[0]['sha256'], sha(source))
             self.assertIsNone(evidence[0]['data']['human_interventions'])
 
-    def test_workflow_resume_preserves_task_and_rejects_second_producer(self):
+    def test_workflow_resume_preserves_task_and_rejects_retired_launcher(self):
         import sys
         from mechanical_video_next import workflow
         with tempfile.TemporaryDirectory() as tmp:
@@ -79,8 +79,9 @@ class MultiRouteTests(unittest.TestCase):
                 workflow.main()
             self.assertEqual((task / 'task.json').read_bytes(), before)
             with patch.object(sys, 'argv', ['workflow', 'produce', '--resume', str(task), '--codex']):
-                with self.assertRaisesRegex(ValueError, 'another Producer'):
+                with self.assertRaises(SystemExit) as error:
                     workflow.main()
+                self.assertEqual(error.exception.code, 2)
 
     def test_default_plan_contains_actual_routes_and_late_generated_inputs(self):
         root = Path(__file__).resolve().parents[1]

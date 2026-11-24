@@ -1,5 +1,7 @@
 # 3D-only production contract (2026-11-16)
 
+Archived instructions for existing 3D-only ledgers. New episodes use the [production contract](production-contract.md). The topic command below records the former entry point.
+
 New tasks always use `three_d_policy_version=1`, `requested_routes=["3d"]`,
 `render_route="3d"`. `produce`, `select-route`, `extend-routes`, blueprint compilation,
 `stage`, the renderer and route-plan execution reject retired representations.

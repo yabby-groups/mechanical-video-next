@@ -1,5 +1,7 @@
 # 视觉叙事制作策略
 
+本文记录旧账本的导演字段和工具用法。新片适用[制作契约](production-contract.md)。
+
 ## Producer 导演的镜头选择
 
 新建 `producer_direction_version=1` 任务用联合时间轴记录开场现象、第一项发现、关键因果揭示和问题兑现。

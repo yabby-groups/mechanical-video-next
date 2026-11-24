@@ -1,6 +1,6 @@
 # Configuration-driven 3D science shots
 
-Current production rules are in [production-contract.md](production-contract.md).
+Current production rules are in [production-contract.md](production-contract.md). The workflow commands below document existing ledger tasks and their historical entry points.
 The initial increment and its measured demo below are historical evidence, not
 the latest acceptance result. This upgrade also adds shared monotone time maps,
 animated opacity, evaluated geometric constraints and flexible strip geometry;

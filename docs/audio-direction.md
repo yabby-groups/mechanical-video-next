@@ -1,5 +1,7 @@
 # 自动配乐与机械声音
 
+下文供复现固定音乐策略的旧账本任务。新片按本集需要编排配乐和拟音，见[制作契约](production-contract.md)。
+
 新建 Producer 正式任务在 `task.json` 固定 `music_direction_version: 3`、`music_mix_mode: constant_bed` 和 `default_bgm: junge-theme-v7`。同一设置进入 Blueprint、编译配置和媒体清单。历史任务按固定的版本 1 或 2 执行原有编排、自动校准或自适应混音。未启用音乐方向的旧任务可沿用原拟音入口和收据。
 
 ## 从 Treatment 到实际音轨

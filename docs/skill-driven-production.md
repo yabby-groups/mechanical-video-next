@@ -1,8 +1,8 @@
 # Skill-Driven Creative Production 试点
 
 本文记录原 Skill-driven 试点和失败基线。《门合上以后》是技术可解码的 40 秒诊断动稿，
-用户判定其叙事未达目标。现行定位、独立门禁和重新制作的门锁动稿见
-[制作契约](production-contract.md)及[门锁验证报告](productions/story-development-door-lock.md)。
+用户判定其叙事未达目标。当时的规则和重新制作的门锁动稿见
+[历史制作契约](history/production-contract-20261124.md)及[门锁验证报告](productions/story-development-door-lock.md)。
 原试点任务按各自固定版本恢复。
 
 ## 旧流程中限制创作的地方

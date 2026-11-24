@@ -1,5 +1,7 @@
 # Real product and viewer comprehension contract
 
+Applicable to ledger tasks pinned to the versions described below. New episodes follow the [production contract](production-contract.md).
+
 For v4 physical phenomena and documented technologies, the same policy checks
 subject identity and location-bound evidence. The opening links to the chosen
 audience question. Shots bind knowledge and an observable contribution. Media
