@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Voice direction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "script_feedback",
+    "segments"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "script_feedback": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "segment_id",
+          "text",
+          "story_purpose",
+          "delivery_style",
+          "scene_id",
+          "voice_id",
+          "emotion",
+          "emotion_intensity",
+          "speaking_rate",
+          "emphasis_words",
+          "pause_before_ms",
+          "pause_after_ms",
+          "target_duration_ms",
+          "selected_tts",
+          "review_required"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "story_purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "delivery_style": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scene_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "voice_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "emotion": {
+            "enum": [
+              "neutral",
+              "curious",
+              "suspense",
+              "excited",
+              "surprised",
+              "confident",
+              "explanatory",
+              "satisfying",
+              "reflective"
+            ]
+          },
+          "emotion_intensity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "speaking_rate": {
+            "type": "number",
+            "minimum": 0.8,
+            "maximum": 1.2
+          },
+          "emphasis_words": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "pause_before_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pause_after_ms": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "target_duration_ms": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "selected_tts": {
+            "enum": [
+              "neil",
+              "cosyvoice3"
+            ]
+          },
+          "review_required": {
+            "type": "boolean"
+          },
+          "take": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pronunciations": {
+            "type": "object",
+            "propertyNames": {
+              "minLength": 1,
+              "maxLength": 1
+            },
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[A-ZÜV]+[1-5]$"
+            }
+          },
+          "action_anchors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "action_id",
+                "frame",
+                "phrase"
+              ],
+              "properties": {
+                "action_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "frame": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "phrase": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "occurrence": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tolerance_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1500
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

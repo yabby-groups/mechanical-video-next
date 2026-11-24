@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "mechanical-documentary",
+  "description": "清楚、克制的普通话机械讲解",
+  "default_emotion": "explanatory",
+  "base_speaking_rate": 1.0,
+  "fallback_engine": "neil",
+  "emotion_intensity_range": [
+    0,
+    0.7
+  ],
+  "pause_before_ms": 0,
+  "pause_after_ms": 0,
+  "max_emphasis_words": 2,
+  "knowledge_terms": {
+    "hook": [
+      "门把手"
+    ],
+    "reveal": [
+      "把手根部",
+      "压簧"
+    ],
+    "mount": [
+      "壳体"
+    ],
+    "explode": [
+      "方轴",
+      "拨片"
+    ]
+  },
+  "engines": {
+    "neil": {
+      "profile": "config/narration-neil.json"
+    },
+    "cosyvoice3": {
+      "model_dir": "cosyvoice3",
+      "device": "cpu",
+      "runtime_python": ".voice-data/runtime/cosy-runtime/bin/python",
+      "source_dir": ".voice-data/runtime/cosyvoice-source",
+      "runtime_revision": "074ca6dc9e80a2f424f1f74b48bdd7d3fea531cc"
+    }
+  }
+}

@@ -201,11 +201,11 @@ def validate_source_clip(path, source_start, frame_count):
 def pcm_frames(path):
     with wave.open(str(path), 'rb') as audio:
         if (audio.getframerate(), audio.getnchannels(), audio.getsampwidth()) != (SAMPLE_RATE, 1, 2):
-            raise ValueError('Expected original mono 48 kHz 16-bit Neil PCM')
+            raise ValueError('Expected mono 48 kHz 16-bit speech PCM')
         return audio.getnframes()
 
 
-def measure(plan, sentence, output):
+def measure(plan, sentence, output, *, directed_sentence=None, voice='Neil'):
     """Place complete measured utterances. Overruns leave the visual plan unchanged."""
     validate(plan)
     from .text_layout import load_style, measure_text
@@ -217,10 +217,18 @@ def measure(plan, sentence, output):
         if (not isinstance(subtitle, str) or not subtitle.strip() or '\n' in subtitle
                 or measure_text(subtitle, style=style)['width'] > box[2] - box[0]):
             raise ValueError('Rewrite or split the subtitle with measured timing: ' + row['id'])
-        wav, cache = sentence(row['text'])
         start = row['start_frame'] * SAMPLES_PER_FRAME
+        deadline = row['deadline_frame'] * SAMPLES_PER_FRAME
+        if directed_sentence is None:
+            wav, cache = sentence(row['text'])
+        else:
+            wav, cache, before, after = directed_sentence(row)
+            if min(before, after) < 0:
+                raise ValueError('Directed pauses must be nonnegative')
+            start += before
+            deadline -= after
         stop = start + pcm_frames(wav)
-        if stop > row['deadline_frame'] * SAMPLES_PER_FRAME:
+        if stop > deadline:
             need = (stop - start) / SAMPLE_RATE
             budget = (row['deadline_frame'] - row['start_frame']) / FPS
             raise ValueError(f'{row["id"]}: measured speech takes {need:.3f}s in a {budget:.3f}s slot. '
@@ -239,35 +247,49 @@ def measure(plan, sentence, output):
             cursor = row['end_sample']
         master.writeframesraw(bytes(2 * (plan['frame_count'] * SAMPLES_PER_FRAME - cursor)))
     output.with_suffix('.tmp.wav').replace(output)
-    return dict(schema_version=2, timeline_policy_version=VERSION, voice='Neil', fps=FPS,
+    return dict(schema_version=2, timeline_policy_version=VERSION, voice=voice, fps=FPS,
                 frame_count=plan['frame_count'], seconds=plan['frame_count'] / FPS,
                 shots=plan['shots'], plan=plan, speech=measured, narration_audio=binding(output),
                 listening='UNKNOWN')
 
 
-def receipt(plan, ref):
-    path = bound(ref)
-    data = read_input_json(path)
+def receipt(plan, ref, *, directed=False):
+    data = read_input_json(bound(ref))
+    pauses = [(0, 0)] * len(plan['narration'])
+    if directed:
+        from .voice_direction import require_engine
+        requests = data['voice_direction']['segments']
+        require_engine(data['actual_engine'])
+        if 'selected_engine' in data:
+            require_engine(data['selected_engine'])
+        for row in requests:
+            require_engine(row['selected_tts'])
+        if [row['segment_id'] for row in requests] != [
+                row['id'] for row in plan['narration']]:
+            raise ValueError('Directed receipt differs from the approved narration')
+        if data.get('synthesis_basis') != 'archived original Neil PCM':
+            pauses = [(row['pause_before_ms'] * 48, row['pause_after_ms'] * 48) for row in requests]
     source = bound(data['narration_audio'])
-    if (data.get('plan') != plan or data.get('voice') != 'Neil'
+    if (data.get('plan') != plan or (not directed and data.get('voice') != 'Neil')
             or len(data['speech']) != len(plan['narration'])
             or pcm_frames(source) != plan['frame_count'] * SAMPLES_PER_FRAME):
         raise ValueError('Measured speech timeline differs from the approved joint plan')
     cursor = 0
     with wave.open(str(source), 'rb') as master:
-        for spec, clip in zip(plan['narration'], data['speech'], strict=True):
-            start = spec['start_frame'] * SAMPLES_PER_FRAME
+        for spec, clip, (before, after) in zip(plan['narration'], data['speech'], pauses, strict=True):
+            start = spec['start_frame'] * SAMPLES_PER_FRAME + before
             wav = bound(clip['audio'])
             length = pcm_frames(wav)
             stop = start + length
             if (clip['id'] != spec['id'] or clip['text'] != spec['text']
                     or clip['subtitle'] != spec.get('subtitle', spec['text'])
                     or clip['start_sample'] != start or clip['end_sample'] != stop
-                    or stop > spec['deadline_frame'] * SAMPLES_PER_FRAME):
+                    or start < cursor or min(before, after) < 0
+                    or stop + after > spec['deadline_frame'] * SAMPLES_PER_FRAME):
                 raise ValueError('Measured speech interval differs from the plan')
             with wave.open(str(wav), 'rb') as original:
                 if any(master.readframes(start - cursor)) or master.readframes(length) != original.readframes(length):
-                    raise ValueError('Continuous master differs from the measured Neil clips')
+                    raise ValueError('Continuous master differs from the measured speech clips')
             cursor = stop
         if any(master.readframes(master.getnframes() - cursor)):
             raise ValueError('Unexpected samples after the last utterance')

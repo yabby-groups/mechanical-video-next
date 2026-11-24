@@ -1,4 +1,5 @@
 work/
+.voice-data/
 .codegraph/
 .venv/
 node_modules/
@@ -30,6 +31,8 @@ references/.library.lock
 # Only shared profiles belong here. New video configs are local by default.
 /config/*
 !/config/narration-*.json
+!/config/voice-profile.json
+!/config/voice-direction.schema.json
 !/config/visual-reference.json
 !/config/README.md
 output/*

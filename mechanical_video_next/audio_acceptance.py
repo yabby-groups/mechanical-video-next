@@ -1,4 +1,4 @@
-"""Verify the rendered AAC against the approved, sample-aligned Neil timeline."""
+"""Verify the rendered AAC against the approved, sample-aligned audio timeline."""
 from array import array
 from contextlib import ExitStack
 import hashlib
@@ -243,7 +243,9 @@ def compare_waveforms(master_path, samples, channels, measured, expected_samples
     last_end = measured['speech'][-1]['end_sample'] if measured['speech'] else None
     return {'sample_peak': peak, 'rms': math.sqrt(energy / (expected_samples * channels)),
             'minimum_reference_snr_db': minimum_snr, 'last_utterance_end_sample': last_end,
-            'comparison': 'sample-aligned AAC versus bound ' + ('mix' if mix else 'Neil master')}
+            'comparison': 'sample-aligned AAC versus bound ' + (
+                'mix' if mix else 'CosyVoice master' if measured.get('actual_engine') == 'cosyvoice3' else 'Neil master'
+            )}
 
 
 def verify_speech_silence(master, speech):
