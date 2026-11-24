@@ -191,11 +191,14 @@ def lamp(name, position, target, power, size, color):
     return obj
 
 
-def setup():
+def setup(shot):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
     scene.eevee.taa_render_samples = 8
+    if shot in (2, 3):
+        scene.eevee.taa_render_samples = 16
+        scene.eevee.shadow_ray_count = 8
     scene.render.resolution_x = 1920
     scene.render.resolution_y = 1080
     scene.render.fps = FPS
@@ -367,7 +370,7 @@ def main():
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
     timing = json.loads(args.timing.read_text())
     for shot in args.shot if args.shot is not None else range(6):
-        scene, cam = setup()
+        scene, cam = setup(shot)
         materials = (
             material("Jotter forest green", (.026, .23, .116), .15, .26),
             material("Satin steel", (.52, .61, .63), .81, .26),
