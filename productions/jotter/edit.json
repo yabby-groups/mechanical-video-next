@@ -1,9 +1,11 @@
 {
-  "title": "按压式圆珠笔的工作原理",
-  "output": "按压式圆珠笔的工作原理（两次按压对照版）.mp4",
+  "title": "",
+  "output": "按压式圆珠笔的工作原理（开场优化版）.mp4",
   "bgm": "assets/audio/bgm/starter/quiet-link-curiosity.flac",
   "shots": [
-    {"tail": 0.46, "clicks": [0.61, 2.51]},
+    {"tail": 0.46, "clicks": [0.57, 2.56], "labels": [
+      [1.40, 2.16, "凸轮被卡住"]
+    ]},
     {"tail": 0.35},
     {"tail": 0.48, "labels": [
       [5.72, 9.56, "凸轮转动"],

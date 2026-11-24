@@ -196,7 +196,7 @@ def setup(shot):
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
     scene.eevee.taa_render_samples = 8
-    if shot in (2, 3, 5):
+    if shot in (0, 2, 3, 5):
         scene.eevee.taa_render_samples = 16
         scene.eevee.shadow_ray_count = 8
     scene.render.resolution_x = 1920
@@ -289,14 +289,34 @@ def scene_pen(scene, cam, shot, mats):
     cut = shot in (2, 3, 5)
     parts = pen(mats, cut)
     if shot == 0:
+        section = pen(mats, cut=True)
+        solid_objects = [obj for group in parts.values()
+                         for obj in (group if isinstance(group, list) else [group])]
+        section_objects = [obj for group in section.values()
+                           for obj in (group if isinstance(group, list) else [group])]
+        point_to = contact_arrow(cam)
+
         def pose(t):
-            offset = track(t, [(0, 0), (.42, 0), (.61, .49), (.86, .32),
-                               (2.34, .32), (2.51, .49), (2.9, 0)])
-            stroke = track(t, [(0, 0), (.42, 0), (.61, .48), (.86, 0),
-                               (2.34, 0), (2.51, .48), (2.9, 0)])
-            animate_pen(parts, offset, stroke, 0)
-            camera(cam, (-.1, 0, -.08), (.45 - .15 * ease(t, 0, 6), -1, .72),
-                   14.05 - .65 * ease(t, 0, 5), .16)
+            offset = track(t, [(0, 0), (.23, 0), (.57, .49), (.87, .27),
+                               (2.21, .27), (2.56, .49), (2.76, .49), (3.04, 0)])
+            stroke = track(t, [(0, 0), (.23, 0), (.57, .49), (.87, 0),
+                               (2.21, 0), (2.56, .49), (2.76, .49), (3.04, 0)])
+            rotation = track(t, [(0, 0), (.49, 0), (.59, PI/4), (.68, PI/4), (.87, PI/2),
+                                 (2.44, PI/2), (2.58, 3*PI/4), (2.63, 3*PI/4), (2.76, PI)])
+            tail_view = 1.4 <= t < 2.76 or t >= 4.1
+            for obj in solid_objects:
+                obj.hide_render = tail_view
+            for obj in section_objects:
+                obj.hide_render = not tail_view
+            animate_pen(section if tail_view else parts, offset, stroke, rotation)
+            if t < .37:
+                camera(cam, (-.1, 0, -.08), (.38, -1, .72), 13.3, .09)
+            elif tail_view:
+                pull_back = ease(t, 5.05, 6.88)
+                cutaway_camera(cam, 4.47 * (1 - pull_back), 4.45 + 9.15 * pull_back)
+            else:
+                cutaway_camera(cam, -5.68, 2.85)
+            point_to(LATCH_ANGLE if 1.4 <= t < 2.16 else None)
     elif shot == 1:
         section = pen(mats, cut=True)
         solid_objects = [obj for group in parts.values()
@@ -457,7 +477,7 @@ def main():
         scene.render.image_settings.file_format = "JPEG"
         scene.render.image_settings.quality = 92
         scene.render.resolution_percentage = 42 if args.preview else 100
-        sample_times = [(0.55, 2.72), (3.95, 5.97, 6.75), (6.15, 8.08, 11.7, 15.3),
+        sample_times = [(0.1, 0.58, 1.7, 2.6, 3.1, 5.0), (3.95, 5.97, 6.75), (6.15, 8.08, 11.7, 15.3),
                         (3.85, 5.6, 9.6), (2.2, 7.7, 12.35), (1.35, 2.2, 3.8, 4.6)]
         frames = [round(FPS * t) for t in sample_times[shot]] if args.preview else range(timing[shot])
         for frame in frames:

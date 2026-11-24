@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
+from uuid import uuid4
 
 from mechanical_video_next.blender_runtime import run_blender
 from mechanical_video_next.director_audio import mux_picture
@@ -53,7 +54,8 @@ def picture_sources(episode, speech, work):
                 frames = picture / f'shot-{i}'
                 run_blender(['--python-exit-code', '7', '--python', str(scene), '--',
                              '--timing', str(timing), '--directory', str(picture), '--shot', str(i)],
-                            name=f'episode-{i}', directory=picture / f'blender-{i}', timeout=1800)
+                            name=f'episode-{i}', directory=picture / f'blender-{i}-{uuid4().hex}',
+                            timeout=1800)
                 encode_shot(frames, counts[i], paths[i])
     return paths
 
