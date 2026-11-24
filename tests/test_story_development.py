@@ -177,6 +177,14 @@ class StoryDevelopmentTests(unittest.TestCase):
                 assembly_positions='Catch protrudes through the plate', exterior_visible=True,
                 unknowns=[], figure_or_region='Fixture installation section'))]
         self.put('Producer', 'research', self.research)
+        self.assertEqual(workflow.continuation(self.task, False)['next_action']['handoff'], 'viral-analysis')
+        reference = dict(task_id=ledger['id'], topic=ledger['topic'], observed_at='2026-11-24T08:00:00+08:00',
+                         candidates=[], selected_ids=[], limitation='The fixture had no playable work.')
+        with self.assertRaisesRegex(ValueError, 'attempted public reference searches'):
+            self.put('Producer', 'viral-analysis', reference)
+        reference['search_attempts'] = [dict(url='https://example.com/search?q=latch', result='No playable results')]
+        self.put('Producer', 'viral-analysis', reference)
+        self.assertEqual(workflow.continuation(self.task, False)['next_action']['handoff'], 'story-treatment')
         self.treatment.update(question=approved, mechanical_object='Cabinet latch',
                               positioning=contract.POSITIONING,
                               growth_design={key: 'Watch the latch test' for key in
@@ -190,9 +198,9 @@ class StoryDevelopmentTests(unittest.TestCase):
         core = self.treatment['scenes'][0]
         core.update(mechanical_role='core', render_engine='remotion')
         with self.assertRaisesRegex(ValueError, 'source-supported Blender'):
-            self.put('Producer', 'story-treatment', self.treatment, 'research')
+            self.put('Producer', 'story-treatment', self.treatment, 'research', 'viral-analysis')
         core['render_engine'] = 'blender'
-        self.put('Producer', 'story-treatment', self.treatment, 'research')
+        self.put('Producer', 'story-treatment', self.treatment, 'research', 'viral-analysis')
 
         reviewer = dict(role='QA', thread_id='independent')
         ledger = workflow.load(self.task)

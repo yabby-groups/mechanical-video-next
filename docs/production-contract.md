@@ -43,6 +43,24 @@ poses. In the existing moving QA report, `product_disassembly` and
 
 See [system regression evidence and visual references](productions/system-repair-20261123.md).
 
+New mechanism-first ledgers also generate `research/search-plan.json`. Use
+the existing `viral-analysis` handoff for observed expression references.
+Search for a real teardown, native 3D or a hybrid work that addresses the
+current visual problem. Start with matching viewed evidence and use public
+playback to fill gaps. Record the actual search or playback attempts if no
+useful sequence can be observed. Older ledgers retain their original route.
+
+The Treatment binds each selected work through `reference_principles` with
+`reference_id`, `technique_id`, `principle`, `production_requirement`,
+`expected_observable_effect` and existing `scene_ids`. Draft and formal
+Joint Timeline cuts use those scene IDs. The preview evidence Blueprint and
+formal Blueprint carry the same decisions with the applicable `shot_ids`.
+Diagnostic QA observes the
+exact moving MP4 and records `reference_effects` at the corresponding shot
+timecodes. Judge product recognition against same-model exterior evidence,
+disassembly against the installed and separated positions, and transmission
+against visible input, contact, output and return in the existing report.
+
 For a selective reveal cycle, `science.assembly_reveal.focus_parts` can
 frame named product parts and the retained targets during the separated hold.
 Blender opens and closes on the whole assembly and eases into the detail

@@ -90,6 +90,34 @@ class ScreeningTests(unittest.TestCase):
         self.assertEqual(r['screening']['coverage'], .8)
         self.assertAlmostEqual(sum(r['screening']['normalized_weights'].values()), 1, places=5)
 
+    def test_observed_technique_reaches_only_its_authored_cut(self):
+        candidate = self.candidate()
+        candidate.update(observations=['The cover separates while the base stays in view.'],
+                         transfer_rationale='Keep the original mount identifiable.',
+                         techniques=[dict(id='fixed-base', source_range=[4, 8], visual_method='Hold the base',
+                                          use_condition='Cover can separate', viewer_effect='Locate the mount',
+                                          implementation='Fixed direction reveal')])
+        analysis = self.data([candidate]) | {'selected_ids': ['1']}
+        v.validate_directed_analysis(analysis, require_techniques=True)
+        principle = dict(reference_id='1', technique_id='fixed-base', principle='Preserve assembly context',
+                         production_requirement='Push in from the installed pose',
+                         expected_observable_effect='Cover and mount stay recognizable')
+        treatment = dict(scenes=[dict(id='reveal')], reference_principles=[dict(principle, scene_ids=['reveal'])])
+        v.validate_reference_direction(treatment, analysis)
+        cuts = [dict(id='intro', scene_id='reveal', start_frame=0, end_frame=30),
+                dict(id='cover', scene_id='reveal', start_frame=30, end_frame=60)]
+        plan = dict(timeline=dict(shots=cuts), reference_principles=[dict(principle, shot_ids=['cover'])])
+        mapping = v.reference_shot_map(treatment, plan)
+        effect = dict(reference_id='1', technique_id='fixed-base', shot_id='cover', time_range=[1, 2],
+                      media_sha256='media-sha', status='PASS', observation='Mount stayed visible',
+                      method='continuous_video')
+        self.assertEqual(v.validate_reference_effects(mapping, {'reference_effects': [effect]}, 'media-sha'), {'PASS'})
+        with self.assertRaisesRegex(ValueError, 'exact-media'):
+            v.validate_reference_effects(mapping, {'reference_effects': [effect]}, 'other-sha')
+        cuts[1]['scene_id'] = 'another'
+        with self.assertRaisesRegex(ValueError, 'corresponding scenes'):
+            v.reference_shot_map(treatment, plan)
+
     def test_one_qualified_primary_is_enough_without_supplementary_categories(self):
         rows = [self.candidate(i) for i in range(3)]
         self.assertEqual(v.analyze(self.data(rows[:1]))['status'], 'READY')

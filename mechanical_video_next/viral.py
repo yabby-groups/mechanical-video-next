@@ -314,12 +314,56 @@ def match_reference_techniques(blueprint, analysis):
             raise ValueError('Blueprint technique must refer to a timecoded selected observation')
 
 
+def validate_reference_direction(treatment, analysis):
+    rows = treatment.get('reference_principles', [])
+    scenes = {scene['id'] for scene in treatment['scenes']}
+    if not isinstance(rows, list) or any(
+            not isinstance(row, dict) or not all(_text(row.get(key)) for key in (
+                'reference_id', 'technique_id', 'principle', 'production_requirement', 'expected_observable_effect'))
+            or not isinstance(row.get('scene_ids'), list) or not row['scene_ids']
+            or not all(_text(scene) and scene in scenes for scene in row['scene_ids'])
+            or len(row['scene_ids']) != len(set(row['scene_ids'])) for row in rows):
+        raise ValueError('Adapt observed techniques to existing Treatment scenes and visible effects')
+    pairs = {(row['reference_id'], row['technique_id']) for row in rows}
+    if len(pairs) != len(rows) or {reference for reference, _ in pairs} != set(analysis['selected_ids']):
+        raise ValueError('Adapt each selected reference in the Treatment with distinct technique IDs')
+    match_reference_techniques(treatment, analysis)
+
+
+def reference_shot_map(treatment, plan):
+    from .joint_timeline import FPS
+
+    fields = ('reference_id', 'technique_id', 'production_requirement', 'expected_observable_effect')
+    expected = {tuple(row[key] for key in fields): set(row['scene_ids'])
+                for row in treatment.get('reference_principles', [])}
+    cuts = plan['timeline']['shots']
+    scene_ids = {cut['id']: cut.get('scene_id') for cut in cuts}
+    actual = {}
+    mappings = plan.get('reference_principles', [])
+    if not isinstance(mappings, list):
+        raise ValueError('Reference shot mappings must be a list')
+    for row in mappings:
+        if not isinstance(row, dict) or not all(_text(row.get(key)) for key in fields):
+            raise ValueError('Bind the Treatment reference decision and visible effect to a shot')
+        key = tuple(row[field] for field in fields)
+        shots = row.get('shot_ids')
+        if (key in actual or not isinstance(shots, list) or not shots
+                or not all(_text(shot) and shot in scene_ids for shot in shots)
+                or len(set(shots)) != len(shots)):
+            raise ValueError('A reference decision needs distinct cuts from the actual picture clock')
+        actual[key] = {scene_ids[shot] for shot in shots}
+    if actual != expected:
+        raise ValueError('The picture cut must carry the Treatment reference effects in the corresponding scenes')
+    return dict(reference_principles=mappings, shots=[dict(
+        shot_id=cut['id'], time_range=[cut['start_frame'] / FPS, cut['end_frame'] / FPS]) for cut in cuts])
+
+
 def validate_reference_effects(blueprint, report, media_sha):
     """Each applied method gets a finding on the rendered original shot."""
     expected = {(row['reference_id'], row['technique_id'], shot_id)
                 for row in blueprint.get('reference_principles', []) for shot_id in row['shot_ids']}
     shots = {row['shot_id']: row['time_range'] for row in blueprint['shots']}
-    seen = set()
+    seen, statuses = set(), set()
     for row in report.get('reference_effects', []):
         fields = ('reference_id', 'technique_id', 'shot_id')
         if not isinstance(row, dict) or not all(_text(row.get(key)) for key in fields):
@@ -334,11 +378,13 @@ def validate_reference_effects(blueprint, report, media_sha):
                 or (status == 'UNKNOWN' and not _text(row.get('limitation')))):
             raise ValueError('Reference effect needs an exact-media, timecoded observation and honest status')
         seen.add(key)
+        statuses.add(status)
     if seen != expected:
         raise ValueError('Workprint review must cover the effects of applied reference techniques')
+    return statuses
 
 
-def validate_directed_analysis(payload, *, require_techniques=False):
+def validate_directed_analysis(payload, *, require_techniques=False, require_attempts=False):
     """Record a bounded research pass, including a pass without applicable viewing."""
     date(payload.get('observed_at'))
     candidates, selected = payload.get('candidates'), payload.get('selected_ids')
@@ -346,6 +392,12 @@ def validate_directed_analysis(payload, *, require_techniques=False):
         raise ValueError('Reference research requires candidates and selected_ids arrays')
     if not selected and not _text(payload.get('limitation')):
         raise ValueError('Record why the search or cache check yielded no usable reference')
+    if require_attempts and not selected:
+        attempts = payload.get('search_attempts')
+        if (not isinstance(attempts, list) or not attempts or any(
+                not isinstance(row, dict) or not all(_text(row.get(key)) for key in ('url', 'result'))
+                or not row['url'].startswith(('https://', 'http://')) for row in attempts)):
+            raise ValueError('Record attempted public reference searches or playback and their actual results')
     seen, ids, usable = set(), set(), set()
     for candidate in candidates:
         if not isinstance(candidate, dict) or candidate.get('source_kind', 'video') != 'video':
@@ -390,18 +442,22 @@ def validate_directed_analysis(payload, *, require_techniques=False):
         raise ValueError('Selected references require observed video and a transferable analysis')
 
 
-def directed_plan(topic, library_root):
+def directed_plan(topic, library_root, *, product=None):
     from .reference_library import search
 
     try:
-        local = search(topic, root=library_root)
+        local = search(product or topic, root=library_root)
     except (ValueError, OSError, KeyError, TypeError) as error:
         local = {'results': [], 'limitation': str(error)}
     for work in local['results']:
         for observation in work['observations']:
             observation['reusable_expression'] = reusable_expression(observation['candidate'])
+    queries = {'douyin': f'{product} 拆解' if product else topic,
+               'xiaohongshu': f'{product} 拆机' if product else topic,
+               'bilibili': f'{product} 拆解 三维 原理' if product else topic,
+               'youtube': f'{product} teardown how it works animation' if product else topic}
     return {'topic': topic, 'observed_at': now(), 'local_references': local,
-            'queries': [{'platform': platform, 'url': base + quote(topic, safe='')}
+            'queries': [{'platform': platform, 'url': base + quote(queries[platform], safe='')}
                         for platform, base in (
                             ('douyin', 'https://www.douyin.com/search/'),
                             ('xiaohongshu', 'https://www.xiaohongshu.com/search_result?keyword='),

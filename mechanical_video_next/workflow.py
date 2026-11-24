@@ -804,9 +804,6 @@ def continuation(task, persist=True):
             if name == 'timeline' else (name, owner, action)
             for name, owner, action in sequence
         ]
-        if data.get('reference_search_plan'):
-            sequence.insert(0, ('viral-analysis', 'Producer',
-                'Review cached observations first. Search accessible public works for gaps, play and analyze useful references, then record what was actually observed or why it was unavailable.'))
         if story_development(data):
             research_action = ('Verify the requested mechanism, its parts, motion and scientific causality'
                                if mechanism_first(data) else
@@ -823,6 +820,9 @@ def continuation(task, persist=True):
                 ('diagnostic-animatic', 'Producer', 'Bind the low-cost moving story preview'),
                 ('diagnostic-qa', 'QA', 'Review the actual story preview independently'),
             ]
+        if data.get('reference_search_plan'):
+            sequence.insert(1 if mechanism_first(data) else 0, ('viral-analysis', 'Producer',
+                'Reuse matching viewed references and search for gaps. Play relevant excerpts, record their timecodes and adapt the useful methods into the original shots.'))
         if directed_story(data):
             from .joint_timeline import integrity
             preview_action = 'Review the exact workprint and record creative observations and reference effects'
@@ -1195,6 +1195,12 @@ Use the post-publication template only with real platform evidence.
                 'review to choose a testable editorial decision. Budget for verified knowledge, source motion, '
                 'observation and measured Neil speech. Aim for a visible functional event by 2 s and '
                 'a result or causal advance by 5 s. Maximum 300 s.\n')
+        if data.get('reference_search_plan'):
+            formal_instruction += (
+                'Use viral-video-research and research/search-plan.json before the Treatment. '
+                'Look for real teardowns, original 3D animation and hybrid videos. Inspect actual '
+                'playback for gaps in the verified cache. Record original execution and expected '
+                'visible effects on Treatment scenes, then verify the same effects on moving edits.\n')
         return f'''You are the sole native Producer for {identity} ({topic}).
 Read {task}/task.json and docs/production-contract.md. 君哥拆机器 is 「{POSITIONING}」
 Requested mechanical object: {data['mechanical_object']}
@@ -1218,7 +1224,9 @@ Public creator media is REFERENCE_ONLY unless rights authorize reuse.
 
 Use existing independent QA with $video-review for story-qa and diagnostic-qa.
 Review the same object and question, internal 3D, whole motion and mechanical cause
-on the current moving preview. Reject scope drift and core 3D substitution.
+on the current moving preview. Judge actual product recognition, installed-to-revealed
+orientation and visible input through output and reset. Repair the failing shot first.
+Reject scope drift and core 3D substitution.
 Continue formal production after independent mechanical and visual PASS.
 Use the existing Blueprint, scientific and mechanical checks, rights, audio,
 render and media QA. Record technical evidence and actual viewing separately.
@@ -1808,6 +1816,9 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                       product_search_plan(value['mechanical_object'], supplied_question or topic,
                                           model=product_model, model_locked=lock_product_model, seeds=product_references,
                                           root=Path(root) / 'references'))
+                value['reference_search_plan'] = 'research/search-plan.json'
+                write(task / value['reference_search_plan'], directed_plan(
+                    topic, Path(root) / 'references', product=value['mechanical_object']))
         value[INTEGRITY] = 1
         value[video_review.FIELD] = video_review.VERSION
         value['audio_acceptance_policy'] = MODE
@@ -1997,7 +2008,7 @@ def previous_creative_input(task, ledger, review_name, input_name, statuses):
 
 def treatment_content(payload):
     return {key: payload[key] for key in ('question', *editorial_policy.TREATMENT_FIELDS, 'scenes', 'growth_design',
-                                        'pacing_brief')
+                                        'pacing_brief', 'reference_principles')
             if key in payload}
 
 
@@ -2011,6 +2022,9 @@ def validate_development_handoff(task, data, name, payload):
         if mechanism_first(data) and payload.get('question') != research['science']['question']:
             raise ValueError('Treatment must preserve the researched core question')
         editorial_policy.validate_treatment(payload, validate_research(research), mechanics=mechanism_first(data))
+        if mechanism_first(data) and data.get('reference_search_plan'):
+            from .viral import validate_reference_direction
+            validate_reference_direction(payload, artifact(task, 'viral-analysis'))
         if formal_duration_enabled(data):
             from .growth import validate_growth_design
             validate_growth_design(payload.get('growth_design'))
@@ -2066,7 +2080,14 @@ def validate_development_handoff(task, data, name, payload):
             draft = artifact(task, 'diagnostic-animatic')
             film = next(row['path'] for row in draft['media'] if Path(row['path']).suffix.lower() == '.mp4')
             duration = float(probe(film)['format']['duration'])
-            editorial_policy.validate_creative_gate(data, payload, duration=duration)
+            verdict = editorial_policy.validate_creative_gate(data, payload, duration=duration)
+            if mechanism_first(data) and data.get('reference_search_plan'):
+                from .viral import reference_shot_map, validate_reference_effects
+                plan = read_input_json(draft['blueprint_evidence']['path'])
+                mapping = reference_shot_map(treatment, plan)
+                effects = validate_reference_effects(mapping, payload, filehash(film))
+                if verdict == 'PASS' and effects - {'PASS'}:
+                    raise ValueError('A passing diagnostic needs successful visible reference effects')
             if pacing.enabled(data):
                 from .joint_timeline import binding
                 report = draft['pacing_review']
@@ -2294,6 +2315,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
                         raise ValueError('Blueprint must carry the five approved growth decisions')
                     if pacing.enabled(data) and payload.get('pacing_brief') != treatment['pacing_brief']:
                         raise ValueError('Blueprint must carry the approved pacing brief')
+                    if mechanism_first(data) and data.get('reference_search_plan'):
+                        from .viral import reference_shot_map
+                        reference_shot_map(treatment, payload)
         required = (V2_DEPENDENCIES if v2 else LEGACY_DEPENDENCIES).get(name, set())
         if story and name == 'creative-blueprint':
             required = {'diagnostic-animatic'}
@@ -2333,6 +2357,8 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if development:
             if name == 'story-treatment':
                 required = {'research'}
+                if mechanism_first(data) and data.get('reference_search_plan'):
+                    required.add('viral-analysis')
             elif name == 'story-qa':
                 required = {'story-treatment'}
             elif name == 'diagnostic-animatic':
@@ -2362,7 +2388,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
         if directed_references and name == 'viral-analysis':
             from .viral import validate_directed_analysis
             check_research_binding(data, payload)
-            validate_directed_analysis(payload, require_techniques=directed_story(data))
+            new_reference_path = mechanism_first(data) and bool(data.get('reference_search_plan'))
+            validate_directed_analysis(payload, require_techniques=directed_story(data) or new_reference_path,
+                                       require_attempts=new_reference_path)
         elif v2 and name in {'viral-analysis', 'creative-blueprint'}:
             from .viral import validate_viral_analysis, validate_creative_blueprint
             (validate_viral_analysis if name == 'viral-analysis'
@@ -2519,6 +2547,9 @@ def put_handoff(task, role, name, payload, dependencies=None):
                 from .blueprint import validate_story_preview
                 treatment = artifact(task, 'story-treatment') if mechanism_first(data) else None
                 validate_story_preview(draft_plan, payload['media'], treatment=treatment, task=data)
+                if mechanism_first(data) and data.get('reference_search_plan'):
+                    from .viral import reference_shot_map
+                    reference_shot_map(treatment, draft_plan)
                 if pacing.enabled(data):
                     from . import joint_timeline as joint
                     film = next(row for row in payload['media'] if Path(row['path']).suffix.lower() == '.mp4')
@@ -2793,7 +2824,9 @@ def check_qa(task, name, *, acceptance=True):
         durations = {sha: complete_media(data, preview, final=False)['duration']}
         validate_creative_review(qa, durations, acceptance=False, whole_edit=True)
         from .viral import validate_reference_effects
-        validate_reference_effects(artifact(task, 'creative-blueprint'), qa, sha)
+        effects = validate_reference_effects(artifact(task, 'creative-blueprint'), qa, sha)
+        if mechanism_first(data) and data.get('reference_search_plan') and 'FAIL' in effects:
+            raise ValueError('Repair the failed reference effects on the current workprint')
         from . import director
         if director.enabled(data):
             blueprint = artifact(task, 'creative-blueprint')

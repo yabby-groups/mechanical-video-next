@@ -50,19 +50,25 @@ def validate_story_preview(data, media, *, treatment=None, task=None):
                 raise ValueError('Formal draft cuts must match the Treatment and cover essential scenes')
     if treatment is not None:
         core = {scene['id'] for scene in treatment['scenes'] if scene['mechanical_role'] == 'core'}
-        picture = {shot['id'] for shot in plan['shots']}
+        picture = {shot['id']: shot.get('scene_id') for shot in plan['shots']}
+        require_cut_bindings = bool(policy.get('reference_search_plan'))
         bindings = data.get('core_3d')
         if not isinstance(bindings, list) or not bindings:
             raise ValueError('Bind the core preview shots to inspectable native Blender scenes')
-        seen = set()
+        seen, bound_shots = set(), set()
         for row in bindings:
             if row.get('scene_id') not in core or row.get('shot_id') not in picture:
                 raise ValueError('The core native scene must map to the Treatment and picture clock')
+            if require_cut_bindings and (picture[row['shot_id']] != row['scene_id'] or row['shot_id'] in bound_shots):
+                raise ValueError('Bind each core picture cut to its own Treatment scene and native source')
             if joint.bound(row['source']).suffix.lower() != '.blend':
                 raise ValueError('The core preview source must be a Blender scene')
             seen.add(row['scene_id'])
+            bound_shots.add(row['shot_id'])
         if seen != core:
             raise ValueError('Core preview bindings must cover the approved mechanism scenes')
+        if require_cut_bindings and bound_shots != {shot for shot, scene in picture.items() if scene in core}:
+            raise ValueError('Native sources must cover every mechanism cut in the draft')
     joint.validate_rendered_film(films[0], plan, require_audio=bool(data.get('measured_timeline')))
     if data.get('measured_timeline'):
         measured = joint.receipt(plan, data['measured_timeline'])
