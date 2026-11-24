@@ -7,6 +7,7 @@ from unittest.mock import patch
 import wave
 
 from mechanical_video_next import directed_narration as directed
+from mechanical_video_next import episode
 from mechanical_video_next import joint_timeline as joint
 from mechanical_video_next import voice_direction, voice_engines, voice_quality
 from scripts.common import ROOT, writejson
@@ -174,3 +175,47 @@ class VoiceDirectorTests(unittest.TestCase):
                     self.assertFalse(rebuilt['cache_hit'])
                     self.assertEqual(engine.call_count, 2)
                     self.assertEqual(list(wav.parent.glob('tmp-*')), [])
+
+    def test_episode_entry_reads_measured_pcm_and_keeps_legacy_default(self):
+        self.plan['shots'][0]['end_frame'] = 60
+        self.plan['shots'].append({'id': 'detail', 'start_frame': 60, 'end_frame': 120})
+        clip = self.root / 'sentence.wav'
+        with wave.open(str(clip), 'wb') as audio:
+            audio.setparams((1, 2, 48000, 0, 'NONE', 'not compressed'))
+            audio.writeframes(b'\x40\x00' * 48000)
+        direction = self.direction()
+        timeline = joint.measure(self.plan, None, self.root / 'master.wav', voice=self.profile['id'],
+                                 directed_sentence=lambda row: (clip, {}, 4800 if row['id'] == 'hook' else 0, 0))
+        timeline.update(voice_direction=direction, actual_engine='cosyvoice3')
+        writejson(self.root / 'timeline.json', timeline)
+        (self.root / 'narration.txt').write_text('门把手怎么回正？\n\n看看压簧。\n', encoding='utf-8')
+        edit_path = self.root / 'edit.json'
+        edit = {'output': 'test.mp4', 'shots': [{}, {}]}
+        writejson(edit_path, dict(edit, directed_timeline='timeline.json'))
+
+        def inspect_picture(directory, speech, work):
+            self.assertEqual(directory, self.root.resolve())
+            self.assertEqual([frames for _, _, frames in speech], [60, 60])
+            self.assertAlmostEqual(speech[0][1][0]['start'], .1)
+            self.assertAlmostEqual(speech[1][1][0]['start'], 1 / 30)
+            for audio, _, _ in speech:
+                self.assertEqual(joint.pcm_frames(audio), 96000)
+            with wave.open(str(joint.bound(timeline['narration_audio'])), 'rb') as master:
+                for audio, _, _ in speech:
+                    with wave.open(str(audio), 'rb') as shot:
+                        self.assertEqual(shot.readframes(96000), master.readframes(96000))
+            return ['picture-1', 'picture-2']
+
+        with patch.object(episode, 'load_env'), patch.object(episode, 'measure_narration') as legacy, \
+                patch.object(episode, 'picture_sources', side_effect=inspect_picture), \
+                patch.object(episode, 'assemble', return_value='video') as assemble:
+            self.assertEqual(episode.produce(self.root), 'video')
+            legacy.assert_not_called()
+            self.assertEqual(assemble.call_args.args[2], ['picture-1', 'picture-2'])
+        writejson(edit_path, edit)
+        with patch.object(episode, 'load_env'), patch.object(episode, 'load_directed_narration') as directed_load, \
+                patch.object(episode, 'measure_narration', return_value=['legacy']) as legacy, \
+                patch.object(episode, 'picture_sources'), patch.object(episode, 'assemble', return_value='video'):
+            self.assertEqual(episode.produce(self.root), 'video')
+            directed_load.assert_not_called()
+            legacy.assert_called_once_with(self.root.resolve(), edit)

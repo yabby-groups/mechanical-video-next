@@ -1,4 +1,4 @@
-"""Render an authored episode with Blender, Neil, Remotion and FFmpeg."""
+"""Render an authored episode with Blender, measured narration, Remotion and FFmpeg."""
 
 import json
 import math
@@ -6,7 +6,9 @@ from pathlib import Path
 import shutil
 from tempfile import TemporaryDirectory
 from uuid import uuid4
+import wave
 
+from mechanical_video_next import joint_timeline as joint
 from mechanical_video_next.blender_runtime import run_blender
 from mechanical_video_next.director_audio import mux_picture
 from mechanical_video_next.remotion_build import render
@@ -32,6 +34,37 @@ def measure_narration(episode, edit):
         if frames <= 0 or cues[-1]['end'] > frames / FPS:
             raise ValueError('Narration extends beyond the shot')
         speech.append((audio, cues, frames))
+    return speech
+
+
+def load_directed_narration(episode, edit, work):
+    reference = joint.binding(episode / edit['directed_timeline'])
+    plan = joint.validate(json.loads(joint.bound(reference).read_text())['plan'])
+    timeline = joint.receipt(plan, reference, directed=True)
+    narration = (episode / 'narration.txt').read_text(encoding='utf-8').strip().split('\n\n')
+    if len(narration) != len(edit['shots']) or len(narration) != len(plan['shots']):
+        raise ValueError('Directed timeline must have one picture interval per episode shot')
+    speech, placed = [], []
+    cues = joint.cues(timeline)
+    with wave.open(str(joint.bound(timeline['narration_audio'])), 'rb') as master:
+        for index, (block, shot) in enumerate(zip(narration, plan['shots'], strict=True)):
+            first, last = shot['start_frame'], shot['end_frame']
+            start, end = first * joint.SAMPLES_PER_FRAME, last * joint.SAMPLES_PER_FRAME
+            rows = [(row, cue) for row, cue in zip(timeline['speech'], cues, strict=True)
+                    if start <= row['start_sample'] < end]
+            if [row['text'] for row, _ in rows] != block.splitlines():
+                raise ValueError(f'Directed speech differs from episode script in shot {index + 1}')
+            placed.extend(row['id'] for row, _ in rows)
+            relative = [dict(cue, start=cue['start'] - first / FPS, end=cue['end'] - first / FPS)
+                        for _, cue in rows]
+            path = work / f'directed-shot-{index}.wav'
+            master.setpos(start)
+            with wave.open(str(path), 'wb') as audio:
+                audio.setparams(master.getparams())
+                audio.writeframes(master.readframes(end - start))
+            speech.append((path, relative, last - first))
+    if placed != [row['id'] for row in timeline['speech']]:
+        raise ValueError('Directed speech is outside the episode picture track')
     return speech
 
 
@@ -78,9 +111,10 @@ def edit_props(edit, pictures, speech, public, asset_prefix):
     cursor = 0
     for i, (shot, media, (audio, words, frames)) in enumerate(zip(edit['shots'], pictures, speech, strict=True)):
         shutil.copyfile(media, public / f'{i}.mp4')
-        shutil.copyfile(audio, public / f'{i}.m4a')
+        audio_name = f'{i}{Path(audio).suffix}'
+        shutil.copyfile(audio, public / audio_name)
         shots.append({'id': f'shot-{i}', 'seconds': frames / FPS,
-                      'media': f'{asset_prefix}/{i}.mp4', 'audio': f'{asset_prefix}/{i}.m4a'})
+                      'media': f'{asset_prefix}/{i}.mp4', 'audio': f'{asset_prefix}/{audio_name}'})
         start = cursor / FPS
         cues.extend(dict(cue, start=cue['start'] + start, end=cue['end'] + start) for cue in words)
         labels.extend({'layer': 'part', 'start': start + first, 'end': start + last, 'text': text}
@@ -149,9 +183,10 @@ def produce(episode, *, work_dir=None, env_file=None):
     if Path(edit['output']).name != edit['output'] or not edit['output'].endswith('.mp4'):
         raise ValueError('Episode output must be an MP4 filename')
     load_env(env_file)
-    speech = measure_narration(episode, edit)
 
     def render_into(work):
+        speech = (load_directed_narration(episode, edit, work) if 'directed_timeline' in edit
+                  else measure_narration(episode, edit))
         pictures = picture_sources(episode, speech, work)
         return assemble(episode, edit, pictures, speech, work)
 
