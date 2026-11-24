@@ -106,6 +106,21 @@ def encode_shot(frames, count, output):
     shutil.rmtree(frames)
 
 
+def subtitle_cues(words, breaks):
+    for index, cue in enumerate(words):
+        text = cue['text']
+        start = cue['start']
+        for end, prefix in breaks.get(str(index), []):
+            if not prefix or not text.startswith(prefix) or not start < end < cue['end']:
+                raise ValueError(f'Invalid subtitle break in {cue["text"]}')
+            yield dict(cue, start=start, end=end, text=prefix)
+            start = end
+            text = text[len(prefix):]
+        if not text:
+            raise ValueError(f'Subtitle break leaves no text in {cue["text"]}')
+        yield dict(cue, start=start, text=text)
+
+
 def edit_props(edit, pictures, speech, public, asset_prefix):
     shots, cues, labels, clicks = [], [], [], []
     cursor = 0
@@ -116,7 +131,8 @@ def edit_props(edit, pictures, speech, public, asset_prefix):
         shots.append({'id': f'shot-{i}', 'seconds': frames / FPS,
                       'media': f'{asset_prefix}/{i}.mp4', 'audio': f'{asset_prefix}/{audio_name}'})
         start = cursor / FPS
-        cues.extend(dict(cue, start=cue['start'] + start, end=cue['end'] + start) for cue in words)
+        cues.extend(dict(cue, start=cue['start'] + start, end=cue['end'] + start)
+                    for cue in subtitle_cues(words, shot.get('subtitle_breaks', {})))
         labels.extend({'layer': 'part', 'start': start + first, 'end': start + last, 'text': text}
                       for first, last, text in shot.get('labels', ()))
         clicks.extend(start + seconds for seconds in shot.get('clicks', ()))
