@@ -116,6 +116,10 @@ def compile_reveal(shot, assembly):
         return shot
     graph = validate(assembly.get('product_assembly', {}), assembly['required_parts'])
     plan = reveal_plan(graph, request)
+    focus = request.get('focus_parts', [])
+    if not set(focus) <= graph['parts'].keys():
+        raise ValueError('Reveal focus references an unknown assembly part')
+    framing = {'focus_parts': [graph['parts'][part]['object'] for part in focus]} if focus else {}
     directions = request.get('camera_directions', [[5, -7, 4], [-5, -7, 4], [5, 7, 6], [-5, 7, 6]])
     return dict(shot, science=dict(spec, disassembly=plan,
-                reveal_views=[{'direction': direction} for direction in directions]))
+                reveal_views=[{'direction': direction, **framing} for direction in directions]))

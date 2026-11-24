@@ -892,8 +892,8 @@ def render_shot(args):
     if science and science.get('reveal_views'):
         cam, frames, disassembly, reveal_view = science_scene.select_reveal_view(
             scene, visible, shot, count,
-            lambda sample_frames, direction: frame_camera(
-                visible, sample_frames, direction=direction, roll=shot.get('camera_roll', 0)),
+            lambda objects, sample_frames, direction: frame_camera(
+                objects, sample_frames, direction=direction, roll=shot.get('camera_roll', 0)),
             linear_action)
         report['checks']['reveal_view'] = reveal_view
         if disassembly:
@@ -989,6 +989,8 @@ def render_shot(args):
     # Projection only: this does not prove lack of occlusion or visual comprehension.
     margin = 1
     min_subject_extent = 1
+    reveal_framing = (reveal_view or {}).get('framing')
+    reveal_focus = [science_scene.target(visible, name) for name in reveal_framing['parts']] if reveal_framing else visible
     for f in range(1,count+1):
         scene.frame_set(f)
         focus = shot.get('camera_focus_region')
@@ -996,7 +998,7 @@ def render_shot(args):
                      if framing_parts else [] if science and science.get('camera_path') else
                      [('editorial_focus_region', point) for point in camera_region_points(focus)]
                      if focus else [(o.name, o.matrix_world @ Vector(v))
-                                    for o in visible for v in o.bound_box])
+                                    for o in (visible if f in {1, count} else reveal_focus) for v in o.bound_box])
         screen = []
         for name, point in projected:
             p = world_to_camera_view(scene,cam,point)
@@ -1010,6 +1012,7 @@ def render_shot(args):
     report['checks']['min_projected_margin'] = None if moving_frame else margin
     report['checks']['projection_scope'] = ('Evaluated bounding boxes of declared framing parts' if framing_parts else
                                             'Authored moving crop; no whole-subject projection check' if moving_frame else
+                                            'Whole assembly at installed endpoints; named parts throughout reveal' if reveal_framing else
                                             'Editorial focus region only; surrounding assembly intentionally extends outside detail framing'
                                             if shot.get('camera_focus_region') else 'Whole assembly bounding boxes')
     if framing_parts:

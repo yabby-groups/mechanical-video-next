@@ -43,6 +43,12 @@ poses. In the existing moving QA report, `product_disassembly` and
 
 See [system regression evidence and visual references](productions/system-repair-20261123.md).
 
+For a selective reveal cycle, `science.assembly_reveal.focus_parts` can
+frame named product parts and the retained targets during the separated hold.
+Blender opens and closes on the whole assembly and eases into the detail
+using the same viewing direction. Keep a meaningful part in both views.
+Use the separate native motion shot for actuation after the reveal.
+
 New tasks default to `presentation_style: natural_science`. Let the subject
 determine the opening. Use ordinary language and tie labels to the relevant
 action. Reserve subtitles for narration and keep production notes in the ledger.

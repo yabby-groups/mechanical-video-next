@@ -288,6 +288,19 @@ def check_reveal_targets(scene, camera, parts, targets, frames):
     return results
 
 
+def animate_reveal_camera(camera, detail, first_clear, last_clear, count):
+    """Open and close on the full assembly, with a continuous same-angle push."""
+    position, scale = camera.location.copy(), camera.data.ortho_scale
+    for frame in range(1, count + 1):
+        progress = min(1, (frame - 1) / (first_clear - 1), (count - frame) / (count - last_clear))
+        # Smooth starts and stops, with a stable view during the observation hold.
+        weight = progress * progress * (3 - 2 * progress)
+        camera.location = position.lerp(detail.location, weight)
+        camera.data.ortho_scale = scale + (detail.data.ortho_scale - scale) * weight
+        camera.keyframe_insert('location', frame=frame)
+        camera.data.keyframe_insert('ortho_scale', frame=frame)
+
+
 def select_reveal_view(scene, parts, shot, count, fit_camera, linear_action):
     """Fit and test the supplied presentations, then retain the first usable one."""
     spec = shot['science']
@@ -305,7 +318,22 @@ def select_reveal_view(scene, parts, shot, count, fit_camera, linear_action):
         else:
             frames = clear_frames = range(1, count + 1)
             result = None
-        camera = fit_camera(frames, view['direction'])
+        camera = fit_camera(parts, frames, view['direction'])
+        focus = [target(parts, name) for name in view.get('focus_parts', [])]
+        framing = None
+        if focus:
+            if not 1 < clear_frames[0] <= clear_frames[-1] < count:
+                raise ValueError('Reveal focus needs separate assembled and detail frames')
+            detail = fit_camera(focus, range(1, count + 1), view['direction'])
+            animate_reveal_camera(camera, detail, clear_frames[0], clear_frames[-1], count)
+            linear_action(camera.animation_data)
+            linear_action(camera.data.animation_data)
+            framing = dict(parts=view['focus_parts'], clear_frames=[clear_frames[0], clear_frames[-1]],
+                           wide_scale=camera.data.ortho_scale, detail_scale=detail.data.ortho_scale)
+            scene.camera = camera
+            detail_data = detail.data
+            bpy.data.objects.remove(detail, do_unlink=True)
+            bpy.data.cameras.remove(detail_data)
         try:
             observations = check_reveal_targets(scene, camera, parts,
                                                 (plan or spec)['reveal_targets'], clear_frames)
@@ -318,8 +346,10 @@ def select_reveal_view(scene, parts, shot, count, fit_camera, linear_action):
                 obj.animation_data_clear()
                 obj.location = position
         else:
-            return camera, frames, result, {'index': index, 'direction': view['direction'],
-                                            'rejected': rejected, 'targets': observations}
+            receipt = {'index': index, 'direction': view['direction'], 'rejected': rejected, 'targets': observations}
+            if framing:
+                receipt['framing'] = framing
+            return camera, frames, result, receipt
     raise ValueError('No authored view exposes the retained parts: ' + ' | '.join(rejected))
 
 

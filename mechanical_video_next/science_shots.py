@@ -69,6 +69,8 @@ def validate(shot, *, files=False):
                 or any(not name(key) or not vector(point, 3) for key, point in request['targets'].items())
                 or request.get('operation', 'cycle') not in {'disassemble', 'reassemble', 'cycle'}):
             raise ValueError('Assembly reveal needs a fixed part, removal connections and observation datums')
+        if 'focus_parts' in request:
+            validate_reveal_focus(request['focus_parts'], request['targets'], request.get('operation', 'cycle'))
     if (template not in TEMPLATES and driver != 'static'
             or template == 'state_transition' and driver != 'data_tracks'
             or template == 'exploded_view' and not (disassembly or request) and driver != 'data_tracks'
@@ -398,6 +400,12 @@ def validate_disassembly(shot, plan):
     return plan
 
 
+def validate_reveal_focus(focus, targets, operation):
+    if (operation != 'cycle' or not isinstance(focus, list) or not all(map(name, focus))
+            or len(set(focus)) != len(focus) or not set(targets) <= set(focus)):
+        raise ValueError('Reveal focus needs a cycle and distinct parts including every retained target')
+
+
 def validate_reveal_views(shot):
     spec = shot['science']
     views = spec['reveal_views']
@@ -407,10 +415,12 @@ def validate_reveal_views(shot):
             or any(not name(part) or not vector(point, 3) for part, point in targets.items())):
         raise ValueError('Reveal views need retained part datums')
     if (not isinstance(views, list) or not 1 <= len(views) <= 8
-            or any(not isinstance(view, dict) or view.keys() - {'direction', 'parts'}
+            or any(not isinstance(view, dict) or view.keys() - {'direction', 'parts', 'focus_parts'}
                    or not vector(view.get('direction'), 3) or not any(view['direction']) for view in views)):
         raise ValueError('Reveal views need one to eight authored fixed camera directions')
     for view in views:
+        if 'focus_parts' in view:
+            validate_reveal_focus(view['focus_parts'], targets, plan.get('operation'))
         if 'parts' not in view:
             continue
         parts = view['parts']
@@ -419,7 +429,7 @@ def validate_reveal_views(shot):
             raise ValueError('Alternate offsets must move only the same specified disassembly parts')
     if (set(spec) & {'camera_path', 'camera_rig', 'follow', 'camera_path_follow', 'opacity_tracks'}
             or shot.get('camera_focus_region') or shot.get('visible_parts')):
-        raise ValueError('Reveal views use full assembly framing and fixed opaque geometry')
+        raise ValueError('Reveal views own the framing and use fixed opaque geometry')
     if plane := shot.get('section_plane'):
         protected = set(targets)
         if plan:
@@ -459,6 +469,7 @@ def referenced_parts(shot):
         parts.update([plan['anchor'], *plan['parts'], *plan.get('reveal_targets', {})])
     if spec.get('reveal_views'):
         parts.update(spec.get('reveal_targets', {}))
+        parts.update(part for view in spec['reveal_views'] for part in view.get('focus_parts', []))
     return parts
 
 
@@ -513,6 +524,8 @@ def validate_assembly_shot(shot, assembly):
         visible = set(shot.get('visible_parts') or assembly.get('required_parts', []))
         if not {plan['anchor'], *plan['parts'], *plan.get('reveal_targets', {})} <= visible:
             raise ValueError('Disassembly anchor and separated parts must remain in the visible assembly')
+        if any(not set(view.get('focus_parts', [])) <= visible for view in spec.get('reveal_views', [])):
+            raise ValueError('Reveal focus needs visible assembly parts')
     if spec.get('camera_rig'):
         rig = spec['camera_rig']
         names = set(rig.get('inspect_markers', []))
