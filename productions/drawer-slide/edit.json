@@ -1,0 +1,12 @@
+{
+  "title": "",
+  "output": "抽屉拉到柜口外，为什么还能托得住.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {"tail": 0.45, "clicks": [1.7667]},
+    {"tail": 0.45, "labels": [[1.4, 4.4, "Accuride 3832EDO · 侧装全伸滑轨"]]},
+    {"tail": 0.6, "labels": [[0.2, 3.2, "蓝色外轨 · 银色中轨"], [3.2, 8.35, "银色中轨 · 金色内轨"]]},
+    {"tail": 0.55, "labels": [[0.2, 4.45, "局部剖视 · 滚珠与轨道"]]},
+    {"tail": 0.65, "clicks": [1.2333]}
+  ]
+}

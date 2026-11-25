@@ -1,0 +1,6 @@
+# Accuride 3832EDO 三节抽屉滑轨
+
+- 原厂型号页列明侧装、全伸、开位保持和拨杆分离。已查看同页产品照和剖面图。剖面可辨认三层折弯钢轨，以及外轨与中轨、中轨与内轨之间各自的上下滚珠列。3832 系列安装说明用于核对柜体件、抽屉件与中间件保持架的关系。 [原厂型号页](https://www.accuride.com/en-us/products/drawer-slides/3832edo-light-duty-full-extension-slide-with-detent-out-and-lever-disconnect)
+- 本集从柜体侧板拆开切入，用蓝、银、金分别标示固定外轨、中轨和抽屉内轨。连续拉伸交代两段相对行程如何相加，并保留全开时的搭接。局部剖视显示滚珠在两层轨道弯边之间滚动，再回到整柜推回和重开。
+- 柜体、着色、剖视开窗、两段行程的分配和先后节奏采用教学示意。样件尺寸及运动尚无实测。末镜呈现全开止位和回程，止挡接触及开位保持件内部仍待样件核实。
+- 本集研究实际查看原厂静态资料。3832 系列视频的既有观察见选题记录，本轮未重新播放。画面为原创 Blender 动画，配乐为项目的 Quiet Link Technology，拟音按到位时点合成。 [选题与参考观察记录](../../docs/plans/mechanical-next-topic-dedup-20261124.md) · [配乐许可](../../assets/audio/bgm/starter/CC0.md)
