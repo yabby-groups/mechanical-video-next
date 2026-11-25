@@ -1,0 +1,18 @@
+{
+  "title": "",
+  "output": "削皮刀一碰到苹果，为什么会自己摆过去？.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {"tail": 0.42, "scene_inputs": ["../quarter-turn-faucet/scene.py"]},
+    {"tail": 0.4, "scene_inputs": ["../quarter-turn-faucet/scene.py"]},
+    {"tail": 0.45, "scene_inputs": ["../quarter-turn-faucet/scene.py"]},
+    {"tail": 0.4, "scene_inputs": ["../quarter-turn-faucet/scene.py"]},
+    {
+      "tail": 0.55,
+      "scene_inputs": ["../quarter-turn-faucet/scene.py"],
+      "subtitle_breaks": {
+        "1": [[5.0, "从靠近顶部，到更斜的侧面，"]]
+      }
+    }
+  ]
+}
