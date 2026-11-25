@@ -2,6 +2,7 @@
   "title": "",
   "output": "水龙头只转一点，水为什么就停了.mp4",
   "bgm": "assets/audio/bgm/starter/quiet-link-curiosity.flac",
+  "preview_step": 10,
   "shots": [
     {"tail": 0.34},
     {"tail": 0.40, "subtitle_breaks": {

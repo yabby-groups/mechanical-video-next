@@ -171,7 +171,8 @@ class WorkflowTests(unittest.TestCase):
                 patch('mechanical_video_next.episode.produce', return_value=output) as render, \
                 patch.object(w, 'create_task') as create, patch('builtins.print') as printed:
             w.main()
-        render.assert_called_once_with(episode, work_dir=None, env_file=None)
+        render.assert_called_once_with(episode, work_dir=None, env_file=None,
+                                       edit_file=None, preview_shots=None)
         create.assert_not_called()
         printed.assert_called_once_with(output)
 

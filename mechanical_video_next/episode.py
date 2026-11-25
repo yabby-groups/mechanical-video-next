@@ -19,11 +19,16 @@ from scripts.narration import effective_profile, load_env, srt_time, synthesize_
 FPS = 30
 
 
-def measure_narration(episode, edit):
-    blocks = (episode / 'narration.txt').read_text(encoding='utf-8').strip().split('\n\n')
+def narration_blocks(episode, edit):
+    return (episode / edit.get('narration', 'narration.txt')).read_text(
+        encoding='utf-8').strip().split('\n\n')
+
+
+def measure_narration(episode, edit, *, limit=None):
+    blocks = narration_blocks(episode, edit)
     profile = effective_profile({'narration_profile': 'config/narration-neil.json'})
     speech = []
-    for block, shot in zip(blocks, edit['shots'], strict=True):
+    for block, shot in list(zip(blocks, edit['shots'], strict=True))[:limit]:
         lines = block.splitlines()
         if not lines or any(not line.strip() for line in lines):
             raise ValueError('Each shot needs narration with one subtitle per line')
@@ -41,7 +46,7 @@ def load_directed_narration(episode, edit, work):
     reference = joint.binding(episode / edit['directed_timeline'])
     plan = joint.validate(json.loads(joint.bound(reference).read_text())['plan'])
     timeline = joint.receipt(plan, reference, directed=True)
-    narration = (episode / 'narration.txt').read_text(encoding='utf-8').strip().split('\n\n')
+    narration = narration_blocks(episode, edit)
     if len(narration) != len(edit['shots']) or len(narration) != len(plan['shots']):
         raise ValueError('Directed timeline must have one picture interval per episode shot')
     speech, placed = [], []
@@ -68,40 +73,68 @@ def load_directed_narration(episode, edit, work):
     return speech
 
 
-def picture_sources(episode, speech, work):
-    scene = episode / 'scene.py'
+def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
     counts = [frames for _, _, frames in speech]
-    timing = work / 'timing.json'
-    writejson(timing, counts)
-    scene_hash = filehash(scene)
-    paths = [work / digest({'scene': scene_hash, 'shot': i, 'frames': count, 'fps': FPS}) / f'shot-{i}.mp4'
-             for i, count in enumerate(counts)]
-    missing = [i for i, path in enumerate(paths) if not path.is_file()]
-    if missing:
+    shots = [{} for _ in counts] if shots is None else shots
+    paths = []
+    for index, (count, cut) in enumerate(zip(counts, shots, strict=True)):
+        scene = episode / cut.get('scene', 'scene.py')
+        shot = cut.get('scene_shot', index)
+        if type(shot) is not int or shot < 0:
+            raise ValueError('scene_shot must be a nonnegative integer')
+        key = {'scene': filehash(scene), 'shot': shot, 'frames': count, 'fps': FPS}
+        if cut.get('scene_inputs'):
+            key['scene_inputs'] = {name: filehash(episode / name) for name in cut['scene_inputs']}
+        filename = f'shot-{shot}.mp4'
+        path = work / digest(key) / filename
+        draft_step = None
+        if preview_step is not None and not path.is_file():
+            draft_step = cut.get('preview_step', preview_step)
+            if type(draft_step) is not int or draft_step < 1:
+                raise ValueError('preview_step must be a positive integer')
+            path = work / digest(dict(key, preview_step=draft_step)) / filename
+        paths.append(path)
+        if path.is_file():
+            continue
         with lock(ROOT / 'work/production.lock', wait=True):
-            for i in missing:
-                if paths[i].is_file():
-                    continue
-                picture = paths[i].parent
-                picture.mkdir(exist_ok=True)
-                frames = picture / f'shot-{i}'
-                run_blender(['--python-exit-code', '7', '--python', str(scene), '--',
-                             '--timing', str(timing), '--directory', str(picture), '--shot', str(i)],
-                            name=f'episode-{i}', directory=picture / f'blender-{i}-{uuid4().hex}',
-                            timeout=1800)
-                encode_shot(frames, counts[i], paths[i])
+            if path.is_file():
+                continue
+            picture = path.parent
+            picture.mkdir(exist_ok=True)
+            frames = picture / f'shot-{shot}'
+            timing = picture / 'timing.json'
+            scene_counts = counts + [0] * max(0, shot + 1 - len(counts))
+            scene_counts[shot] = count
+            writejson(timing, scene_counts)
+            command = ['--python-exit-code', '7', '--python', str(scene), '--',
+                       '--timing', str(timing), '--directory', str(picture), '--shot', str(shot)]
+            if draft_step is not None:
+                command.append('--preview')
+            step = draft_step or 1
+            if not all((frames / f'{frame:05}.jpg').is_file() for frame in range(0, count, step)):
+                run_blender(command, name=f'episode-{shot}',
+                            directory=picture / f'blender-{shot}-{uuid4().hex}', timeout=1800)
+            encode_shot(frames, count, path, preview_step=draft_step)
     return paths
 
 
-def encode_shot(frames, count, output):
+def encode_shot(frames, count, output, *, preview_step=None):
     candidate = output.with_suffix('.tmp.mp4')
-    run(['ffmpeg', '-v', 'error', '-xerror', '-y', '-framerate', FPS, '-i', frames / '%05d.jpg',
+    source = ['-framerate', FPS, '-i', frames / '%05d.jpg']
+    if preview_step is not None:
+        expected = [f'{frame:05}.jpg' for frame in range(0, count, preview_step)]
+        if sorted(path.name for path in frames.glob('*.jpg')) != expected:
+            raise ValueError(f'Preview requires regular frame samples every {preview_step} frames: {frames}')
+        source = ['-framerate', f'{FPS}/{preview_step}', '-pattern_type', 'glob', '-i',
+                  frames / '*.jpg', '-vf',
+                  f'scale=trunc(iw/2)*2:trunc(ih/2)*2,fps={FPS},tpad=stop_mode=clone:stop={count}']
+    run(['ffmpeg', '-v', 'error', '-xerror', '-y', *source,
          '-frames:v', count, '-c:v', 'libx264', '-preset', 'fast', '-crf', 16,
          '-pix_fmt', 'yuv420p', '-movflags', '+faststart', candidate])
     picture = probe(candidate)['streams'][0]
-    if (picture['width'], picture['height'], picture['r_frame_rate'], int(picture['nb_frames'])) != (
-            1920, 1080, '30/1', count):
-        raise ValueError(f'Incomplete 1080p shot: {frames}')
+    if ((picture['r_frame_rate'], int(picture['nb_frames'])) != ('30/1', count)
+            or (preview_step is None and (picture['width'], picture['height']) != (1920, 1080))):
+        raise ValueError(f'Incomplete picture sequence: {frames}')
     candidate.replace(output)
     shutil.rmtree(frames)
 
@@ -164,7 +197,7 @@ def mix(picture, bgm, duration, clicks, destination):
          '-ar', 48000, '-c:a', 'aac', '-b:a', '192k', destination])
 
 
-def assemble(episode, edit, pictures, speech, work):
+def assemble(episode, edit, pictures, speech, work, *, preview_shots=None):
     public = ROOT / 'remotion/public/cache'
     public.mkdir(exist_ok=True, parents=True)
     with TemporaryDirectory(prefix='episode-', dir=public) as folder:
@@ -173,10 +206,13 @@ def assemble(episode, edit, pictures, speech, work):
         props_path = work / 'edit-props.json'
         writejson(props_path, props)
         intermediate = work / 'remotion.mp4'
-        render(props_path, intermediate, work / 'remotion.log', visual=True)
+        render(props_path, intermediate, work / 'remotion.log', visual=True,
+               preview=preview_shots is not None)
         track = work / 'mix.m4a'
         mix(intermediate, ROOT / edit['bgm'], props['duration'], clicks, track)
         output = ROOT / 'output' / episode.name / edit['output']
+        if preview_shots is not None:
+            output = output.with_stem(f'{output.stem}-preview-{preview_shots}')
         output.parent.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix='.export-', dir=output.parent) as staging:
             candidate = Path(staging) / output.name
@@ -193,18 +229,25 @@ def assemble(episode, edit, pictures, speech, work):
     return output
 
 
-def produce(episode, *, work_dir=None, env_file=None):
+def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_shots=None):
     episode = Path(episode).resolve()
-    edit = json.loads((episode / 'edit.json').read_text(encoding='utf-8'))
+    edit = json.loads((episode / (edit_file or 'edit.json')).read_text(encoding='utf-8'))
     if Path(edit['output']).name != edit['output'] or not edit['output'].endswith('.mp4'):
         raise ValueError('Episode output must be an MP4 filename')
     load_env(env_file)
+    if preview_shots is not None and not 1 <= preview_shots <= len(edit['shots']):
+        raise ValueError('preview_shots must select a nonempty prefix of the episode')
 
     def render_into(work):
-        speech = (load_directed_narration(episode, edit, work) if 'directed_timeline' in edit
-                  else measure_narration(episode, edit))
-        pictures = picture_sources(episode, speech, work)
-        return assemble(episode, edit, pictures, speech, work)
+        assembly = work / 'preview' if preview_shots is not None else work
+        assembly.mkdir(exist_ok=True)
+        speech = (load_directed_narration(episode, edit, assembly) if 'directed_timeline' in edit
+                  else measure_narration(episode, edit, limit=preview_shots))[:preview_shots]
+        selected = dict(edit, shots=edit['shots'][:preview_shots])
+        step = edit.get('preview_step', 5) if preview_shots is not None else None
+        writejson(assembly / 'timing.json', [frames for _, _, frames in speech])
+        pictures = picture_sources(episode, speech, work, shots=selected['shots'], preview_step=step)
+        return assemble(episode, selected, pictures, speech, assembly, preview_shots=preview_shots)
 
     if work_dir is None:
         with TemporaryDirectory(prefix='mvn-episode-') as temporary:

@@ -3995,6 +3995,8 @@ def main():
     source.add_argument('--resume', type=Path, help='Inspect the continuation of an existing ledger task')
     p.add_argument('--work-dir', type=Path, help='Keep reusable picture clips in this directory')
     p.add_argument('--env-file', type=Path, help='Use local speech credentials')
+    p.add_argument('--edit', type=Path, help='Alternate edit JSON, relative to the episode directory')
+    p.add_argument('--preview-shots', type=int, help='Render a low-cost preview of the first N shots')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
     p.add_argument('--reason',required=True)
@@ -4071,14 +4073,15 @@ def main():
         return
     if args.command == 'produce':
         if args.resume:
-            if args.work_dir or args.env_file:
-                parser.error('--work-dir and --env-file apply to --episode')
+            if args.work_dir or args.env_file or args.edit or args.preview_shots is not None:
+                parser.error('--work-dir, --env-file, --edit and --preview-shots apply to --episode')
             event(args.resume, 'producer_resumed', dispatch_mode='current_native_codex_session')
             print(json.dumps(continuation(args.resume), ensure_ascii=False, indent=2))
         else:
             from .episode import produce
 
-            print(produce(args.episode, work_dir=args.work_dir, env_file=args.env_file))
+            print(produce(args.episode, work_dir=args.work_dir, env_file=args.env_file,
+                          edit_file=args.edit, preview_shots=args.preview_shots))
         return
     if args.command == 'extend-routes':
         from .three_d import require_route

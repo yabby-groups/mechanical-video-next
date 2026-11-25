@@ -456,7 +456,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timing", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
-    parser.add_argument("--preview", action="store_true")
+    draft = parser.add_mutually_exclusive_group()
+    draft.add_argument("--preview", action="store_true")
+    draft.add_argument("--sample-stills", action="store_true")
     parser.add_argument("--shot", type=int, choices=range(6), action="append")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
     timing = json.loads(args.timing.read_text())
@@ -476,10 +478,12 @@ def main():
         folder.mkdir(parents=True, exist_ok=True)
         scene.render.image_settings.file_format = "JPEG"
         scene.render.image_settings.quality = 92
-        scene.render.resolution_percentage = 42 if args.preview else 100
+        scene.render.resolution_percentage = 42 if args.preview or args.sample_stills else 100
         sample_times = [(0.1, 0.58, 1.7, 2.6, 3.1, 5.0), (3.95, 5.97, 6.75), (6.15, 8.08, 11.7, 15.3),
                         (3.85, 5.6, 9.6), (2.2, 7.7, 12.35), (1.35, 2.2, 3.8, 4.6)]
-        frames = [round(FPS * t) for t in sample_times[shot]] if args.preview else range(timing[shot])
+        frames = range(0, timing[shot], 5 if args.preview else 1)
+        if args.sample_stills:
+            frames = [round(FPS * t) for t in sample_times[shot]]
         for frame in frames:
             path = folder / f"{frame:05}.jpg"
             if path.exists():

@@ -193,8 +193,10 @@ class VoiceDirectorTests(unittest.TestCase):
         edit = {'output': 'test.mp4', 'shots': [{}, {}]}
         writejson(edit_path, dict(edit, directed_timeline='timeline.json'))
 
-        def inspect_picture(directory, speech, work):
+        def inspect_picture(directory, speech, work, *, shots, preview_step):
             self.assertEqual(directory, self.root.resolve())
+            self.assertEqual(shots, edit['shots'])
+            self.assertIsNone(preview_step)
             self.assertEqual([frames for _, _, frames in speech], [60, 60])
             self.assertAlmostEqual(speech[0][1][0]['start'], .1)
             self.assertAlmostEqual(speech[1][1][0]['start'], 1 / 30)
@@ -214,8 +216,8 @@ class VoiceDirectorTests(unittest.TestCase):
             self.assertEqual(assemble.call_args.args[2], ['picture-1', 'picture-2'])
         writejson(edit_path, edit)
         with patch.object(episode, 'load_env'), patch.object(episode, 'load_directed_narration') as directed_load, \
-                patch.object(episode, 'measure_narration', return_value=['legacy']) as legacy, \
+                patch.object(episode, 'measure_narration', return_value=[(clip, [], 60)] * 2) as legacy, \
                 patch.object(episode, 'picture_sources'), patch.object(episode, 'assemble', return_value='video'):
             self.assertEqual(episode.produce(self.root), 'video')
             directed_load.assert_not_called()
-            legacy.assert_called_once_with(self.root.resolve(), edit)
+            legacy.assert_called_once_with(self.root.resolve(), edit, limit=None)
