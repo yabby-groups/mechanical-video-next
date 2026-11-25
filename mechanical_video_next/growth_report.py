@@ -309,8 +309,16 @@ def render_markdown(report):
                   f"实际时长：{data['duration_seconds']}秒；修复次数：{data['metrics']['repair_count']}；制作耗时：{data['metrics']['production_seconds']}秒（null表示未知）",
                   '']
         for key, goal in data.get('opening_retention', {}).items():
-            lines += [f'### {AUDIENCE_GOALS[key]}', '', '```json',
-                      json.dumps(goal, ensure_ascii=False, indent=2), '```', '']
+            lines += [f'### {AUDIENCE_GOALS[key]}', '']
+            if key == 'knowledge_progression':
+                for review in goal['editorial_review'] or ():
+                    for kind, label in (('like', '点赞'), ('follow', '关注')):
+                        points = [(review['evidence'][point['evidence']]['time_range'], point['reason'])
+                                  for point in review.get('opportunities', ()) if point['kind'] == kind]
+                        if points:
+                            (start, end), reason = min(points, key=lambda point: point[0])
+                            lines.append(f'- 首个潜在{label}点（{review["coverage"]}） {start:g}–{end:g} 秒。{reason}')
+            lines += ['', '```json', json.dumps(goal, ensure_ascii=False, indent=2), '```', '']
         audience_groups = {
             'completion': GROUPS['retention'] + ('complete_answer',),
             'like': GROUPS['like'] + GROUPS['engagement'],

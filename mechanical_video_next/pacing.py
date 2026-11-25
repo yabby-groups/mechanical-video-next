@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 
 from scripts.common import digest, probe, run
 from . import joint_timeline as joint
+from .growth import OPENING_GOAL_SECONDS
 
 VERSION = 1
 OPERATIONS_REVIEW = 'docs/plans/operations-growth-review-20261123.md'
@@ -55,21 +56,23 @@ def opening_analysis(path, *, expected_sha=None):
     default_audio = next((row for row in audio if row.get('disposition', {}).get('default')),
                          audio[0] if audio else None)
     joint.bound(media)
-    return {
+    analysis = {
         'media': media, 'picture_duration': duration, 'picture_stream': video['index'],
         'audio_stream': default_audio['index'] if default_audio else None,
         'subtitle_streams': [row['index'] for row in info['streams'] if row['codec_type'] == 'subtitle'],
-        'retention_2s': {
-            'time_range': [0, min(2, duration)],
-            'checkpoints': [[start, min(end, duration)] for start, end in OPENING_WINDOWS if start < duration],
-            'questions': OPENING_QUESTIONS.copy(), 'editorial_review': None,
-        },
-        'retention_5s': {'time_range': [0, min(5, duration)], 'editorial_review': None},
         'continuous_viewing': 'UNKNOWN', 'perceptual_listening': 'UNKNOWN',
     }
+    analysis.update({key: {'time_range': [0, min(seconds, duration)], 'editorial_review': None}
+                     for key, seconds in OPENING_GOAL_SECONDS.items()})
+    analysis['knowledge_progression'] = {'time_range': [0, duration], 'editorial_review': None}
+    analysis['retention_2s'].update(
+        checkpoints=[[start, min(end, duration)] for start, end in OPENING_WINDOWS if start < duration],
+        questions=OPENING_QUESTIONS.copy(),
+    )
+    return analysis
 
 
-def extract_opening(analysis, directory):
+def extract_opening(analysis, directory, *, through=None):
     """Make time-aligned playback clips for review and verify their decoded streams."""
     directory.mkdir(parents=True, exist_ok=True)
     media = analysis['media']
@@ -80,9 +83,15 @@ def extract_opening(analysis, directory):
         mapping.extend(['-map', f'0:{audio}'])
     for stream in analysis['subtitle_streams']:
         mapping.extend(['-map', f'0:{stream}'])
-    for key in ('retention_2s', 'retention_5s'):
+    windows = dict(OPENING_GOAL_SECONDS)
+    if through is not None:
+        if not math.isfinite(through) or through <= 0:
+            raise ValueError('--through must give positive finite seconds')
+        windows['through'] = through
+        analysis['through'] = {'time_range': [0, min(through, analysis['picture_duration'])]}
+    for key, seconds in windows.items():
         end = analysis[key]['time_range'][1]
-        target = directory / f"{Path(path).stem}-{media['sha256'][:16]}-{key[-2:]}.mp4"
+        target = directory / f"{Path(path).stem}-{media['sha256'][:16]}-{seconds:g}s.mp4"
         # Use the input clock and accurate encoding rather than keyframe-only stream copy.
         with TemporaryDirectory(dir=directory) as staging:
             clip = Path(staging) / target.name
@@ -101,7 +110,7 @@ def opening_review(review, media, duration):
     if not isinstance(review, dict) or review.get('media_sha256') != media['sha256']:
         raise ValueError('Opening review must bind the exact MP4 hash')
     result = {}
-    for key, limit in (('retention_2s', 2), ('retention_5s', 5)):
+    for key, limit in dict(OPENING_GOAL_SECONDS, knowledge_progression=duration).items():
         if key not in review:
             continue
         row = review[key]
@@ -138,6 +147,14 @@ def opening_review(review, media, duration):
                 raise ValueError('Third-second judgment must cite evidence from the two-second window')
             if 'revision' in row and not text_fields(row['revision'], ('focus', 'method', 'candidate')):
                 raise ValueError('Opening revision requires a focus, method and candidate design')
+        if key == 'knowledge_progression':
+            opportunities = row.get('opportunities', [])
+            if not isinstance(opportunities, list) or any(
+                not text_fields(point, ('kind', 'reason')) or point['kind'] not in ('like', 'follow', 'save')
+                or type(point.get('evidence')) is not int or not 0 <= point['evidence'] < len(references)
+                for point in opportunities
+            ) or opportunities and row['coverage'] == 'UNKNOWN':
+                raise ValueError('Potential like, follow and save opportunities require observed, timed evidence')
         result[key] = row
     return result
 
@@ -145,7 +162,8 @@ def opening_review(review, media, duration):
 def opening_arguments(parser):
     parser.add_argument('media', type=Path, help='Actual opening workprint or final MP4')
     parser.add_argument('--sha256', help='Require this source version')
-    parser.add_argument('--clips', type=Path, help='Write playable two- and five-second excerpts')
+    parser.add_argument('--clips', type=Path, help='Write playable two-, five- and ten-second excerpts')
+    parser.add_argument('--through', type=float, help='With --clips, also export through this observation time')
     parser.add_argument('--review', type=Path, help='Import a timed editorial observation for these exact bytes')
     parser.add_argument('--output', type=Path, help='Write the analysis JSON here')
 
@@ -159,7 +177,9 @@ def run_opening(args):
         for key, observation in opening_review(authored, report['media'], report['picture_duration']).items():
             report[key]['editorial_review'] = observation
     if args.clips:
-        extract_opening(report, args.clips)
+        extract_opening(report, args.clips, through=args.through)
+    elif args.through is not None:
+        raise ValueError('--through requires --clips')
     if args.output:
         if args.output.resolve() == joint.bound(report['media']).resolve():
             raise ValueError('Analysis output must differ from input media')

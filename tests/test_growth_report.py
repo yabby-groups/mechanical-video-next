@@ -65,7 +65,18 @@ class GrowthReportTests(unittest.TestCase):
                                       evidence=[dict(time_range=[0, 0], observation='Two red ports')],
                                       answers=dict.fromkeys(pacing.OPENING_QUESTIONS, 'UNKNOWN'),
                                       third_second_evidence=[],
-                                      revision=dict(focus='Input', method='Show handle', candidate='Split view'))}
+                                      revision=dict(focus='Input', method='Show handle', candidate='Split view')),
+                  'knowledge_progression': dict(
+                      coverage='sampled_picture', conclusion='Ports stay visible as the valve turns',
+                      evidence=[
+                          dict(time_range=[0.25, 0.5], observation='The ports overlap'),
+                          dict(time_range=[1, 1.5], observation='The cutaway shows the handle and valve together'),
+                      ],
+                      opportunities=[
+                          dict(kind='follow', evidence=1, reason='The cutaway shows a hidden moving part'),
+                          dict(kind='like', evidence=1, reason='The handle explains the motion'),
+                          dict(kind='like', evidence=0, reason='Overlap explains the flow'),
+                      ])}
         gr.write(self.task / 'opening-review.json', review)
         gr.write(self.task / 'opening-review-stale.json', review | {'media_sha256': 'stale'})
         goals = gr.opening_observations(gr.opening_documents(self.task), route['media'], route['duration_seconds'])
@@ -73,6 +84,10 @@ class GrowthReportTests(unittest.TestCase):
         self.assertEqual(goals['retention_2s']['editorial_review'][0]['revision']['candidate'], 'Split view')
         self.assertIsNone(goals['retention_5s']['editorial_review'])
         self.assertIsNone(goals['retention_2s']['actual_platform_rate'])
+        route['opening_retention'] = goals
+        text = gr.render_markdown(report)
+        self.assertIn('首个潜在点赞点（sampled_picture） 0.25–0.5 秒。Overlap explains the flow', text)
+        self.assertIn('首个潜在关注点（sampled_picture） 1–1.5 秒。The cutaway shows a hidden moving part', text)
         self.assertEqual(gr.snapshot(self.task), report['sources'])
 
     def test_missing_media_blocks_generation_before_frame_extraction(self):

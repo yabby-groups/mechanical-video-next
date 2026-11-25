@@ -21,20 +21,27 @@ GOALS_V2 = {
 AUDIENCE_GOALS = {
     'retention_2s': '2 秒留存专项检查',
     'retention_5s': '5 秒留存检查',
+    'early_series_value': '前 10 秒的账号价值',
+    'knowledge_progression': '知识推进与潜在互动机会',
     'completion': '整片完播检查',
     'like': '点赞检查',
     'save': '收藏检查',
     'comment': '评论检查',
     'follow': '关注检查',
 }
+OPENING_GOAL_SECONDS = {'retention_2s': 2, 'retention_5s': 5, 'early_series_value': 10}
 
 
 def opening_goals(duration, review=None):
     """Represent editorial observations alongside empty platform metrics."""
     review = review or {}
-    return {key: {'time_range': [0, min(seconds, duration)],
-                  'editorial_review': review.get(key), 'actual_platform_rate': None}
-            for key, seconds in (('retention_2s', 2), ('retention_5s', 5))}
+    goals = {key: {'time_range': [0, min(seconds, duration)], 'editorial_review': review.get(key)}
+             for key, seconds in OPENING_GOAL_SECONDS.items()}
+    for key in ('retention_2s', 'retention_5s'):
+        goals[key]['actual_platform_rate'] = None
+    goals['knowledge_progression'] = {'time_range': [0, duration],
+                                     'editorial_review': review.get('knowledge_progression')}
+    return goals
 
 
 GOAL_FIELDS = ('goal_id', 'knowledge_point', 'reference_id', 'shot_id', 'time_range',

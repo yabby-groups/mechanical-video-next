@@ -3988,7 +3988,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     from . import pacing
-    pacing.opening_arguments(sub.add_parser('opening-analysis', help='Inspect an actual two- and five-second opening'))
+    pacing.opening_arguments(sub.add_parser('opening-analysis', help='Inspect the opening of an actual MP4'))
     p = sub.add_parser('produce', help='Render an authored episode to MP4')
     source = p.add_mutually_exclusive_group(required=True)
     source.add_argument('--episode', type=Path, help='Directory containing the scene, narration and edit')

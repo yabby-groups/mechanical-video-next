@@ -120,14 +120,15 @@ class PacingTests(unittest.TestCase):
         self.assertEqual(analysis['subtitle_streams'], [3])
         self.assertEqual(analysis['retention_2s']['checkpoints'], [list(row) for row in pacing.OPENING_WINDOWS])
         self.assertEqual(analysis['retention_5s']['time_range'], [0, 3.4])
-        pacing.extract_opening(analysis, self.root / 'excerpts')
-        for key, end in (('retention_2s', 2), ('retention_5s', 3.4)):
+        pacing.extract_opening(analysis, self.root / 'excerpts', through=3)
+        for key, end in (('retention_2s', 2), ('retention_5s', 3.4),
+                         ('early_series_value', 3.4), ('through', 3)):
             playback = joint.bound(analysis[key]['playback'])
             info = pacing.opening_analysis(playback)
             self.assertAlmostEqual(info['picture_duration'], end)
             self.assertEqual(info['audio_stream'], 1)
             self.assertEqual(info['subtitle_streams'], [2])
-            self.assertIsNone(analysis[key]['editorial_review'])
+            self.assertIsNone(analysis[key].get('editorial_review'))
         self.assertEqual(analysis['continuous_viewing'], 'UNKNOWN')
         self.assertEqual(analysis['perceptual_listening'], 'UNKNOWN')
 
@@ -154,6 +155,22 @@ class PacingTests(unittest.TestCase):
         row['coverage'] = 'continuous_av'
         with self.assertRaisesRegex(ValueError, 'spanning'):
             pacing.opening_review(review, self.media, 6)
+
+    def test_potential_opportunities_can_point_past_ten_seconds(self):
+        row = {
+            'coverage': 'sampled_picture',
+            'conclusion': 'The later cutaway adds a separate mechanical relation.',
+            'evidence': [{'time_range': [11.2, 12], 'observation': 'Both contacts become visible.'}],
+            'opportunities': [{'kind': 'follow', 'reason': 'The cutaway links both contacts to the object.',
+                               'evidence': 0}],
+        }
+        review = dict(media_sha256=self.media['sha256'], knowledge_progression=row)
+        self.assertEqual(pacing.opening_review(review, self.media, 15), {'knowledge_progression': row})
+        with self.assertRaisesRegex(ValueError, 'outside'):
+            pacing.opening_review(review | {'early_series_value': row}, self.media, 15)
+        row['opportunities'][0]['evidence'] = 1
+        with self.assertRaisesRegex(ValueError, 'timed evidence'):
+            pacing.opening_review(review, self.media, 15)
 
     def test_recomposition_or_replaced_source_cannot_reuse_current_qa(self):
         audit = self.audit()
