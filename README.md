@@ -18,15 +18,18 @@ uv run python -m mechanical_video_next produce --episode productions/jotter
 
 成片和字幕输出至 `output/<本集目录名>/`。可用 `--work-dir` 指定逐镜头缓存来复用渲染结果，默认工作目录随运行清理。模型、已完成视频与生产缓存按 [配置边界](config/README.md) 保存。CAD 工具可用 `uv sync --extra cad --locked` 安装。
 
-## 先比较开场动稿
+## 比较动稿并局部换镜
 
-从已核实的机械现象选第一帧与前两秒。复用现有场景、相机或缓存做低成本动稿，在手机尺寸下看关键部位，静音复看，并检查第 2–5 秒接到哪一步。拍板时记下画面已经提供的线索，以及它让观众想继续追问的具体问题。
+从已核实的机械现象选第一帧。复用原场景和缓存，在低成本动稿里比较可见的机械关系、最早能看懂的答案，以及什么时候能看出本集和系列的价值。根据实际表达选择要预演的镜头数。
 
 ```sh
-uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --clips work/opening --output work/opening/analysis.json
+uv run python -m mechanical_video_next produce --episode productions/drawer-slide --edit growth-edit.json --work-dir work/drawer-slide/episode --preview-shots 1
+uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --clips work/opening --through 12 --output work/opening/analysis.json
 ```
 
-命令绑定源文件 SHA-256，定位视频、默认音轨和字幕流，并提取可播放的两秒与五秒片段。用 `--sha256` 核对指定版本，用 `--review` 导入同一文件的具时码观察。观众体验判断由实际观察给出。成片的 `audience-review` 先独立检查两秒和五秒留存，再检查完播、点赞、收藏、评论和关注。查看导入格式、真实动稿及回归证据。[水龙头开场回归](docs/productions/faucet-opening-retention-regression.md)
+备选剪辑 JSON 可指定 `narration`。逐镜可用 `scene` 换 Blender 脚本、`scene_shot` 选用源脚本的镜号、`scene_inputs` 声明影响画面的相对路径依赖。场景接收 `--preview` 时按固定间隔输出低分辨率帧，默认每 5 帧采样，必要时用 `preview_step` 与场景约定匹配。相同工作目录优先复用已有高清镜头，预演的剪辑文件单独写入 `preview/`。选定后省略 `--preview-shots` 渲染完整成片。
+
+`opening-analysis` 绑定 MP4 SHA-256，定位默认音轨和字幕流，导出 2、5、10 秒及 `--through` 指定区间。用 `--sha256` 核对版本，用 `--review` 导入同一 MP4 的带时码观察。手动 `audience-review` 从前两秒检查到首个潜在点赞和关注点，再核对后段知识推进。旧账本的 `python -m mechanical_video_next.growth_report` 可引用与该版本绑定的 `opening-review*.json`。 [滑轨和滚轮回归](docs/productions/audience-growth-regression.md) · [水龙头开场回归](docs/productions/faucet-opening-retention-regression.md)
 
 ## 导演式配音
 
