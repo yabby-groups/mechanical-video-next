@@ -1,0 +1,11 @@
+{
+  "title": "",
+  "narration": "growth-narration.txt",
+  "output": "抽屉滑轨｜全伸仍搭接.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {"scene": "growth-scene.py", "scene_inputs": ["scene.py", "../quarter-turn-faucet/scene.py"], "tail": 0.35},
+    {"scene_shot": 3, "tail": 0.55, "labels": [[0.2, 4.45, "局部剖视 · 滚珠与轨道"]]},
+    {"scene_shot": 4, "tail": 0.65, "clicks": [1.2333]}
+  ]
+}
