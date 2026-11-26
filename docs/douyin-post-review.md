@@ -28,6 +28,8 @@
 | 本片归因新增关注数 | | 使用平台归给该作品的人数，附时间窗及归因定义 |
 | 每千播放归因新增关注 | | 1,000 × 本片归因新增关注数 ÷ 同窗播放量。小红书用观看量时写作「每千观看归因新增关注」 |
 | 分享数、分享率 | | 分享数 ÷ 播放量 |
+| 平台精选标记、精选反馈 | | 后台展示的布尔状态及反馈原文，分别附采集证据 |
+| 平台明确提供的额外流量扶持 | | 后台说明或可追溯记录，附实际范围和窗口 |
 
 分母缺失或为零时记录 `null`。滚动窗口累计数据附准确相对起止，跨窗口对照前核对定义。账户总体关注数另记为账户背景。实际表现与制作时的预期分别记录。
 
@@ -56,6 +58,8 @@
 作品、采集时间、制作输入可核实时，用 `uv run python -m mechanical_video_next.feedback --input observation.json --output <task>/post-publish/<platform>-<snapshot>.json` 导入现有账本。使用带时区的 `published_at`、`observed_at` 和 `blueprint`、`timeline` 的路径及 SHA-256。可核实上传版时提供 `published_media`；未知时留空，增长报告保留这条记录并仅按相同 SHA-256 归属版本。平台诊断用 `diagnosis` 的 `finding`、`source`；待验证改动用 `hypotheses` 的 `change`、`basis`、`measure`。保留作品归因关注 `attributed_followers` 及账户或平台原字段 `new_followers` 的各自口径。比率使用 0–1。
 
 Producer 读取报告或原始交接记录，把选定的创作假设写进下一集 Treatment 和动稿。发布后回填已观察的指标、样本口径和限制。单集入口和元数据不齐的历史作品可直接使用本节的复盘和带依据的创作决定。
+
+`featured` 接收布尔 `value` 和 `source`。`featured_feedback` 和 `extra_distribution` 接收文字 `value` 和 `source`。三项缺失时留 `null`。比较长短和知识深度不同的作品时，同时查看平均观看秒数、观看比例、完播、赞评藏、归因关注与实际精选反馈。标注视觉和声音表达、片长、流量来源及其他同时发生的改动。
 
 ## 水龙头诊断与本轮改动
 

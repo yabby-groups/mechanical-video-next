@@ -7,7 +7,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from mechanical_video_next import blueprint, growth, joint_timeline, production_contract, workflow
+from mechanical_video_next import blueprint, growth, joint_timeline, pacing, production_contract, workflow
 
 
 class FormalDurationTests(unittest.TestCase):
@@ -17,6 +17,7 @@ class FormalDurationTests(unittest.TestCase):
         self.root = Path(folder.name)
         self.old = dict(formal_duration_version=1)
         self.new = dict(formal_duration_version=2)
+        self.current = dict(formal_duration_version=3)
 
     def test_formal_create_uses_default_range_and_optional_target(self):
         def create(**kwargs):
@@ -25,15 +26,17 @@ class FormalDurationTests(unittest.TestCase):
                 media_policy_version=1, **kwargs))
 
         ledger = create()
-        self.assertEqual(ledger['formal_duration_version'], 2)
+        self.assertEqual(ledger['formal_duration_version'], 3)
         self.assertEqual(ledger['growth_policy_version'], 2)
-        self.assertEqual(ledger['duration_policy'], dict(minimum=1/30, maximum=300,
+        self.assertTrue(pacing.enabled(ledger))
+        self.assertEqual(ledger['duration_policy'], dict(minimum=60, maximum=None,
                          mode='knowledge-driven', requested_seconds=None))
-        for invalid in (0, 300.01):
+        for invalid in (0, 59.99):
             with self.assertRaises(ValueError):
                 create(duration=invalid)
-        for boundary in (18.5, 119.99, 300):
+        for boundary in (60, 119.99, 300, 310):
             self.assertEqual(create(duration=boundary)['duration'], boundary)
+        self.assertEqual(create(duration=18.5, allow_short=True)['duration'], 18.5)
 
     def test_complete_animatic_gate_excludes_short_clock(self):
         def draft(frame_count):
@@ -87,6 +90,7 @@ class FormalDurationTests(unittest.TestCase):
             picture.assert_called_once_with(Path(media[0]['path']), plan, require_audio=True)
             receipt.assert_called_once_with(plan, measured_ref)
             audio.assert_called_once_with(Path(media[0]['path']), plan, receipt.return_value)
+            blueprint.validate_story_preview(dict(candidate, **self.current), media, task=self.current)
             with self.assertRaisesRegex(ValueError, 'pinned pacing policy'):
                 blueprint.validate_story_preview(dict(candidate, **self.old), media, task=self.new)
 
@@ -112,6 +116,10 @@ class FormalDurationTests(unittest.TestCase):
                     shared_production=dict(timeline=joint_timeline.binding(path)))
         media = dict(joint_timeline.binding(movie), chapter_ids=['chapter'])
         self.assertEqual(workflow.complete_media(task, media)['duration'], 2)
+        current = dict(task, **self.current, duration_policy=dict(minimum=60, maximum=None))
+        self.assertEqual(workflow.complete_media(current, media, final=False)['duration'], 2)
+        with self.assertRaisesRegex(ValueError, 'at least 60'):
+            workflow.complete_media(current, media)
         joint_timeline.validate_rendered_film(movie, {'frame_count': 60})
         self.assertTrue(validate_video(movie, {'storyboard': [{'seconds': 2}],
                         'render': {'width': 1920, 'height': 1080}}, [{'start': 0, 'end': 2}])['status'].startswith('TECHNICAL_PASS'))

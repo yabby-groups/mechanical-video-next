@@ -140,6 +140,16 @@ class GrowthTests(unittest.TestCase):
                   blueprint=self.ref,timeline=self.ref,views=100,likes=5)
         result=ingest(data)
         self.assertEqual(result['per_thousand_views']['likes'],50)
+        self.assertIsNone(result['featured'])
+        self.assertIsNone(result['average_watch_ratio'])
+        data.update(average_watch_seconds=63, featured={'value': False, 'source': 'Douyin creator dashboard'},
+                    featured_feedback={'value': 'Recorded reply', 'source': 'Douyin creator dashboard'})
+        observed = ingest(data)
+        self.assertEqual(observed['average_watch_ratio'], .35)
+        self.assertIs(observed['featured']['value'], False)
+        self.assertIsNone(observed['extra_distribution'])
+        with self.assertRaisesRegex(ValueError, 'extra_distribution requires a value and source'):
+            ingest(dict(data, extra_distribution={'value': 'Traffic boost'}))
         self.assertIsNone(result['saves']);self.assertIsNone(result['per_thousand_views']['saves'])
         data['views']=0;self.assertIsNone(ingest(data)['per_thousand_views']['likes'])
         data['platform']='xiaohongshu';self.assertEqual(ingest(data)['platform'],'xiaohongshu')

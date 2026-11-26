@@ -48,6 +48,16 @@ def ingest(data):
         rows = data.get(key, [])
         if not isinstance(rows, list) or any(not text_fields(row, fields) for row in rows):
             raise ValueError(f'Invalid post-publish {key}')
+    for key in ('featured', 'featured_feedback', 'extra_distribution'):
+        observation = data.get(key)
+        if observation is not None:
+            fields = ('source',) if key == 'featured' else ('source', 'value')
+            if not text_fields(observation, fields) or (
+                    key == 'featured' and type(observation.get('value')) is not bool):
+                raise ValueError(f'Platform observation {key} requires a value and source')
+        result[key] = observation
+    watch_seconds = result['average_watch_seconds']
+    result['average_watch_ratio'] = None if watch_seconds is None else watch_seconds / duration
     views = result['views']
     result['per_thousand_views'] = {
         k: result[k] * 1000 / views if views and result[k] is not None else None

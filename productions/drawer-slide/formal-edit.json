@@ -1,0 +1,226 @@
+{
+  "title": "",
+  "narration": "formal-narration.txt",
+  "composition": "ffmpeg",
+  "output": "抽屉滑轨｜三节怎样托住整只抽屉.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "scene": "value-scene.py",
+      "tail": 0.42,
+      "scene_inputs": [
+        "support-scene.py",
+        "growth-scene.py",
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          3.4,
+          6.2,
+          "抽屉拉到底，后排好拿吗？"
+        ]
+      ],
+      "frames": 191
+    },
+    {
+      "scene": "formal-scene.py",
+      "scene_shot": 0,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          7.4,
+          "两节结构示意"
+        ],
+        [
+          7.45,
+          15.13,
+          "同一柜口 · 两种行程"
+        ]
+      ]
+    },
+    {
+      "scene": "support-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.45,
+      "labels": [
+        [
+          0.15,
+          5.8,
+          "滚珠剖视"
+        ],
+        [
+          6.04,
+          10.16,
+          "传力示意"
+        ]
+      ],
+      "subtitle_breaks": {
+        "0": [
+          [
+            3.0,
+            "滚珠夹在两层轨道的弯边之间，"
+          ]
+        ]
+      },
+      "picture": {
+        "path": "../../work/drawer-slide/support/b2bce23300e9987fbc89a625bea277934d8ac23b930528f138a75ef3a84a966a/shot-3.mp4",
+        "sha256": "bbb1bc7fa562927ba114911fea6899f95781b90902aba2cab0ffd34d00f01343",
+        "fallback_to_scene": true
+      },
+      "frames": 305
+    },
+    {
+      "scene": "extended-scene.py",
+      "scene_shot": 2,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.48,
+      "labels": [
+        [
+          2.7,
+          11.6,
+          "绿色保持架"
+        ]
+      ],
+      "frames": 356,
+      "picture": {
+        "path": "../../work/drawer-slide/extended/4b341d529cb6c0976eb26198f910160523c8a2973ff33b37830c162d933f87a0/shot-2.mp4",
+        "sha256": "a0db95a1099e43e675e09569b1e36fec8bd03cff88f407a65cfa3d72326ca987",
+        "fallback_to_scene": true
+      }
+    },
+    {
+      "scene": "extended-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.5,
+      "labels": [
+        [
+          0.15,
+          8.95,
+          "蓝轨固定 · 纯滚动示意"
+        ]
+      ],
+      "frames": 274,
+      "picture": {
+        "path": "../../work/drawer-slide/extended/d525ab958eff930d9cc99c3fc88dd3a51604fdd89e3074b56bd959b671413a42/shot-3.mp4",
+        "sha256": "4ae6d1d8621112fb77bb19e225e8a2e0a20ed067670456fd56bed825272f64d5",
+        "fallback_to_scene": true
+      }
+    },
+    {
+      "scene": "formal-scene.py",
+      "scene_shot": 1,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          5.15,
+          "纯滚动 · 速度分解"
+        ],
+        [
+          5.15,
+          8.25,
+          "上侧速度相加"
+        ],
+        [
+          8.25,
+          14.84,
+          "下侧速度抵消"
+        ]
+      ],
+      "subtitle_breaks": {
+        "2": [
+          [
+            8.45,
+            "底下的接触点，"
+          ]
+        ],
+        "3": [
+          [
+            12.57,
+            "所以一边跟着银轨，"
+          ]
+        ]
+      }
+    },
+    {
+      "scene": "formal-scene.py",
+      "scene_shot": 2,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          3.48,
+          "3832 系列 · 装回抽屉"
+        ],
+        [
+          3.72,
+          6.89,
+          "保持架拉至前端"
+        ],
+        [
+          7.13,
+          10.6,
+          "左右内轨同时对准"
+        ]
+      ],
+      "subtitle_breaks": {
+        "3": [
+          [
+            12.4,
+            "这样两侧是一起接上的，"
+          ]
+        ]
+      },
+      "clicks": [
+        12.07
+      ]
+    },
+    {
+      "scene": "formal-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          4.6,
+          "两段行程相加"
+        ],
+        [
+          8.18,
+          11.98,
+          "两处搭接传力"
+        ]
+      ]
+    }
+  ]
+}

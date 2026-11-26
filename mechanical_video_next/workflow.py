@@ -16,7 +16,8 @@ import wave
 from . import creative_selection as editorial_policy
 from .production_contract import (
     POSITIONING, PRODUCER_DIRECTED, PRODUCER_DIRECTION, SKILL_DRIVEN, STORY_DEVELOPMENT,
-    FORMAL_DURATION_FIELD, formal_duration_enabled, validate_formal_duration,
+    FORMAL_DURATION_FIELD, FORMAL_DURATION_VERSION, SHORT_FORMAL_DURATION_VERSION,
+    formal_duration_enabled, validate_formal_duration,
     directed_story, flexible_story, match_mechanical_scope, mechanism_first, producer_directed,
     skill_driven, story_development,
 )
@@ -362,11 +363,13 @@ def complete_media(data, media, final=True):
     video = next(row for row in info['streams'] if row.get('codec_type') == 'video')
     audio = [row for row in info['streams'] if row.get('codec_type') == 'audio']
     duration = float(video.get('duration', info.get('format', {}).get('duration', 0)))
-    validate_formal_duration(data, duration)
+    validate_formal_duration(data, duration, preview=not final)
     if final and formal_duration_enabled(data) and (video.get('codec_name') != 'h264'
             or not audio or audio[0].get('codec_name') != 'aac'):
         raise ValueError('Formal film requires H.264 video and AAC audio')
     policy = data.get('duration_policy') or {'minimum': 30, 'maximum': 45}
+    if not final and data.get(FORMAL_DURATION_FIELD) == FORMAL_DURATION_VERSION:
+        policy = {'minimum': 1 / 30, 'maximum': None}
     maximum = policy['maximum']
     if (not math.isfinite(duration) or duration < policy['minimum'] - 1 / 30
             or (maximum is not None and duration > maximum + 1 / 30)):
@@ -1192,6 +1195,13 @@ data for next-episode hypotheses and measured outcomes.
 ''' if formal_duration_enabled(data) else ''
         if data.get(FORMAL_DURATION_FIELD) == 1:
             formal_instruction += 'This historical task requires 120–300 seconds.\n'
+        if data.get(FORMAL_DURATION_FIELD) == FORMAL_DURATION_VERSION:
+            formal_instruction += (
+                'The final film needs at least 60 seconds of earned content. Aim for 90–180 seconds '
+                'or 180–300 for a knowledge-rich mechanism. Expand source-backed causal depth, design '
+                'comparisons and practical use before trimming. Judge the moving edit for useful insight, '
+                'mechanical surprise, expressive picture and sound, and recognizable daily experience. '
+                'Check that new discoveries continue after the opening. Drafts may be shorter.\n')
         if pacing.enabled(data):
             formal_instruction += (
                 'Answer the pacing brief in the Treatment before asset work. Use the pinned operations '
@@ -1691,11 +1701,11 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                 media_policy_version=0, presentation_style='natural_science', contract_version=None,
                 *, skill_driven_pilot=False, story_development_version=2,
                 mechanical_object=None, core_question=None, operations_review=None,
-                product_model=None, product_references=(), lock_product_model=False):
+                product_model=None, product_references=(), lock_product_model=False, allow_short=False):
     from .production_contract import (NATURAL_SCIENCE, PRESENTATION_STYLE, FIELD as CONTRACT_FIELD,
                                       CONTRACT_NAMES, CREATIVE_FIRST_VERSION, STORY_VERSION,
                                       DISCOVERY_VERSION, CREATIVE_SELECTION_VERSION, CREATIVE_DURATION,
-                                      FORMAL_DURATION, FORMAL_DURATION_POLICIES, FORMAL_DURATION_VERSION)
+                                      FORMAL_DURATION, FORMAL_DURATION_POLICIES)
     if presentation_style not in {NATURAL_SCIENCE, 'legacy'}:
         raise ValueError('Unsupported presentation style')
     from .three_d import require_route, validate_config
@@ -1748,7 +1758,10 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
     formal_duration = directed and story_development_version == 2 and not skill_driven_pilot
     minimum_duration, maximum_duration = (30, 45) if protocol_version == 1 else FORMAL_DURATION
     if formal_duration:
-        minimum_duration, maximum_duration = FORMAL_DURATION_POLICIES[FORMAL_DURATION_VERSION]
+        duration_version = SHORT_FORMAL_DURATION_VERSION if allow_short else FORMAL_DURATION_VERSION
+        minimum_duration, maximum_duration = FORMAL_DURATION_POLICIES[duration_version]
+        if math.isinf(maximum_duration):
+            maximum_duration = None
         from .joint_timeline import binding
         feedback_source = binding(operations_review or ROOT / pacing.OPERATIONS_REVIEW)
     elif operations_review is not None:
@@ -1844,7 +1857,7 @@ def create_task(topic, duration=None, voice=None, config=None, task_id=None, roo
                                     'mode': 'knowledge-driven' if duration is None else 'requested',
                                     'requested_seconds': duration}
         if formal_duration:
-            value[FORMAL_DURATION_FIELD] = FORMAL_DURATION_VERSION
+            value[FORMAL_DURATION_FIELD] = duration_version
             value['growth_policy_version'] = 2
             value['operations_review'] = feedback_source
         value['production_method'] = 'reference-grounded-3d'
@@ -4004,6 +4017,7 @@ def main():
     p.add_argument('--env-file', type=Path, help='Use local speech credentials')
     p.add_argument('--edit', type=Path, help='Alternate edit JSON, relative to the episode directory')
     p.add_argument('--preview-shots', type=int, help='Render a low-cost preview of the first N shots')
+    p.add_argument('--allow-short', action='store_true', help='Honor an explicitly requested short episode')
     p = sub.add_parser('migrate-3d', help='Explicit in-place migration of an undelivered task; preserve all assets and history')
     p.add_argument('task',type=Path)
     p.add_argument('--reason',required=True)
@@ -4080,15 +4094,15 @@ def main():
         return
     if args.command == 'produce':
         if args.resume:
-            if args.work_dir or args.env_file or args.edit or args.preview_shots is not None:
-                parser.error('--work-dir, --env-file, --edit and --preview-shots apply to --episode')
+            if args.work_dir or args.env_file or args.edit or args.preview_shots is not None or args.allow_short:
+                parser.error('--work-dir, --env-file, --edit, --preview-shots and --allow-short apply to --episode')
             event(args.resume, 'producer_resumed', dispatch_mode='current_native_codex_session')
             print(json.dumps(continuation(args.resume), ensure_ascii=False, indent=2))
         else:
             from .episode import produce
 
             print(produce(args.episode, work_dir=args.work_dir, env_file=args.env_file,
-                          edit_file=args.edit, preview_shots=args.preview_shots))
+                          edit_file=args.edit, preview_shots=args.preview_shots, allow_short=args.allow_short))
         return
     if args.command == 'extend-routes':
         from .three_d import require_route

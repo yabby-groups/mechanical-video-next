@@ -37,6 +37,14 @@ CONTENT_REVIEW_FIELDS = {
     'summary': '知识总结',
     'series': '系列承接',
     'save_value': '收藏价值',
+    'gain': '获得感',
+    'surprise': '惊喜感',
+    'expression': '表达力',
+    'resonance': '感染力',
+    'later_discovery': '后段新发现',
+    'over_trimmed': '过度删减的知识',
+    'padding': '无效延长',
+    'formal_duration_fit': '成片时长与内容定位',
 }
 OPPORTUNITIES = {'like': '点赞', 'follow': '关注', 'comment': '评论', 'save': '收藏'}
 

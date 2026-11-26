@@ -34,12 +34,12 @@ def validate_story_preview(data, media, *, treatment=None, task=None):
     if not isinstance(plan, dict):
         raise ValueError('Story preview needs a joint picture clock')
     joint.validate(plan)
-    from .production_contract import validate_formal_duration
+    from .production_contract import FORMAL_DURATION_FIELD, validate_formal_duration
     policy = task if task is not None else data
-    validate_formal_duration(policy, plan['frame_count'] / joint.FPS)
+    validate_formal_duration(policy, plan['frame_count'] / joint.FPS, preview=True)
     from . import pacing
     if pacing.enabled(policy):
-        if (not pacing.enabled(data) or not data.get('measured_timeline')
+        if (data.get(FORMAL_DURATION_FIELD) != policy[FORMAL_DURATION_FIELD] or not data.get('measured_timeline')
                 or (treatment is not None and data.get('pacing_brief') != treatment['pacing_brief'])):
             raise ValueError('Formal draft must carry the pinned pacing policy, brief and measured speech')
         pacing.validate(plan, data.get('pacing'))

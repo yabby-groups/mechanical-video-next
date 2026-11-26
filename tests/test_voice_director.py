@@ -259,13 +259,15 @@ class VoiceDirectorTests(unittest.TestCase):
         with patch.object(episode, 'load_env'), patch.object(episode, 'measure_narration') as legacy, \
                 patch.object(episode, 'picture_sources', side_effect=inspect_picture), \
                 patch.object(episode, 'assemble', return_value='video') as assemble:
-            self.assertEqual(episode.produce(self.root), 'video')
+            with self.assertRaisesRegex(ValueError, 'at least 60 seconds'):
+                episode.produce(self.root)
+            self.assertEqual(episode.produce(self.root, allow_short=True), 'video')
             legacy.assert_not_called()
             self.assertEqual(assemble.call_args.args[2], ['picture-1', 'picture-2'])
         writejson(edit_path, edit)
         with patch.object(episode, 'load_env'), patch.object(episode, 'load_directed_narration') as directed_load, \
                 patch.object(episode, 'measure_narration', return_value=[(clip, [], 60)] * 2) as legacy, \
                 patch.object(episode, 'picture_sources'), patch.object(episode, 'assemble', return_value='video'):
-            self.assertEqual(episode.produce(self.root), 'video')
+            self.assertEqual(episode.produce(self.root, allow_short=True), 'video')
             directed_load.assert_not_called()
             legacy.assert_called_once_with(self.root.resolve(), edit, limit=None)

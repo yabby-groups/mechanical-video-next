@@ -34,9 +34,10 @@ CONTRACT_NAMES = {1: NAME, CREATIVE_FIRST_VERSION: CREATIVE_FIRST_NAME, STORY_VE
                   CREATIVE_SELECTION_VERSION: CREATIVE_SELECTION_NAME}
 CREATIVE_DURATION = (1 / 30, 300)
 FORMAL_DURATION_FIELD = 'formal_duration_version'
-FORMAL_DURATION_VERSION = 2
+FORMAL_DURATION_VERSION = 3
+SHORT_FORMAL_DURATION_VERSION = 2
 FORMAL_DURATION = (120, 300)
-FORMAL_DURATION_POLICIES = {1: FORMAL_DURATION, 2: CREATIVE_DURATION}
+FORMAL_DURATION_POLICIES = {1: FORMAL_DURATION, 2: CREATIVE_DURATION, 3: (60, math.inf)}
 
 
 def formal_duration_bounds(document):
@@ -52,11 +53,13 @@ def formal_duration_enabled(document):
     return formal_duration_bounds(document) is not None
 
 
-def validate_formal_duration(document, seconds):
+def validate_formal_duration(document, seconds, *, preview=False):
     bounds = formal_duration_bounds(document)
-    if bounds and not bounds[0] - 1e-6 <= seconds <= bounds[1] + 1e-6:
-        message = '120–300 seconds' if bounds == FORMAL_DURATION else '1 frame to 300 seconds'
-        raise ValueError(f'Formal film and full animatic require {message}')
+    if bounds is None or (preview and document.get(FORMAL_DURATION_FIELD) == FORMAL_DURATION_VERSION):
+        return
+    if not math.isfinite(seconds) or not bounds[0] - 1e-6 <= seconds <= bounds[1] + 1e-6:
+        messages = {1: '120–300 seconds', 2: '1 frame to 300 seconds', 3: 'at least 60 seconds'}
+        raise ValueError(f'Formal film requires {messages[document[FORMAL_DURATION_FIELD]]}')
 PRESENTATION_STYLE = 'presentation_style'
 NATURAL_SCIENCE = 'natural_science'
 PRODUCTION_LABELS = frozenset({

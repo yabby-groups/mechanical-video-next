@@ -324,7 +324,8 @@ def post_publish_observations(task, docs, routes):
                        for row in observations for hypothesis in row['data'].get('hypotheses', [])],
         'import_location': str(folder),
         'import_command': 'uv run python -m mechanical_video_next.feedback --help',
-        'scope': '按平台和采样窗口保留数据。归因关注使用平台作品数据。具体互动时点须有平台时间分布证据。',
+        'scope': ('按平台、流量来源和作品龄期比较。并看平均观看秒数、观看比例、完播、互动、归因关注及平台精选观察。'
+                  '精选和额外扶持使用后台原始证据。具体互动时点须有平台时间分布证据。'),
     }
 
 

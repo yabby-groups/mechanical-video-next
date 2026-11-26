@@ -172,7 +172,7 @@ class WorkflowTests(unittest.TestCase):
                 patch.object(w, 'create_task') as create, patch('builtins.print') as printed:
             w.main()
         render.assert_called_once_with(episode, work_dir=None, env_file=None,
-                                       edit_file=None, preview_shots=None)
+                                       edit_file=None, preview_shots=None, allow_short=False)
         create.assert_not_called()
         printed.assert_called_once_with(output)
 

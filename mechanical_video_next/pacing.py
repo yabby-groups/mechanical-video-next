@@ -9,6 +9,9 @@ from tempfile import TemporaryDirectory
 from scripts.common import digest, probe, run
 from . import joint_timeline as joint
 from .growth import CONTENT_REVIEW_FIELDS, OPENING_GOAL_SECONDS, OPPORTUNITIES
+from .production_contract import (
+    FORMAL_DURATION_FIELD, FORMAL_DURATION_VERSION, SHORT_FORMAL_DURATION_VERSION,
+)
 
 VERSION = 1
 OPERATIONS_REVIEW = 'docs/plans/operations-growth-review-20261123.md'
@@ -202,7 +205,9 @@ def run_opening(args):
 
 
 def enabled(document):
-    return document.get('formal_duration_version') == 2
+    return document.get(FORMAL_DURATION_FIELD) in {
+        SHORT_FORMAL_DURATION_VERSION, FORMAL_DURATION_VERSION,
+    }
 
 
 def text_fields(row, fields):
@@ -211,8 +216,9 @@ def text_fields(row, fields):
 
 def validate_brief(brief, task):
     seconds = brief.get('shortest_complete_seconds') if isinstance(brief, dict) else None
+    maximum = math.inf if task.get(FORMAL_DURATION_FIELD) == FORMAL_DURATION_VERSION else 300
     if (not text_fields(brief, BRIEF) or type(seconds) not in (int, float)
-            or not 0 < seconds <= 300):
+            or not math.isfinite(seconds) or not 0 < seconds <= maximum):
         raise ValueError('Pacing brief needs the phenomenon, opening, first result, first answer and shortest complete estimate')
     for key in ('essential_scenes', 'decorative_scenes'):
         values = brief.get(key)

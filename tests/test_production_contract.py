@@ -522,8 +522,8 @@ class ProductionContractTests(unittest.TestCase):
             current = load(path)
             historic = load(create_task('Why?', 120, task_id='historic', contract_version=1, **options))
             self.assertTrue(c.creative_first(current))
-            self.assertEqual(duration_bounds(current), (1/30, 300))
-            self.assertEqual(current['duration_policy']['maximum'], 300)
+            self.assertEqual(duration_bounds(current), (60, float('inf')))
+            self.assertIsNone(current['duration_policy']['maximum'])
             self.assertEqual(duration_bounds(historic), (120, 300))
             self.assertIn('native Blender 3D', producer_prompt(current, path))
             with self.assertRaisesRegex(ValueError, 'creation policy'):

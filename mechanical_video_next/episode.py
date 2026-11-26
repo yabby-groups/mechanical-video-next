@@ -11,6 +11,9 @@ import wave
 from mechanical_video_next import joint_timeline as joint
 from mechanical_video_next.blender_runtime import run_blender
 from mechanical_video_next.director_audio import mux_picture
+from mechanical_video_next.production_contract import (
+    FORMAL_DURATION_FIELD, FORMAL_DURATION_VERSION, validate_formal_duration,
+)
 from mechanical_video_next.remotion_build import render
 from mechanical_video_next.workflow import lock
 from scripts.common import ROOT, digest, filehash, probe, run, writejson
@@ -82,8 +85,9 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
     shots = [{} for _ in counts] if shots is None else shots
     paths = []
     for index, (count, cut) in enumerate(zip(counts, shots, strict=True)):
-        if 'picture' in cut:
-            paths.append(recut_picture(episode, cut['picture'], count, work))
+        reference = cut.get('picture')
+        if reference and (not reference.get('fallback_to_scene') or (episode / reference['path']).is_file()):
+            paths.append(recut_picture(episode, reference, count, work))
             continue
         scene = episode / cut.get('scene', 'scene.py')
         shot = cut.get('scene_shot', index)
@@ -290,7 +294,7 @@ def mix(picture, bgm, duration, clicks, destination):
          '-ar', 48000, '-c:a', 'aac', '-b:a', '192k', destination])
 
 
-def assemble(episode, edit, pictures, speech, work, *, preview_shots=None):
+def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, duration_policy=None):
     public = ROOT / 'remotion/public/cache'
     public.mkdir(exist_ok=True, parents=True)
     with TemporaryDirectory(prefix='episode-', dir=public) as folder:
@@ -319,6 +323,12 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None):
         with TemporaryDirectory(prefix='.export-', dir=output.parent) as staging:
             candidate = Path(staging) / output.name
             mux_picture(intermediate, track, candidate, encoded=True)
+            if duration_policy is not None and preview_shots is None:
+                video = next(stream for stream in probe(candidate)['streams']
+                             if stream['codec_type'] == 'video')
+                if int(video['nb_frames']) != props['frameCount']:
+                    raise ValueError('Exported picture frames differ from the authored timeline')
+                validate_formal_duration(duration_policy, float(video['duration']))
             run(['ffmpeg', '-v', 'error', '-xerror', '-i', candidate, '-map', '0:v:0',
                  '-map', '0:a:0', '-f', 'null', '-'])
             srt = candidate.with_suffix('.srt')
@@ -331,7 +341,8 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None):
     return output
 
 
-def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_shots=None):
+def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_shots=None,
+            allow_short=False):
     episode = Path(episode).resolve()
     edit = json.loads((episode / (edit_file or 'edit.json')).read_text(encoding='utf-8'))
     if Path(edit['output']).name != edit['output'] or not edit['output'].endswith('.mp4'):
@@ -339,17 +350,21 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
     load_env(env_file)
     if preview_shots is not None and not 1 <= preview_shots <= len(edit['shots']):
         raise ValueError('preview_shots must select a nonempty prefix of the episode')
+    duration_policy = {} if allow_short else {FORMAL_DURATION_FIELD: FORMAL_DURATION_VERSION}
 
     def render_into(work):
         assembly = work / 'preview' if preview_shots is not None else work
         assembly.mkdir(exist_ok=True)
         speech = (load_directed_narration(episode, edit, assembly) if 'directed_timeline' in edit
                   else measure_narration(episode, edit, limit=preview_shots))[:preview_shots]
+        if preview_shots is None:
+            validate_formal_duration(duration_policy, sum(frames for _, _, frames in speech) / FPS)
         selected = dict(edit, shots=edit['shots'][:preview_shots])
         step = edit.get('preview_step', 5) if preview_shots is not None else None
         writejson(assembly / 'timing.json', [frames for _, _, frames in speech])
         pictures = picture_sources(episode, speech, work, shots=selected['shots'], preview_step=step)
-        return assemble(episode, selected, pictures, speech, assembly, preview_shots=preview_shots)
+        return assemble(episode, selected, pictures, speech, assembly, preview_shots=preview_shots,
+                        duration_policy=duration_policy)
 
     if work_dir is None:
         with TemporaryDirectory(prefix='mvn-episode-') as temporary:

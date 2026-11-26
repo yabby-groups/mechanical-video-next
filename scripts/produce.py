@@ -372,6 +372,8 @@ def validate_video(path, config, cues):
     a=next(s for s in p['streams'] if s['codec_type']=='audio')
     expected_frames=sum(round(s['seconds']*30) for s in config['storyboard'])
     duration=expected_frames/30
+    from mechanical_video_next.production_contract import validate_formal_duration
+    validate_formal_duration(config, int(v['nb_frames']) / 30)
     assert (v['width'],v['height'],v['codec_name'],v['avg_frame_rate'])==(config['render']['width'],config['render']['height'],'h264','30/1')
     assert a['codec_name']=='aac' and int(a['sample_rate'])>=44100
     assert abs(float(p['format']['duration'])-duration)<0.1
@@ -741,6 +743,10 @@ def validate_stage_duration(cfg, phase):
         assert all(shot.get('template') == 'motion' for shot in cfg['shots'].values())
         return
     duration = sum(s['seconds'] for s in cfg['storyboard'])
+    from mechanical_video_next.production_contract import formal_duration_enabled, validate_formal_duration
+    if formal_duration_enabled(cfg):
+        validate_formal_duration(cfg, duration, preview=phase not in {'final', 'all'})
+        return
     if cfg.get('content_policy_version') == 1:
         from mechanical_video_next.growth import duration_bounds
         minimum, maximum = duration_bounds(cfg)
