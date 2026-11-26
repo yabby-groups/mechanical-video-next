@@ -1,0 +1,248 @@
+{
+  "title": "",
+  "narration": "narration.txt",
+  "composition": "ffmpeg",
+  "output": "弹跳烤面包机｜两片吐司是谁抬起来的.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          0,
+          3.45,
+          "托架带着吐司上升"
+        ]
+      ],
+      "clicks": [
+        0.72,
+        6.3
+      ]
+    },
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          5.1,
+          8.15,
+          "共用滑架"
+        ]
+      ],
+      "clicks": [
+        10.46
+      ]
+    },
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          0.2,
+          3.4,
+          "导向件"
+        ],
+        [
+          3.9,
+          8.4,
+          "回位弹簧拉长"
+        ],
+        [
+          11.2,
+          15.8,
+          "托架保持在低位"
+        ]
+      ],
+      "clicks": [
+        7.0
+      ]
+    },
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          0.4,
+          2.6,
+          "慢动作"
+        ],
+        [
+          6.4,
+          9.9,
+          "同一个滑架抬起两片"
+        ]
+      ],
+      "clicks": [
+        4.95,
+        11.1
+      ]
+    },
+    {
+      "tail": 0.45,
+      "graphic": {
+        "type": "data_animation",
+        "title": "一次弹起分成三步",
+        "presentation": "trace",
+        "unit": "趋势示意",
+        "domainMax": 1,
+        "formula": "下压储能 → 低位保持 → 释放回升",
+        "items": [
+          {
+            "label": "托架高度",
+            "detail": "托架下降后保持在低位，释放后回到高位",
+            "keyframes": [
+              [
+                0,
+                0.92
+              ],
+              [
+                3.1,
+                0.92
+              ],
+              [
+                4.7,
+                0.06
+              ],
+              [
+                9.9,
+                0.06
+              ],
+              [
+                10.55,
+                0.92
+              ],
+              [
+                15.6,
+                0.92
+              ]
+            ]
+          },
+          {
+            "label": "弹簧伸长",
+            "detail": "下压时伸长，回程时缩短",
+            "keyframes": [
+              [
+                0,
+                0.08
+              ],
+              [
+                3.1,
+                0.08
+              ],
+              [
+                4.7,
+                0.83
+              ],
+              [
+                9.9,
+                0.83
+              ],
+              [
+                10.55,
+                0.08
+              ],
+              [
+                15.6,
+                0.08
+              ]
+            ]
+          }
+        ],
+        "qualitative": true,
+        "basis": {
+          "path": "productions/pop-up-toaster/research.md",
+          "sha256": "99d204ebf4970f892c3a6cccf6a6d21a777367d5e8e7bd0ff2b87ba4bb8b64ac",
+          "position": "滑架与弹簧、二维图解"
+        }
+      }
+    },
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          0.3,
+          6.5,
+          "正常结束"
+        ],
+        [
+          6.6,
+          11.9,
+          "提前取消"
+        ]
+      ],
+      "clicks": [
+        4.7,
+        8.21,
+        8.68
+      ],
+      "subtitle_breaks": {
+        "3": [
+          [
+            12.43,
+            "两个时候弹起的结果一样，"
+          ]
+        ]
+      }
+    },
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          3.35,
+          7.35,
+          "下翻式接渣盘"
+        ]
+      ],
+      "clicks": [
+        6.65,
+        13.47
+      ]
+    },
+    {
+      "tail": 0.48,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          2.1,
+          5.7,
+          "下压储能"
+        ],
+        [
+          6.2,
+          9.5,
+          "释放回升"
+        ]
+      ],
+      "clicks": [
+        3.9,
+        9.2
+      ],
+      "subtitle_breaks": {
+        "3": [
+          [
+            12.49,
+            "下次看到吐司跳出来，"
+          ]
+        ]
+      }
+    }
+  ],
+  "preview_step": 6
+}
