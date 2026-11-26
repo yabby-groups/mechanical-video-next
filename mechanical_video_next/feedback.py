@@ -5,9 +5,10 @@ import json
 from pathlib import Path
 from .workflow import filehash
 
-METRICS = ('views', 'retention_3s', 'retention_5s', 'average_watch_seconds', 'completion_rate',
-           'likes', 'comments', 'saves', 'shares', 'new_followers')
-RATES = {'retention_3s', 'retention_5s', 'completion_rate',
+METRICS = ('views', 'bounce_2s', 'retention_3s', 'retention_5s', 'average_watch_seconds',
+           'completion_rate', 'likes', 'comments', 'saves', 'shares', 'new_followers',
+           'attributed_followers')
+RATES = {'bounce_2s', 'retention_3s', 'retention_5s', 'completion_rate',
          'like_rate', 'comment_rate', 'save_rate', 'share_rate'}
 
 
@@ -36,9 +37,22 @@ def ingest(data):
         ref = data.get(key, {})
         if not ref.get('path') or filehash(Path(ref['path'])) != ref.get('sha256'):
             raise ValueError('Missing or changed '+key+' binding')
+    media = data.get('published_media')
+    if media is not None and filehash(Path(media['path'])) != media.get('sha256'):
+        raise ValueError('Missing or changed published media binding')
+    from .pacing import text_fields
+    for key, fields in (
+        ('diagnosis', ('finding', 'source')),
+        ('hypotheses', ('change', 'basis', 'measure')),
+    ):
+        rows = data.get(key, [])
+        if not isinstance(rows, list) or any(not text_fields(row, fields) for row in rows):
+            raise ValueError(f'Invalid post-publish {key}')
     views = result['views']
-    result['per_thousand_views'] = {k: result[k]*1000/views if views and result[k] is not None else None
-                                    for k in ('likes', 'comments', 'saves', 'shares', 'new_followers')}
+    result['per_thousand_views'] = {
+        k: result[k] * 1000 / views if views and result[k] is not None else None
+        for k in ('likes', 'comments', 'saves', 'shares', 'new_followers', 'attributed_followers')
+    }
     result['comparison_policy'] = 'Compare within platform/account, similar duration/topic/publication window and traffic source; no causal or predictive claims.'
     return result
 

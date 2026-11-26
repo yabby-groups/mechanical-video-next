@@ -1,0 +1,74 @@
+{
+  "title": "",
+  "narration": "value-narration.txt",
+  "composition": "ffmpeg",
+  "output": "鼠标滚轮｜正反信号与网页回滚.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "tail": 0.36,
+      "picture": {
+        "path": "../../work/m185-wheel/recut/full/comparison.mp4",
+        "sha256": "9284f1dbdb9020de63481bd83c3442aca111177ba0ce34dd014f3b1bf540e11f"
+      }
+    },
+    {
+      "tail": 0.4,
+      "picture": {
+        "path": "../../work/m185-wheel/recut/full/teardown.mp4",
+        "sha256": "fb4dd865956a2cb1e9b290df0eaeb86a17939c96fe2be3b00b696e5e542160bb"
+      },
+      "frames": 188,
+      "labels": [
+        [
+          0.35,
+          3.75,
+          "网页滚过头，往回拨一格"
+        ]
+      ]
+    },
+    {
+      "tail": 0.4,
+      "picture": {
+        "path": "../../work/m185-wheel/recut/full/macro.mp4",
+        "sha256": "7479f91d882860d21f27afd890b7994a117f0c89069ac90ff140b909c95ffe41"
+      },
+      "frames": 364,
+      "labels": [
+        [
+          0.1,
+          3.05,
+          "编码器原理示意"
+        ]
+      ]
+    },
+    {
+      "tail": 0.55,
+      "picture": {
+        "path": "../../work/m185-wheel/recut/full/full-cycle.mp4",
+        "sha256": "b93a6ccc7bebeac2efecdc88bacda43c43cbe7ad6ce1210ca81133661864713f"
+      },
+      "frames": 269
+    },
+    {
+      "tail": 0.65,
+      "clicks": [
+        1.02,
+        2.7,
+        5.72,
+        6.5
+      ],
+      "picture": {
+        "path": "../../work/m185-wheel/recut/full/closing.mp4",
+        "sha256": "18bf47f1106cde64c752f3d909fef390fe80d30883e4f49aa1d6bcf9fb26b01e"
+      },
+      "labels": [
+        [
+          4.0,
+          7.4,
+          "信号先后辨方向，变化次数计位移"
+        ]
+      ]
+    }
+  ]
+}

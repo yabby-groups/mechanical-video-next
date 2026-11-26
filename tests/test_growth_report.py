@@ -76,7 +76,9 @@ class GrowthReportTests(unittest.TestCase):
                           dict(kind='follow', evidence=1, reason='The cutaway shows a hidden moving part'),
                           dict(kind='like', evidence=1, reason='The handle explains the motion'),
                           dict(kind='like', evidence=0, reason='Overlap explains the flow'),
-                      ])}
+                          dict(kind='comment', evidence=1, reason='Compare the two handle positions'),
+                      ], takeaways=dict(early_knowledge=dict(evidence=0, reason='Overlap explains flow'),
+                                        practical='UNKNOWN'))}
         gr.write(self.task / 'opening-review.json', review)
         gr.write(self.task / 'opening-review-stale.json', review | {'media_sha256': 'stale'})
         goals = gr.opening_observations(gr.opening_documents(self.task), route['media'], route['duration_seconds'])
@@ -89,6 +91,34 @@ class GrowthReportTests(unittest.TestCase):
         self.assertIn('首个潜在点赞点（sampled_picture） 0.25–0.5 秒。Overlap explains the flow', text)
         self.assertIn('首个潜在关注点（sampled_picture） 1–1.5 秒。The cutaway shows a hidden moving part', text)
         self.assertEqual(gr.snapshot(self.task), report['sources'])
+        self.assertNotEqual(gr.snapshot(self.task, include_opening=True), report['sources'])
+        self.assertIn('首个潜在评论点（sampled_picture） 1–1.5 秒。Compare the two handle positions', text)
+        self.assertIn('0.25–0.5 秒。Overlap explains flow', text)
+
+    def test_platform_feedback_matches_only_the_published_media(self):
+        report = gr.read(self.task / 'growth-report.json')
+        media = report['routes']['3d']['media']
+        observation = dict(
+            video_id='1', platform='douyin', account_id='a', topic='gear', traffic_source='feed',
+            published_at='2026-11-12T10:00:00+08:00', observed_at='2026-11-13T10:00:00+08:00',
+            duration_seconds=2, blueprint=media, timeline=media, published_media=media,
+            views=512, bounce_2s=.2876, attributed_followers=2,
+            diagnosis=[dict(finding='Show the answer earlier', source='Creator dashboard')],
+            hypotheses=[dict(change='Open on the moving gear', basis='The current reveal is late',
+                             measure='Five-second retention at similar age')])
+        folder = self.task / 'post-publish'
+        folder.mkdir()
+        gr.write(folder / 'bound.json', observation)
+        gr.write(folder / 'unbound.json', observation | {'published_media': None, 'attributed_followers': None})
+        routes = {'3d': report['routes']['3d'], 'alternate': {'media': {'sha256': 'different'}}}
+        result = gr.post_publish_observations(self.task, gr.documents(self.task), routes)
+        bound, unbound = result['observations']
+        self.assertEqual(bound['matched_routes'], ['3d'])
+        self.assertEqual(bound['data']['per_thousand_views']['attributed_followers'], 2 * 1000 / 512)
+        self.assertIsNone(bound['data']['per_thousand_views']['new_followers'])
+        self.assertEqual(unbound['matched_routes'], [])
+        self.assertIsNone(unbound['data']['per_thousand_views']['attributed_followers'])
+        self.assertEqual(len(result['hypotheses']), 2)
 
     def test_missing_media_blocks_generation_before_frame_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:

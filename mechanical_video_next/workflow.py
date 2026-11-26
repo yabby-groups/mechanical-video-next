@@ -1180,8 +1180,15 @@ def producer_prompt(data, task):
         formal_instruction = '''Develop one complete Full Animatic and one complete Final Film.
 Reserve shot tests, mechanism previews and social cutdowns for their own purposes.
 Plan retention, like, save, comment and follow in the Treatment, and carry each
-decision into the Blueprint and package. Use the actual MP4 to review the design.
-Use the post-publication template only with real platform evidence.
+decision into the Blueprint and package. Choose source-backed findings from how
+it works, why it was designed this way, design comparisons, practical use and
+hidden discoveries. Connect each finding to an observable shot and its narration.
+Compare inexpensive moving edits before HD. Look for the first useful answer,
+distinct reasons to like and follow, and a grounded discussion point. Use the
+remaining scenes for further discoveries and a short, visible knowledge summary.
+If a related unpublished topic is confirmed, its question can carry the series
+forward. Use actual MP4 timecodes for creative observations and real platform
+data for next-episode hypotheses and measured outcomes.
 ''' if formal_duration_enabled(data) else ''
         if data.get(FORMAL_DURATION_FIELD) == 1:
             formal_instruction += 'This historical task requires 120–300 seconds.\n'

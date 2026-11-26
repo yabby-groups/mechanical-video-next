@@ -35,9 +35,10 @@ def measure_narration(episode, edit, *, limit=None):
         audio, cues, _, _ = synthesize_shot({'narration': lines}, profile)
         if not cues or not math.isfinite(shot['tail']) or shot['tail'] < 0:
             raise ValueError('Each narrated shot needs a nonnegative tail')
-        frames = math.ceil((cues[-1]['end'] + shot['tail']) * FPS)
-        if frames <= 0 or cues[-1]['end'] > frames / FPS:
-            raise ValueError('Narration extends beyond the shot')
+        needed = math.ceil((cues[-1]['end'] + shot['tail']) * FPS)
+        frames = shot.get('frames', needed)
+        if type(frames) is not int or frames < needed:
+            raise ValueError('Narration and its tail extend beyond the shot')
         speech.append((audio, cues, frames))
     return speech
 
@@ -54,6 +55,9 @@ def load_directed_narration(episode, edit, work):
     with wave.open(str(joint.bound(timeline['narration_audio'])), 'rb') as master:
         for index, (block, shot) in enumerate(zip(narration, plan['shots'], strict=True)):
             first, last = shot['start_frame'], shot['end_frame']
+            frames = edit['shots'][index].get('frames', last - first)
+            if type(frames) is not int or frames != last - first:
+                raise ValueError(f'Edit frames differ from the directed timeline in shot {index + 1}')
             start, end = first * joint.SAMPLES_PER_FRAME, last * joint.SAMPLES_PER_FRAME
             rows = [(row, cue) for row, cue in zip(timeline['speech'], cues, strict=True)
                     if start <= row['start_sample'] < end]
@@ -78,6 +82,9 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
     shots = [{} for _ in counts] if shots is None else shots
     paths = []
     for index, (count, cut) in enumerate(zip(counts, shots, strict=True)):
+        if 'picture' in cut:
+            paths.append(recut_picture(episode, cut['picture'], count, work))
+            continue
         scene = episode / cut.get('scene', 'scene.py')
         shot = cut.get('scene_shot', index)
         if type(shot) is not int or shot < 0:
@@ -116,6 +123,39 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
                             directory=picture / f'blender-{shot}-{uuid4().hex}', timeout=1800)
             encode_shot(frames, count, path, preview_step=draft_step)
     return paths
+
+
+def recut_picture(episode, reference, count, work):
+    """Use an at-speed interval of an existing original 3D render."""
+    if type(count) is not int or count < 1:
+        raise ValueError('Picture requires a positive frame count')
+    source = (episode / reference['path']).resolve()
+    if filehash(source) != reference['sha256']:
+        raise ValueError(f'Original 3D render hash differs: {source}')
+    start = reference.get('start_frame', 0)
+    if type(start) is not int or start < 0:
+        raise ValueError('Picture start_frame must be a nonnegative integer')
+    video = next((row for row in probe(source)['streams'] if row['codec_type'] == 'video'), {})
+    available = int(video['nb_frames']) if str(video.get('nb_frames', '')).isdigit() else 0
+    if ((video.get('width'), video.get('height'), video.get('avg_frame_rate')) != (1920, 1080, '30/1')
+            or start + count > available):
+        raise ValueError(f'Recut requires a complete 1080p30 frame interval: {source}')
+    if start == 0 and count == available:
+        return source
+    key = digest({'picture_sha256': reference['sha256'], 'start_frame': start, 'frames': count})
+    target = work / key / 'recut.mp4'
+    if target.is_file():
+        return target
+    target.parent.mkdir(exist_ok=True)
+    with TemporaryDirectory(dir=target.parent) as staging:
+        candidate = Path(staging) / target.name
+        run(['ffmpeg', '-v', 'error', '-xerror', '-i', source, '-map', '0:v:0',
+             '-vf', f'trim=start_frame={start}:end_frame={start + count},setpts=PTS-STARTPTS',
+             '-an', '-c:v', 'libx264', '-preset', 'fast', '-crf', 16, '-pix_fmt', 'yuv420p', candidate])
+        if int(probe(candidate)['streams'][0]['nb_frames']) != count or filehash(source) != reference['sha256']:
+            raise ValueError(f'Recut is incomplete or its source changed: {source}')
+        candidate.replace(target)
+    return target
 
 
 def encode_shot(frames, count, output, *, preview_step=None):
@@ -175,6 +215,59 @@ def edit_props(edit, pictures, speech, public, asset_prefix):
             'annotations': labels}, clicks
 
 
+def compose_ffmpeg(props, output, log, *, preview):
+    """Compose authored picture, speech and timed text without browser capture."""
+    from PIL import Image, ImageDraw
+
+    from . import text_layout
+
+    width, height = (960, 540) if preview else (1920, 1080)
+    style = text_layout.scaled_style(width, height)
+    items = [dict(cue, layer='subtitle') for cue in props['cues']] + props['annotations']
+    items = [dict(item, box=style[item['layer']]['safe_box']) for item in items]
+    errors = text_layout.validate_layout(items, width=width, height=height)
+    if errors:
+        raise ValueError(f'Invalid text layout: {errors}')
+
+    command = ['ffmpeg', '-v', 'error', '-xerror', '-y']
+    filters = []
+    shots = props['shots']
+    size = (f'scale={width}:{height}:force_original_aspect_ratio=decrease,'
+            f'pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=0x223139')
+    for index, shot in enumerate(shots):
+        frames = round(shot['seconds'] * FPS)
+        samples = frames * joint.SAMPLES_PER_FRAME
+        command += ['-i', ROOT / 'remotion/public' / shot['media'],
+                    '-i', ROOT / 'remotion/public' / shot['audio']]
+        filters += [f'[{2 * index}:v]{size},setsar=1,trim=end_frame={frames},setpts=PTS-STARTPTS[v{index}]',
+                    f'[{2 * index + 1}:a]aresample=48000,aformat=channel_layouts=stereo,'
+                    f'apad,atrim=end_sample={samples},asetpts=PTS-STARTPTS[a{index}]']
+    segments = ''.join(f'[v{index}][a{index}]' for index in range(len(shots)))
+    filters.append(f'{segments}concat=n={len(shots)}:v=1:a=1[v0o][voice]')
+
+    with TemporaryDirectory(prefix='mvn-episode-text-') as folder:
+        stroke = round(style['stroke_width'])
+        for index, item in enumerate(items):
+            font = text_layout.measured_font(style[item['layer']]['font_size'], style)
+            x0, y0, x1, y1 = font.getbbox(item['text'], stroke_width=stroke)
+            label = Image.new('RGBA', (x1 - x0, y1 - y0))
+            ImageDraw.Draw(label).text((-x0, -y0), item['text'], font=font, fill=style['fill'],
+                                       stroke_width=stroke, stroke_fill=style['stroke'])
+            path = Path(folder) / f'{index}.png'
+            label.save(path)
+            command += ['-i', path]
+            left, top, right, bottom = map(round, item['box'])
+            x = (left + right - label.width) // 2 if item['layer'] == 'subtitle' else left
+            y = (top + bottom - label.height) // 2
+            start, end = (math.ceil(item[key] * FPS - 1e-10) for key in ('start', 'end'))
+            filters.append(f"[v{index}o][{2 * len(shots) + index}:v]overlay={x}:{y}:"
+                           f"enable='between(n,{start},{end - 1})'[v{index + 1}o]")
+        run([*command, '-filter_complex_threads', '2', '-filter_complex', ';'.join(filters),
+             '-map', f'[v{len(items)}o]', '-map', '[voice]', '-c:v', 'libx264', '-preset', 'fast',
+             '-crf', '23' if preview else '17', '-threads', '4', '-pix_fmt', 'yuv420p',
+             '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output], log)
+
+
 def mix(picture, bgm, duration, clicks, destination):
     # Quiet mechanical transients are synthesized for the authored contact frames.
     transient = 'aevalsrc=0.14*sin(2*PI*1530*t)*exp(-85*t):s=48000:d=0.075'
@@ -205,9 +298,18 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None):
         props, clicks = edit_props(edit, pictures, speech, directory, f'cache/{directory.name}')
         props_path = work / 'edit-props.json'
         writejson(props_path, props)
-        intermediate = work / 'remotion.mp4'
-        render(props_path, intermediate, work / 'remotion.log', visual=True,
-               preview=preview_shots is not None)
+        composition = edit.get('composition', 'remotion')
+        if composition not in ('ffmpeg', 'remotion'):
+            raise ValueError(f'Unknown episode composition: {composition}')
+        intermediate = work / f'{composition}.mp4'
+        if composition == 'ffmpeg':
+            compose_ffmpeg(props, intermediate, work / 'ffmpeg.log', preview=preview_shots is not None)
+            video = next(stream for stream in probe(intermediate)['streams'] if stream['codec_type'] == 'video')
+            if int(video['nb_frames']) != props['frameCount']:
+                raise ValueError('FFmpeg picture frames differ from the authored timeline')
+        else:
+            render(props_path, intermediate, work / 'remotion.log', visual=True,
+                   preview=preview_shots is not None)
         track = work / 'mix.m4a'
         mix(intermediate, ROOT / edit['bgm'], props['duration'], clicks, track)
         output = ROOT / 'output' / episode.name / edit['output']

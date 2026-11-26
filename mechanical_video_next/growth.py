@@ -30,6 +30,15 @@ AUDIENCE_GOALS = {
     'follow': '关注检查',
 }
 OPENING_GOAL_SECONDS = {'retention_2s': 2, 'retention_5s': 5, 'early_series_value': 10}
+CONTENT_REVIEW_FIELDS = {
+    'early_knowledge': '前十秒的知识收获',
+    'practical': '生活关联与实用知识',
+    'breadth': '内容丰富度',
+    'summary': '知识总结',
+    'series': '系列承接',
+    'save_value': '收藏价值',
+}
+OPPORTUNITIES = {'like': '点赞', 'follow': '关注', 'comment': '评论', 'save': '收藏'}
 
 
 def opening_goals(duration, review=None):

@@ -1,0 +1,86 @@
+{
+  "title": "",
+  "narration": "value-narration.txt",
+  "composition": "ffmpeg",
+  "output": "抽屉滑轨｜全伸与取用.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "scene": "value-scene.py",
+      "tail": 0.42,
+      "scene_inputs": [
+        "support-scene.py",
+        "growth-scene.py",
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          3.4,
+          6.2,
+          "抽屉拉到底，后排好拿吗？"
+        ]
+      ]
+    },
+    {
+      "scene": "support-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.45,
+      "labels": [
+        [
+          0.15,
+          5.8,
+          "滚珠剖视"
+        ],
+        [
+          6.04,
+          10.16,
+          "传力示意"
+        ]
+      ],
+      "subtitle_breaks": {
+        "0": [
+          [
+            3.0,
+            "滚珠夹在两层轨道的弯边之间，"
+          ]
+        ]
+      },
+      "picture": {
+        "path": "../../work/drawer-slide/support/b2bce23300e9987fbc89a625bea277934d8ac23b930528f138a75ef3a84a966a/shot-3.mp4",
+        "sha256": "bbb1bc7fa562927ba114911fea6899f95781b90902aba2cab0ffd34d00f01343"
+      },
+      "frames": 305
+    },
+    {
+      "scene": "support-scene.py",
+      "scene_shot": 4,
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.6,
+      "clicks": [
+        1.1
+      ],
+      "picture": {
+        "path": "../../work/drawer-slide/support/c619ae178ca2b810d29b2d0da2417b5db20f0e8c8c3d1afc83958748f6b26a5f/shot-4.mp4",
+        "sha256": "4655f771b4cbd8613fc7179f9211517b8ac0adc0396516844c876ae80ab950ab"
+      },
+      "frames": 318,
+      "labels": [
+        [
+          6.5,
+          10.35,
+          "全伸时，抽屉后排也容易取用"
+        ]
+      ]
+    }
+  ]
+}

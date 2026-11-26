@@ -29,7 +29,11 @@ uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --cli
 
 备选剪辑 JSON 可指定 `narration`。逐镜可用 `scene` 换 Blender 脚本、`scene_shot` 选用源脚本的镜号、`scene_inputs` 声明影响画面的相对路径依赖。场景接收 `--preview` 时按固定间隔输出低分辨率帧，默认每 5 帧采样，必要时用 `preview_step` 与场景约定匹配。相同工作目录优先复用已有高清镜头，预演的剪辑文件单独写入 `preview/`。选定后省略 `--preview-shots` 渲染完整成片。
 
-`opening-analysis` 绑定 MP4 SHA-256，定位默认音轨和字幕流，导出 2、5、10 秒及 `--through` 指定区间。用 `--sha256` 核对版本，用 `--review` 导入同一 MP4 的带时码观察。手动 `audience-review` 从前两秒检查到首个潜在点赞和关注点，再核对后段知识推进。旧账本的 `python -m mechanical_video_next.growth_report` 可引用与该版本绑定的 `opening-review*.json`。 [滑轨和滚轮回归](docs/productions/audience-growth-regression.md) · [水龙头开场回归](docs/productions/faucet-opening-retention-regression.md)
+局部剪辑可为单镜指定 `picture` 的 `path`、`sha256` 和可选 `start_frame`。路径相对本集目录，引用原有的 1080p30 三维画面，按原速取帧。可选 `frames` 固定画面长度，保留足够的实测语音时长与尾部留白。已渲染的三维镜头出现浏览器抓帧画块时，可在备选剪辑设 `"composition": "ffmpeg"`，用同一时间轴合成字幕、部件标注和实测配音。
+
+`opening-analysis` 绑定 MP4 SHA-256，定位默认音轨和字幕流，导出 2、5、10 秒及 `--through` 指定区间。用 `--sha256` 核对版本，用 `--review` 导入同一 MP4 的带时码观察。手动 `audience-review` 检查前段知识、首个潜在赞评关及整片兑现。旧账本的 `python -m mechanical_video_next.growth_report` 可引用与该版本绑定的 `opening-review*.json`。
+
+在 `knowledge_progression.evidence` 记录原片时间区间和可见依据。`opportunities` 用 `kind`、证据下标 `evidence` 和 `reason` 记录潜在赞、评、藏、关。`takeaways` 使用相同的证据下标和理由，支持 `early_knowledge`、`practical`、`breadth`、`summary`、`series`、`save_value`，缺少依据时写 `UNKNOWN`。 [发布后复盘模板](docs/douyin-post-review.md) · [滑轨和滚轮回归](docs/productions/audience-growth-regression.md) · [水龙头开场回归](docs/productions/faucet-opening-retention-regression.md)
 
 ## 导演式配音
 

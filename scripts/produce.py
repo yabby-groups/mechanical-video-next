@@ -1,6 +1,8 @@
 #!/usr/bin/env -S uv run python
 """Local deterministic production: asset -> keyframes -> preview -> shots -> Remotion.
 
+New authored episodes use python -m mechanical_video_next produce --episode.
+This entry point executes the stages for existing ledgers and Blueprints.
 Only transient PNG sequences owned by this run are removed after valid MP4 encoding.
 No retry loops: a failed subprocess or assertion stops this invocation.
 """

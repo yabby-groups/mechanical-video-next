@@ -171,6 +171,12 @@ class PacingTests(unittest.TestCase):
         row['opportunities'][0]['evidence'] = 1
         with self.assertRaisesRegex(ValueError, 'timed evidence'):
             pacing.opening_review(review, self.media, 15)
+        row['opportunities'][0].update(kind='comment', evidence=0)
+        row['takeaways'] = {'practical': 'UNKNOWN', 'early_knowledge': dict(reason='Too late', evidence=0)}
+        with self.assertRaisesRegex(ValueError, 'Content takeaways'):
+            pacing.opening_review(review, self.media, 15)
+        row['takeaways']['early_knowledge'] = 'UNKNOWN'
+        self.assertEqual(pacing.opening_review(review, self.media, 15), {'knowledge_progression': row})
 
     def test_recomposition_or_replaced_source_cannot_reuse_current_qa(self):
         audit = self.audit()

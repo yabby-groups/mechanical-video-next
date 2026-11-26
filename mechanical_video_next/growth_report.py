@@ -13,11 +13,12 @@ import tempfile
 import time
 
 from .multiroute import ROUTES, probe, sha, write
-from .growth import AUDIENCE_GOALS, finite, opening_goals
-from . import pacing
+from .growth import AUDIENCE_GOALS, CONTENT_REVIEW_FIELDS, OPPORTUNITIES, finite, opening_goals
+from . import feedback, pacing
 
 PRE_OPENING_GENERATOR = 'a28e9edae34afb4a70939473339111e5aa9e75e86cc5da9ce23d90c32689a196'
 PRE_PACING_GENERATOR = '349eed75643ea4fdd1ad0e2f5c6f43e7c183901ba06b833aad4bb52beb1e1e6f'
+PRE_FEEDBACK_GENERATOR = '3bc6a0378931fc53ac0c89748c5eced1cebba18dd598b36eb85c8877efee1423'
 
 DIMENSIONS = {
     'product_opening': '首五秒产品识别与真实操作', 'counterintuitive_observation': '真实反直觉现象',
@@ -95,11 +96,13 @@ def references(value):
             yield from references(v)
 
 
-def snapshot(task):
+def snapshot(task, *, include_opening=False):
     result = []
     for path in discover(task):
         result.append({'path': str(path), 'sha256': context_sha(read(path)) if path.name == 'task.json' else sha(path),
                        'mode': 'task-context' if path.name == 'task.json' else 'bytes'})
+    if include_opening:
+        result.extend(dict(document['source'], mode='bytes') for document in opening_documents(task))
     return result
 
 
@@ -300,6 +303,31 @@ def opening_observations(docs, media, duration):
     return opening_goals(duration, observations)
 
 
+def post_publish_observations(task, docs, routes):
+    observations = []
+    folder = Path(task).resolve() / 'post-publish'
+    for document in docs:
+        if Path(document['source']['path']).parent != folder:
+            continue
+        try:
+            data = feedback.ingest(document['data'])
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            raise ValueError(f"Invalid platform observation {document['source']['path']}: {exc}") from exc
+        media = data.get('published_media')
+        matched = [route for route, entry in routes.items()
+                   if media and entry['media']['sha256'] == media['sha256']]
+        observations.append({'source': document['source'], 'matched_routes': matched, 'data': data})
+    return {
+        'status': 'OBSERVED' if observations else 'NOT_PROVIDED',
+        'observations': observations,
+        'hypotheses': [dict(hypothesis, source=row['source'])
+                       for row in observations for hypothesis in row['data'].get('hypotheses', [])],
+        'import_location': str(folder),
+        'import_command': 'uv run python -m mechanical_video_next.feedback --help',
+        'scope': '按平台和采样窗口保留数据。归因关注使用平台作品数据。具体互动时点须有平台时间分布证据。',
+    }
+
+
 def render_markdown(report):
     lines = ['# 视频增长目标优化报告', '', f"主题：{report['topic']}；状态：{report['status']}",
              '', '本报告评价制作目标落实情况，不证明完播率、点赞率或关注率提升。抽帧不代替连续观看或听审。',
@@ -312,12 +340,21 @@ def render_markdown(report):
             lines += [f'### {AUDIENCE_GOALS[key]}', '']
             if key == 'knowledge_progression':
                 for review in goal['editorial_review'] or ():
-                    for kind, label in (('like', '点赞'), ('follow', '关注')):
+                    for kind, label in OPPORTUNITIES.items():
                         points = [(review['evidence'][point['evidence']]['time_range'], point['reason'])
                                   for point in review.get('opportunities', ()) if point['kind'] == kind]
                         if points:
                             (start, end), reason = min(points, key=lambda point: point[0])
                             lines.append(f'- 首个潜在{label}点（{review["coverage"]}） {start:g}–{end:g} 秒。{reason}')
+                        else:
+                            lines.append(f'- 首个潜在{label}点 UNKNOWN')
+                    for field, label in CONTENT_REVIEW_FIELDS.items():
+                        point = review.get('takeaways', {}).get(field, 'UNKNOWN')
+                        if point == 'UNKNOWN':
+                            lines.append(f'- {label} UNKNOWN')
+                        else:
+                            start, end = review['evidence'][point['evidence']]['time_range']
+                            lines.append(f'- {label} {start:g}–{end:g} 秒。{point["reason"]}')
             lines += ['', '```json', json.dumps(goal, ensure_ascii=False, indent=2), '```', '']
         audience_groups = {
             'completion': GROUPS['retention'] + ('complete_answer',),
@@ -400,7 +437,7 @@ def generate(task, paths=None, comparison=None):
     if (task / "cover-plan.json").is_file():
         generate_covers(task, paths)
     covers = validate_covers(task, paths=paths)
-    before = snapshot(task)
+    before = snapshot(task, include_opening=True)
     docs = documents(task)
     opening_docs = list(opening_documents(task))
     blueprint = next((d['data'] for d in docs if Path(d['source']['path']).name == 'creative-blueprint.json'), {})
@@ -415,12 +452,7 @@ def generate(task, paths=None, comparison=None):
               'comparison':{'path':str(comparison),'sha256':sha(comparison)} if comparison else None,
               'design':{'core_question':blueprint.get('core_question'),'growth_goals':goals,
                         'scope':'设计目标，不代表媒体已实现；历史蓝图缺失字段保持null'},
-              'timeline':rows,'sources':before,'generator_sha256':sha(__file__),
-              'post_publish':{'status':'NOT_PROVIDED','observations':[], 'hypotheses':[],
-                              'import_location': str(task/'post-publish'),
-                              'import_command': 'uv run python -m mechanical_video_next.feedback --help',
-                              'observed_rates': {'like':None, 'save':None, 'comment':None, 'follow':None},
-                              'scope':'没有发布后数据，不计算虚假增长；不把异平台或异流量当严格A/B'}}
+              'timeline':rows,'sources':before,'generator_sha256':sha(__file__)}
     evidence_dir = task/'growth-evidence'; evidence_dir.mkdir(exist_ok=True)
     if pacing.enabled(task_data):
         report['design']['operations'] = blueprint.get('pacing_brief', {}).get('operations')
@@ -496,6 +528,7 @@ def generate(task, paths=None, comparison=None):
             frame(path,seconds,target)
             evidence.append({'path':str(target),'sha256':sha(target),'route':route,'media_sha256':digest,
                              'seconds':seconds,'scope':'EXTRACTED_FRAME_NOT_REVIEWED'})
+    report['post_publish'] = post_publish_observations(task, docs, report['routes'])
     # Bind even referenced historical evidence/frames/configs; missing references
     # are recorded, never silently treated as current QA acceptance.
     dependencies = {}
@@ -542,7 +575,7 @@ def generate(task, paths=None, comparison=None):
         report['recommendation']['reason'],
         '关键未验证项：'+('无（仅限已提供QA覆盖范围）' if all_pass else '至少一个内容、机械或感官维度仍为UNKNOWN/FAIL；见逐版检查。'),
         '下次可复用：保留输入—传动—输出的可见证明、实测音频时轴及版本绑定证据；具体策略须经独立媒体检查，发布后数据另行验证。']
-    if snapshot(task)!=before:
+    if snapshot(task, include_opening=True)!=before:
         raise ValueError('Growth report inputs changed while generating; retry with stable inputs')
     for entry in report['routes'].values():
         if not bound(entry['media']): raise ValueError('Media changed while generating report')
@@ -569,10 +602,12 @@ def validate(task):
     if not bound(report.get('covers', {})):
         raise ValueError('Growth report STALE: covers changed or missing')
     validate_covers(task)
-    generators = {sha(__file__), PRE_OPENING_GENERATOR}
+    current_generator = sha(__file__)
+    generators = {current_generator, PRE_FEEDBACK_GENERATOR, PRE_OPENING_GENERATOR}
     if not pacing.enabled(data):
         generators.add(PRE_PACING_GENERATOR)
-    if report['generator_sha256'] not in generators or report['sources'] != snapshot(task):
+    if (report['generator_sha256'] not in generators or report['sources'] != snapshot(
+            task, include_opening=report['generator_sha256'] == current_generator)):
         raise ValueError('Growth report STALE: inputs/QA/subtitles/config or generator changed')
     for ref in [*([report['comparison']] if report.get('comparison') else []),*[d['media'] for d in report['routes'].values()],*report['artifacts']]:
         if not bound(ref): raise ValueError('Growth report STALE: media/evidence/report changed: '+ref['path'])

@@ -2,6 +2,7 @@
 
 | 导演要交付的决定 | 现有字段与执行 |
 | --- | --- |
+| 知识取舍、讨论场景、可复述总结和系列价值 | Treatment 的 `growth_design` 与 Blueprint 的 `growth_goals` 衔接。将选用的知识写在 `knowledge_point`，用 `reference_id` 绑定依据，用 `shot_id`、`time_range`、`visual_proof` 和 `narration` 定位可看见的兑现。单集入口将相同决定直接写入逐镜旁白、原始三维画面和时间注释。 |
 | 观众最先看见什么，为什么看下去，发现和兑现在哪里 | 研究 handoff 的 `audience_decision` 和任务已固定的 `director.treatments`。用 `core_question`、`knowledge_ids`、`narrative.moments` 指向实际镜头与画面帧区间。 |
 | 对象动作、取景、可见起止状态和光线 | `shots[].director` 的 `narrative_purpose`、`new_information`、`framing`、`camera_position`、`camera_movement`、`object_movement`、`reveal_strategy`、`lighting_style`。用 `visual_focus`、`visual_action`、`evidence` 及适用的 `progression.observable` 明示实际状态和对应知识。 |
 | 运镜及核心证据窗口 | 从 Blender 基础镜头的模型、驱动和约束出发。`camera` 描述视角，`director.presentation` 传入 `camera_path`、`camera_framing`、`anchors`、`observation_window` 等既有参数。用 render checks 检查锚点与约束，在实际画面核对遮挡。 |

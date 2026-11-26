@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 
 from scripts.common import digest, probe, run
 from . import joint_timeline as joint
-from .growth import OPENING_GOAL_SECONDS
+from .growth import CONTENT_REVIEW_FIELDS, OPENING_GOAL_SECONDS, OPPORTUNITIES
 
 VERSION = 1
 OPERATIONS_REVIEW = 'docs/plans/operations-growth-review-20261123.md'
@@ -148,13 +148,26 @@ def opening_review(review, media, duration):
             if 'revision' in row and not text_fields(row['revision'], ('focus', 'method', 'candidate')):
                 raise ValueError('Opening revision requires a focus, method and candidate design')
         if key == 'knowledge_progression':
+            def observed(point):
+                return (text_fields(point, ('reason',))
+                        and type(point.get('evidence')) is int
+                        and 0 <= point['evidence'] < len(references)
+                        and row['coverage'] != 'UNKNOWN')
+
             opportunities = row.get('opportunities', [])
             if not isinstance(opportunities, list) or any(
-                not text_fields(point, ('kind', 'reason')) or point['kind'] not in ('like', 'follow', 'save')
-                or type(point.get('evidence')) is not int or not 0 <= point['evidence'] < len(references)
+                not observed(point) or point.get('kind') not in OPPORTUNITIES
                 for point in opportunities
-            ) or opportunities and row['coverage'] == 'UNKNOWN':
-                raise ValueError('Potential like, follow and save opportunities require observed, timed evidence')
+            ):
+                raise ValueError('Potential interaction opportunities require observed, timed evidence')
+            takeaways = row.get('takeaways', {})
+            if not isinstance(takeaways, dict) or any(
+                field not in CONTENT_REVIEW_FIELDS or (point != 'UNKNOWN' and (
+                    not observed(point) or (field == 'early_knowledge'
+                    and references[point['evidence']]['time_range'][1] > 10)
+                )) for field, point in takeaways.items()
+            ):
+                raise ValueError('Content takeaways require observed, timed evidence or UNKNOWN')
         result[key] = row
     return result
 

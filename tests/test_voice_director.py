@@ -1,6 +1,7 @@
 import copy
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -14,6 +15,53 @@ from scripts.common import ROOT, writejson
 
 
 class VoiceDirectorTests(unittest.TestCase):
+    def test_ffmpeg_picture_composition_keeps_frames_and_timed_text(self):
+        picture, audio, output = (self.root / name for name in ('source.mp4', 'voice.wav', 'cut.mp4'))
+        subprocess.run([
+            'ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=black:size=960x540:rate=30',
+            '-frames:v', '9', '-c:v', 'libx264', picture,
+        ], check=True)
+        subprocess.run([
+            'ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'sine=sample_rate=48000:duration=0.2', audio,
+        ], check=True)
+        props = {
+            'shots': [{'media': str(picture), 'audio': str(audio), 'seconds': 0.3}],
+            'cues': [{'text': '两处搭接', 'start': 0.1, 'end': 0.2}],
+            'annotations': [],
+        }
+        episode.compose_ffmpeg(props, output, self.root / 'ffmpeg.log', preview=True)
+        streams = {row['codec_type']: row for row in episode.probe(output)['streams']}
+        self.assertEqual(streams['video']['nb_frames'], '9')
+        self.assertEqual(streams['audio']['sample_rate'], '48000')
+        self.assertAlmostEqual(float(streams['audio']['duration']), 0.3, places=2)
+        frames = subprocess.check_output([
+            'ffmpeg', '-v', 'error', '-i', output, '-an', '-f', 'framemd5', '-',
+        ], text=True)
+        hashes = [line.rsplit(',', 1)[-1].strip() for line in frames.splitlines() if not line.startswith('#')]
+        self.assertEqual(hashes[0], hashes[-1])
+        self.assertNotEqual(hashes[4], hashes[0])
+
+    def test_recut_reuses_at_speed_interval_of_verified_render(self):
+        source = self.root / 'source.mp4'
+        subprocess.run([
+            'ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=30',
+            '-frames:v', '8', '-c:v', 'libx264', '-preset', 'ultrafast', source,
+        ], check=True)
+        ref = joint.binding(source)
+        self.assertEqual(episode.recut_picture(self.root, ref, 8, self.root), source.resolve())
+        ref['start_frame'] = 3
+        with patch.object(episode, 'run_blender') as blender:
+            (cut,) = episode.picture_sources(
+                self.root, [(None, [], 4)], self.root, shots=[{'picture': ref}], preview_step=5)
+        blender.assert_not_called()
+        self.assertEqual(episode.recut_picture(self.root, ref, 4, self.root), cut)
+        video = episode.probe(cut)['streams'][0]
+        self.assertEqual((video['nb_frames'], video['avg_frame_rate']), ('4', '30/1'))
+        with self.assertRaisesRegex(ValueError, 'complete 1080p30 frame interval'):
+            episode.recut_picture(self.root, ref, 6, self.root)
+        with self.assertRaisesRegex(ValueError, 'hash differs'):
+            episode.recut_picture(self.root, dict(ref, sha256='wrong'), 4, self.root)
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
