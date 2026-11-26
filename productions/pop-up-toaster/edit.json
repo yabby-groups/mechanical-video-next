@@ -2,25 +2,32 @@
   "title": "",
   "narration": "narration.txt",
   "composition": "ffmpeg",
-  "output": "弹跳烤面包机｜两片吐司是谁抬起来的.mp4",
+  "output": "弹跳烤面包机｜两片吐司是谁抬起来的-优化版.mp4",
   "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
   "shots": [
     {
       "tail": 0.48,
       "scene_inputs": [
-        "../quarter-turn-faucet/scene.py"
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
       ],
       "labels": [
         [
           0,
-          3.45,
+          1.6,
           "托架带着吐司上升"
+        ],
+        [
+          1.7,
+          5.3,
+          "两条横托 → 同一个滑架"
         ]
       ],
       "clicks": [
         0.72,
-        6.3
-      ]
+        5.93
+      ],
+      "scene": "audience_scene.py"
     },
     {
       "tail": 0.48,
@@ -29,13 +36,13 @@
       ],
       "labels": [
         [
-          5.1,
-          8.15,
-          "共用滑架"
+          5.0,
+          7.9,
+          "一根手柄带动两条横托"
         ]
       ],
       "clicks": [
-        10.46
+        7.68
       ]
     },
     {
@@ -121,7 +128,7 @@
                 0.92
               ],
               [
-                15.6,
+                14,
                 0.92
               ]
             ]
@@ -151,7 +158,7 @@
                 0.08
               ],
               [
-                15.6,
+                14,
                 0.08
               ]
             ]
@@ -160,15 +167,32 @@
         "qualitative": true,
         "basis": {
           "path": "productions/pop-up-toaster/research.md",
-          "sha256": "99d204ebf4970f892c3a6cccf6a6d21a777367d5e8e7bd0ff2b87ba4bb8b64ac",
+          "sha256": "e094699d77e29550ec0cecff3de8140c4e3ad6aadf141d6ba4fcd34a6ac98a73",
           "position": "滑架与弹簧、二维图解"
         }
       }
     },
     {
+      "tail": 0.42,
+      "scene": "audience_scene.py",
+      "scene_shot": 8,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          0.2,
+          2.55,
+          "释放后 · 托架回到高位"
+        ]
+      ]
+    },
+    {
       "tail": 0.48,
       "scene_inputs": [
-        "../quarter-turn-faucet/scene.py"
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
       ],
       "labels": [
         [
@@ -179,7 +203,7 @@
         [
           6.6,
           11.9,
-          "提前取消"
+          "按下旋钮中心的取消键"
         ]
       ],
       "clicks": [
@@ -194,7 +218,9 @@
             "两个时候弹起的结果一样，"
           ]
         ]
-      }
+      },
+      "scene": "audience_scene.py",
+      "scene_shot": 5
     },
     {
       "tail": 0.48,
@@ -211,7 +237,8 @@
       "clicks": [
         6.65,
         13.47
-      ]
+      ],
+      "scene_shot": 6
     },
     {
       "tail": 0.48,
@@ -241,7 +268,8 @@
             "下次看到吐司跳出来，"
           ]
         ]
-      }
+      },
+      "scene_shot": 7
     }
   ],
   "preview_step": 6
