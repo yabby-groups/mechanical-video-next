@@ -120,6 +120,13 @@ class PacingTests(unittest.TestCase):
         self.assertEqual(analysis['subtitle_streams'], [3])
         self.assertEqual(analysis['retention_2s']['checkpoints'], [list(row) for row in pacing.OPENING_WINDOWS])
         self.assertEqual(analysis['retention_5s']['time_range'], [0, 3.4])
+        pacing.extract_phone_preview(analysis, self.root / 'phone')
+        phone = analysis['phone_preview']
+        self.assertEqual(phone['resolution'], [384, 384])
+        phone_info = pacing.opening_analysis(joint.bound(phone['playback']))
+        self.assertEqual(phone_info['picture_duration'], analysis['picture_duration'])
+        self.assertEqual(phone_info['audio_stream'], 1)
+        self.assertEqual(phone_info['subtitle_streams'], [2])
         pacing.extract_opening(analysis, self.root / 'excerpts', through=3)
         for key, end in (('retention_2s', 2), ('retention_5s', 3.4),
                          ('early_series_value', 3.4), ('through', 3)):

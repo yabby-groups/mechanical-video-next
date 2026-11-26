@@ -482,11 +482,15 @@ def in_use(cam, parts, shot, duration):
     def pose(t):
         f = t/duration
         gap = 0
-        if shot == 0:
+        if shot in (0, 5):
             gap = .17*(1-ease(t, .02, .60))
             theta = START + (END-START)*ease(t, .73, 3.60)
             roll = aligned_roll(theta)+.20*(1-ease(t, .60, 1.03))
-            camera(cam, (-1.12, -.39, 1.94), (2.8, -8.4, 5.5), 7.92)
+            if shot == 5:
+                # Follow the contact band while keeping the carrier and base of the grip in view.
+                camera(cam, (-.42, y_on_path(theta), 2.25), (4.1, -7.9, 4.0), 5.10)
+            else:
+                camera(cam, (-1.12, -.39, 1.94), (2.8, -8.4, 5.5), 7.92)
             markers_visible = t >= 3.86
             show(markers, markers_visible)
             show((moving, fixed), t >= .43)

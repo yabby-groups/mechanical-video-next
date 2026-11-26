@@ -1,0 +1,87 @@
+{
+  "title": "",
+  "narration": "narration.txt",
+  "composition": "ffmpeg",
+  "output": "活动扳手｜一圈螺旋，怎样推动钳口.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ]
+    },
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "subtitle_breaks": {
+        "2": [
+          [
+            9.63,
+            "中间这根轴把滚轮留在窗口里，"
+          ]
+        ]
+      }
+    },
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ]
+    },
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "subtitle_breaks": {
+        "2": [
+          [
+            9.09,
+            "换个角度看，扳手贴得越正，"
+          ]
+        ]
+      }
+    },
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ]
+    },
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "subtitle_breaks": {
+        "0": [
+          [
+            3.27,
+            "真正拧的时候，力从手柄传到扳手头，"
+          ]
+        ],
+        "1": [
+          [
+            8.94,
+            "回到滚轮的窗口，它负责调好开口，"
+          ]
+        ],
+        "2": [
+          [
+            14.6,
+            "换个尺寸的螺母之前，也先转一转滚轮，"
+          ]
+        ]
+      }
+    },
+    {
+      "tail": 0.33,
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ]
+    }
+  ]
+}

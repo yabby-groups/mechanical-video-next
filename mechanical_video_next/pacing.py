@@ -75,8 +75,9 @@ def opening_analysis(path, *, expected_sha=None):
     return analysis
 
 
-def extract_opening(analysis, directory, *, through=None):
-    """Make time-aligned playback clips for review and verify their decoded streams."""
+def _encode_playback(analysis, target, video_options, *, audio_codec='aac'):
+    """Keep the displayed picture, selected dialogue and soft subtitles together."""
+    directory = target.parent
     directory.mkdir(parents=True, exist_ok=True)
     media = analysis['media']
     path = joint.bound(media)
@@ -86,26 +87,44 @@ def extract_opening(analysis, directory, *, through=None):
         mapping.extend(['-map', f'0:{audio}'])
     for stream in analysis['subtitle_streams']:
         mapping.extend(['-map', f'0:{stream}'])
+    with TemporaryDirectory(dir=directory) as staging:
+        clip = Path(staging) / target.name
+        run(['ffmpeg', '-v', 'error', '-xerror', '-i', path, *mapping, *video_options,
+             '-c:v', 'libx264', '-crf', '17', '-c:a', audio_codec, '-c:s', 'copy',
+             '-movflags', '+faststart', clip])
+        run(['ffmpeg', '-v', 'error', '-xerror', '-i', clip, '-map', '0:v:0',
+             '-map', '0:a:0?', '-f', 'null', '-'])
+        joint.bound(media)
+        clip.replace(target)
+    return joint.binding(target)
+
+
+def extract_opening(analysis, directory, *, through=None):
+    """Make time-aligned playback clips for review and verify their decoded streams."""
     windows = dict(OPENING_GOAL_SECONDS)
     if through is not None:
         if not math.isfinite(through) or through <= 0:
             raise ValueError('--through must give positive finite seconds')
         windows['through'] = through
         analysis['through'] = {'time_range': [0, min(through, analysis['picture_duration'])]}
+    media = analysis['media']
     for key, seconds in windows.items():
         end = analysis[key]['time_range'][1]
-        target = directory / f"{Path(path).stem}-{media['sha256'][:16]}-{seconds:g}s.mp4"
+        target = directory / f"{Path(media['path']).stem}-{media['sha256'][:16]}-{seconds:g}s.mp4"
         # Use the input clock and accurate encoding rather than keyframe-only stream copy.
-        with TemporaryDirectory(dir=directory) as staging:
-            clip = Path(staging) / target.name
-            run(['ffmpeg', '-v', 'error', '-xerror', '-i', path, *mapping,
-                 '-t', str(end), '-c:v', 'libx264', '-crf', '17', '-c:a', 'aac', '-c:s', 'copy',
-                 '-movflags', '+faststart', clip])
-            run(['ffmpeg', '-v', 'error', '-xerror', '-i', clip, '-map', '0:v:0',
-                 '-map', '0:a:0?', '-f', 'null', '-'])
-            joint.bound(media)
-            clip.replace(target)
-        analysis[key]['playback'] = joint.binding(target)
+        analysis[key]['playback'] = _encode_playback(analysis, target, ['-t', str(end)])
+
+
+def extract_phone_preview(analysis, directory):
+    """Create a full playback proxy for checking composition at a narrow display size."""
+    media = analysis['media']
+    target = directory / f"{Path(media['path']).stem}-{media['sha256'][:16]}-phone.mp4"
+    playback = _encode_playback(analysis, target, ['-vf', 'scale=384:-2', '-fps_mode', 'passthrough'],
+                                audio_codec='copy')
+    picture = next(row for row in probe(playback['path'])['streams'] if row['codec_type'] == 'video')
+    analysis['phone_preview'] = {
+        'playback': playback, 'resolution': [picture['width'], picture['height']],
+    }
 
 
 def opening_review(review, media, duration):
@@ -179,6 +198,7 @@ def opening_arguments(parser):
     parser.add_argument('media', type=Path, help='Actual opening workprint or final MP4')
     parser.add_argument('--sha256', help='Require this source version')
     parser.add_argument('--clips', type=Path, help='Write playable two-, five- and ten-second excerpts')
+    parser.add_argument('--phone-preview', type=Path, help='Write full playback at 384 pixels wide')
     parser.add_argument('--through', type=float, help='With --clips, also export through this observation time')
     parser.add_argument('--review', type=Path, help='Import a timed editorial observation for these exact bytes')
     parser.add_argument('--output', type=Path, help='Write the analysis JSON here')
@@ -196,6 +216,8 @@ def run_opening(args):
         extract_opening(report, args.clips, through=args.through)
     elif args.through is not None:
         raise ValueError('--through requires --clips')
+    if args.phone_preview:
+        extract_phone_preview(report, args.phone_preview)
     if args.output:
         if args.output.resolve() == joint.bound(report['media']).resolve():
             raise ValueError('Analysis output must differ from input media')
