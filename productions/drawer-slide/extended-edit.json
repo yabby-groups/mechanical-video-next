@@ -1,0 +1,92 @@
+{
+  "title": "",
+  "narration": "extended-narration.txt",
+  "output": "抽屉滑轨｜承重加长版.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "scene": "support-scene.py",
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.35
+    },
+    {
+      "scene": "support-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.45,
+      "labels": [
+        [
+          0.15,
+          5.8,
+          "滚珠剖视"
+        ],
+        [
+          6.04,
+          10.16,
+          "传力示意"
+        ]
+      ],
+      "subtitle_breaks": {
+        "0": [
+          [
+            3.0,
+            "滚珠夹在两层轨道的弯边之间，"
+          ]
+        ]
+      }
+    },
+    {
+      "scene": "extended-scene.py",
+      "scene_shot": 2,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.48,
+      "labels": [
+        [
+          2.7,
+          11.6,
+          "绿色保持架"
+        ]
+      ]
+    },
+    {
+      "scene": "extended-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.5,
+      "labels": [
+        [
+          0.15,
+          8.95,
+          "蓝轨固定 · 纯滚动示意"
+        ]
+      ]
+    },
+    {
+      "scene": "support-scene.py",
+      "scene_shot": 4,
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.6,
+      "clicks": [
+        1.1
+      ]
+    }
+  ]
+}
