@@ -8,7 +8,7 @@
 
 其他创作者的作品默认只供研究科学原理、镜头和通用表现技法。即使授权允许复用，也要独立检查表达边界：不得照搬独创性脚本、完整镜头组织或特色画面；裁切、翻转、变速、去水印、重新配音都不能作为原创依据。合理引用/合理使用须针对当前具体用途单独判断，系统没有默认成立或自动解锁的分支。
 
-仅未来新任务使用 `media_policy_version=1`，同时绑定 `visual_policy_version=2`。仅输入选题的 `produce` 默认创建该策略；`--media-policy 0` 保留原视觉策略，`--visual-policy 1` 保留全时间线 3D-only。带旧配置创建或 `--resume` 不自动升级，不迁移旧媒体、失败历史或缓存身份。入口仍为原来的 `--routes 3d`，这是兼容的执行路径；混合影片的媒体契约明确是 `asset-first-hybrid-v1`，不能声称通过原版全时间线 3D-only 验收。
+历史选题入口曾默认创建 `media_policy_version=1`，同时绑定 `visual_policy_version=2`。`--resume` 按既有账本的媒介策略、失败历史和缓存身份继续执行。混合影片的历史媒体契约为 `asset-first-hybrid-v1`。
 
 Producer 先用研究和知识递进形成视觉分镜，再逐镜头匹配素材。沿用 Research/Asset/CAD/Animation/Editor/QA、模型路由、Neil、Blender 全局锁、工作盘预算、缓存清理与不可变 handoff；没有新增角色、服务或审批系统。
 

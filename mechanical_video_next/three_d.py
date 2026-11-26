@@ -1,4 +1,4 @@
-"""The current production contract; historical ledgers remain readable."""
+"""Validate the Blender route and the policies pinned by existing ledgers."""
 from pathlib import Path
 import copy
 import json
@@ -8,7 +8,7 @@ POLICY_VERSION = 1
 
 def require_route(route):
     if route != '3d':
-        raise ValueError('3D-only production: 2d, 2.5d, all and illustrated/layered substitutes are permanently retired')
+        raise ValueError('The 3D-only Blender route requires 3d; use episode graphics or a supporting picture for explanations')
 
 
 def validate_config(config):

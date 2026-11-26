@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -8,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import layered
 import produce
 from common import filehash, probe, Metrics
-from mechanical_video_next import workflow as w
+from mechanical_video_next import director, workflow as w
 
 class LayeredTests(unittest.TestCase):
     def setUp(self):
@@ -35,6 +36,32 @@ class LayeredTests(unittest.TestCase):
         self.source.write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'changed'):
             layered.sources(self.shot)
+
+    def test_supporting_clips_render_in_both_dimensions(self):
+        for route in ('2d', '2.5d'):
+            with self.subTest(route=route), patch.object(layered, 'budget'):
+                shot = dict(self.shot, render_route=route, mechanical_role='support')
+                folder = self.root / route
+                layered.render_supporting_clip(shot, folder, 160, 90, 30, 'final')
+                video = probe(folder / 'media.mp4')['streams'][0]
+                self.assertEqual((video['width'], video['height'], video['nb_frames']),
+                                 (160, 90, '30'))
+                program = folder / 'program.json'
+                program.write_text(json.dumps(shot))
+                receipt = folder / 'layered-receipt.json'
+
+                def binding(path):
+                    return {'path': str(path), 'sha256': filehash(path)}
+
+                media = binding(folder / 'media.mp4')
+                receipt_data = {'render_route': route, 'program': binding(program),
+                                'media': media, 'checks': binding(folder / 'checks.json')}
+                receipt.write_text(json.dumps(receipt_data))
+                director.validate_layered_source(binding(receipt), media)
+                receipt_data['render_route'] = '2d' if route == '2.5d' else '2.5d'
+                receipt.write_text(json.dumps(receipt_data))
+                with self.assertRaisesRegex(ValueError, 'match its supporting layer program'):
+                    director.validate_layered_source(binding(receipt), media)
 
     def test_layered_generation_rejected_even_if_cached(self):
         with patch.object(produce,'CACHE',self.root/'cache'), patch.object(produce,'asset_key') as asset:

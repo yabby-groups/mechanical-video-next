@@ -144,7 +144,7 @@ def validate(document):
 
 
 def validate_layered_source(receipt, footage):
-    """Use a previously rendered 2.5D clip through the existing licensed-video adapter."""
+    """Use a rendered 2D or 2.5D supporting clip through the existing video adapter."""
     import json
 
     if (not text_fields(receipt, ('path', 'sha256')) or not text_fields(footage, ('path', 'sha256'))):
@@ -153,7 +153,8 @@ def validate_layered_source(receipt, footage):
     program = data.get('program')
     media = data.get('media')
     checks = data.get('checks')
-    if (data.get('render_route') != '2.5d' or not text_fields(program, ('path', 'sha256'))
+    route = data.get('render_route')
+    if (route not in ('2d', '2.5d') or not text_fields(program, ('path', 'sha256'))
             or not text_fields(media, ('path', 'sha256')) or media['sha256'] != footage['sha256']
             or not text_fields(checks, ('path', 'sha256'))):
         raise ValueError('Layered visual needs the rendered media, layer program and checks')
@@ -161,9 +162,9 @@ def validate_layered_source(receipt, footage):
         raise ValueError('Layered render receipt points to a different video')
     execution = json.loads(joint.bound(checks).read_text())
     source = json.loads(joint.bound(program).read_text())
-    if (source.get('render_route') != '2.5d' or source.get('mechanical_role') != 'support'
+    if (source.get('render_route') != route or source.get('mechanical_role') != 'support'
             or not isinstance(source.get('layers'), list) or not source['layers']):
-        raise ValueError('Layered render must use a 2.5D layer program')
+        raise ValueError('Layered render must match its supporting layer program')
     if execution.get('source_hashes') != {str(joint.bound(layer)): layer['sha256'] for layer in source['layers']}:
         raise ValueError('Layer checks differ from the current rendered program sources')
 

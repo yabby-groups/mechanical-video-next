@@ -14,7 +14,8 @@ from mechanical_video_next.director_audio import mux_picture
 from mechanical_video_next.production_contract import (
     FORMAL_DURATION_FIELD, FORMAL_DURATION_VERSION, validate_formal_duration,
 )
-from mechanical_video_next.remotion_build import render
+from mechanical_video_next.remotion_build import VISUAL_SOURCES, render
+from mechanical_video_next.visual_narrative import validate_graphic
 from mechanical_video_next.workflow import lock
 from scripts.common import ROOT, digest, filehash, probe, run, writejson
 from scripts.narration import effective_profile, load_env, srt_time, synthesize_shot
@@ -85,6 +86,9 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
     shots = [{} for _ in counts] if shots is None else shots
     paths = []
     for index, (count, cut) in enumerate(zip(counts, shots, strict=True)):
+        if 'graphic' in cut:
+            paths.append(render_graphic(cut['graphic'], count, work, preview=preview_step is not None))
+            continue
         reference = cut.get('picture')
         if reference and (not reference.get('fallback_to_scene') or (episode / reference['path']).is_file()):
             paths.append(recut_picture(episode, reference, count, work))
@@ -129,13 +133,38 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
     return paths
 
 
+def render_graphic(graphic, count, work, *, preview):
+    """Render an original explanatory graphic into the same picture track as Blender."""
+    seconds = count / FPS
+    props = {'title': '', 'width': 1920, 'height': 1080, 'fps': FPS, 'duration': seconds,
+             'frameCount': count, 'cues': [],
+             'shots': [{'id': 'graphic', 'seconds': seconds, 'graphic': graphic}]}
+    key = digest({'props': props, 'preview': preview,
+                  'sources': {name: filehash(ROOT / name) for name in VISUAL_SOURCES}})
+    output = work / key / 'graphic.mp4'
+    if not output.is_file():
+        output.parent.mkdir(exist_ok=True)
+        props_path = output.parent / 'graphic.json'
+        writejson(props_path, props)
+        with TemporaryDirectory(dir=output.parent) as staging:
+            candidate = Path(staging) / output.name
+            render(props_path, candidate, output.parent / 'remotion.log', preview=preview, visual=True)
+            video = next(row for row in probe(candidate)['streams'] if row['codec_type'] == 'video')
+            size = (960, 540) if preview else (1920, 1080)
+            if ((video['width'], video['height']) != size or video['r_frame_rate'] != '30/1'
+                    or int(video['nb_frames']) != count):
+                raise ValueError('Rendered graphic differs from its authored picture interval')
+            candidate.replace(output)
+    return output
+
+
 def recut_picture(episode, reference, count, work):
-    """Use an at-speed interval of an existing original 3D render."""
+    """Use an at-speed interval of an existing original picture render."""
     if type(count) is not int or count < 1:
         raise ValueError('Picture requires a positive frame count')
     source = (episode / reference['path']).resolve()
     if filehash(source) != reference['sha256']:
-        raise ValueError(f'Original 3D render hash differs: {source}')
+        raise ValueError(f'Original picture render hash differs: {source}')
     start = reference.get('start_frame', 0)
     if type(start) is not int or start < 0:
         raise ValueError('Picture start_frame must be a nonnegative integer')
@@ -347,6 +376,15 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
     edit = json.loads((episode / (edit_file or 'edit.json')).read_text(encoding='utf-8'))
     if Path(edit['output']).name != edit['output'] or not edit['output'].endswith('.mp4'):
         raise ValueError('Episode output must be an MP4 filename')
+    for cut in edit['shots']:
+        if 'graphic' not in cut:
+            continue
+        if (not isinstance(cut['graphic'], dict) or
+                {'picture', 'scene', 'scene_shot', 'scene_inputs'} & cut.keys()):
+            raise ValueError('A graphic shot requires one graphic and no separate picture source')
+        validate_graphic(cut['graphic'])
+    if preview_shots is None and edit['shots'] and all('graphic' in cut for cut in edit['shots']):
+        raise ValueError('An episode needs original 3D shots for its mechanical content')
     load_env(env_file)
     if preview_shots is not None and not 1 <= preview_shots <= len(edit['shots']):
         raise ValueError('preview_shots must select a nonempty prefix of the episode')

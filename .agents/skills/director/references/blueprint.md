@@ -2,11 +2,11 @@
 
 | 导演要交付的决定 | 现有字段与执行 |
 | --- | --- |
-| 知识取舍、讨论场景、可复述总结和系列价值 | Treatment 的 `growth_design` 与 Blueprint 的 `growth_goals` 衔接。将选用的知识写在 `knowledge_point`，用 `reference_id` 绑定依据，用 `shot_id`、`time_range`、`visual_proof` 和 `narration` 定位可看见的兑现。单集入口将相同决定直接写入逐镜旁白、原始三维画面和时间注释。 |
+| 知识取舍、讨论场景、可复述总结和系列价值 | Treatment 的 `growth_design` 与 Blueprint 的 `growth_goals` 衔接。将选用的知识写在 `knowledge_point`，用 `reference_id` 绑定依据，用 `shot_id`、`time_range`、`visual_proof` 和 `narration` 定位可看见的兑现。单集入口将相同决定直接写入逐镜旁白、原始三维画面、解释动画和时间注释。 |
 | 观众最先看见什么，为什么看下去，发现和兑现在哪里 | 研究 handoff 的 `audience_decision` 和任务已固定的 `director.treatments`。用 `core_question`、`knowledge_ids`、`narrative.moments` 指向实际镜头与画面帧区间。 |
 | 对象动作、取景、可见起止状态和光线 | `shots[].director` 的 `narrative_purpose`、`new_information`、`framing`、`camera_position`、`camera_movement`、`object_movement`、`reveal_strategy`、`lighting_style`。用 `visual_focus`、`visual_action`、`evidence` 及适用的 `progression.observable` 明示实际状态和对应知识。 |
 | 运镜及核心证据窗口 | 从 Blender 基础镜头的模型、驱动和约束出发。`camera` 描述视角，`director.presentation` 传入 `camera_path`、`camera_framing`、`anchors`、`observation_window` 等既有参数。用 render checks 检查锚点与约束，在实际画面核对遮挡。 |
-| 选择 3D、补充实拍或信息图 | `director.candidates` 由现有 Visual Planner 判断证据和执行可行性。`render_engine`、`mechanical_role`、`matching` 和 `license` 记录选择。`motion_comparison` 可将同条件的角位移示意编译成 Remotion 的 `angular_comparison`。 |
+| 选择 3D、二维图解、分层动画或补充实拍 | 机械动作保留三维可见证据。单集使用 `graphic` 编排 Remotion 图解，或用 `picture` 复用按哈希绑定的分层动画。旧账本的 `render_engine`、`mechanical_role`、`matching` 和 `license` 继续记录镜头方案，`motion_comparison` 编译现有 Remotion `angular_comparison`。 |
 | 剪辑、声音和停留 | `timeline.shots` 使用 30 fps 半开帧区间和 `source_start_frame`，`director.edits` 记录切换理由。跨镜保持共同动作时钟，J/L-cut 对照实测 Neil；声音使用已有 `sound_events`，所有机械参与者用同一运动时钟。 |
 | 动稿到修订 | 静态 Animatic 适合排查顺序、时长和文字占位。动作、运镜和声画在低清移动工作片上检查；将发现写入现有 `preview-qa` 的对应时间段和镜头，正式版看实际导出文件并走独立 QA。 |
 

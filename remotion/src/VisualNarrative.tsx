@@ -9,6 +9,7 @@ export type Graphic = {
   formula?: string;
   domainMax?: number;
   presentation?: 'bars' | 'trace';
+  qualitative?: boolean;
 };
 export type SplitScreenSpec = {sources:[{media:string;startFrame:number;credit:string},{media:string;startFrame:number;credit:string}]};
 export type VisualProps = {
@@ -60,7 +61,7 @@ const DataAnimation: React.FC<{graphic:Graphic}> = ({graphic}) => {
       <svg viewBox="0 0 1920 1080" style={{position:'absolute',inset:0}}>
         {[0,.5,1].map(level=><g key={level}>
           <line x1={248} x2={1728} y1={y(level*max)} y2={y(level*max)} stroke="#abbac0" strokeWidth={3}/>
-          <text x={220} y={y(level*max)} dominantBaseline="middle" textAnchor="end" fontSize={72} fill="#172b35">{Number((level*max).toPrecision(3))}</text>
+          {!graphic.qualitative && <text x={220} y={y(level*max)} dominantBaseline="middle" textAnchor="end" fontSize={72} fill="#172b35">{Number((level*max).toPrecision(3))}</text>}
         </g>)}
         <line x1={x(current)} x2={x(current)} y1={386} y2={746} stroke="#566a72" strokeWidth={3}/>
         {graphic.items.map((item,i)=>{

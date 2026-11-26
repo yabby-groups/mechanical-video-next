@@ -2,7 +2,7 @@
 
 「君哥拆机器」的机械拆解与工作原理科普视频生产工具。
 
-从选题出发，查清具体型号的结构与动作，联合编写旁白、分镜和三维动画，再完成配音、字幕、剪辑和混音。新片按 [制作契约](docs/production-contract.md) 制作及检查。
+从选题出发，查清具体型号的结构与动作，联合编写旁白、分镜和动画，再完成配音、字幕、剪辑和混音。新片以原创三维机械画面为主，按知识表达需要使用二维和分层动画。 [制作契约](docs/production-contract.md)
 
 ## 生产一集
 
@@ -31,7 +31,9 @@ uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --cli
 
 备选剪辑 JSON 可指定 `narration`。逐镜可用 `scene` 换 Blender 脚本、`scene_shot` 选用源脚本的镜号、`scene_inputs` 声明影响画面的相对路径依赖。场景接收 `--preview` 时按固定间隔输出低分辨率帧，默认每 5 帧采样，必要时用 `preview_step` 与场景约定匹配。相同工作目录优先复用已有高清镜头，预演的剪辑文件单独写入 `preview/`。选定后省略 `--preview-shots` 渲染完整成片。
 
-局部剪辑可为单镜指定 `picture` 的 `path`、`sha256` 和可选 `start_frame`。路径相对本集目录，引用原有的 1080p30 三维画面，按原速取帧。随本集保留了该镜头的场景源时，可以用 `"fallback_to_scene": true` 在原速缓存缺失时重渲染。可选 `frames` 固定画面长度，保留足够的实测语音时长与尾部留白。已渲染的三维镜头出现浏览器抓帧画块时，可在备选剪辑设 `"composition": "ffmpeg"`，用同一时间轴合成字幕、部件标注和实测配音。
+解释镜头可在 `shots[]` 写入 `graphic`，使用现有 Remotion 的 `diagram`、`comparison`、`chart`、`timeline` 或 `data_animation`。动态图的关键帧时间以本镜秒数为基准。每镜选用一个画面源。动画以实测旁白确定的镜长渲染，按图解参数、镜长及 Remotion 源文件复用缓存，同时支持 Remotion 和 FFmpeg 剪辑。烤面包机示例用曲线示意托架高度与弹簧拉伸的变化。 [本集剪辑](productions/pop-up-toaster/edit.json)
+
+局部剪辑可为单镜指定 `picture` 的 `path`、`sha256` 和可选 `start_frame`。路径相对本集目录，按原速截取 1080p30 源画面，可引用已有三维镜头、SVG 动画的导出视频或分层动画。用 `uv run python scripts/layered.py PROGRAM OUTPUT` 导出分层源，节目配置填写 `mechanical_role: "support"`。随本集保留了该镜头的 Blender 场景源时，可以用 `"fallback_to_scene": true` 在原速缓存缺失时重渲染。可选 `frames` 固定画面长度，保留足够的实测语音时长与尾部留白。`"composition": "ffmpeg"` 使用同一时间轴合成字幕、部件标注和实测配音。
 
 `opening-analysis` 绑定 MP4 SHA-256，定位默认音轨和字幕流，导出 2、5、10 秒及 `--through` 指定区间。`--phone-preview` 另存全长 384 像素宽的原速 MP4，保留默认音轨和已有字幕，报告记录预览分辨率和文件哈希。高清制作前用它检查主体、接触、状态对照和字幕。用 `--sha256` 核对版本，用 `--review` 导入同一 MP4 的带时码观察。手动 `audience-review` 检查前段知识、首个潜在赞评关及整片兑现。旧账本的 `python -m mechanical_video_next.growth_report` 可引用与该版本绑定的 `opening-review*.json`。 [活动扳手与摆头削皮器的画面验证](docs/productions/visual-expression-validation-20261126.md)
 

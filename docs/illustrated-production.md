@@ -1,5 +1,7 @@
 # 图片和结构资料制作路线
 
+本页的整片分层路线是历史记录。新片的解释镜头可生成原创分层素材，再以 `picture` 接入现有单集入口。 [单集剪辑](../README.md#比较动稿并局部换镜)
+
 每条视频研究参考；热度是偏好，不是生产条件。Producer 根据实际资料选择 3D、2D 或 2.5D，无需用户逐步选择。静态资料的内容、部位与结构关系作为复刻依据，分镜记录 reference_region 和 adaptation；视频参考继续记录 reference_time_range。结构文本可据其绘制示意图层，不虚构未提供的结构事实。
 
 在 asset-plan 和 creative-blueprint 交接前执行：
