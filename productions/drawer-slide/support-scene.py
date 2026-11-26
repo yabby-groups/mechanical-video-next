@@ -23,10 +23,10 @@ def configure_shadows():
     eevee.shadow_ray_count = 2
 
 
-def overlap_marker(name, z, finish):
+def overlap_marker(name, z, finish, *, radius=.031):
     marker = group(name, (0, -CABINET_Y - .49, z))
-    span = pipe(name + " span", ((0, 0, 0), (1, 0, 0)), .031, finish, marker)
-    ends = [pipe(name + " end", ((0, 0, -.07), (0, 0, .23)), .030, finish, marker)
+    span = pipe(name + " span", ((0, 0, 0), (1, 0, 0)), radius, finish, marker)
+    ends = [pipe(name + " end", ((0, 0, -.07), (0, 0, .23)), radius * .97, finish, marker)
             for _ in range(2)]
 
     def place(start, end, visible):

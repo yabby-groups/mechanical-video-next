@@ -1,0 +1,252 @@
+{
+  "title": "",
+  "narration": "audience-narration.txt",
+  "composition": "ffmpeg",
+  "output": "抽屉滑轨｜三节怎样托住整只抽屉（观众优化版）.mp4",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "shots": [
+    {
+      "scene": "audience-opening.py",
+      "tail": 0.42,
+      "scene_inputs": [
+        "support-scene.py",
+        "growth-scene.py",
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "labels": [
+        [
+          1.02,
+          3.3,
+          "蓝、金各标一处搭接"
+        ],
+        [
+          3.4,
+          6.2,
+          "抽屉拉到底，后排好拿吗？"
+        ]
+      ],
+      "frames": 191
+    },
+    {
+      "scene": "audience-scene.py",
+      "scene_shot": 0,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          3.8,
+          "上方两节 · 下方三节"
+        ],
+        [
+          3.8,
+          6.88,
+          "蓝线是柜口 · 三节后排越线"
+        ],
+        [
+          6.88,
+          10.23,
+          "两节拉到底仍要搭接"
+        ],
+        [
+          10.23,
+          15.15,
+          "三节多一段行程"
+        ]
+      ],
+      "frames": 464
+    },
+    {
+      "scene": "support-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "growth-scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.45,
+      "labels": [
+        [
+          0.15,
+          5.8,
+          "滚珠剖视"
+        ],
+        [
+          6.04,
+          10.16,
+          "传力示意"
+        ]
+      ],
+      "subtitle_breaks": {
+        "0": [
+          [
+            3.0,
+            "滚珠夹在两层轨道的弯边之间，"
+          ]
+        ]
+      },
+      "picture": {
+        "path": "../../work/drawer-slide/support/b2bce23300e9987fbc89a625bea277934d8ac23b930528f138a75ef3a84a966a/shot-3.mp4",
+        "sha256": "bbb1bc7fa562927ba114911fea6899f95781b90902aba2cab0ffd34d00f01343",
+        "fallback_to_scene": true
+      },
+      "frames": 305
+    },
+    {
+      "scene": "extended-scene.py",
+      "scene_shot": 2,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.48,
+      "labels": [
+        [
+          2.7,
+          11.6,
+          "绿色保持架"
+        ]
+      ],
+      "frames": 356,
+      "picture": {
+        "path": "../../work/drawer-slide/extended/4b341d529cb6c0976eb26198f910160523c8a2973ff33b37830c162d933f87a0/shot-2.mp4",
+        "sha256": "a0db95a1099e43e675e09569b1e36fec8bd03cff88f407a65cfa3d72326ca987",
+        "fallback_to_scene": true
+      }
+    },
+    {
+      "scene": "extended-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.5,
+      "labels": [
+        [
+          0.15,
+          8.95,
+          "蓝轨固定 · 纯滚动示意"
+        ]
+      ],
+      "frames": 274,
+      "picture": {
+        "path": "../../work/drawer-slide/extended/d525ab958eff930d9cc99c3fc88dd3a51604fdd89e3074b56bd959b671413a42/shot-3.mp4",
+        "sha256": "4ae6d1d8621112fb77bb19e225e8a2e0a20ed067670456fd56bed825272f64d5",
+        "fallback_to_scene": true
+      }
+    },
+    {
+      "scene": "audience-scene.py",
+      "scene_shot": 1,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          5.15,
+          "上方银轨移动 · 下方蓝轨固定"
+        ],
+        [
+          5.15,
+          8.25,
+          "银轨接触点 · 两个速度同向相加"
+        ],
+        [
+          8.25,
+          14.84,
+          "蓝轨接触点 · 两个速度反向抵消"
+        ]
+      ],
+      "subtitle_breaks": {
+        "2": [
+          [
+            8.45,
+            "底下的接触点，"
+          ]
+        ],
+        "3": [
+          [
+            12.57,
+            "所以一边跟着银轨，"
+          ]
+        ]
+      },
+      "frames": 455
+    },
+    {
+      "scene": "formal-scene.py",
+      "scene_shot": 2,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          3.48,
+          "3832EDO · 装回抽屉"
+        ],
+        [
+          3.72,
+          6.89,
+          "保持架拉至前端"
+        ],
+        [
+          7.13,
+          10.6,
+          "左右内轨同时对准"
+        ],
+        [
+          12.12,
+          14.9,
+          "画面示范一轮 · 原厂要求检查两到三轮"
+        ]
+      ],
+      "clicks": [
+        12.07
+      ],
+      "picture": {
+        "path": "../../work/drawer-slide/formal/c790c657e3f6c5efbcb3d5f23d3eda90e829305b5691095f232f30bb9b882eb7/shot-2.mp4",
+        "sha256": "f9d7d1d65c937f5832924ddf0ec7aaffd25a8a5ec2a9fbfe61311f7a3aee0ae3",
+        "fallback_to_scene": true
+      },
+      "frames": 448
+    },
+    {
+      "scene": "formal-scene.py",
+      "scene_shot": 3,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "tail": 0.32,
+      "labels": [
+        [
+          0.15,
+          4.6,
+          "两段行程相加"
+        ],
+        [
+          8.18,
+          11.98,
+          "两处搭接传力"
+        ]
+      ],
+      "picture": {
+        "path": "../../work/drawer-slide/formal/6bede77d2e03e1c2f790e1519983b918ae999753a16a1a01a97a3fa396f89910/shot-3.mp4",
+        "sha256": "d8fcd450a9ae3617cd47b6d432c9bb6972649fe7482cc3e29ea3b254a998cc9c",
+        "fallback_to_scene": true
+      },
+      "frames": 369
+    }
+  ]
+}
