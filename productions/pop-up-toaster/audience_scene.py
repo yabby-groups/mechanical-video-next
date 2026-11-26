@@ -138,11 +138,16 @@ def main():
     count = json.loads(args.timing.read_text())[args.shot]
     scene, pose = build(args.shot)
     scene.render.resolution_percentage = 35 if args.preview else 100
+    if 'check_mechanics' in globals() and toaster.check_lift(
+            check_mechanics, scene, lambda t: pose(t, count / 30), count,
+            cancel=scene.objects.get("Center cancel button")):
+        return
     folder = args.directory / f"shot-{args.shot}"
     folder.mkdir(parents=True, exist_ok=True)
     for frame in range(0, count, 6 if args.preview else 1):
         path = folder / f"{frame:05}.jpg"
         if not path.is_file():
+            scene.frame_set(frame)
             pose(frame / 30, count / 30)
             scene.render.filepath = str(path)
             bpy.ops.render.render(write_still=True)

@@ -164,6 +164,48 @@ def state_findings(plan, states):
                               f"{check['id']} jump {delta:.6g}", shot=cut['id'])
 
 
+def episode_state_findings(shots, counts, motions, episode):
+    """Map episode picture intervals onto evaluated Blender channels."""
+    cuts, checks, findings = [], [], []
+    cursor = 0
+    for index, (shot, count, motion) in enumerate(zip(shots, counts, motions, strict=True)):
+        first, last = cursor, cursor + count
+        cursor = last
+        shot_id = f'shot-{index}'
+        reference = shot.get('picture', {})
+        offset = (reference.get('start_frame', 0)
+                  if reference and (episode / reference['path']).is_file() else 0)
+        cuts.append({'id': shot_id, 'start_frame': first, 'end_frame': last,
+                     'source_start_frame': offset})
+        if motion is None:
+            code = 'graphic_mechanical_claims' if 'graphic' in shot else 'mechanical_state_unavailable'
+            findings.append(finding(code, first, last, 'Independent evidence coverage required',
+                                    shot=shot_id, status='UNKNOWN'))
+            continue
+        if motion['frames'] < offset + count:
+            findings.append(finding('mechanical_source_interval', first, last,
+                                    'Edit exceeds evaluated source', shot=shot_id))
+            continue
+        for check in shot.get('mechanics', {}).get('checks', ()):
+            channel = check['channel']
+            start, stop = check.get('window', [0, count])
+            samples = motion['samples'].get(channel)
+            if samples is None or not 0 <= start < stop <= count:
+                findings.append(finding('mechanical_check_invalid', first, last, channel, shot=shot_id))
+                continue
+            row = dict(check, id=channel, shot_id=shot_id,
+                       frame_range=[first + start, first + stop], samples=samples[::motion['substeps']])
+            if 'continue_from' in row:
+                previous = motions[index - 1] if index else None
+                if row['continue_from'] != f'shot-{index - 1}' or start or previous is None or channel not in previous['samples']:
+                    findings.append(finding('mechanical_continuity_source', first, last, channel, shot=shot_id))
+                    continue
+                row['previous_samples'] = previous['samples'][channel][::previous['substeps']]
+            checks.append(row)
+    findings.extend(state_findings({'shots': cuts}, checks))
+    return findings, cuts
+
+
 def pixel_findings(path, source, first, last, offset, shot, *, region=None, source_region=None):
     """Compare each output frame to its selected source, with spatial tolerance for overlays."""
     count = last - first

@@ -8,6 +8,7 @@ import random
 import sys
 
 import bpy
+from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "quarter-turn-faucet"))
 from scene import bevel, block, camera, cylinder, ease, group, material, pipe, setup, show_tree, surface
@@ -45,7 +46,7 @@ def toast(parent, x, finish, crust, seed):
     shape = [(-1.06,0), (1.06,0), (1.15,.13), (1.15,.98), (1.29,1.11),
              (1.23,1.33), (.99,1.49), (.47,1.60), (0,1.65), (-.47,1.60), (-.99,1.49),
              (-1.23,1.33), (-1.29,1.11), (-1.15,.98), (-1.15,.13)]
-    vertices = [(x + side*.14, y, z + .024) for side in (-1, 1) for y, z in shape]
+    vertices = [(x + side*.14, y, z) for side in (-1, 1) for y, z in shape]
     n = len(shape)
     faces = [tuple(reversed(range(n))), tuple(range(n, 2*n))]
     faces += [(i, (i+1)%n, (i+1)%n+n, i+n) for i in range(n)]
@@ -248,6 +249,70 @@ def build(shot):
     return scene, pose
 
 
+def check_lift(check, scene, pose, count, *, cancel=None):
+    from episode_mechanics import position, require_range, surface_hit
+
+    objects = scene.objects
+    slider = objects["Guided carriage and toast"]
+    guide = objects["Guide rail fixed to chassis"]
+    spring = objects["Upper extension spring"]
+    moving = objects["Moving spring attachment"]
+    fixed = objects["Fixed spring attachment"]
+    rails = sorted((obj for obj in slider.children if obj.name.startswith("Toast support rail")),
+                   key=lambda obj: obj.location.x)
+    slices = []
+
+    def contact(depsgraph, loaf, rail):
+        x, y, z = position(rail, depsgraph)
+        top = surface_hit(rail, depsgraph, (x, y, z + .2), (0, 0, -1)).z
+        bottom = surface_hit(loaf, depsgraph, (x, y, z - .2), (0, 0, 1)).z
+        return require_range('Bread / rail signed gap', bottom - top, -.002, .002)
+
+    def model(depsgraph):
+        bread = [obj for obj in slider.children_recursive if obj.name.startswith("Toast slice")]
+        if len(bread) != 2 or len(rails) != 2 or guide.type != 'MESH':
+            raise ValueError('Both bread supports, slices and the fixed guide must be present')
+        for rail in rails:
+            # Pair by the actual slice center in the slide, regardless of object name suffix.
+            x = position(rail, depsgraph).x
+            loaf = min(bread, key=lambda obj: abs(x - sum(
+                (obj.evaluated_get(depsgraph).matrix_world @ corner).x
+                for corner in map(Vector, obj.evaluated_get(depsgraph).bound_box)) / 8))
+            bread.remove(loaf)
+            contact(depsgraph, loaf, rail)
+            slices.append(loaf)
+
+    pressed = False
+
+    def measure(depsgraph):
+        nonlocal pressed
+        x, y, z = position(slider, depsgraph)
+        require_range('Carriage off vertical axis', math.hypot(x, y), 0, .0001)
+        require_range('Carriage stroke', z, -TRAVEL - .0001, .0001)
+        require_range('Carriage tilt', slider.evaluated_get(depsgraph).matrix_world.to_quaternion().angle, 0, .001)
+        gaps = [contact(depsgraph, loaf, rail) for loaf, rail in zip(slices, rails, strict=True)]
+        coil = spring.evaluated_get(depsgraph)
+        endpoints = coil.data.splines[0].points
+        lower, upper = (coil.matrix_world @ endpoints[i].co.to_3d() for i in (0, -1))
+        # The modeled coils stop inside the two mounting tabs.
+        for point, tab in ((lower, moving), (upper, fixed)):
+            offset = point - position(tab, depsgraph)
+            require_range('Spring anchor height', abs(offset.z), 0, .027)
+            require_range('Spring anchor lateral placement', offset.length, 0, .081)
+        values = {'carriage_z': z, 'spring_length': upper.z - lower.z, 'bread_gap': max(map(abs, gaps))}
+        if cancel is not None:
+            button = position(cancel, depsgraph).y + 2.276
+            # Second lift is a separate take that starts with the carriage held down.
+            if scene.frame_current_final / 30 >= 6.58:
+                pressed |= button >= .043
+                if z > -TRAVEL + .008 and not pressed:
+                    raise ValueError('Carriage rises before the visible cancel press')
+            values['cancel_travel'] = button
+        return values
+
+    return check(scene, pose, count, measure, model=model, substeps=4)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timing", type=Path, required=True)
@@ -258,11 +323,15 @@ def main():
     count = json.loads(args.timing.read_text())[args.shot]
     scene, pose = build(args.shot)
     scene.render.resolution_percentage = 35 if args.preview else 100
+    if 'check_mechanics' in globals() and check_lift(
+            check_mechanics, scene, lambda t: pose(t, count / 30), count):
+        return
     folder = args.directory / f"shot-{args.shot}"
     folder.mkdir(parents=True, exist_ok=True)
     for frame in range(0,count,6 if args.preview else 1):
         path = folder / f"{frame:05}.jpg"
         if not path.is_file():
+            scene.frame_set(frame)
             pose(frame / 30, count / 30)
             scene.render.filepath = str(path)
             bpy.ops.render.render(write_still=True)

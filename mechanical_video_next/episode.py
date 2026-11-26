@@ -9,8 +9,9 @@ from uuid import uuid4
 import wave
 
 from mechanical_video_next import joint_timeline as joint
-from mechanical_video_next.blender_runtime import run_blender
-from mechanical_video_next.director_audio import mux_picture
+from mechanical_video_next import video_review
+from mechanical_video_next.blender_runtime import BlenderFailure, blender_executable, run_blender
+from mechanical_video_next.director_audio import aac_hash, mux_picture
 from mechanical_video_next.production_contract import (
     FORMAL_DURATION_FIELD, FORMAL_DURATION_VERSION, validate_formal_duration,
 )
@@ -21,6 +22,7 @@ from scripts.common import ROOT, digest, filehash, probe, run, writejson
 from scripts.narration import effective_profile, load_env, srt_time, synthesize_shot
 
 FPS = 30
+MECHANICS_SCRIPT = ROOT / 'blender/episode_mechanics.py'
 
 
 def narration_blocks(episode, edit):
@@ -85,13 +87,19 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
     counts = [frames for _, _, frames in speech]
     shots = [{} for _ in counts] if shots is None else shots
     paths = []
+    renders = []
+    witnesses = []
     for index, (count, cut) in enumerate(zip(counts, shots, strict=True)):
+        witnesses.append(None)
         if 'graphic' in cut:
             paths.append(render_graphic(cut['graphic'], count, work, preview=preview_step is not None))
             continue
         reference = cut.get('picture')
         if reference and (not reference.get('fallback_to_scene') or (episode / reference['path']).is_file()):
             paths.append(recut_picture(episode, reference, count, work))
+            witnesses[-1] = picture_motion((episode / reference['path']).resolve(), current=True)
+            if 'mechanics' in cut and witnesses[-1] is None:
+                raise ValueError(f'Shot {index}: recut source lacks current evaluated motion')
             continue
         scene = episode / cut.get('scene', 'scene.py')
         shot = cut.get('scene_shot', index)
@@ -100,6 +108,15 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
         key = {'scene': filehash(scene), 'shot': shot, 'frames': count, 'fps': FPS}
         if cut.get('scene_inputs'):
             key['scene_inputs'] = {name: filehash(episode / name) for name in cut['scene_inputs']}
+        mechanics = cut.get('mechanics')
+        if mechanics is not None:
+            executable = blender_executable()
+            inputs = [scene, MECHANICS_SCRIPT, episode / mechanics['evidence']]
+            inputs.extend(episode / name for name in cut.get('scene_inputs', ()))
+            key['mechanics'] = {
+                'inputs': {str(path.resolve()): filehash(path) for path in inputs},
+                'blender': [str(executable), executable.stat().st_mtime_ns],
+            }
         filename = f'shot-{shot}.mp4'
         path = work / digest(key) / filename
         draft_step = None
@@ -109,28 +126,145 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None):
                 raise ValueError('preview_step must be a positive integer')
             path = work / digest(dict(key, preview_step=draft_step)) / filename
         paths.append(path)
-        if path.is_file():
+        if path.is_file() and mechanics is None:
             continue
+        picture = path.parent
+        picture.mkdir(exist_ok=True)
+        timing = picture / 'timing.json'
+        if mechanics is None:
+            scene_counts = counts + [0] * max(0, shot + 1 - len(counts))
+        else:
+            scene_counts = [0] * (shot + 1)
+        scene_counts[shot] = count
+        command = ['--timing', str(timing), '--directory', str(picture), '--shot', str(shot)]
+        motion = None
+        if mechanics is not None:
+            with lock(ROOT / 'work/production.lock', wait=True):
+                writejson(timing, scene_counts)
+                try:
+                    motion = prepare_motion(scene, command, picture, key)
+                except ValueError as error:
+                    start = sum(counts[:index]) / FPS
+                    raise ValueError(f'Edit shot {index + 1} starts at {start:.4f}s. {error}') from error
+            witnesses[-1] = motion
+        renders.append((path, scene, command, timing, scene_counts, shot, count, draft_step, motion))
+
+    findings, _ = video_review.episode_state_findings(shots, counts, witnesses, episode)
+    block_mechanical_errors(findings, work / 'mechanics-preflight-failure.json')
+    for path, scene, args, timing, scene_counts, shot, count, draft_step, motion in renders:
         with lock(ROOT / 'work/production.lock', wait=True):
-            if path.is_file():
+            bound = picture_motion(path, current=True, draft=draft_step is not None) if motion else None
+            if path.is_file() and (motion is None or bound == motion):
                 continue
             picture = path.parent
-            picture.mkdir(exist_ok=True)
             frames = picture / f'shot-{shot}'
-            timing = picture / 'timing.json'
-            scene_counts = counts + [0] * max(0, shot + 1 - len(counts))
-            scene_counts[shot] = count
-            writejson(timing, scene_counts)
-            command = ['--python-exit-code', '7', '--python', str(scene), '--',
-                       '--timing', str(timing), '--directory', str(picture), '--shot', str(shot)]
+            if motion and (frames.exists() or path.exists()):
+                # Retry once from the verified scene. Preserve the bad cache and partial evidence.
+                quarantine = picture / f'unverified-{uuid4().hex}'
+                quarantine.mkdir()
+                for item in (frames, path, path.with_suffix('.motion.json')):
+                    if item.exists():
+                        item.replace(quarantine / item.name)
             if draft_step is not None:
-                command.append('--preview')
+                args = [*args, '--preview']
             step = draft_step or 1
             if not all((frames / f'{frame:05}.jpg').is_file() for frame in range(0, count, step)):
-                run_blender(command, name=f'episode-{shot}',
-                            directory=picture / f'blender-{shot}-{uuid4().hex}', timeout=1800)
+                writejson(timing, scene_counts)
+                if motion:
+                    run_checked_scene(scene, 'render', picture / 'evaluation.json',
+                                      args, picture, timeout=1800)
+                else:
+                    run_blender(['--python-exit-code', '7', '--python', scene, '--', *args],
+                                name=f'episode-{shot}',
+                                directory=picture / f'blender-{shot}-{uuid4().hex}', timeout=1800)
             encode_shot(frames, count, path, preview_step=draft_step)
+            if motion and draft_step is None:
+                first, last = motion['preview_range']
+                findings = video_review.pixel_findings(
+                    path, picture / 'motion-preview.mp4', first, last, 0, f'shot-{shot}')
+                block_mechanical_errors(findings, picture / 'mechanics-render-failure.json')
+            if motion:
+                if not motion_inputs_current(motion):
+                    raise ValueError(f'Mechanical scene inputs changed during rendering: {scene}')
+                video_review.write_report(path.with_suffix('.motion.json'), {
+                    'picture_sha256': filehash(path), 'motion': motion, 'draft': draft_step is not None,
+                })
     return paths
+
+
+def block_mechanical_errors(findings, path):
+    failures = [row for row in findings if row['status'] == 'FAIL']
+    if failures:
+        writejson(path, failures)
+        first = failures[0]
+        raise ValueError(f"{first['code']} at {first['time_range']}s: {first['evidence']}. See {path}")
+
+
+def motion_inputs_current(motion):
+    inputs = motion['binding'].get('mechanics', {}).get('inputs', {})
+    return bool(inputs) and all(Path(path).is_file() and filehash(path) == sha for path, sha in inputs.items())
+
+
+def picture_motion(path, *, current=False, draft=False):
+    receipt = path.with_suffix('.motion.json')
+    if not path.is_file() or not receipt.is_file():
+        return None
+    try:
+        record = json.loads(receipt.read_text())
+        motion = record['motion']
+        if record.get('draft', False) and not draft:
+            return None
+        if record['picture_sha256'] == filehash(path) and (not current or motion_inputs_current(motion)):
+            return motion
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def run_checked_scene(scene, phase, receipt, args, picture, *, timeout):
+    failure = receipt.with_suffix(f'.{phase}.failure.json')
+    if failure.is_file():
+        failure.rename(picture / f'{phase}-failure-{uuid4().hex}.json')
+    try:
+        run_blender(['--python-exit-code', '7', '--python', MECHANICS_SCRIPT, '--',
+                     scene, phase, receipt, *args],
+                    directory=picture / f'blender-{phase}-{uuid4().hex}', timeout=timeout)
+    except BlenderFailure as error:
+        if failure.is_file():
+            raise ValueError(json.loads(failure.read_text())['error'] + f' [{scene}]') from error
+        raise
+
+
+def prepare_motion(scene, args, picture, binding):
+    # Stage receipt and dynamic preview together. A partial attempt never becomes a cache hit.
+    evaluation = picture / 'evaluation.json'
+    preview = picture / 'motion-preview.mp4'
+    manifest = picture / 'motion-inputs.json'
+    if manifest.is_file() and evaluation.is_file() and preview.is_file():
+        try:
+            record = json.loads(manifest.read_text())
+            if record == {'binding': binding, 'evaluation': filehash(evaluation), 'preview': filehash(preview)}:
+                return dict(json.loads(evaluation.read_text()), binding=binding, preview_sha256=record['preview'])
+        except (OSError, ValueError):
+            pass
+    with TemporaryDirectory(prefix='preflight-', dir=picture) as folder:
+        stage = Path(folder)
+        candidate = stage / evaluation.name
+        try:
+            run_checked_scene(scene, 'preflight', candidate, args, picture, timeout=300)
+        except ValueError:
+            failure = candidate.with_suffix('.preflight.failure.json')
+            if failure.is_file():
+                failure.replace(picture / f'preflight-failure-{uuid4().hex}.json')
+            raise
+        motion = json.loads(candidate.read_text())
+        run(['ffmpeg', '-v', 'error', '-xerror', '-framerate', FPS,
+             '-i', stage / 'motion-preview-frames/%05d.jpg', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+             '-c:v', 'libx264', '-crf', 16, '-pix_fmt', 'yuv420p', stage / preview.name])
+        record = {'binding': binding, 'evaluation': filehash(candidate), 'preview': filehash(stage / preview.name)}
+        candidate.replace(evaluation)
+        (stage / preview.name).replace(preview)
+        writejson(manifest, record)
+    return dict(motion, binding=binding, preview_sha256=record['preview'])
 
 
 def render_graphic(graphic, count, work, *, preview):
@@ -323,6 +457,61 @@ def mix(picture, bgm, duration, clicks, destination):
          '-ar', 48000, '-c:a', 'aac', '-b:a', '192k', destination])
 
 
+def review_export(candidate, episode, edit, pictures, speech, props, public, *, preview):
+    motions, sources, audio_hashes = [], [], []
+    for index, (cut, picture) in enumerate(zip(edit['shots'], pictures, strict=True)):
+        reference = cut.get('picture')
+        if reference and (episode / reference['path']).is_file():
+            source = (episode / reference['path']).resolve()
+            if filehash(source) != reference['sha256']:
+                raise ValueError(f'Recut source changed during production: {source}')
+            offset = reference.get('start_frame', 0)
+            motion_source = source
+        else:
+            source, offset = public / f'{index}.mp4', 0
+            motion_source = picture
+        motion = picture_motion(motion_source, current=True, draft=preview)
+        if 'mechanics' in cut and 'graphic' not in cut and motion is None:
+            raise ValueError(f'Shot {index}: the rendered picture or evaluated scene inputs changed')
+        motions.append(motion)
+        sources.append((source, offset, filehash(source)))
+        if filehash(picture) != filehash(public / f'{index}.mp4'):
+            raise ValueError(f'Picture changed during composition: {picture}')
+        audio = speech[index][0]
+        sha = filehash(public / f'{index}{Path(audio).suffix}')
+        if filehash(audio) != sha:
+            raise ValueError(f'Narration changed during composition: {audio}')
+        audio_hashes.append(sha)
+    findings, cuts = video_review.episode_state_findings(
+        edit['shots'], [count for _, _, count in speech], motions, episode)
+    picture_findings, intervals = [], []
+    for index, (cut, motion, (source, offset, sha)) in enumerate(zip(cuts, motions, sources, strict=True)):
+        authored = edit['shots'][index].get('mechanics', {})
+        first, last = cut['start_frame'], cut['end_frame']
+        regions = [None, *authored.get('regions', ())]
+        for region in regions:
+            picture_findings.extend(video_review.pixel_findings(
+                candidate, source, first, last, offset, cut['id'], region=region))
+        if filehash(source) != sha:
+            raise ValueError(f'Picture source changed during final review: {source}')
+        if motion and not motion_inputs_current(motion):
+            raise ValueError(f"Shot {index}: mechanical scene inputs changed during final review")
+        intervals.append(dict(cut, picture_sha256=sha, evaluated_motion=motion,
+                              compared_regions=regions))
+    return {
+        'media': {'filename': candidate.name, 'sha256': filehash(candidate)},
+        'edit_sha256': digest(edit), 'composition_props_sha256': digest(props),
+        'narration_sha256': filehash(episode / edit.get('narration', 'narration.txt')),
+        'audio_sha256': audio_hashes,
+        'intervals': intervals, 'preview': preview,
+        'technical_status': video_review.status(findings + picture_findings),
+        'decoded_picture_status': video_review.status(picture_findings),
+        'continuous_viewing': 'UNKNOWN', 'perceptual_listening': 'UNKNOWN',
+        'independent_acceptance': 'UNKNOWN',
+        'findings': findings + picture_findings,
+    }
+
+
 def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, duration_policy=None):
     public = ROOT / 'remotion/public/cache'
     public.mkdir(exist_ok=True, parents=True)
@@ -344,7 +533,11 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
             render(props_path, intermediate, work / 'remotion.log', visual=True,
                    preview=preview_shots is not None)
         track = work / 'mix.m4a'
-        mix(intermediate, ROOT / edit['bgm'], props['duration'], clicks, track)
+        bgm = ROOT / edit['bgm']
+        bgm_sha256 = filehash(bgm)
+        mix(intermediate, bgm, props['duration'], clicks, track)
+        if filehash(bgm) != bgm_sha256:
+            raise ValueError(f'BGM changed during composition: {bgm}')
         output = ROOT / 'output' / episode.name / edit['output']
         if preview_shots is not None:
             output = output.with_stem(f'{output.stem}-preview-{preview_shots}')
@@ -352,14 +545,20 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
         with TemporaryDirectory(prefix='.export-', dir=output.parent) as staging:
             candidate = Path(staging) / output.name
             mux_picture(intermediate, track, candidate, encoded=True)
+            video = joint.validate_rendered_film(candidate, {'frame_count': props['frameCount']})
             if duration_policy is not None and preview_shots is None:
-                video = next(stream for stream in probe(candidate)['streams']
-                             if stream['codec_type'] == 'video')
-                if int(video['nb_frames']) != props['frameCount']:
-                    raise ValueError('Exported picture frames differ from the authored timeline')
                 validate_formal_duration(duration_policy, float(video['duration']))
-            run(['ffmpeg', '-v', 'error', '-xerror', '-i', candidate, '-map', '0:v:0',
-                 '-map', '0:a:0', '-f', 'null', '-'])
+            audio_sha256 = aac_hash(candidate)
+            if audio_sha256 != aac_hash(track):
+                raise ValueError('MP4 audio differs from the encoded episode mix')
+            review = review_export(candidate, episode, edit, pictures, speech, props, directory,
+                                   preview=preview_shots is not None)
+            review['bgm_sha256'] = bgm_sha256
+            review['aac_packets_sha256'] = audio_sha256
+            review['decoded_frame_count'] = int(video['nb_frames'])
+            block_mechanical_errors(review['findings'], work / 'mechanics-export-failure.json')
+            receipt = candidate.with_suffix('.mechanics.json')
+            writejson(receipt, review)
             srt = candidate.with_suffix('.srt')
             srt.write_text('\n'.join(
                 f'{i}\n{srt_time(cue["start"])} --> {srt_time(cue["end"])}\n{cue["text"]}\n'
@@ -367,6 +566,7 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
             with lock(ROOT / 'work/episode-locks' / digest(str(output)), wait=True):
                 srt.replace(output.with_suffix('.srt'))
                 candidate.replace(output)
+                receipt.replace(output.with_suffix('.mechanics.json'))
     return output
 
 
@@ -377,6 +577,12 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
     if Path(edit['output']).name != edit['output'] or not edit['output'].endswith('.mp4'):
         raise ValueError('Episode output must be an MP4 filename')
     for cut in edit['shots']:
+        if 'mechanics' in cut:
+            mechanical = cut['mechanics']
+            if not isinstance(mechanical, dict) or not isinstance(mechanical.get('evidence'), str):
+                raise ValueError('A mechanical check requires a research evidence path')
+            if not (episode / mechanical['evidence']).is_file():
+                raise ValueError(f"Mechanical evidence is missing: {mechanical['evidence']}")
         if 'graphic' not in cut:
             continue
         if (not isinstance(cut['graphic'], dict) or

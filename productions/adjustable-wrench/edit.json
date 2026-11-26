@@ -9,7 +9,19 @@
       "tail": 0.33,
       "scene_inputs": [
         "../quarter-turn-faucet/scene.py"
-      ]
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "checks": [
+          {
+            "channel": "jaw_travel",
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 20,
+            "max_step": 0.014
+          }
+        ]
+      }
     },
     {
       "tail": 0.33,
@@ -23,13 +35,56 @@
             "中间这根轴把滚轮留在窗口里，"
           ]
         ]
+      },
+      "mechanics": {
+        "evidence": "research.md"
       }
     },
     {
       "tail": 0.33,
       "scene_inputs": [
         "../quarter-turn-faucet/scene.py"
-      ]
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "checks": [
+          {
+            "channel": "jaw_travel",
+            "tolerance": 0.0001,
+            "max_step": 0.014,
+            "events": [
+              {
+                "id": "closed",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              {
+                "id": "half turn",
+                "range": [
+                  0.152,
+                  0.158
+                ]
+              },
+              {
+                "id": "one turn",
+                "range": [
+                  0.307,
+                  0.312
+                ]
+              },
+              {
+                "id": "return",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "tail": 0.33,
@@ -43,13 +98,19 @@
             "换个角度看，扳手贴得越正，"
           ]
         ]
+      },
+      "mechanics": {
+        "evidence": "research.md"
       }
     },
     {
       "tail": 0.33,
       "scene_inputs": [
         "../quarter-turn-faucet/scene.py"
-      ]
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      }
     },
     {
       "tail": 0.33,
@@ -75,13 +136,19 @@
             "换个尺寸的螺母之前，也先转一转滚轮，"
           ]
         ]
+      },
+      "mechanics": {
+        "evidence": "research.md"
       }
     },
     {
       "tail": 0.33,
       "scene_inputs": [
         "../quarter-turn-faucet/scene.py"
-      ]
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      }
     }
   ]
 }

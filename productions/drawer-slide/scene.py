@@ -196,9 +196,11 @@ def move_slide(rail, travel, middle_travel, length=LENGTH):
     cages[1].location.x = -length / 2 + (middle_travel + travel) / 2
 
 
-def full_scene(cam, parts, shot, duration):
+def full_scene(cam, parts, shot, duration, checks=None):
     _, side, drawer = drawer_system(parts)
     rails = [slide(parts), slide(parts, mirror=True)]
+    if checks is not None:
+        checks.extend((rail, LENGTH) for rail in rails)
 
     def pose(t):
         if shot == 0:
@@ -251,9 +253,11 @@ def full_scene(cam, parts, shot, duration):
     return pose
 
 
-def macro_scene(cam, parts, duration):
+def macro_scene(cam, parts, duration, checks=None):
     length = 2.40
     rail = slide(parts, length, macro=True)
+    if checks is not None:
+        checks.append((rail, length))
     # A removed length of track exposes a cut end and the actual four ball rows.
     def pose(t):
         amount = ease(t, duration * .21, duration * .70)
@@ -268,6 +272,54 @@ def macro_scene(cam, parts, duration):
         return (amount,)
 
     return pose
+
+
+def check_slides(check, scene, pose, count, rails):
+    from episode_mechanics import relative_matrix, require_range
+
+    guides = []
+
+    def model(depsgraph):
+        for (middle, inner, cages), length in rails:
+            root = middle.parent
+            outer = next(obj for obj in root.children if obj.name.startswith('Cabinet member'))
+            extents = []
+            for member in (outer, middle, inner):
+                channels = [obj for obj in member.children if obj.name.startswith(('outer ', 'middle ', 'inner '))]
+                vertices = [(relative_matrix(obj, member, depsgraph) @ vertex.co).x
+                            for obj in channels for vertex in obj.evaluated_get(depsgraph).data.vertices]
+                if not vertices:
+                    raise ValueError(f'Missing evaluated guide surface on {member.name}')
+                extents.append((min(vertices), max(vertices)))
+                require_range('Formed channel length', max(vertices) - min(vertices),
+                              length - .01, length + .01)
+            guides.append((root, outer, middle, inner, cages, length, extents))
+
+    def measure(depsgraph):
+        values = {}
+        for index, (root, outer, middle, inner, cages, length, extents) in enumerate(guides):
+            positions = [relative_matrix(obj, root, depsgraph) for obj in (outer, middle, inner, *cages)]
+            for matrix in positions:
+                require_range('Slide lateral displacement', matrix.translation.yz.length, 0, .0001)
+                require_range('Slide member inclination', matrix.to_quaternion().angle, 0, .001)
+            fixed, mid, draw, cage_a, cage_b = (matrix.translation.x for matrix in positions)
+            require_range('Cabinet member displacement', fixed, -.0001, .0001)
+            for first, second, interval_a, interval_b in zip(
+                    (fixed, mid), (mid, draw), extents, extents[1:]):
+                maximum = 4.56 if length == LENGTH else .77
+                require_range('Slide stage stroke', second - first, -.0001, maximum + .0001)
+                overlap = min(first + interval_a[1], second + interval_b[1]) - max(
+                    first + interval_a[0], second + interval_b[0])
+                require_range('Geometric overlap between adjacent rails', overlap, length - maximum - .01, length + .01)
+            for cage, first, second in ((cage_a, fixed, mid), (cage_b, mid, draw)):
+                require_range('Pure rolling retainer displacement', cage + length / 2 - (first + second) / 2,
+                              -.0001, .0001)
+            suffix = '' if not index else '_far'
+            values.update({f'drawer_x{suffix}': draw, f'middle_x{suffix}': mid,
+                           f'inner_relative_x{suffix}': draw - mid})
+        return values
+
+    return check(scene, pose, count, measure, model=model)
 
 
 def main():
@@ -290,11 +342,16 @@ def main():
     parts = palette()
     block("Studio floor", (0, 0, -.23), (120, 120, .45), parts["floor"], edge=0)
     duration = count / FPS
-    pose = macro_scene(cam, parts, duration) if args.shot == 3 else full_scene(cam, parts, args.shot, duration)
+    rails = []
+    pose = (macro_scene(cam, parts, duration, rails) if args.shot == 3
+            else full_scene(cam, parts, args.shot, duration, rails))
+    if 'check_mechanics' in globals() and check_slides(check_mechanics, scene, pose, count, rails):
+        return
     folder = args.directory / f"shot-{args.shot}"
     folder.mkdir(parents=True, exist_ok=True)
     rendered = {}
     for frame in range(0, count, 5 if args.preview else 1):
+        scene.frame_set(frame)
         path = folder / f"{frame:05}.jpg"
         key = pose(frame / FPS)
         if path.is_file():

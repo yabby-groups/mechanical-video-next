@@ -282,7 +282,43 @@ def motion(cam, parts, shot, duration):
                 pin.location.x, tuple(nut.location) if nut else None,
                 tuple(larger_nut.location) if larger_nut else None, forces[0].hide_render)
 
-    return pose
+    def model(depsgraph):
+        from episode_mechanics import relative_matrix, require_range
+
+        if not all(obj.evaluated_get(depsgraph).data.polygons
+                   for obj in (body, guide, pin, *moving.children,
+                               *(obj for obj in worm.children if obj.type == 'MESH'))):
+            raise ValueError('Wrench assembly requires the body, guide, pin, rack and worm meshes')
+        pin_axis = relative_matrix(pin, root, depsgraph).to_quaternion() @ Vector((0, 0, 1))
+        require_range('Retaining pin / worm axis alignment', pin_axis.x, .9999, 1.0001)
+
+    first_jaw = first_worm = previous_angle = None
+    turns = 0.
+
+    def measure(depsgraph):
+        from episode_mechanics import relative_matrix, require_range
+
+        nonlocal first_jaw, first_worm, previous_angle, turns
+        jaw = relative_matrix(moving, root, depsgraph)
+        worm_matrix = relative_matrix(worm, root, depsgraph)
+        angle = worm_matrix.to_euler().x
+        if previous_angle is None:
+            first_jaw, first_worm, turns = jaw.translation.x, angle, 0.
+        else:
+            turns += math.remainder(angle - previous_angle, TAU) / TAU
+        previous_angle = angle
+        travel = jaw.translation.x
+        require_range('Jaw travel', travel, -.0001, .4001)
+        require_range('Jaw guide tilt', jaw.to_quaternion().angle, 0, .001)
+        if shot != 1:  # This shot intentionally separates the assembly.
+            require_range('Jaw off guide', math.hypot(jaw.translation.y, jaw.translation.z), 0, .0001)
+            require_range('Worm off retained axis',
+                          (worm_matrix.translation - Vector((0, WORM_Y, 0))).length, 0, .0001)
+            require_range('Worm / rack signed lead error', travel - first_jaw + turns * PITCH,
+                          -.0001, .0001)
+        return {'jaw_travel': travel, 'worm_turns': turns + first_worm / TAU}
+
+    return pose, model, measure
 
 
 def main():
@@ -307,7 +343,9 @@ def main():
     bpy.data.lights["Front fill"].energy = 430
     parts = finishes()
     studio.block("Studio surface", (0, 0, -2.12), (85, 85, 2), parts["stage"], edge=0)
-    pose = motion(cam, parts, args.shot, frames / 30)
+    pose, model, measure = motion(cam, parts, args.shot, frames / 30)
+    if 'check_mechanics' in globals() and check_mechanics(scene, pose, frames, measure, model=model):
+        return
     directory = args.directory / f"shot-{args.shot}"
     directory.mkdir(parents=True, exist_ok=True)
     previous_pose = previous_frame = None
