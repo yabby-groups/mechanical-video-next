@@ -2,7 +2,7 @@
   "title": "",
   "narration": "narration.txt",
   "composition": "ffmpeg",
-  "output": "弹跳烤面包机｜两片吐司是谁抬起来的-优化版.mp4",
+  "output": "toaster-mechanical-review.mp4",
   "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
   "shots": [
     {
@@ -256,7 +256,8 @@
     {
       "tail": 0.48,
       "scene_inputs": [
-        "../quarter-turn-faucet/scene.py"
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
       ],
       "labels": [
         [
@@ -272,7 +273,8 @@
       "scene_shot": 6,
       "mechanics": {
         "evidence": "research.md"
-      }
+      },
+      "scene": "service_scene.py"
     },
     {
       "tail": 0.48,

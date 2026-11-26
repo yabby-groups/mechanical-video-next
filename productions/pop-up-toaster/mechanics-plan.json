@@ -1,0 +1,527 @@
+{
+  "evidence": {
+    "path": "research.md",
+    "sha256": "e094699d77e29550ec0cecff3de8140c4e3ad6aadf141d6ba4fcd34a6ac98a73"
+  },
+  "verifier_sha256": "748b667a2a1f6213c94e2152f4acdf2c11dd9f1e64479fd5b1def9b88a6fe53f",
+  "claims": {
+    "lift": {
+      "quote": "按下时两槽的托架随共同的滑架下行",
+      "source": "https://www.ifixit.com/Guide/Black+and+Decker+TR1278B+Lever+Catch-Spring+Replacement/86997 (步骤 7–9)；https://www.ifixit.com/Guide/Black+and+Decker+TR1278B+Bread+Grabber+Spring+Replacement/86994",
+      "expectation": "手柄和两槽横托经支臂与共用滑架同程，沿机身固定导向下压。两横托保持在吐司底面。解除低位保持后，同一支撑抬升两片至顶端。滑架上下端点是教学模型的行程。"
+    },
+    "spring": {
+      "quote": "滑架上方的弹簧伸长。低位保持结束后，回程由弹簧驱动。",
+      "source": "https://www.ifixit.com/Guide/Black+and+Decker+TR1278B+Lever+Catch-Spring+Replacement/86997 (步骤 7–9)",
+      "expectation": "上端留在固定座，下端接滑架。下压时弹簧变长，低位保持时保持伸长，解除保持后收缩并带动滑架回升。几何检查对应模型锚点与相对长度，内部保持和释放机构留在表达范围以外。"
+    },
+    "cancel": {
+      "quote": "原厂正面照片可见 CANCEL 位于旋钮中心。",
+      "source": "https://www.blackanddecker.com/products/tr1278b",
+      "expectation": "指尖先接触并按入旋钮中心的 CANCEL，低位滑架随后回升。正常结束也从低位回到顶部。按键行程为教学示意，内部信号与触发机制留在表达范围以外。"
+    },
+    "tray": {
+      "quote": "下翻式接渣盘的参照。",
+      "source": "https://www.ifixit.com/Guide/Black+and+Decker+TR1278B+Lever+Catch-Spring+Replacement/86997#s162661",
+      "expectation": "维修步骤 2 显示接渣盘位于固定底框内并要求清空。闭合时两槽下方的通路通向盘面，固定底框不横跨通路。盘绕固定端朝下转出，随后沿原轴合回。铰接座、角度和开口尺寸为教学简化。"
+    },
+    "cycle_chart": {
+      "quote": "根据相对固定上端的滑架位置绘制下压、低位保持、释放回升三个阶段。",
+      "source": "本集研究的滑架与弹簧关系，依据 https://www.ifixit.com/Guide/Black+and+Decker+TR1278B+Lever+Catch-Spring+Replacement/86997 (步骤 7–9)",
+      "expectation": "定性图共用时间轴，下降和伸长同步，低位保持时两者水平，回升和缩短同步。图形标示趋势。"
+    }
+  },
+  "shots": {
+    "33a58c6eaacee3013d3e4784ff71f9baf8c4b5635f403703f8e733a85a40b7a6": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                0,
+                15
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                15,
+                160
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                160,
+                170
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                170,
+                343
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "dbf0858c9cec44ca96def1db50099272f95ef634eb1a9d6893f99d08724ea77b": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "c1675711e5b20742ac3c9b8462147a3c20516be3021b623123dd69af1612c97f": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "f648e82e96baf942ddef37b164ccef3464e1c783e711a0f81d36071f0addf7a2": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "21f61474d835500baa352099fe3b88b1aaa4335e1719cd37c0d9ec0023ea741e": {
+      "kind": "graphic",
+      "relations": {
+        "cycle_chart": {
+          "type": "opposed_traces",
+          "labels": [
+            "托架高度",
+            "弹簧伸长"
+          ]
+        }
+      }
+    },
+    "cb112d70a1f46b11f06ef3fcc8c7d24f7ca7d647a45cbe55d5f00465e24e9769": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "cdfca96659163ca4073de97e4e02cbfdf0d192773c994557054fdace3a250745": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "cancel": {
+          "channels": [
+            "press",
+            "height"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 40,
+              "window": [
+                198,
+                247
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  0.043,
+                  0.049
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "window": [
+                236,
+                253
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 15,
+              "window": [
+                250,
+                477
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "7c2353fb101a4c915d8c6a7ac2fc635a95af3e673ba48f578fb064c548039bc8": {
+      "kind": "core",
+      "relations": {
+        "tray": {
+          "channels": [
+            "angle"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "angle": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              "hold_frames": 16
+            },
+            {
+              "ranges": {
+                "angle": [
+                  0.81,
+                  0.85
+                ]
+              },
+              "hold_frames": 30
+            },
+            {
+              "ranges": {
+                "angle": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "a23c954810716b03ccce40b31f887ff4ec72d3948946d1150b7d2474ab503e6d": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    }
+  },
+  "presentation": {
+    "85715b6f385e40148db62380ffb4e2693315c55e3a1a743c704e21353e3fcc16": {
+      "0": "抽查 0.00–6.00 秒，剖开角度可见横托支撑两片同步上升，切回外壳后回放同一回升。3.67 秒显示横托、支臂与共用滑架连接。",
+      "1": "抽查 11.67–20.23 秒，先移开外壳和前板，再露出双槽及共用滑架。手柄、两条横托和吐司一起下降。",
+      "2": "抽查 22.00–36.43 秒，滑架沿导向下移，上弹簧拉长，托架停在低位。屏上标注与三个状态对应。",
+      "3": "抽查 36.53–51.30 秒，上弹簧从拉长状态收回，横托把两片一起抬上去并停在顶部。",
+      "4": "抽查 53.10–64.17 秒，蓝线与橙线同步画出方向相反的变化、共同保持和回升。画面标示趋势示意。",
+      "5": "抽查 65.93 和 68.57 秒，切回顶部静止状态，图解收束后用标签颜色在三维画面中指认对应部件。",
+      "6": "抽查 68.60–84.00 秒，正常结束时吐司先从槽内正常弹出。切换到第二次低位，76.50–76.80 秒指尖朝向并按入旋钮中心，77.13 秒吐司回升。",
+      "7": "抽查 84.50–98.33 秒，先见接渣盘闭合，89.00 秒下翻，90.67–95.67 秒见打开的底框、槽下通路和盘面碎屑，97.00–98.33 秒沿同一轴合回。",
+      "8": "抽查 98.43–113.90 秒，完整总结镜从托架高位，经下压和低位保持，再回到顶部。弹簧伸长和缩短与滑架动作同步。"
+    }
+  }
+}

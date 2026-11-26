@@ -241,7 +241,7 @@ class VoiceDirectorTests(unittest.TestCase):
         edit = {'output': 'test.mp4', 'shots': [{}, {}]}
         writejson(edit_path, dict(edit, directed_timeline='timeline.json'))
 
-        def inspect_picture(directory, speech, work, *, shots, preview_step):
+        def inspect_picture(directory, speech, work, *, shots, preview_step, coverage):
             self.assertEqual(directory, self.root.resolve())
             self.assertEqual(shots, edit['shots'])
             self.assertIsNone(preview_step)
@@ -257,6 +257,7 @@ class VoiceDirectorTests(unittest.TestCase):
             return ['picture-1', 'picture-2']
 
         with patch.object(episode, 'load_env'), patch.object(episode, 'measure_narration') as legacy, \
+                patch.object(episode.episode_evidence, 'coverage', return_value=({'kind': 'core'}, None)), \
                 patch.object(episode, 'picture_sources', side_effect=inspect_picture), \
                 patch.object(episode, 'assemble', return_value='video') as assemble:
             with self.assertRaisesRegex(ValueError, 'at least 60 seconds'):
@@ -267,6 +268,7 @@ class VoiceDirectorTests(unittest.TestCase):
         writejson(edit_path, edit)
         with patch.object(episode, 'load_env'), patch.object(episode, 'load_directed_narration') as directed_load, \
                 patch.object(episode, 'measure_narration', return_value=[(clip, [], 60)] * 2) as legacy, \
+                patch.object(episode.episode_evidence, 'coverage', return_value=({'kind': 'core'}, None)), \
                 patch.object(episode, 'picture_sources'), patch.object(episode, 'assemble', return_value='video'):
             self.assertEqual(episode.produce(self.root, allow_short=True), 'video')
             directed_load.assert_not_called()

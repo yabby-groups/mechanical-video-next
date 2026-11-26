@@ -164,8 +164,9 @@ def state_findings(plan, states):
                               f"{check['id']} jump {delta:.6g}", shot=cut['id'])
 
 
-def episode_state_findings(shots, counts, motions, episode):
+def episode_state_findings(shots, counts, motions, episode, *, coverage=None):
     """Map episode picture intervals onto evaluated Blender channels."""
+    from . import episode_evidence
     cuts, checks, findings = [], [], []
     cursor = 0
     for index, (shot, count, motion) in enumerate(zip(shots, counts, motions, strict=True)):
@@ -177,10 +178,30 @@ def episode_state_findings(shots, counts, motions, episode):
                   if reference and (episode / reference['path']).is_file() else 0)
         cuts.append({'id': shot_id, 'start_frame': first, 'end_frame': last,
                      'source_start_frame': offset})
+        row = coverage[index] if coverage is not None else None
+        if row and row['kind'] in episode_evidence.NON_MECHANICAL:
+            continue
+        if row and row['kind'] == 'graphic':
+            for relation, rule in row['relations'].items():
+                if not episode_evidence.graphic_relation(shot['graphic'], rule, count):
+                    findings.append(dict(finding('graphic_mechanical_relation', first, last, relation,
+                                                 shot=shot_id), scope='mechanical'))
+            continue
+        if row and row['kind'] == 'core':
+            requirements = row['relations']
+            if not episode_evidence.motion_covers(motion, requirements, offset, count, episode):
+                findings.append(dict(finding(
+                    'mechanical_relation_unmeasured', first, last, ', '.join(requirements),
+                    shot=shot_id, status='UNKNOWN'), scope='mechanical'))
+                continue
+            for relation, rule in requirements.items():
+                if not episode_evidence.events_hold(motion, rule, relation, offset, count):
+                    findings.append(dict(finding('mechanical_relation_event', first, last, relation,
+                                                 shot=shot_id), scope='mechanical'))
         if motion is None:
             code = 'graphic_mechanical_claims' if 'graphic' in shot else 'mechanical_state_unavailable'
             findings.append(finding(code, first, last, 'Independent evidence coverage required',
-                                    shot=shot_id, status='UNKNOWN'))
+                                    shot=shot_id, status='UNKNOWN') | {'scope': 'mechanical'})
             continue
         if motion['frames'] < offset + count:
             findings.append(finding('mechanical_source_interval', first, last,
@@ -202,7 +223,8 @@ def episode_state_findings(shots, counts, motions, episode):
                     continue
                 row['previous_samples'] = previous['samples'][channel][::previous['substeps']]
             checks.append(row)
-    findings.extend(state_findings({'shots': cuts}, checks))
+    findings.extend(dict(row, scope='mechanical')
+                    for row in state_findings({'shots': cuts}, checks))
     return findings, cuts
 
 

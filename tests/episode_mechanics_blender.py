@@ -43,6 +43,55 @@ CASES = [
      'before the visible cancel press'),
 ]
 
+REVIEWED_CASES = [
+    ('tray-baseline', 'pop-up-toaster', 'scene.py', 6, 417, 'tray', None,
+     'Fixed base blocks the crumb path'),
+    ('tray-repaired', 'pop-up-toaster', 'service_scene.py', 6, 417, 'tray', None, None),
+    ('worm-independent', 'adjustable-wrench', 'scene.py', 0, 60, 'worm_rack', None, None),
+    ('worm-shared-error', 'adjustable-wrench', 'scene.py', 0, 60, 'worm_rack', (
+        ('worm.rotation_euler.x = -TAU * travel / PITCH',
+         'worm.rotation_euler.x = TAU * travel / PITCH'),
+        ('travel - first_jaw + turns * PITCH', 'travel - first_jaw - turns * PITCH'),
+    ), 'Independent worm / rack signed lead'),
+]
+
+
+def evaluate_reviewed_case(work, case):
+    name, product, filename, shot, count, relation, changes, expected = case
+    folder = work / name
+    folder.mkdir(exist_ok=True)
+    origin = ROOT / 'productions' / product
+    scene = folder / filename
+    if filename != 'scene.py':
+        (folder / 'scene.py').write_bytes((origin / 'scene.py').read_bytes())
+    source = (origin / filename).read_text()
+    for old, new in changes or ():
+        assert source.count(old) == 1, old
+        source = source.replace(old, new)
+    scene.write_text(source)
+    timing = folder / 'timing.json'
+    writejson(timing, [0] * shot + [count])
+    args = ['--timing', timing, '--directory', folder, '--shot', shot]
+    binding = {'scene': filehash(scene), 'frames': count, 'shot': shot}
+    previous = folder / 'previous'
+    previous.mkdir(exist_ok=True)
+    legacy = episode.prepare_motion(scene, args, previous, binding)
+    assert legacy['status'] == 'PASS'
+    reviewed = folder / 'reviewed'
+    reviewed.mkdir(exist_ok=True)
+    verifier = origin / episode.episode_evidence.VERIFIER
+    current = dict(binding, verifier=filehash(verifier),
+                   runner=filehash(episode.episode_evidence.RELATIONS_RUNNER))
+    try:
+        motion = episode.prepare_motion(scene, args, reviewed, current,
+                                        reviewer=(verifier, json.dumps([relation])))
+    except ValueError as error:
+        if expected and expected in str(error):
+            return dict(case=name, status='PASS', legacy='PASS', rejected=str(error))
+        raise
+    assert expected is None, f'{name}: unchanged verifier accepted {expected}'
+    return dict(case=name, status='PASS', legacy='PASS', evaluated_poses=motion['evaluated_poses'])
+
 
 def evaluate_case(work, case):
     name, product, filename, shot, count, fault, expected = case
@@ -125,6 +174,12 @@ def main():
             if args.cases and case[0] not in args.cases:
                 continue
             result = evaluate_case(work, case)
+            results.append(result)
+            print(json.dumps(result), flush=True)
+        for case in REVIEWED_CASES:
+            if args.cases and case[0] not in args.cases:
+                continue
+            result = evaluate_reviewed_case(work, case)
             results.append(result)
             print(json.dumps(result), flush=True)
     if args.wrench_picture:
