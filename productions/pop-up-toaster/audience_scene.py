@@ -62,7 +62,7 @@ def add_cancel_press():
 
     skin = toaster.material("Fingertip", (.46, .225, .123), 0, .58)
     nail = toaster.material("Fingernail", (.56, .32, .23), 0, .47)
-    axis = Vector((.82, -.46, -.17)).normalized()
+    axis = Vector((.82, -.46, .04)).normalized()
     finger = toaster.group("Finger pressing CANCEL")
     finger.rotation_euler = axis.to_track_quat("Z", "Y").to_euler()
     # Local z runs from the finger pad back towards the hand.
@@ -102,10 +102,10 @@ def build(shot):
             if t < 5.35:
                 original_pose(t, 11.967)
                 if t < 1.67:
-                    toaster.camera(cam, (0, -.05, 1.89), (4.9, -7, 3.8), 6.35)
+                    toaster.camera(cam, (0, -.05, 2.03), (4.9, -7, 3.8), 6.85)
                 else:
                     turn = toaster.ease(t, 1.67, 4.5)
-                    toaster.camera(cam, (0, -.83, 2.05), (2.45 + .8 * turn, -7, 4.45), 5.58)
+                    toaster.camera(cam, (0, -.83, 2.47), (2.45 + .8 * turn, -7, 4.45), 6.72)
             else:
                 reference_duration = 359 / 30
                 original_pose(t + .48 * reference_duration - 5.35, reference_duration)
@@ -120,7 +120,7 @@ def build(shot):
                 cancel.location.y = -2.276 + travel
                 finger.location = Vector((0, -2.32 + travel, .66)) + finger_axis * (
                     1.63 * (1 - approach + retreat))
-                toaster.camera(cam, (.13, -.54, 1.85), (2.25, -8, 2.78), 5.63)
+                toaster.camera(cam, (.15, -.75, 1.73), (2.45, -8, 1.75), 7.8)
         else:
             original_pose(0, duration)
             toaster.camera(cam, (0, -.46, 2.02), (3.8 - .5 * t / duration, -7, 4.45), 6.1)
