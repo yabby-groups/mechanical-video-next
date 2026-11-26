@@ -9,7 +9,7 @@ from uuid import uuid4
 import wave
 
 from mechanical_video_next import joint_timeline as joint
-from mechanical_video_next import episode_evidence, video_review
+from mechanical_video_next import episode_evidence, video_review, visual_diagnosis
 from mechanical_video_next.blender_runtime import BlenderFailure, blender_executable, run_blender
 from mechanical_video_next.director_audio import aac_hash, mux_picture
 from mechanical_video_next.production_contract import (
@@ -195,7 +195,7 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None, cov
                     path, verification / 'motion-preview.mp4', first, last, 0, f'shot-{shot}')
                 if not findings:
                     video_review.write_report(path.with_suffix('.motion.json'), {
-                        'picture_sha256': filehash(path), 'motion': motion, 'draft': False,
+                        'picture_sha256': filehash(path), 'motion': motion, 'draft': False, 'preview_step': 1,
                     })
                     continue
             picture = path.parent
@@ -230,6 +230,7 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None, cov
                     raise ValueError(f'Mechanical scene inputs changed during rendering: {scene}')
                 video_review.write_report(path.with_suffix('.motion.json'), {
                     'picture_sha256': filehash(path), 'motion': motion, 'draft': draft_step is not None,
+                    'preview_step': draft_step or 1,
                 })
     return paths
 
@@ -248,7 +249,7 @@ def motion_inputs_current(motion):
     return bool(inputs) and all(Path(path).is_file() and filehash(path) == sha for path, sha in inputs.items())
 
 
-def picture_motion(path, *, current=False, draft=False):
+def picture_motion(path, *, current=False, draft=False, include_record=False):
     receipt = path.with_suffix('.motion.json')
     if not path.is_file() or not receipt.is_file():
         return None
@@ -258,7 +259,7 @@ def picture_motion(path, *, current=False, draft=False):
         if record.get('draft', False) and not draft:
             return None
         if record['picture_sha256'] == filehash(path) and (not current or motion_inputs_current(motion)):
-            return motion
+            return record if include_record else motion
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
@@ -502,10 +503,11 @@ def mix(picture, bgm, duration, clicks, destination):
 
 
 def review_export(candidate, episode, edit, pictures, speech, props, public, *, preview, coverage=None):
-    motions, sources, audio_hashes = [], [], []
+    motions, sources, audio_hashes, diagnostics = [], [], [], []
     for index, (cut, picture) in enumerate(zip(edit['shots'], pictures, strict=True)):
         reference = cut.get('picture')
-        if reference and (episode / reference['path']).is_file():
+        recut = bool(reference and (episode / reference['path']).is_file())
+        if recut:
             source = (episode / reference['path']).resolve()
             if filehash(source) != reference['sha256']:
                 raise ValueError(f'Recut source changed during production: {source}')
@@ -514,7 +516,18 @@ def review_export(candidate, episode, edit, pictures, speech, props, public, *, 
         else:
             source, offset = public / f'{index}.mp4', 0
             motion_source = picture
-        motion = picture_motion(motion_source, current=True, draft=preview)
+        record = picture_motion(motion_source, current=True, draft=preview, include_record=True)
+        motion = record['motion'] if record else None
+        step = record.get('preview_step', 1 if not record.get('draft') else None) if record else None
+        if record and step is None:
+            # Older draft receipts predate the step field. Verify the cache key
+            # against the step used by the original preview entry point.
+            step = cut.get('preview_step', edit.get('preview_step', 5))
+            if motion_source.parent.name != digest(dict(motion['binding'], preview_step=step)):
+                step = None
+        diagnostics.append(visual_diagnosis.shot_binding(
+            cut, motion, episode, direct=not recut,
+            preview_step=step))
         if 'mechanics' in cut and 'graphic' not in cut and motion is None:
             raise ValueError(f'Shot {index}: the rendered picture or evaluated scene inputs changed')
         motions.append(motion)
@@ -541,7 +554,7 @@ def review_export(candidate, episode, edit, pictures, speech, props, public, *, 
         if motion and not motion_inputs_current(motion):
             raise ValueError(f"Shot {index}: mechanical scene inputs changed during final review")
         intervals.append(dict(cut, picture_sha256=sha, evaluated_motion=motion,
-                              compared_regions=regions))
+                              compared_regions=regions, **diagnostics[index]))
     return {
         'media': {'filename': candidate.name, 'sha256': filehash(candidate)},
         'edit_sha256': digest(edit), 'composition_props_sha256': digest(props),

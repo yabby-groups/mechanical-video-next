@@ -41,3 +41,27 @@ Two actual host reads used WebP only (actual-reads.jsonl): overview plus title c
 ## Limits and follow-up
 
 Unreadable-region detection and semantic selection of motion events require agent judgment: the API supplies bounded crops, not a fabricated readability classifier. A future host integration could make successful read logging mandatory and enforce cross-session image deduplication. Missing or insufficient evidence stays UNKNOWN. Existing historical QA is not retroactively rewritten. The shell CLI returns evidence packets; it cannot force external CAD viewers/browser screenshot tools to render compressed pixels before the agent sees them. Export their screenshots and pass through this entry before further review.
+
+## 机械画面诊断
+
+在低成本动稿和正式 MP4 上各做一次。先用 `--overview` 生成全片窄屏播放和可用的镜头区间。边看边检查产品及完整工作循环，主动标记出乎预期的配件、方向、悬浮、穿模、失联、传动和旁白矛盾。没有播放能力时记录抽样覆盖。已有运动预演窗口可作为线索，接触、啮合、锁止、释放、反转、复位、装拆和行程转折还要按实际发生位置选择。
+
+```sh
+uv run python -m mechanical_video_next.visual_diagnosis film.mp4 --overview --directory work/diagnosis/overview
+uv run python -m mechanical_video_next.visual_diagnosis film.mp4 --at 12.5 --directory work/diagnosis/detail
+uv run python -m mechanical_video_next.visual_diagnosis film.mp4 --frames 370 374 379 --window 367 389 --crop 800 220 1220 700 --zoom 2 --model --directory work/diagnosis/contact
+```
+
+时钟使用从零开始的 30 fps 解码帧，窗口终点不含在内。局部坐标是实际解码画面的左、上、右、下像素。查看 JSON 中的 `images[].qa_path`，保留一张带周边机构的原尺寸画面，再在同一区域观察动作前、中、后。裁剪发生在放大前，倍数只改变显示尺寸。动稿原生像素不足时，可从同一姿态渲局部诊断。单批最多 16 张，事件片段最多 300 帧。
+
+正式入口的 MP4 收据绑定镜头、裁切偏移、动稿重复步长、原始场景和依赖哈希。使用 `--model` 时，一次选择同一镜头内的帧。先读默认的对象求值结果，按裁剪位置查看原相机投影范围、对象、父层级、网格、变换和动画驱动线索。投影框会包含遮挡对象。多画面拼接、重构图和缺少来源映射的旧片需要核实到实际相机与帧，再用 `--blend scene.blend --blend-frames 101 105 109` 提供旧场景。复核场景结果时读取 `blender.poses[].image.path`。
+
+`--view camera` 可重放原相机的局部画面。用 `--view front`、`side` 或 `top` 加 `--objects` 为部件做固定正交特写。可通过 `--hide` 移去既有外壳，通过 `--isolate` 只显示选定部件，或用 `--xray` 查看重叠。优先选择足以解释接触的一种视图和少量姿态。诊断相机、可见性和渲染改动只在临时 Blender 进程中生效。
+
+显式指定的网格还提供八个最大求值面的位置、法线和面积。可用它们对照模型的开合方向，找到可能先接近相邻件的斜面或平面。法线符号受网格绕序影响，首次接触仍需核对相邻几何和前后运动。
+
+从疑点图片追到源对象、驱动和型号资料。修复后用 `--baseline old.mp4` 对同一剪辑时钟、相机及裁剪区域生成修复前后的逐帧与动态材料。剪辑时钟变更时，记录两个版本对应的源动作及各自时码，再用匹配姿态对照。复看实际编码画面，检查原问题、相邻状态和新异常。记录实际看到的画面、时段、判断与余下疑点。工具生成的材料将连续观看保留为 UNKNOWN。
+
+局部清楚以后，沿真实机构的输入、相邻界面和输出逐段追查。先问哪个表面在当前运动方向上先受力，或介质必须从哪个孔穿过哪一道零件边界。用动作前、中、后的姿态和型号资料核对具体答案。正交图上形状相叠只提示下一处观察位置。补充视角保留相邻配件及运动方向，直到疑点定位到具体配件、几何或驱动，或明确记录缺少哪段场景或哪项型号证据。
+
+对外形和装配直接影响正确性的零件，开看前先用本集的实物或原厂资料建立可核对的参照。开场、拆装和工作行程中复用同一接口时都要比对。历史录像、截图盲测、同机位局部修复与实际成片映射见[自主机械视觉诊断复盘](productions/visual-mechanical-diagnosis-20261126.md)。

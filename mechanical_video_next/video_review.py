@@ -15,7 +15,7 @@ from PIL import Image, ImageChops, ImageStat
 from scripts.common import probe
 from . import joint_timeline as joint
 from .media_revision import decode_errors, frames
-from .qa_images import CACHE, prepare_contact_sheet, visual_packet
+from .qa_images import CACHE, decoded_frames, prepare_contact_sheet, visual_packet
 
 FIELD = 'video_review_version'
 VERSION = 1
@@ -538,27 +538,15 @@ def constraint_samples(rendered, index):
 
 def ordered_picture_evidence(media, frame_indices, *, cache_dir=CACHE):
     """Make a timecoded sheet from exact decoded indices on a verified 30 fps edit."""
-    if (not 1 <= len(frame_indices) <= 16 or any(type(i) is not int or i < 0 for i in frame_indices)
-            or list(frame_indices) != sorted(set(frame_indices))):
-        raise ValueError('Use 1..16 increasing, zero-based decoded frame indices')
     source = joint.bound(media)
     video = next((row for row in probe(source)['streams'] if row['codec_type'] == 'video'), {})
     if (video.get('avg_frame_rate') != '30/1' or video.get('r_frame_rate') != '30/1'
             or float(video.get('start_time', 'inf')) != 0):
         raise ValueError('Ordered evidence requires a zero-start 30 fps picture track')
-    directory = Path(cache_dir)
-    directory.mkdir(parents=True, exist_ok=True)
-    select = '+'.join(f'eq(n\\,{index})' for index in frame_indices)
-    with TemporaryDirectory(dir=directory) as tmp:
-        subprocess.run(['ffmpeg', '-v', 'error', '-nostdin', '-i', str(source), '-map', '0:v:0',
-                        '-vf', 'select=' + select, '-frames:v', str(len(frame_indices)), '-fps_mode',
-                        'passthrough', '-threads', '1', str(Path(tmp) / '%02d.png')],
-                       check=True, capture_output=True)
-        paths = sorted(Path(tmp).glob('*.png'))
-        if len(paths) != len(frame_indices):
-            raise ValueError('Requested frame falls outside the decoded film')
+    with decoded_frames(source, video['index'], frame_indices, cache_dir=cache_dir) as paths:
         labels = [f'f{index:04d}   {index / joint.FPS:.3f}s' for index in frame_indices]
-        sheet = prepare_contact_sheet(paths, labels=labels, cache_dir=directory)
+        sheet = prepare_contact_sheet(paths, labels=labels, cache_dir=cache_dir)
+    joint.bound(media)
     packet = visual_packet(sheets=[sheet])
     return dict(packet, media=media, frame_indices=list(frame_indices), method='ordered_decoded_images',
                 continuous_viewing='UNKNOWN')

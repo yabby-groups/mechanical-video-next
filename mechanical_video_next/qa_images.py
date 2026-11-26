@@ -2,6 +2,7 @@
 
 Static evidence never grants continuous-motion, scientific or readability PASS.
 """
+from contextlib import contextmanager
 from pathlib import Path
 import argparse
 import hashlib
@@ -42,16 +43,20 @@ def get_cached_image(cache_key, cache_dir=CACHE):
 
 def prepare_image(source, *, max_size=1024, quality=80, format='webp',
                   crop_region=None, source_time=None, shot_id=None, target_bytes=300_000,
-                  cache_dir=CACHE):
+                  cache_dir=CACHE, zoom=1):
     start = time.monotonic()
     source = Path(source).resolve()
     format = format.lower()
     if format not in {'webp', 'jpeg'} or max_size < 1 or not 1 <= quality <= 100 or target_bytes < 1:
         raise ValueError('Invalid QA image parameters')
+    if type(zoom) is not int or not 1 <= zoom <= 4 or (zoom > 1 and crop_region is None):
+        raise ValueError('Zoom requires a crop and an integer factor from 1 to 4')
     params = dict(source_sha256=sha(source), version=VERSION, code_sha256=sha(__file__),
                   format=format, max_size=max_size, quality=quality,
                   crop_region=list(crop_region) if crop_region is not None else None,
                   target_bytes=target_bytes, color='exif-transpose-rgb-white-alpha')
+    if zoom != 1:
+        params['zoom'] = zoom
     cache_key = key(params)
     hit = get_cached_image(cache_key, cache_dir)
     if hit:
@@ -66,6 +71,9 @@ def prepare_image(source, *, max_size=1024, quality=80, format='webp',
             im = im.crop(tuple(crop_region))
         bg = Image.new('RGBA', im.size, 'white'); bg.alpha_composite(im)
         im = bg.convert('RGB')
+        native_size = im.size
+        if zoom > 1:
+            im = im.resize((im.width * zoom, im.height * zoom), Image.Resampling.NEAREST)
         im.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
         q = quality
         while True:
@@ -82,7 +90,7 @@ def prepare_image(source, *, max_size=1024, quality=80, format='webp',
         f.write(buf.getvalue()); tmp = Path(f.name)
     tmp.replace(path)
     result = dict(params, source_path=str(source), qa_path=str(path.resolve()),
-                  qa_sha256=sha(path), width=im.width, height=im.height, quality=q,
+                  qa_sha256=sha(path), width=im.width, height=im.height, native_size=list(native_size), quality=q,
                   requested_quality=quality, source_time=source_time, shot_id=shot_id,
                   bytes=path.stat().st_size, cache_key=cache_key, cache_hit=False,
                   readability='UNKNOWN', elapsed_seconds=time.monotonic()-start)
@@ -130,7 +138,7 @@ def prepare_contact_sheet(sources, *, labels=None, cache_dir=CACHE):
 
 
 def prepare_video_frames(source, times, *, shot_ids=None, format='webp', quality=80,
-                         max_size=1024, cache_dir=CACHE):
+                         max_size=1024, cache_dir=CACHE, crop_region=None, zoom=1):
     times = list(times)
     if not times or len(times) > 4 or any(not math.isfinite(t) or t < 0 for t in times):
         raise ValueError('Each review round requires 1..4 finite nonnegative event times')
@@ -148,10 +156,32 @@ def prepare_video_frames(source, times, *, shot_ids=None, format='webp', quality
                                 '-frames:v','1',str(extracted)], check=True, capture_output=True)
                 extracted.replace(frame)
         ref = prepare_image(frame, source_time=t, shot_id=shot_ids[i] if shot_ids else None,
-                            format=format, quality=quality, max_size=max_size, cache_dir=folder)
+                            format=format, quality=quality, max_size=max_size, cache_dir=folder,
+                            crop_region=crop_region, zoom=zoom)
         ref.update(video_path=str(source), video_sha256=source_sha)
         refs.append(ref)
     return refs
+
+
+@contextmanager
+def decoded_frames(source, stream_index, indices, *, cache_dir=CACHE):
+    """Decode a small batch by display-order index, preserving all source pixels."""
+    indices = list(indices)
+    if (not 1 <= len(indices) <= 16 or any(type(i) is not int or i < 0 for i in indices)
+            or indices != sorted(set(indices))):
+        raise ValueError('Use 1..16 increasing, zero-based decoded frame indices')
+    directory = Path(cache_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    select = '+'.join(f'eq(n\\,{index})' for index in indices)
+    with tempfile.TemporaryDirectory(dir=directory) as tmp:
+        subprocess.run(['ffmpeg', '-v', 'error', '-xerror', '-nostdin',
+                        '-i', str(source), '-map', f'0:{stream_index}', '-vf', 'select=' + select,
+                        '-frames:v', str(len(indices)), '-fps_mode', 'passthrough', '-threads', '1',
+                        str(Path(tmp) / '%02d.png')], check=True, capture_output=True)
+        paths = sorted(Path(tmp).glob('*.png'))
+        if len(paths) != len(indices):
+            raise ValueError('Requested frame falls outside the decoded film')
+        yield paths
 
 
 def visual_packet(frames=(), sheets=()):
@@ -243,13 +273,17 @@ def main():
     ap.add_argument('source', nargs='+'); ap.add_argument('--times', nargs='+', type=float)
     ap.add_argument('--max-size', type=int, default=1024, help='Video frame long edge in pixels')
     ap.add_argument('--crop', nargs=4, type=int); ap.add_argument('--cover', action='store_true')
+    ap.add_argument('--zoom', type=int, default=1)
     ap.add_argument('--sheet', action='store_true'); ap.add_argument('--format', default='webp')
     args = ap.parse_args()
+    if args.zoom != 1 and not args.crop:
+        ap.error('--zoom requires --crop')
     if args.times:
-        refs = prepare_video_frames(args.source[0], args.times, format=args.format, max_size=args.max_size)
+        refs = prepare_video_frames(args.source[0], args.times, format=args.format, max_size=args.max_size,
+                                    crop_region=args.crop, zoom=args.zoom)
     else:
         fn = prepare_cover_preview if args.cover else prepare_image
-        refs = [(prepare_crop(p,args.crop,format=args.format) if args.crop else fn(p,format=args.format)) for p in args.source]
+        refs = [(prepare_crop(p,args.crop,format=args.format,zoom=args.zoom) if args.crop else fn(p,format=args.format)) for p in args.source]
     packet = visual_packet(refs, [prepare_contact_sheet([r['qa_path'] for r in refs])] if args.sheet else [])
     print(json.dumps(packet, indent=2))
 
