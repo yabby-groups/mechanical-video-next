@@ -11,12 +11,12 @@
 ```sh
 uv sync --locked
 npm ci --prefix remotion --no-audit --no-fund
-uv run python -m mechanical_video_next produce --episode productions/drawer-slide --edit formal-edit.json --work-dir work/drawer-slide/formal
+uv run python -m mechanical_video_next produce --episode productions/pop-up-toaster --edit visual-edit.json --work-dir work/pop-up-toaster
 ```
 
-示例是三节抽屉滑轨。按 [本集源文件](productions/drawer-slide) 编排每集。将旁白按空行分镜、每行一条字幕，剪辑 JSON 指定配乐、镜头留白、标注和拟音时点。Blender 场景接收 `--timing` 帧数列表、`--shot` 镜头序号和 `--directory` 输出目录。也可用现有 CAD 或 EAS 制作场景源。
+示例从两片吐司同时弹起切入，接着看共同托架、弹簧回程、定性曲线、取消操作和接渣盘。用剪辑 JSON 的 `timeline` 引入联合时间轴。画面切点、逐句 Neil 配音、机械动作源及拟音各用自己的区间。历史剪辑仍可将旁白按空行分镜、每行一条字幕。[示例剪辑](productions/pop-up-toaster/visual-edit.json) · [示例时间轴](productions/pop-up-toaster/visual-timeline.json)
 
-正式入口在渲染前检查实测时间轴，导出后复核画面流。默认至少 60 秒，常规参考 90–180 秒，知识丰富的复杂题材参考 180–300 秒。动稿可短于 60 秒，用户明确要求超短成片时使用 `--allow-short`。
+正式入口在渲染前检查实测时间轴，导出后复核画面流。默认至少 60 秒，常规参考 120–180 秒，知识丰富的复杂题材参考 180–300 秒。动稿可短于 60 秒，用户明确要求超短成片时使用 `--allow-short`。
 
 成片和字幕输出至 `output/<本集目录名>/`。可用 `--work-dir` 指定逐镜头缓存来复用渲染结果，默认工作目录随运行清理。模型、已完成视频与生产缓存按 [配置边界](config/README.md) 保存。CAD 工具可用 `uv sync --extra cad --locked` 安装。
 
@@ -31,7 +31,9 @@ uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --cli
 
 备选剪辑 JSON 可指定 `narration`。逐镜可用 `scene` 换 Blender 脚本、`scene_shot` 选用源脚本的镜号、`scene_inputs` 声明影响画面的相对路径依赖。场景接收 `--preview` 时按固定间隔输出低分辨率帧，默认每 5 帧采样，必要时用 `preview_step` 与场景约定匹配。相同工作目录优先复用已有高清镜头，预演的剪辑文件单独写入 `preview/`。选定后省略 `--preview-shots` 渲染完整成片。
 
-解释镜头可在 `shots[]` 写入 `graphic`，使用现有 Remotion 的 `diagram`、`comparison`、`chart`、`timeline` 或 `data_animation`。动态图的关键帧时间以本镜秒数为基准。每镜选用一个画面源。动画以实测旁白确定的镜长渲染，按图解参数、镜长及 Remotion 源文件复用缓存，同时支持 Remotion 和 FFmpeg 剪辑。烤面包机示例用曲线示意托架高度与弹簧拉伸的变化。 [本集剪辑](productions/pop-up-toaster/edit.json)
+解释镜头可在 `shots[]` 写入 `graphic`，使用现有 Remotion 的 `diagram`、`comparison`、`chart`、`timeline` 或 `data_animation`。动态图的关键帧时间以本镜秒数为基准。联合剪辑按预定的画面区间渲染图解，连续旁白可跨越图解切点。图解按参数、镜长及 Remotion 源文件复用缓存，同时支持 Remotion 和 FFmpeg 剪辑。
+
+联合时间轴以 30 fps 的半开帧区间编排画面和动作。画面 `source_start_frame` 选原速源区间，Blender 镜头用剪辑的 `source_frames` 保留完整动作源，`crop` 可按相同画幅提取局部。逐句 `start_frame` 和 `deadline_frame` 留出语音空间，实测语音采样位置决定字幕区间。跨切点的同一动作通过 `action_views` 保持动作时钟，换源相机时核对重叠源帧的共同机械通道。需要拟音时用 `sounds` 绑定动作、可见事件和独立求值的状态变化。将作用于完整源动作的核证规则放在 `source_events`，保留原来的事件顺序和保持时长。
 
 局部剪辑可为单镜指定 `picture` 的 `path`、`sha256` 和可选 `start_frame`。路径相对本集目录，按原速截取 1080p30 源画面，可引用已有三维镜头、SVG 动画的导出视频或分层动画。用 `uv run python scripts/layered.py PROGRAM OUTPUT` 导出分层源，节目配置填写 `mechanical_role: "support"`。随本集保留了该镜头的 Blender 场景源时，可以用 `"fallback_to_scene": true` 在原速缓存缺失时重渲染。可选 `frames` 固定画面长度，保留足够的实测语音时长与尾部留白。`"composition": "ffmpeg"` 使用同一时间轴合成字幕、部件标注和实测配音。
 
@@ -42,6 +44,8 @@ uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --cli
 ## 导演式配音
 
 按剧情段落编排情绪、重音和留白，用联合时间轴放置逐句实测音频。CosyVoice 3.0 是显式启用的导演式引擎。Audiogen Neil 继续作为正式制作默认和整轨回退引擎。支持复用原句调整时间轴、重配单句及使用 SenseVoiceSmall 定位发音复核点。 [导演式配音](docs/voice-direction.md)
+
+在使用 `timeline` 的剪辑中，可用 `voice_direction` 引用本集的逐句导演方案。镜头改切后按句子起点更新所属画面，配音缓存继续按语音内容和合成参数复用。
 
 ## 恢复已有账本任务
 
