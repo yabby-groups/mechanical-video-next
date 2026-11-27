@@ -509,6 +509,1143 @@
           ]
         }
       }
+    },
+    "2a138adf2443c37e272461180d6ab34430292d2c18ff7d99a4d945aa11f2f5a5": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                0,
+                15
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                15,
+                160
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                160,
+                170
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                170,
+                343
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "d9f54a826b6c936a789b7cd17d29402985a25f90f8e05d93aee43fe7fb489666": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                0,
+                15
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                15,
+                160
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                160,
+                170
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                170,
+                343
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "567b0608d0141076acf46f5da2fa3101a6830e0f1f097d5abf2a8514afead39f": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                0,
+                15
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                15,
+                160
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                160,
+                170
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                170,
+                343
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "9d59f2caac76eff8e51d55a8c1f0f8dc5d088695c4cd38cc7148ee8c323c8bc7": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                0,
+                15
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                15,
+                160
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 4,
+              "window": [
+                160,
+                170
+              ]
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5,
+              "window": [
+                170,
+                343
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "2bb4ecd5271f29d06ac1be285131cdcb14048b24272cdc00015f3e86ebc89258": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "25a076a1e0a121c76f6a8c9921c331fbe91ba9387f4762f8728f865f18dba9a4": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "f3ceacdf46cc38be3439c68c88d3887b48f3ccc98f0fd113d0b513331b593e4d": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "089ebc29a8627fb1c1b703bbe45b6bdc256d176c946653666eaa2a74a0300789": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "12c66ba35dcbfedec5cd06f8b7d86d71c94e1def263937384e5f9af8d2a717e1": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            }
+          ]
+        }
+      }
+    },
+    "637411d4c8dc6a97f0f10d9743ad0c73b88f51832479c59e694a6c2aac655124": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "28fb506752f2d7eff93e047d0bb22235b2f556d57a3e65a0cce60e157ef1d63e": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "6fca6cf4844091241e810039a76a1deb3e33e5bd1e4e2fa4a85aa8fb8c248344": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "cancel": {
+          "channels": [
+            "press",
+            "height"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 40,
+              "window": [
+                198,
+                247
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  0.043,
+                  0.049
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "window": [
+                236,
+                253
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 15,
+              "window": [
+                250,
+                477
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "68139a1bdaa8e00a853f24d881b819104094ef20d327bf6872f0872873b71659": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "cancel": {
+          "channels": [
+            "press",
+            "height"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 40,
+              "window": [
+                198,
+                247
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  0.043,
+                  0.049
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "window": [
+                236,
+                253
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 15,
+              "window": [
+                250,
+                477
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "799e3618c517220734ce679a622333435362e81d510183cbb5932942e744d8de": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "cancel": {
+          "channels": [
+            "press",
+            "height"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 40,
+              "window": [
+                198,
+                247
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  0.043,
+                  0.049
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "window": [
+                236,
+                253
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 15,
+              "window": [
+                250,
+                477
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "cb5a26f0223fd0270ef43afd46cde69d238df4737cc807e48d53df69aaa23e56": {
+      "kind": "core",
+      "relations": {
+        "tray": {
+          "channels": [
+            "angle"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "angle": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              "hold_frames": 16
+            },
+            {
+              "ranges": {
+                "angle": [
+                  0.81,
+                  0.85
+                ]
+              },
+              "hold_frames": 30
+            },
+            {
+              "ranges": {
+                "angle": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "d61abec8e275feefacdce75b6a4374f142ea5a517d1cea7ce0cc78392be9fd10": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "spring": {
+          "channels": [
+            "length"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "length": [
+                  1.52,
+                  1.53
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "length": [
+                  0.46,
+                  0.47
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        }
+      }
+    },
+    "d088f39f91d5877b9575153f5dbc5760f2ca5c6bc6bdcc268c87e9e97e5b8f1c": {
+      "kind": "core",
+      "relations": {
+        "lift": {
+          "channels": [
+            "height",
+            "gap"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            },
+            {
+              "ranges": {
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 15
+            },
+            {
+              "ranges": {
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 5
+            }
+          ]
+        },
+        "cancel": {
+          "channels": [
+            "press",
+            "height"
+          ],
+          "source_events": [
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "hold_frames": 40,
+              "window": [
+                198,
+                247
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  0.043,
+                  0.049
+                ],
+                "height": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              "window": [
+                236,
+                253
+              ]
+            },
+            {
+              "ranges": {
+                "press": [
+                  -0.001,
+                  0.004
+                ],
+                "height": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              "hold_frames": 15,
+              "window": [
+                250,
+                477
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "6e41638f25c533edb04015354f5e0259e429983bb0dade84ea03e025658839de": {
+      "kind": "graphic",
+      "relations": {
+        "cycle_chart": {
+          "type": "opposed_traces",
+          "labels": [
+            "托架高度",
+            "弹簧伸长"
+          ]
+        }
+      }
     }
   },
   "presentation": {
@@ -522,6 +1659,26 @@
       "6": "抽查 68.60–84.00 秒，正常结束时吐司先从槽内正常弹出。切换到第二次低位，76.50–76.80 秒指尖朝向并按入旋钮中心，77.13 秒吐司回升。",
       "7": "抽查 84.50–98.33 秒，先见接渣盘闭合，89.00 秒下翻，90.67–95.67 秒见打开的底框、槽下通路和盘面碎屑，97.00–98.33 秒沿同一轴合回。",
       "8": "抽查 98.43–113.90 秒，完整总结镜从托架高位，经下压和低位保持，再回到顶部。弹簧伸长和缩短与滑架动作同步。"
+    },
+    "2a211dd3472220cc3c392254df67286b6079304827adda9facb4002a1cdbebb9": {
+      "0": "0.033、0.700、1.333 秒，开壳视角中两片吐司随各自横托一起升起，能看到共用滑架和弹簧。",
+      "1": "1.433、3.233、5.000 秒，近景保留两片吐司底下的横托及前端连接，其中前方弹簧靠近同一滑架。",
+      "2": "5.100、6.100、7.067 秒，从两条横托过渡到完整外壳，吐司位置保持在高位。",
+      "3": "7.167、9.267、11.367 秒，整机保持高位，能看到两条并列槽口和两片露头的吐司。",
+      "4": "11.467、13.100、14.700 秒，黑色外壳与顶板分离，前端手柄、滑架和两槽位置随之露出。",
+      "5": "14.800、17.533、20.233 秒，拆去槽侧遮挡后可追踪两条横托接至同一前端滑架。",
+      "6": "20.333、22.333、24.300 秒，正面可见滑架两侧导向，滑架下降，上方回位弹簧同时拉长。",
+      "7": "24.400、26.667、28.900 秒，顺接上镜下降行程，弹簧线圈间距增大，浅色滑架处在下端连接点。",
+      "8": "29.000、32.733、36.433 秒，滑架保持低位，弹簧保持拉长，未在保持阶段回缩。",
+      "9": "36.533、44.133、51.700 秒，托架从低位进入释放回升，再停在高位，两片吐司随横托一起受托。",
+      "10": "51.800、58.767、65.733 秒，定性曲线显示托架下降时弹簧拉长，低位保持，回升时弹簧缩回，画面标注趋势示意。",
+      "11": "65.700 秒的趋势曲线和 65.900 秒的三维高位画面显示同一句字幕。67.200、68.533 秒可顺着配色找到托架和上方弹簧。",
+      "12": "68.633、71.933、75.200 秒，恢复外壳后可辨低位吐司及两条槽口，前端旋钮与下压的手柄在同一机身。",
+      "13": "75.900、76.650、76.800、77.130、77.970 秒，指尖靠近旋钮中心、按压区域被指尖遮挡，手柄与吐司随后升起，指尖撤开后取消键重新可见。",
+      "14": "78.067、79.333、80.567 秒，回到较宽构图，两片吐司与手柄保持在升起位置。",
+      "15": "80.667、82.567、84.433 秒，整机保持高位，前端控制与上方两片吐司仍同框。",
+      "16": "84.533、91.433、98.333 秒，从机底观察接渣盘由闭合翻开再复位，打开时可见内部开口及盘上碎屑。",
+      "17": "98.433、106.233、114.000 秒，回到剖视重复展示低位释放后托架与吐司同向升起，上方弹簧缩回。"
     }
   }
 }

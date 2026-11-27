@@ -69,4 +69,28 @@ def worm_rack(scene, graph):
     return sample
 
 
-RELATIONS = {'worm_rack': worm_rack}
+def assembly(scene, graph):
+    objects = scene.objects
+    root = objects['Adjustable wrench']
+    rack = objects['Sliding jaw and rack']
+    worm = objects['Worm rotates about its retained pin']
+    pin = objects['Retaining pin']
+    guide = objects['Lower edge of the jaw guide']
+    if not guide.evaluated_get(graph).data.polygons or not any(
+            child.name.startswith('Rack tooth') for child in rack.children):
+        raise ValueError('Expected separate guide and rack teeth')
+
+    def sample(graph):
+        axis = relative_matrix(pin, root, graph).to_quaternion() @ Vector((0, 0, 1))
+        require_range('Retaining pin aligned with the roller', abs(axis.x), .999, 1.001)
+        roller = relative_matrix(worm, root, graph).translation
+        pin_location = relative_matrix(pin, root, graph).translation
+        require_range('Pin is coaxial during withdrawal', math.hypot(
+            roller.y - pin_location.y, roller.z - pin_location.z), 0, .001)
+        return {'withdrawal': abs(roller.x - pin_location.x),
+                'jaw_lift': relative_matrix(rack, root, graph).translation.z}
+
+    return sample
+
+
+RELATIONS = {'worm_rack': worm_rack, 'assembly': assembly}

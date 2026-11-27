@@ -1,0 +1,549 @@
+{
+  "title": "",
+  "composition": "ffmpeg",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "output": "toaster-visual-narrative.mp4",
+  "timeline": "visual-timeline.json",
+  "shots": [
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "carriage_z",
+            "window": [
+              0,
+              49
+            ],
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 10,
+            "max_step": 0.11
+          }
+        ]
+      },
+      "id": "view-1-1",
+      "frames": 42,
+      "scene_shot": 0,
+      "source_frames": 343,
+      "labels": [
+        [
+          0.0,
+          1.4,
+          "托架带着吐司上升"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "carriage_z",
+            "window": [
+              0,
+              49
+            ],
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 10,
+            "max_step": 0.11
+          }
+        ]
+      },
+      "id": "view-1-2",
+      "frames": 110,
+      "scene_shot": 0,
+      "source_frames": 343,
+      "crop": [
+        0.19,
+        0.16,
+        0.64,
+        0.64
+      ],
+      "labels": [
+        [
+          0.0,
+          0.2,
+          "托架带着吐司上升"
+        ],
+        [
+          0.3,
+          3.66666667,
+          "两条横托 → 同一个滑架"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "carriage_z",
+            "window": [
+              0,
+              49
+            ],
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 10,
+            "max_step": 0.11
+          }
+        ]
+      },
+      "id": "view-1-3",
+      "frames": 62,
+      "scene_shot": 0,
+      "source_frames": 343,
+      "crop": [
+        0.14,
+        0.12,
+        0.75,
+        0.75
+      ],
+      "labels": [
+        [
+          0.0,
+          0.23333333,
+          "两条横托 → 同一个滑架"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "carriage_z",
+            "window": [
+              0,
+              49
+            ],
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 10,
+            "max_step": 0.11
+          }
+        ]
+      },
+      "id": "view-1-4",
+      "frames": 129,
+      "scene_shot": 0,
+      "source_frames": 343
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-2-1",
+      "frames": 100,
+      "scene_shot": 1,
+      "source_frames": 266
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-2-2",
+      "frames": 166,
+      "scene_shot": 1,
+      "source_frames": 266,
+      "crop": [
+        0.14,
+        0.21,
+        0.7,
+        0.7
+      ],
+      "labels": [
+        [
+          1.66666667,
+          4.56666667,
+          "一根手柄带动两条横托"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-3-1",
+      "frames": 122,
+      "scene_shot": 2,
+      "source_frames": 486,
+      "labels": [
+        [
+          0.2,
+          3.4,
+          "导向件"
+        ],
+        [
+          3.9,
+          4.06666667,
+          "回位弹簧拉长"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-3-2",
+      "frames": 138,
+      "scene_shot": 2,
+      "source_frames": 486,
+      "crop": [
+        0.18,
+        0.15,
+        0.66,
+        0.66
+      ],
+      "labels": [
+        [
+          0.0,
+          4.33333333,
+          "回位弹簧拉长"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-3-3",
+      "frames": 226,
+      "scene_shot": 2,
+      "source_frames": 486,
+      "labels": [
+        [
+          2.53333333,
+          7.13333333,
+          "托架保持在低位"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-4-1",
+      "frames": 458,
+      "scene_shot": 3,
+      "source_frames": 458,
+      "labels": [
+        [
+          0.4,
+          2.6,
+          "慢动作"
+        ],
+        [
+          6.4,
+          9.9,
+          "同一个滑架抬起两片"
+        ]
+      ]
+    },
+    {
+      "graphic": {
+        "type": "data_animation",
+        "title": "一次弹起分成三步",
+        "presentation": "trace",
+        "unit": "趋势示意",
+        "domainMax": 1,
+        "formula": "下压储能 → 低位保持 → 释放回升",
+        "items": [
+          {
+            "label": "托架高度",
+            "detail": "托架下降后保持在低位，释放后回到高位",
+            "keyframes": [
+              [
+                0,
+                0.92
+              ],
+              [
+                3.1,
+                0.92
+              ],
+              [
+                4.7,
+                0.06
+              ],
+              [
+                9.9,
+                0.06
+              ],
+              [
+                10.55,
+                0.92
+              ],
+              [
+                14,
+                0.92
+              ]
+            ]
+          },
+          {
+            "label": "弹簧伸长",
+            "detail": "下压时伸长，回程时缩短",
+            "keyframes": [
+              [
+                0,
+                0.08
+              ],
+              [
+                3.1,
+                0.08
+              ],
+              [
+                4.7,
+                0.83
+              ],
+              [
+                9.9,
+                0.83
+              ],
+              [
+                10.55,
+                0.08
+              ],
+              [
+                14,
+                0.08
+              ]
+            ]
+          }
+        ],
+        "qualitative": true,
+        "basis": {
+          "path": "productions/pop-up-toaster/research.md",
+          "sha256": "e094699d77e29550ec0cecff3de8140c4e3ad6aadf141d6ba4fcd34a6ac98a73",
+          "position": "滑架与弹簧、二维图解"
+        }
+      },
+      "id": "view-5-1",
+      "frames": 421
+    },
+    {
+      "scene": "audience_scene.py",
+      "scene_shot": 8,
+      "scene_inputs": [
+        "scene.py",
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-6-1",
+      "frames": 84,
+      "source_frames": 84,
+      "labels": [
+        [
+          0.2,
+          2.55,
+          "释放后 · 托架回到高位"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "scene_shot": 5,
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-7-1",
+      "frames": 200,
+      "source_frames": 477,
+      "labels": [
+        [
+          0.3,
+          6.5,
+          "正常结束"
+        ],
+        [
+          6.6,
+          6.66666667,
+          "按下旋钮中心的取消键"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "scene_shot": 5,
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-7-2",
+      "frames": 83,
+      "source_frames": 477,
+      "crop": [
+        0.1,
+        0.29,
+        0.7,
+        0.7
+      ],
+      "labels": [
+        [
+          0.0,
+          2.76666667,
+          "按下旋钮中心的取消键"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "scene_shot": 5,
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-7-3",
+      "frames": 78,
+      "source_frames": 477,
+      "labels": [
+        [
+          0.0,
+          2.46666667,
+          "按下旋钮中心的取消键"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene": "audience_scene.py",
+      "scene_shot": 5,
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-7-4",
+      "frames": 116,
+      "source_frames": 477
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py",
+        "scene.py"
+      ],
+      "scene_shot": 6,
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "scene": "service_scene.py",
+      "id": "view-8-1",
+      "frames": 417,
+      "source_frames": 417,
+      "labels": [
+        [
+          3.35,
+          7.35,
+          "下翻式接渣盘"
+        ]
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "scene_shot": 7,
+      "mechanics": {
+        "evidence": "research.md",
+        "checks": [
+          {
+            "channel": "carriage_z",
+            "tolerance": 0.0001,
+            "max_step": 0.11,
+            "events": [
+              {
+                "id": "raised",
+                "range": [
+                  -0.002,
+                  0.002
+                ]
+              },
+              {
+                "id": "held",
+                "range": [
+                  -1.062,
+                  -1.058
+                ]
+              },
+              {
+                "id": "returned",
+                "range": [
+                  -0.002,
+                  0.002
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": "view-9-1",
+      "frames": 470,
+      "source_frames": 470,
+      "labels": [
+        [
+          2.1,
+          5.7,
+          "下压储能"
+        ],
+        [
+          6.2,
+          9.5,
+          "释放回升"
+        ]
+      ]
+    }
+  ],
+  "preview_step": 6
+}

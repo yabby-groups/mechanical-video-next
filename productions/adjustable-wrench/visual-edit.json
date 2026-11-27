@@ -1,0 +1,407 @@
+{
+  "title": "",
+  "composition": "ffmpeg",
+  "bgm": "assets/audio/bgm/starter/quiet-link-technology.flac",
+  "output": "wrench-visual-narrative.mp4",
+  "timeline": "visual-timeline.json",
+  "shots": [
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 20,
+            "max_step": 0.014
+          }
+        ]
+      },
+      "id": "view-1-1",
+      "frames": 67,
+      "scene_shot": 0,
+      "source_frames": 367
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 20,
+            "max_step": 0.014
+          }
+        ]
+      },
+      "id": "view-1-2",
+      "frames": 78,
+      "scene_shot": 0,
+      "source_frames": 367,
+      "crop": [
+        0.2,
+        0.15,
+        0.62,
+        0.62
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "direction": 1,
+            "tolerance": 0.0001,
+            "min_motion_frames": 20,
+            "max_step": 0.014
+          }
+        ]
+      },
+      "id": "view-1-3",
+      "frames": 222,
+      "scene_shot": 0,
+      "source_frames": 367
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-2-1",
+      "frames": 411,
+      "scene_shot": 1,
+      "source_frames": 411
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "tolerance": 0.0001,
+            "max_step": 0.014,
+            "events": [
+              {
+                "id": "closed",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              {
+                "id": "half turn",
+                "range": [
+                  0.152,
+                  0.158
+                ]
+              },
+              {
+                "id": "one turn",
+                "range": [
+                  0.307,
+                  0.312
+                ]
+              },
+              {
+                "id": "return",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": "view-3-1",
+      "frames": 105,
+      "scene_shot": 2,
+      "source_frames": 443
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "tolerance": 0.0001,
+            "max_step": 0.014,
+            "events": [
+              {
+                "id": "closed",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              {
+                "id": "half turn",
+                "range": [
+                  0.152,
+                  0.158
+                ]
+              },
+              {
+                "id": "one turn",
+                "range": [
+                  0.307,
+                  0.312
+                ]
+              },
+              {
+                "id": "return",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": "view-3-2",
+      "frames": 76,
+      "scene_shot": 2,
+      "source_frames": 443,
+      "crop": [
+        0.22,
+        0.31,
+        0.54,
+        0.54
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "tolerance": 0.0001,
+            "max_step": 0.014,
+            "events": [
+              {
+                "id": "closed",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              {
+                "id": "half turn",
+                "range": [
+                  0.152,
+                  0.158
+                ]
+              },
+              {
+                "id": "one turn",
+                "range": [
+                  0.307,
+                  0.312
+                ]
+              },
+              {
+                "id": "return",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": "view-3-3",
+      "frames": 123,
+      "scene_shot": 2,
+      "source_frames": 443
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md",
+        "source_checks": [
+          {
+            "channel": "jaw_travel",
+            "tolerance": 0.0001,
+            "max_step": 0.014,
+            "events": [
+              {
+                "id": "closed",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              },
+              {
+                "id": "half turn",
+                "range": [
+                  0.152,
+                  0.158
+                ]
+              },
+              {
+                "id": "one turn",
+                "range": [
+                  0.307,
+                  0.312
+                ]
+              },
+              {
+                "id": "return",
+                "range": [
+                  -0.001,
+                  0.002
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "id": "view-3-4",
+      "frames": 139,
+      "scene_shot": 2,
+      "source_frames": 443,
+      "crop": [
+        0.22,
+        0.3,
+        0.57,
+        0.57
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-4-1",
+      "frames": 160,
+      "scene_shot": 3,
+      "source_frames": 392
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-4-2",
+      "frames": 138,
+      "scene_shot": 3,
+      "source_frames": 392
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-4-3",
+      "frames": 94,
+      "scene_shot": 3,
+      "source_frames": 392,
+      "crop": [
+        0.23,
+        0.18,
+        0.61,
+        0.61
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-5-1",
+      "frames": 338,
+      "scene_shot": 4,
+      "source_frames": 338
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-6-1",
+      "frames": 184,
+      "scene_shot": 5,
+      "source_frames": 511
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-6-2",
+      "frames": 154,
+      "scene_shot": 5,
+      "source_frames": 511
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-6-3",
+      "frames": 173,
+      "scene_shot": 5,
+      "source_frames": 511,
+      "crop": [
+        0.23,
+        0.17,
+        0.63,
+        0.63
+      ]
+    },
+    {
+      "scene_inputs": [
+        "../quarter-turn-faucet/scene.py"
+      ],
+      "mechanics": {
+        "evidence": "research.md"
+      },
+      "id": "view-7-1",
+      "frames": 342,
+      "scene_shot": 6,
+      "source_frames": 342
+    }
+  ],
+  "preview_step": 5
+}

@@ -1,0 +1,866 @@
+{
+  "plan": {
+    "frame_count": 2804,
+    "shots": [
+      {
+        "id": "view-1-1",
+        "start_frame": 0,
+        "end_frame": 67,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-1": 0
+        }
+      },
+      {
+        "id": "view-1-2",
+        "start_frame": 67,
+        "end_frame": 145,
+        "source_start_frame": 67,
+        "action_views": {
+          "action-1": 67
+        }
+      },
+      {
+        "id": "view-1-3",
+        "start_frame": 145,
+        "end_frame": 367,
+        "source_start_frame": 145,
+        "action_views": {
+          "action-1": 145
+        }
+      },
+      {
+        "id": "view-2-1",
+        "start_frame": 367,
+        "end_frame": 778,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-2": 0
+        }
+      },
+      {
+        "id": "view-3-1",
+        "start_frame": 778,
+        "end_frame": 883,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-3": 0
+        }
+      },
+      {
+        "id": "view-3-2",
+        "start_frame": 883,
+        "end_frame": 959,
+        "source_start_frame": 105,
+        "action_views": {
+          "action-3": 105
+        }
+      },
+      {
+        "id": "view-3-3",
+        "start_frame": 959,
+        "end_frame": 1082,
+        "source_start_frame": 181,
+        "action_views": {
+          "action-3": 181
+        }
+      },
+      {
+        "id": "view-3-4",
+        "start_frame": 1082,
+        "end_frame": 1221,
+        "source_start_frame": 304,
+        "action_views": {
+          "action-3": 304
+        }
+      },
+      {
+        "id": "view-4-1",
+        "start_frame": 1221,
+        "end_frame": 1381,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-4": 0
+        }
+      },
+      {
+        "id": "view-4-2",
+        "start_frame": 1381,
+        "end_frame": 1519,
+        "source_start_frame": 160,
+        "action_views": {
+          "action-4": 160
+        }
+      },
+      {
+        "id": "view-4-3",
+        "start_frame": 1519,
+        "end_frame": 1613,
+        "source_start_frame": 298,
+        "action_views": {
+          "action-4": 298
+        }
+      },
+      {
+        "id": "view-5-1",
+        "start_frame": 1613,
+        "end_frame": 1951,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-5": 0
+        }
+      },
+      {
+        "id": "view-6-1",
+        "start_frame": 1951,
+        "end_frame": 2135,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-6": 0
+        }
+      },
+      {
+        "id": "view-6-2",
+        "start_frame": 2135,
+        "end_frame": 2289,
+        "source_start_frame": 184,
+        "action_views": {
+          "action-6": 184
+        }
+      },
+      {
+        "id": "view-6-3",
+        "start_frame": 2289,
+        "end_frame": 2462,
+        "source_start_frame": 338,
+        "action_views": {
+          "action-6": 338
+        }
+      },
+      {
+        "id": "view-7-1",
+        "start_frame": 2462,
+        "end_frame": 2804,
+        "source_start_frame": 0,
+        "action_views": {
+          "action-7": 0
+        }
+      }
+    ],
+    "narration": [
+      {
+        "id": "line-1-1",
+        "start_frame": 12,
+        "deadline_frame": 93,
+        "text": "拇指只在原地拨，钳口却横着走。",
+        "knowledge_ids": [
+          "detail-1"
+        ]
+      },
+      {
+        "id": "line-1-2",
+        "start_frame": 100,
+        "deadline_frame": 260,
+        "text": "让活动扳手做到这一步的，是窗口里这颗带螺旋的滚轮。",
+        "knowledge_ids": [
+          "detail-1"
+        ]
+      },
+      {
+        "id": "line-1-3",
+        "start_frame": 267,
+        "deadline_frame": 365,
+        "text": "滚轮每转一圈，活动钳口就挪过一格。",
+        "knowledge_ids": [
+          "detail-1"
+        ]
+      },
+      {
+        "id": "line-2-1",
+        "start_frame": 372,
+        "deadline_frame": 436,
+        "text": "把滚轮和钳口分开看。",
+        "knowledge_ids": [
+          "detail-2"
+        ]
+      },
+      {
+        "id": "line-2-2",
+        "start_frame": 443,
+        "deadline_frame": 560,
+        "text": "活动钳口的底下有一排齿，正好伸到滚轮上方。",
+        "knowledge_ids": [
+          "detail-2"
+        ]
+      },
+      {
+        "id": "line-2-3",
+        "start_frame": 567,
+        "deadline_frame": 768,
+        "text": "中间这根轴把滚轮留在窗口里，扳手头里的导槽让钳口沿一个方向滑动。",
+        "knowledge_ids": [
+          "detail-2"
+        ],
+        "subtitles": [
+          {
+            "offset_samples": 0,
+            "text": "中间这根轴把滚轮留在窗口里，"
+          },
+          {
+            "offset_samples": 142992,
+            "text": "扳手头里的导槽让钳口沿一个方向滑动。"
+          }
+        ]
+      },
+      {
+        "id": "line-3-1",
+        "start_frame": 783,
+        "deadline_frame": 838,
+        "text": "跟住螺旋顶端这一段。",
+        "knowledge_ids": [
+          "detail-3"
+        ]
+      },
+      {
+        "id": "line-3-2",
+        "start_frame": 845,
+        "deadline_frame": 969,
+        "text": "滚轮转过半圈，和齿条相遇的位置就沿轴走了半格。",
+        "knowledge_ids": [
+          "detail-3"
+        ]
+      },
+      {
+        "id": "line-3-3",
+        "start_frame": 976,
+        "deadline_frame": 1119,
+        "text": "转完一圈，接触换到隔壁一格，钳口再走完剩下的半格。",
+        "knowledge_ids": [
+          "detail-3"
+        ]
+      },
+      {
+        "id": "line-3-4",
+        "start_frame": 1126,
+        "deadline_frame": 1212,
+        "text": "把滚轮反过来拨，钳口也就往回走。",
+        "knowledge_ids": [
+          "detail-3"
+        ]
+      },
+      {
+        "id": "line-4-1",
+        "start_frame": 1226,
+        "deadline_frame": 1305,
+        "text": "张开后套上螺母，再把开口收紧。",
+        "knowledge_ids": [
+          "detail-4"
+        ]
+      },
+      {
+        "id": "line-4-2",
+        "start_frame": 1312,
+        "deadline_frame": 1432,
+        "text": "两个钳口应该贴住六角上相对的两片平面。",
+        "knowledge_ids": [
+          "detail-4"
+        ]
+      },
+      {
+        "id": "line-4-3",
+        "start_frame": 1438,
+        "deadline_frame": 1603,
+        "text": "换个角度看，扳手贴得越正，螺母在开口里乱晃的余地就越小。",
+        "knowledge_ids": [
+          "detail-4"
+        ],
+        "subtitles": [
+          {
+            "offset_samples": 0,
+            "text": "换个角度看，扳手贴得越正，"
+          },
+          {
+            "offset_samples": 89904,
+            "text": "螺母在开口里乱晃的余地就越小。"
+          }
+        ]
+      },
+      {
+        "id": "line-5-1",
+        "start_frame": 1618,
+        "deadline_frame": 1762,
+        "text": "如果开口留了缝，一用力，扳手会先在螺母上转过一点。",
+        "knowledge_ids": [
+          "detail-5"
+        ]
+      },
+      {
+        "id": "line-5-2",
+        "start_frame": 1768,
+        "deadline_frame": 1844,
+        "text": "你会看到接触挤到两个角附近。",
+        "knowledge_ids": [
+          "detail-5"
+        ]
+      },
+      {
+        "id": "line-5-3",
+        "start_frame": 1851,
+        "deadline_frame": 1941,
+        "text": "开口越松，越容易把六角的边角压伤。",
+        "knowledge_ids": [
+          "detail-5"
+        ]
+      },
+      {
+        "id": "line-6-1",
+        "start_frame": 1956,
+        "deadline_frame": 2126,
+        "text": "真正拧的时候，力从手柄传到扳手头，再由两片钳口推着螺母转。",
+        "knowledge_ids": [
+          "detail-6"
+        ],
+        "subtitles": [
+          {
+            "offset_samples": 0,
+            "text": "真正拧的时候，力从手柄传到扳手头，"
+          },
+          {
+            "offset_samples": 149760,
+            "text": "再由两片钳口推着螺母转。"
+          }
+        ]
+      },
+      {
+        "id": "line-6-2",
+        "start_frame": 2133,
+        "deadline_frame": 2284,
+        "text": "回到滚轮的窗口，它负责调好开口，手施力的位置是这根长柄。",
+        "knowledge_ids": [
+          "detail-6"
+        ],
+        "subtitles": [
+          {
+            "offset_samples": 0,
+            "text": "回到滚轮的窗口，它负责调好开口，"
+          },
+          {
+            "offset_samples": 139008,
+            "text": "手施力的位置是这根长柄。"
+          }
+        ]
+      },
+      {
+        "id": "line-6-3",
+        "start_frame": 2290,
+        "deadline_frame": 2453,
+        "text": "换个尺寸的螺母之前，也先转一转滚轮，把开口重新调好。",
+        "knowledge_ids": [
+          "detail-6"
+        ],
+        "subtitles": [
+          {
+            "offset_samples": 0,
+            "text": "换个尺寸的螺母之前，也先转一转滚轮，"
+          },
+          {
+            "offset_samples": 159024,
+            "text": "把开口重新调好。"
+          }
+        ]
+      },
+      {
+        "id": "line-7-1",
+        "start_frame": 2467,
+        "deadline_frame": 2592,
+        "text": "下次拿起活动扳手，可以看一眼窗口里那圈螺旋。",
+        "knowledge_ids": [
+          "detail-7"
+        ]
+      },
+      {
+        "id": "line-7-2",
+        "start_frame": 2598,
+        "deadline_frame": 2701,
+        "text": "手指拨一下，转动变成钳口的直线移动。",
+        "knowledge_ids": [
+          "detail-7"
+        ]
+      },
+      {
+        "id": "line-7-3",
+        "start_frame": 2708,
+        "deadline_frame": 2794,
+        "text": "套上后先贴紧两面，再扳手柄。",
+        "knowledge_ids": [
+          "detail-7"
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "action-1",
+        "start_frame": 0,
+        "end_frame": 367,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "跟住活动钳口和固定刻线"
+      },
+      {
+        "id": "action-2",
+        "start_frame": 367,
+        "end_frame": 778,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "辨清抽出的同轴销和被抬起的齿条"
+      },
+      {
+        "id": "action-3",
+        "start_frame": 778,
+        "end_frame": 1221,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "跟住接触标记和相邻齿距"
+      },
+      {
+        "id": "action-4",
+        "start_frame": 1221,
+        "end_frame": 1613,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "找钳口与六角平面的接触"
+      },
+      {
+        "id": "action-5",
+        "start_frame": 1613,
+        "end_frame": 1951,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "比较留缝后的接触位置"
+      },
+      {
+        "id": "action-6",
+        "start_frame": 1951,
+        "end_frame": 2462,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "追踪手柄到钳口，再看更换螺母后的开口调节"
+      },
+      {
+        "id": "action-7",
+        "start_frame": 2462,
+        "end_frame": 2804,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "1fb6be05c925395f955cd9f1a4558892cfaddb58bb85d8a06624d233d69c6a16"
+        },
+        "start_state": "原始镜头动作首帧",
+        "end_state": "原始镜头动作末帧",
+        "curve": "沿用 Blender 原动作及 30 fps 帧时钟",
+        "constraints": "看调节怎样接到实际使用"
+      }
+    ]
+  },
+  "pacing": {
+    "view-1-1": {
+      "watch_task": "跟住活动钳口和固定刻线",
+      "mechanical_event": "开口横移",
+      "camera_reason": "对照轴向位移与滚轮原地旋转",
+      "exit_condition": "观察开口横移，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-1",
+          "discovery": "开口横移",
+          "frames": [
+            0,
+            60
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-1",
+          "kind": "output",
+          "frames": [
+            0,
+            60
+          ],
+          "description": "开口横移",
+          "action_id": "action-1",
+          "opening": true
+        }
+      ]
+    },
+    "view-1-2": {
+      "watch_task": "跟住活动钳口和固定刻线",
+      "mechanical_event": "开口横移",
+      "camera_reason": "对现有画面的局部取景。对照轴向位移与滚轮原地旋转",
+      "exit_condition": "观察开口横移，随后转向下一项关系",
+      "increments": [],
+      "observation": [
+        {
+          "task": "跟住活动钳口和固定刻线",
+          "evidence": "局部构图保留动作源的原帧顺序",
+          "frames": [
+            67,
+            142
+          ]
+        }
+      ],
+      "events": []
+    },
+    "view-1-3": {
+      "watch_task": "跟住活动钳口和固定刻线",
+      "mechanical_event": "开口横移",
+      "camera_reason": "对照轴向位移与滚轮原地旋转",
+      "exit_condition": "观察开口横移，随后转向下一项关系",
+      "increments": [],
+      "observation": [],
+      "events": []
+    },
+    "view-2-1": {
+      "watch_task": "辨清抽出的同轴销和被抬起的齿条",
+      "mechanical_event": "轴和齿条的装配",
+      "camera_reason": "保留扳手头和导槽作为装配参照",
+      "exit_condition": "观察轴和齿条的装配，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-2",
+          "discovery": "轴和齿条的装配",
+          "frames": [
+            367,
+            427
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-2",
+          "kind": "transmission",
+          "frames": [
+            367,
+            427
+          ],
+          "description": "轴和齿条的装配",
+          "action_id": "action-2",
+          "opening": false
+        }
+      ]
+    },
+    "view-3-1": {
+      "watch_task": "跟住接触标记和相邻齿距",
+      "mechanical_event": "半圈、一圈与反向",
+      "camera_reason": "在同一动作内切换啮合处的观察尺度",
+      "exit_condition": "观察半圈、一圈与反向，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-3",
+          "discovery": "半圈、一圈与反向",
+          "frames": [
+            778,
+            838
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-3",
+          "kind": "transmission",
+          "frames": [
+            778,
+            838
+          ],
+          "description": "半圈、一圈与反向",
+          "action_id": "action-3",
+          "opening": false
+        }
+      ]
+    },
+    "view-3-2": {
+      "watch_task": "跟住接触标记和相邻齿距",
+      "mechanical_event": "半圈、一圈与反向",
+      "camera_reason": "对现有画面的局部取景。在同一动作内切换啮合处的观察尺度",
+      "exit_condition": "观察半圈、一圈与反向，随后转向下一项关系",
+      "increments": [],
+      "observation": [
+        {
+          "task": "跟住接触标记和相邻齿距",
+          "evidence": "局部构图保留动作源的原帧顺序",
+          "frames": [
+            883,
+            958
+          ]
+        }
+      ],
+      "events": []
+    },
+    "view-3-3": {
+      "watch_task": "跟住接触标记和相邻齿距",
+      "mechanical_event": "半圈、一圈与反向",
+      "camera_reason": "在同一动作内切换啮合处的观察尺度",
+      "exit_condition": "观察半圈、一圈与反向，随后转向下一项关系",
+      "increments": [],
+      "observation": [],
+      "events": []
+    },
+    "view-3-4": {
+      "watch_task": "跟住接触标记和相邻齿距",
+      "mechanical_event": "半圈、一圈与反向",
+      "camera_reason": "对现有画面的局部取景。在同一动作内切换啮合处的观察尺度",
+      "exit_condition": "观察半圈、一圈与反向，随后转向下一项关系",
+      "increments": [],
+      "observation": [
+        {
+          "task": "跟住接触标记和相邻齿距",
+          "evidence": "局部构图保留动作源的原帧顺序",
+          "frames": [
+            1082,
+            1157
+          ]
+        }
+      ],
+      "events": []
+    },
+    "view-4-1": {
+      "watch_task": "找钳口与六角平面的接触",
+      "mechanical_event": "套上并贴紧螺母",
+      "camera_reason": "保留螺母和两侧钳口",
+      "exit_condition": "观察套上并贴紧螺母，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-4",
+          "discovery": "套上并贴紧螺母",
+          "frames": [
+            1221,
+            1281
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-4",
+          "kind": "transmission",
+          "frames": [
+            1221,
+            1281
+          ],
+          "description": "套上并贴紧螺母",
+          "action_id": "action-4",
+          "opening": false
+        }
+      ]
+    },
+    "view-4-2": {
+      "watch_task": "找钳口与六角平面的接触",
+      "mechanical_event": "套上并贴紧螺母",
+      "camera_reason": "保留螺母和两侧钳口",
+      "exit_condition": "观察套上并贴紧螺母，随后转向下一项关系",
+      "increments": [],
+      "observation": [],
+      "events": []
+    },
+    "view-4-3": {
+      "watch_task": "找钳口与六角平面的接触",
+      "mechanical_event": "套上并贴紧螺母",
+      "camera_reason": "对现有画面的局部取景。保留螺母和两侧钳口",
+      "exit_condition": "观察套上并贴紧螺母，随后转向下一项关系",
+      "increments": [],
+      "observation": [
+        {
+          "task": "找钳口与六角平面的接触",
+          "evidence": "局部构图保留动作源的原帧顺序",
+          "frames": [
+            1519,
+            1594
+          ]
+        }
+      ],
+      "events": []
+    },
+    "view-5-1": {
+      "watch_task": "比较留缝后的接触位置",
+      "mechanical_event": "留缝后的转动",
+      "camera_reason": "沿用平贴镜头的相近观察方向以做对照",
+      "exit_condition": "观察留缝后的转动，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-5",
+          "discovery": "留缝后的转动",
+          "frames": [
+            1613,
+            1673
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-5",
+          "kind": "transmission",
+          "frames": [
+            1613,
+            1673
+          ],
+          "description": "留缝后的转动",
+          "action_id": "action-5",
+          "opening": false
+        }
+      ]
+    },
+    "view-6-1": {
+      "watch_task": "追踪手柄到钳口，再看更换螺母后的开口调节",
+      "mechanical_event": "从手柄施力",
+      "camera_reason": "保留手柄全长和扳手头之间的空间关系",
+      "exit_condition": "观察从手柄施力，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-6",
+          "discovery": "从手柄施力",
+          "frames": [
+            1951,
+            2011
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-6",
+          "kind": "transmission",
+          "frames": [
+            1951,
+            2011
+          ],
+          "description": "从手柄施力",
+          "action_id": "action-6",
+          "opening": false
+        }
+      ]
+    },
+    "view-6-2": {
+      "watch_task": "追踪手柄到钳口，再看更换螺母后的开口调节",
+      "mechanical_event": "从手柄施力",
+      "camera_reason": "保留手柄全长和扳手头之间的空间关系",
+      "exit_condition": "观察从手柄施力，随后转向下一项关系",
+      "increments": [],
+      "observation": [],
+      "events": []
+    },
+    "view-6-3": {
+      "watch_task": "追踪手柄到钳口，再看更换螺母后的开口调节",
+      "mechanical_event": "从手柄施力",
+      "camera_reason": "对现有画面的局部取景。保留手柄全长和扳手头之间的空间关系",
+      "exit_condition": "观察从手柄施力，随后转向下一项关系",
+      "increments": [],
+      "observation": [
+        {
+          "task": "追踪手柄到钳口，再看更换螺母后的开口调节",
+          "evidence": "局部构图保留动作源的原帧顺序",
+          "frames": [
+            2289,
+            2364
+          ]
+        }
+      ],
+      "events": []
+    },
+    "view-7-1": {
+      "watch_task": "看调节怎样接到实际使用",
+      "mechanical_event": "先贴紧再扳手柄",
+      "camera_reason": "同时看见滚轮和六角平面",
+      "exit_condition": "观察先贴紧再扳手柄，随后转向下一项关系",
+      "increments": [
+        {
+          "id": "detail-7",
+          "discovery": "先贴紧再扳手柄",
+          "frames": [
+            2462,
+            2522
+          ],
+          "evidence": "research.md"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "event-7",
+          "kind": "transmission",
+          "frames": [
+            2462,
+            2522
+          ],
+          "description": "先贴紧再扳手柄",
+          "action_id": "action-7",
+          "opening": false
+        }
+      ]
+    }
+  },
+  "sounds": [
+    {
+      "start_frame": 10,
+      "end_frame": 15,
+      "action_id": "action-1",
+      "event": "蜗杆推动活动钳口",
+      "kind": "mesh",
+      "witness": {
+        "channel": "review.worm_rack.travel",
+        "previous_range": [
+          0.004,
+          0.01
+        ],
+        "range": [
+          0.011,
+          0.013
+        ]
+      }
+    }
+  ]
+}

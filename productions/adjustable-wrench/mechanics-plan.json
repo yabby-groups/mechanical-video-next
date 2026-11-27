@@ -1,0 +1,244 @@
+{
+  "evidence": {
+    "path": "research.md",
+    "sha256": "abe2063c3400d25c93989d40ea2676558e795314f065adba482c3bea4426ca34"
+  },
+  "verifier_sha256": "0cbe89ad6413be3026710ede1d60baa518998611d0ab7bb0e087d7bec64769f9",
+  "claims": {
+    "worm_rack": {
+      "quote": "滚轮由轴限位，活动钳口由导槽限位",
+      "source": "https://www.crescenttool.com/all-tools/wrenches-pliers-drivers/adjustable-wrenches/ac28vs-8-adjustable-wrench-carded",
+      "expectation": "按单头螺旋和等距齿条的教学模型核证运动方向、导程和轴向约束"
+    },
+    "assembly": {
+      "quote": "滚轮由轴限位，活动钳口由导槽限位",
+      "source": "https://www.crescenttool.com/all-tools/wrenches-pliers-drivers/adjustable-wrenches/ac28vs-8-adjustable-wrench-carded",
+      "expectation": "核证教学拆解中轴的同轴抽退、钳口离开导槽及两者回到装配位置"
+    }
+  },
+  "shots": {
+    "c78d860671eda7513d4aee97417366a9aa0ac66bf88cccf17c9e6c20fa247b2f": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "1bda108f5a1ff98c0016ce486c55c3e1d02264d7f2c5391e782e160cb8f8debf": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "cd184f1e7902eab42470c83b547b180c53d85b86c4cd82d3248784a5edbe9238": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "52e4daa6a709b8b0cb7beec8a471bd3348209990b91517d370348bf6f711b660": {
+      "kind": "core",
+      "relations": {
+        "assembly": {
+          "channels": [
+            "withdrawal",
+            "jaw_lift"
+          ],
+          "events": [
+            {
+              "ranges": {
+                "withdrawal": [
+                  1.4,
+                  1.5
+                ],
+                "jaw_lift": [
+                  1.07,
+                  1.09
+                ]
+              }
+            },
+            {
+              "ranges": {
+                "withdrawal": [
+                  0,
+                  0.01
+                ],
+                "jaw_lift": [
+                  0,
+                  0.01
+                ]
+              },
+              "hold_frames": 3
+            }
+          ]
+        }
+      }
+    },
+    "0194a6a7d6306e82feda5fb55037e34c3b1e1d5669596bff8c6a2233fdabb15b": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "e06ad2bbe76e72302f1cf11a0bba9b9efb1ef44cc863624491f99be402648b0b": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "f7f0ddd6736f7db7eadef99e63e3c67fe3a0f23703b12f90949b1cd8971cafd5": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "f6c871832c4cd510cecabbee0bc6b3cfa29924a9620c9e8dd1547525afed03ef": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "4fc37dbd0700527926817be44d7f38bc553d9eab742bcbe4735af494f376f3b2": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "3b7ca7e466fd876c72c8880cd939e75453fd03dba24141d23f4c9e091e878ad7": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "da63cea74e59293eebe7d2de8dc0279cb4416fc04bdfcb286291a1ca21d13a13": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "37475835c73ffa6273efbff9fea2d51cf5fb3ef528b23f14c4a31abc79c31b66": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "918ac24e0fbb67ed027f4304fc38ecd00f75423453caa12ab8035c0592c1eccd": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "f5ec916488a43ada9f171cbaab6d1d679ad095ed93f0a6895c621d7ee8ff393e": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "48fb37a7a2c8306abfa93e2b22f37b7911bd46ebdb6d1332c8e2d425c49e8d20": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    },
+    "48a4c9151e202b318fa6fc4301fc3791c14e3444f9b1024433ba4740712e0322": {
+      "kind": "core",
+      "relations": {
+        "worm_rack": {
+          "channels": [
+            "travel",
+            "turns"
+          ]
+        }
+      }
+    }
+  },
+  "presentation": {
+    "34b32c6ac2a0838158058478d2e4b18b6a9ad84605a861a63e3334752a573a0c": {
+      "0": "0.033、1.100、2.167 秒，滚轮橙色标记绕轴移动，活动钳口指针相对固定刻线横移。",
+      "1": "2.267、3.533、4.767 秒，局部构图可辨螺旋、齿条及固定刻线，钳口保留前镜末端的位置。",
+      "2": "4.867、8.533、12.167 秒，恢复较宽构图，齿条和滚轮仍在窗口中，能辨认其与固定钳口及手柄的关系。",
+      "3": "12.267、19.067、25.867 秒，组件由装配态打开，轴沿滚轮轴线抽出、齿条随活动钳口离开，最后复装。",
+      "4": "25.967、27.667、29.367 秒，啮合关系中的橙色示意点位于螺旋和齿条附近，齿距刻线在同一构图内。",
+      "5": "29.467、30.700、31.900 秒，局部清楚显示橙色示意点对应的齿面及螺旋边缘。",
+      "6": "32.000、34.000、36.000 秒，较宽构图显示示意点朝相邻齿移动，固定刻线与活动指针同时可见。",
+      "7": "36.100、38.367、40.633 秒，局部示意点改变方向回移，可同时辨认相邻齿。",
+      "8": "40.733、43.367、45.967 秒，六角螺母进入两钳口之间，活动钳口收拢。",
+      "9": "46.067、48.333、50.567 秒，两钳口贴在相对平面上，视角转动时螺母仍在两钳口之间。",
+      "10": "50.667、52.200、53.700 秒，局部能辨认两侧钳口与螺母外平面的相对位置。",
+      "11": "53.800、59.400、64.967 秒，松开状态留有间隙，扳手相对螺母偏转后接近六角角部。",
+      "12": "65.067、68.100、71.100 秒，从手柄全长看转动，箭头在钳口附近标示接触力方向。",
+      "13": "71.200、73.733、76.233 秒，回到滚轮窗口和六角螺母，同框保留钳口和轮齿。",
+      "14": "76.333、79.167、82.000 秒，放大窗口和钳口，原螺母离开、钳口打开再换入较大的螺母。",
+      "15": "82.100、87.767、93.400 秒，可辨滚轮螺旋和活动齿条，随后拉开构图可辨手柄与钳口。"
+    }
+  }
+}
