@@ -775,9 +775,12 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
                                       'speech': props['cues'], 'sounds': sounds}
                 review['editing'] = pacing.episode_diagnostics(
                     joint.binding(candidate), document, props['frameCount'], measured, review['intervals'])
-                samples, audio = decode_aac(candidate, props['frameCount'] * joint.SAMPLES_PER_FRAME)
+                sample_count = props['frameCount'] * joint.SAMPLES_PER_FRAME
+                samples, audio = decode_aac(candidate, sample_count)
+                playback = [dict(row, end_sample=min(row['end_sample'], sample_count))
+                            for row in measured['speech'] if row['start_sample'] < sample_count]
                 review['audio_playback'] = dict(audio, sample_peak=max(map(abs, samples)),
-                                                narration=measured['speech'])
+                                                narration=playback)
             review['bgm_sha256'] = bgm_sha256
             review['aac_packets_sha256'] = audio_sha256
             review['decoded_frame_count'] = int(video['nb_frames'])
