@@ -34,8 +34,8 @@ def binding(path):
     return {'path': str(Path(path).resolve()), 'sha256': filehash(path)}
 
 
-def bound(ref):
-    path = ROOT / ref['path']
+def bound(ref, *, root=ROOT):
+    path = root / ref['path']
     if not path.is_file() or filehash(path) != ref['sha256']:
         raise ValueError('Timeline source is missing or changed: ' + str(path))
     return path
@@ -57,7 +57,7 @@ def interval(row, limit, end='end_frame'):
     return start, stop
 
 
-def validate(plan, blueprint_shots=None):
+def validate(plan, blueprint_shots=None, *, source_root=ROOT):
     locked = integrity(plan)
     count = plan.get('frame_count')
     if type(count) is not int or count < 1:
@@ -100,7 +100,7 @@ def validate(plan, blueprint_shots=None):
         if (type(source_start) is not int or source_start < 0
                 or not all(action.get(key) for key in ('start_state', 'end_state', 'curve', 'constraints'))):
             raise ValueError('Action needs its own source clock, endpoint states, curve and constraints')
-        bound(action['source'])
+        bound(action['source'], root=source_root)
         if locked:
             if (type(action.get('source_end_frame')) is not int
                     or action['source_end_frame'] - source_start != stop - start):
@@ -205,18 +205,15 @@ def pcm_frames(path):
         return audio.getnframes()
 
 
-def measure(plan, sentence, output, *, directed_sentence=None, voice='Neil'):
+def measure(plan, sentence, output, *, directed_sentence=None, voice='Neil', source_root=ROOT):
     """Place complete measured utterances. Overruns leave the visual plan unchanged."""
-    validate(plan)
+    validate(plan, source_root=source_root)
     from .text_layout import load_style, measure_text
     style = load_style()
     box = style['subtitle']['safe_box']
     measured = []
     for row in plan['narration']:
         subtitle = row.get('subtitle', row['text'])
-        if (not isinstance(subtitle, str) or not subtitle.strip() or '\n' in subtitle
-                or measure_text(subtitle, style=style)['width'] > box[2] - box[0]):
-            raise ValueError('Rewrite or split the subtitle with measured timing: ' + row['id'])
         start = row['start_frame'] * SAMPLES_PER_FRAME
         deadline = row['deadline_frame'] * SAMPLES_PER_FRAME
         if directed_sentence is None:
@@ -233,7 +230,19 @@ def measure(plan, sentence, output, *, directed_sentence=None, voice='Neil'):
             budget = (row['deadline_frame'] - row['start_frame']) / FPS
             raise ValueError(f'{row["id"]}: measured speech takes {need:.3f}s in a {budget:.3f}s slot. '
                              'Revise the dialogue or explicitly re-edit the joint timeline.')
-        measured.append(dict(id=row['id'], text=row['text'], subtitle=subtitle, start_sample=start,
+        subtitles = row.get('subtitles', [{'text': subtitle, 'offset_samples': 0}])
+        if (not isinstance(subtitles, list) or not subtitles
+                or any(not isinstance(item, dict) or not isinstance(item.get('text'), str)
+                       or not item['text'].strip() or '\n' in item['text']
+                       or measure_text(item['text'], style=style)['width'] > box[2] - box[0]
+                       or type(item.get('offset_samples')) is not int for item in subtitles)):
+            raise ValueError('Rewrite or split the subtitle with measured timing: ' + row['id'])
+        offsets = [item['offset_samples'] for item in subtitles]
+        if offsets[0] != 0 or offsets != sorted(set(offsets)) or offsets[-1] >= stop - start:
+            raise ValueError('Subtitle split leaves the measured utterance: ' + row['id'])
+        if 'subtitles' in row and ''.join(item['text'] for item in subtitles) != row['text']:
+            raise ValueError('Split subtitles must match the spoken wording: ' + row['id'])
+        measured.append(dict(id=row['id'], text=row['text'], subtitle=subtitle, subtitles=subtitles, start_sample=start,
                              end_sample=stop, audio=binding(wav), cache=cache))
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -283,6 +292,8 @@ def receipt(plan, ref, *, directed=False):
             stop = start + length
             if (clip['id'] != spec['id'] or clip['text'] != spec['text']
                     or clip['subtitle'] != spec.get('subtitle', spec['text'])
+                    or clip.get('subtitles', [{'text': clip['subtitle'], 'offset_samples': 0}])
+                    != spec.get('subtitles', [{'text': spec.get('subtitle', spec['text']), 'offset_samples': 0}])
                     or clip['start_sample'] != start or clip['end_sample'] != stop
                     or start < cursor or min(before, after) < 0
                     or stop + after > spec['deadline_frame'] * SAMPLES_PER_FRAME):
@@ -297,8 +308,14 @@ def receipt(plan, ref, *, directed=False):
 
 
 def cues(data):
-    return [{'start': row['start_sample'] / SAMPLE_RATE, 'end': row['end_sample'] / SAMPLE_RATE,
-             'text': row['subtitle']} for row in data['speech']]
+    result = []
+    for row in data['speech']:
+        parts = row.get('subtitles', [{'text': row['subtitle'], 'offset_samples': 0}])
+        stops = [row['start_sample'] + part['offset_samples'] for part in parts[1:]]
+        for part, stop in zip(parts, [*stops, row['end_sample']], strict=True):
+            result.append({'start': (row['start_sample'] + part['offset_samples']) / SAMPLE_RATE,
+                           'end': stop / SAMPLE_RATE, 'text': part['text']})
+    return result
 
 
 def overlapping_texts(plan, shot_id):

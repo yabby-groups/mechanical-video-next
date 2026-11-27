@@ -59,12 +59,15 @@ def frame_span(start, seconds):
     return math.ceil(start*30-1e-6), math.ceil((start+seconds)*30-1e-6)
 
 
+def crop_filter(region):
+    if region is None:
+        return ''
+    x, y, width, height = region
+    return f'crop=iw*{width}:ih*{height}:iw*{x}:ih*{y},'
+
+
 @contextmanager
 def frames(path, start, seconds, region=None):
-    crop = ''
-    if region is not None:
-        x, y, width, height = region
-        crop = f'crop=iw*{width}:ih*{height}:iw*{x}:ih*{y},'
     # Seek only to a whole second (also a 30 fps boundary), then trim the
     # normalized frame grid. Fractional input seeking changes fps filter phase.
     seek = math.floor(start)
@@ -73,7 +76,7 @@ def frames(path, start, seconds, region=None):
     # A file lets both decoders emit diagnostics while stdout is read in lockstep.
     with tempfile.TemporaryFile() as stderr:
         process = subprocess.Popen(['ffmpeg', '-v', 'error', '-xerror', '-nostdin', '-ss', str(seek), '-i', str(path),
-            '-frames:v', str(last-first), '-an', '-vf', trim+crop+'scale=160:90:flags=area,format=rgb24',
+            '-frames:v', str(last-first), '-an', '-vf', trim+crop_filter(region)+'scale=160:90:flags=area,format=rgb24',
             '-fps_mode', 'passthrough', '-f', 'rawvideo', '-'], stdout=subprocess.PIPE, stderr=stderr)
         try:
             yield process, stderr

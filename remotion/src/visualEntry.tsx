@@ -9,6 +9,7 @@ type Cue = {start: number; end: number; text: string};
 type AngularComparison = Extract<EvidenceGraphicSpec, {type: 'angular_comparison'}>;
 type Shot = ShotInfo & Omit<VisualProps, 'graphic'> & {
   id: string; seconds: number; audio?: string; mediaStartFrame?: number;
+  crop?: [number, number, number, number];
   graphic?: VisualProps['graphic'] | AngularComparison;
 };
 type Props = {
@@ -30,17 +31,19 @@ const Scene: React.FC<{shot: Shot; props: Props; start: number; last: boolean}> 
   const auxiliary = shot.footage?.credit ?? (!scienceBadge(shot,legacy) ? (last && p.fullframe_credit) || audienceCopy(p.fullframe_caption,legacy) : undefined);
   const annotations = (p.annotations??[]).filter(a=>time>=a.start && time<a.end);
   const {graphic} = shot;
+  const [x, y, w, h] = shot.crop ?? [0, 0, 1, 1];
   const angular = graphic?.type === 'angular_comparison';
   const regions: {layer: TextLayer; box?: number[]}[] = [...informationRegions(shot,frame,p.fps,legacy), ...annotations];
   if(title) regions.push({layer:'chapter'});
   if(auxiliary) regions.push({layer:'auxiliary'});
   if(cues.length) regions.push({layer:'subtitle'});
   assertOverlayRegions(regions,profile,p.width,p.height,p.critical_boxes);
-  return <AbsoluteFill style={{background:'#223139',color:'white',fontFamily:'PingFang SC, sans-serif'}}>
+  return <AbsoluteFill style={{background:'#223139',color:'white',fontFamily:'PingFang SC, sans-serif',overflow:'hidden'}}>
     {graphic?.type === 'angular_comparison' ? <EvidenceGraphic graphic={graphic} seconds={shot.seconds}/> :
       graphic ? <VisualGraphic graphic={graphic} seconds={shot.seconds}/> : shot.splitScreen ? <SplitScreen spec={shot.splitScreen}/> :
       <OffthreadVideo src={staticFile(shot.media)} trimBefore={shot.mediaStartFrame ?? shot.footage?.startFrame} muted
-        style={{width:'100%',height:'100%',objectFit:'contain'}}/>}
+        style={{position:'absolute',left:`${-100*x/w}%`,top:`${-100*y/h}%`,
+          width:`${100/w}%`,height:`${100/h}%`,objectFit:'contain'}}/>}
     {angular && <div style={{position:'absolute',left:0,right:0,top:profile.subtitle.safe_box[1],bottom:0,background:'#223139'}}/>}
     {shot.audio && <Audio src={staticFile(shot.audio)}/>}
     <ShotInformation shot={shot} frame={frame} fps={p.fps} width={p.width} height={p.height} profile={profile} legacy={legacy}/>

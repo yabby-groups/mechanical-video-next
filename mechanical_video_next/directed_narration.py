@@ -29,8 +29,9 @@ def same_voice_runtime(current, previous):
             == {k: v for k, v in previous.items() if k not in code})
 
 
-def measure(plan, direction, profile, service, output, *, fallback=False, prior=None, segment_id=None):
-    validate(direction, plan, profile)
+def measure(plan, direction, profile, service, output, *, fallback=False, prior=None, segment_id=None,
+            source_root=ROOT):
+    validate(direction, plan, profile, source_root=source_root)
     rows = {row['segment_id']: row for row in direction['segments']}
     selected = next(iter(rows.values()))['selected_tts']
     profile_hash = digest(profile)
@@ -66,7 +67,8 @@ def measure(plan, direction, profile, service, output, *, fallback=False, prior=
             return wav, cache, row['pause_before_ms'] * 48, row['pause_after_ms'] * 48
 
         voice = 'Neil' if engine == 'neil' else profile['id']
-        return joint.measure(plan, None, output, directed_sentence=sentence, voice=voice)
+        return joint.measure(plan, None, output, directed_sentence=sentence, voice=voice,
+                             source_root=source_root)
 
     started = monotonic()
     failure = None

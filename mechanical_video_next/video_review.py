@@ -12,9 +12,9 @@ import wave
 
 from PIL import Image, ImageChops, ImageStat
 
-from scripts.common import probe
+from scripts.common import filehash, probe
 from . import joint_timeline as joint
-from .media_revision import decode_errors, frames
+from .media_revision import crop_filter, decode_errors, frames
 from .qa_images import CACHE, decoded_frames, prepare_contact_sheet, visual_packet
 
 FIELD = 'video_review_version'
@@ -175,8 +175,9 @@ def episode_state_findings(shots, counts, motions, episode, *, coverage=None):
         shot_id = f'shot-{index}'
         reference = shot.get('picture', {})
         offset = (reference.get('start_frame', 0)
-                  if reference and (episode / reference['path']).is_file() else 0)
-        cuts.append({'id': shot_id, 'start_frame': first, 'end_frame': last,
+                  if reference and (episode / reference['path']).is_file()
+                  else shot.get('source_start_frame', 0))
+        cuts.append({'id': shot_id, 'logical_id': shot.get('id', shot_id), 'start_frame': first, 'end_frame': last,
                      'source_start_frame': offset})
         row = coverage[index] if coverage is not None else None
         if row and row['kind'] in episode_evidence.NON_MECHANICAL:
@@ -195,7 +196,9 @@ def episode_state_findings(shots, counts, motions, episode, *, coverage=None):
                     shot=shot_id, status='UNKNOWN'), scope='mechanical'))
                 continue
             for relation, rule in requirements.items():
-                if not episode_evidence.events_hold(motion, rule, relation, offset, count):
+                source_rule = {'events': rule.get('source_events', ())}
+                if (not episode_evidence.events_hold(motion, rule, relation, offset, count)
+                        or not episode_evidence.events_hold(motion, source_rule, relation, 0, motion['frames'])):
                     findings.append(dict(finding('mechanical_relation_event', first, last, relation,
                                                  shot=shot_id), scope='mechanical'))
         if motion is None:
@@ -207,6 +210,21 @@ def episode_state_findings(shots, counts, motions, episode, *, coverage=None):
             findings.append(finding('mechanical_source_interval', first, last,
                                     'Edit exceeds evaluated source', shot=shot_id))
             continue
+        for check in shot.get('mechanics', {}).get('source_checks', ()):
+            channel = check['channel']
+            start, stop = check.get('window', [0, motion['frames']])
+            samples = motion['samples'].get(channel)
+            if samples is None or not 0 <= start < stop <= motion['frames'] or check.get('continue_from'):
+                findings.append(dict(finding('mechanical_source_check_invalid', first, last, channel,
+                                             shot=shot_id), scope='mechanical'))
+                continue
+            source = {'id': shot_id, 'start_frame': 0, 'end_frame': motion['frames']}
+            check = dict(check, id=channel, shot_id=shot_id, frame_range=[start, stop],
+                         samples=samples[::motion['substeps']])
+            for result in state_findings({'shots': [source]}, [check]):
+                findings.append(dict(finding(result['code'], first, last, result['evidence'],
+                                             shot=shot_id, status=result['status']),
+                                     source_frame_range=[start, stop], scope='mechanical'))
         for check in shot.get('mechanics', {}).get('checks', ()):
             channel = check['channel']
             start, stop = check.get('window', [0, count])
@@ -226,6 +244,81 @@ def episode_state_findings(shots, counts, motions, episode, *, coverage=None):
     findings.extend(dict(row, scope='mechanical')
                     for row in state_findings({'shots': cuts}, checks))
     return findings, cuts
+
+
+def valid_sound_witness(witness):
+    return (isinstance(witness, dict) and isinstance(witness.get('channel'), str)
+            and witness['channel'].startswith('review.')
+            and all(isinstance(bounds := witness.get(key), list) and len(bounds) == 2
+                    and all(type(value) in (float, int) and math.isfinite(value) for value in bounds)
+                    and bounds[0] <= bounds[1] for key in ('previous_range', 'range'))
+            and (witness['previous_range'][1] < witness['range'][0]
+                 or witness['range'][1] < witness['previous_range'][0]))
+
+
+def joint_action_findings(document, shots, motions, episode):
+
+    plan = document['plan']
+    sources = {row['id']: joint.bound(row['source'], root=episode).resolve()
+               for row in plan['actions']}
+    prior = {}
+    for slot, shot, motion in zip(plan['shots'][:len(shots)], shots, motions, strict=True):
+        first, last = slot['start_frame'], slot['end_frame']
+        if 'graphic' in shot:
+            continue
+        for action in slot.get('action_views', {}):
+            inputs = (motion or {}).get('binding', {}).get('mechanics', {}).get('inputs', {})
+            if inputs.get(str(sources[action])) != filehash(sources[action]):
+                yield dict(finding('mechanical_action_source', first, last, action,
+                                   shot=slot['id'], status='UNKNOWN'), scope='mechanical')
+                continue
+            if action in prior:
+                previous_slot, previous = prior[action]
+                seam = first - 1
+                if not same_action_state(previous_slot, previous, slot, motion, seam):
+                    yield dict(finding('mechanical_camera_continuity', first, last, action,
+                                       shot=slot['id']), scope='mechanical')
+            prior[action] = slot, motion
+        for cue in document.get('sounds', ()):
+            frame = cue['start_frame']
+            if not first <= frame < last:
+                continue
+            witness = cue['witness']
+            step = (motion or {}).get('substeps', 1)
+            values = (motion or {}).get('samples', {}).get(witness['channel'], ())
+            sample = (frame - first + slot.get('source_start_frame', 0)) * step
+            before, after = witness['previous_range'], witness['range']
+            if not (step <= sample < len(values)
+                    and before[0] <= values[sample - step] <= before[1]
+                    and after[0] <= values[sample] <= after[1]):
+                yield dict(finding('mechanical_foley_event', frame, frame + 1, cue['event'],
+                                   shot=slot['id']), scope='mechanical')
+
+
+def same_action_state(previous_slot, previous, slot, motion, seam):
+    def index(view, value, frame):
+        return (frame - view['start_frame'] + view.get('source_start_frame', 0)) * value['substeps']
+
+    if previous == motion and previous_slot.get('source_clock_origin', 0) == slot.get('source_clock_origin', 0):
+        return True
+    common = previous['samples'].keys() & motion['samples'].keys()
+    channels = [key for key in common if key.startswith('review.')]
+    # Both render sources may contain handles outside the selected picture ranges.
+    for frame in range(seam, slot['start_frame'] + 1):
+        left, right = index(previous_slot, previous, frame), index(slot, motion, frame)
+        if all(0 <= left < len(previous['samples'][key]) and 0 <= right < len(motion['samples'][key])
+               and math.isclose(previous['samples'][key][left], motion['samples'][key][right],
+                                abs_tol=1e-5) for key in channels) and channels:
+            return True
+    return False
+
+
+def compose_region(crop, region):
+    if crop is None or region is None:
+        return crop or region
+    x, y, width, height = crop
+    left, top, w, h = region
+    return [x + left * width, y + top * height, w * width, h * height]
 
 
 def pixel_findings(path, source, first, last, offset, shot, *, region=None, source_region=None):

@@ -36,16 +36,17 @@ def scene_source(shot, motion, episode, *, direct):
             'inputs': [{'path': p, 'sha256': digest} for p, digest in inputs.items()]}
 
 
-def shot_binding(shot, motion, episode, *, direct, preview_step):
+def shot_binding(shot, motion, episode, *, direct, preview_step, crop=None):
+    framing = {'source_crop': crop} if crop is not None else {}
     if type(preview_step) is not int or preview_step < 1:
-        return {}
+        return framing
     scene = scene_source(shot, motion, episode, direct=direct)
     if scene is None:
-        return {}
+        return framing
     evidence = shot.get('mechanics', {}).get('evidence')
     research = next((ref for ref in scene['inputs']
                      if evidence and ref['path'] == str((episode / evidence).resolve())), None)
-    return {'diagnostic_scene': scene, 'source_preview_step': preview_step,
+    return {**framing, 'diagnostic_scene': scene, 'source_preview_step': preview_step,
             'diagnostic_research': research}
 
 
@@ -208,6 +209,8 @@ def _review(args):
             raise ValueError('Requested frame exceeds the decoded edit')
         report['images'] = _view_frames(media, stream, indices, size, crop, args.zoom, intervals, qa_images.CACHE)
     if args.model:
+        from .video_review import compose_region
+
         rows = [_shot_at(intervals, index) for index in indices]
         if not rows or rows[0] is None or any(row != rows[0] for row in rows):
             raise ValueError('Select frames in one mapped episode shot, or supply a saved Blender scene')
@@ -216,6 +219,10 @@ def _review(args):
         if not scene or any(location['source_frame'] is None for location in locations):
             raise ValueError('The shot has no bound evaluable Blender source')
         frames = sorted({row['source_frame'] for row in locations})
+        box = [region[0], region[1], region[2] - region[0], region[3] - region[1]] if region else None
+        if source_box := compose_region(rows[0].get('source_crop'), box):
+            x, y, width, height = source_box
+            region = [x, y, x + width, y + height]
         report['blender'] = _replay(scene, frames, region, args, directory / 'blender', mapped=True)
     elif args.blend:
         scene = {'source': joint.binding(args.blend)}

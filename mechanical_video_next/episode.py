@@ -9,7 +9,8 @@ from uuid import uuid4
 import wave
 
 from mechanical_video_next import joint_timeline as joint
-from mechanical_video_next import episode_evidence, video_review, visual_diagnosis
+from mechanical_video_next import episode_evidence, pacing, video_review, visual_diagnosis
+from mechanical_video_next.audio_acceptance import decode_aac
 from mechanical_video_next.blender_runtime import BlenderFailure, blender_executable, run_blender
 from mechanical_video_next.director_audio import aac_hash, mux_picture
 from mechanical_video_next.production_contract import (
@@ -19,10 +20,21 @@ from mechanical_video_next.remotion_build import VISUAL_SOURCES, render
 from mechanical_video_next.visual_narrative import validate_graphic
 from mechanical_video_next.workflow import lock
 from scripts.common import ROOT, digest, filehash, probe, run, writejson
-from scripts.narration import effective_profile, load_env, srt_time, synthesize_shot
+from scripts.narration import effective_profile, load_env, sentence, srt_time, synthesize_shot
 
 FPS = 30
 MECHANICS_SCRIPT = ROOT / 'blender/episode_mechanics.py'
+FOLEY = {
+    'press': (680, 72, .086),
+    'mesh': (1850, 115, .066),
+    'slide': (420, 48, .102),
+    'contact': (980, 88, .085),
+    'impact': (570, 67, .105),
+    'latch': (1530, 85, .075),
+    'release': (1270, 98, .075),
+    'return': (840, 68, .091),
+    'vibration': (295, 41, .125),
+}
 
 
 def narration_blocks(episode, edit):
@@ -57,7 +69,6 @@ def load_directed_narration(episode, edit, work):
     if len(narration) != len(edit['shots']) or len(narration) != len(plan['shots']):
         raise ValueError('Directed timeline must have one picture interval per episode shot')
     speech, placed = [], []
-    cues = joint.cues(timeline)
     with wave.open(str(joint.bound(timeline['narration_audio'])), 'rb') as master:
         for index, (block, shot) in enumerate(zip(narration, plan['shots'], strict=True)):
             first, last = shot['start_frame'], shot['end_frame']
@@ -65,13 +76,13 @@ def load_directed_narration(episode, edit, work):
             if type(frames) is not int or frames != last - first:
                 raise ValueError(f'Edit frames differ from the directed timeline in shot {index + 1}')
             start, end = first * joint.SAMPLES_PER_FRAME, last * joint.SAMPLES_PER_FRAME
-            rows = [(row, cue) for row, cue in zip(timeline['speech'], cues, strict=True)
-                    if start <= row['start_sample'] < end]
-            if [row['text'] for row, _ in rows] != block.splitlines():
+            rows = [row for row in timeline['speech'] if start <= row['start_sample'] < end]
+            if [row['text'] for row in rows] != block.splitlines() or any(
+                    row['end_sample'] > end for row in rows):
                 raise ValueError(f'Directed speech differs from episode script in shot {index + 1}')
-            placed.extend(row['id'] for row, _ in rows)
+            placed.extend(row['id'] for row in rows)
             relative = [dict(cue, start=cue['start'] - first / FPS, end=cue['end'] - first / FPS)
-                        for _, cue in rows]
+                        for cue in joint.cues({'speech': rows})]
             path = work / f'directed-shot-{index}.wav'
             master.setpos(start)
             with wave.open(str(path), 'wb') as audio:
@@ -83,8 +94,89 @@ def load_directed_narration(episode, edit, work):
     return speech
 
 
-def picture_sources(episode, speech, work, *, shots=None, preview_step=None, coverage=None):
-    counts = [frames for _, _, frames in speech]
+def load_joint_edit(episode, edit):
+    document = json.loads((episode / edit['timeline']).read_text(encoding='utf-8'))
+    plan = joint.validate(document['plan'], source_root=episode)
+    if 'directed_timeline' in edit or 'narration' in edit:
+        raise ValueError('A joint edit takes its script from the timeline')
+    actions = {row['id']: row for row in plan['actions']}
+    cuts = []
+    for index, (cut, slot) in enumerate(zip(edit['shots'], plan['shots'], strict=True)):
+        count = slot['end_frame'] - slot['start_frame']
+        offset = slot.get('source_start_frame', 0)
+        reference = cut.get('picture')
+        graphic = 'graphic' in cut
+        source_frames = cut.get('source_frames', count)
+        if 'crop' in cut:
+            crop = cut['crop']
+            if (graphic or not isinstance(crop, list) or len(crop) != 4
+                    or any(type(value) not in (int, float) or not 0 <= value <= 1 for value in crop)):
+                raise ValueError(f"Invalid picture crop in {slot['id']}")
+            x, y, width, height = crop
+            if width <= 0 or width != height or x + width > 1 or y + height > 1:
+                raise ValueError(f"Picture crop must preserve the output aspect ratio in {slot['id']}")
+        if (cut.get('id') != slot['id'] or cut.get('frames', count) != count
+                or type(source_frames) is not int
+                or (not reference and source_frames < offset + count)
+                or (reference and offset != reference.get('start_frame', 0))
+                or (reference and reference.get('fallback_to_scene'))
+                or (graphic and (offset or 'source_frames' in cut))):
+            raise ValueError(f"Picture extent differs from the joint timeline in {slot['id']}")
+        if slot.get('action_views') and not graphic:
+            if 'mechanics' not in cut:
+                raise ValueError(f"Action view needs evaluated mechanics in {slot['id']}")
+            if not reference:
+                inputs = {(episode / name).resolve() for name in
+                          [cut.get('scene', 'scene.py'), *cut.get('scene_inputs', ())]}
+                if any(joint.bound(actions[key]['source'], root=episode).resolve() not in inputs
+                       for key in slot['action_views']):
+                    raise ValueError(f"Action source is absent from the scene inputs in {slot['id']}")
+        cuts.append(dict(cut, scene_shot=cut.get('scene_shot', index),
+                         source_start_frame=0 if reference else offset))
+        if graphic:
+            del cuts[-1]['scene_shot']
+    if design := document.get('pacing'):
+        pacing.validate(plan, design)
+    if any('clicks' in cut or 'subtitle_breaks' in cut for cut in cuts):
+        raise ValueError('Joint edits place subtitles and mechanical sound on the timeline')
+    for cue in document.get('sounds', ()):
+        action = actions.get(cue.get('action_id'))
+        frame, duration = joint.interval(cue, plan['frame_count'])
+        witness = cue.get('witness', {})
+        if (not action or not action['start_frame'] <= frame < duration <= action['end_frame']
+                or cue.get('kind') not in FOLEY or not isinstance(cue.get('event'), str)
+                or not cue['event'].strip() or not video_review.valid_sound_witness(witness)
+                or not any(slot['start_frame'] <= frame < slot['end_frame']
+                           and action['id'] in slot.get('action_views', {})
+                           and 'mechanics' in cut and 'graphic' not in cut
+                           for slot, cut in zip(plan['shots'], cuts, strict=True))):
+            raise ValueError('Foley must identify a visible mechanical event and its output interval')
+    return document, cuts
+
+
+def measure_joint_narration(episode, edit, plan, output):
+    if 'voice_direction' not in edit:
+        profile = effective_profile({'narration_profile': 'config/narration-neil.json'})
+        return joint.measure(plan, lambda words: sentence(words, profile), output, source_root=episode)
+
+    from .directed_narration import measure
+    from .voice_engines import Synthesizer, load_profile
+
+    direction = json.loads((episode / edit['voice_direction']).read_text(encoding='utf-8'))
+    profile = load_profile(ROOT / 'config/voice-profile.json')
+    # The shot containing a speech entry can change during a picture-only recut.
+    for spec, row in zip(plan['narration'], direction['segments'], strict=True):
+        row['scene_id'] = next(shot['id'] for shot in plan['shots']
+                               if shot['start_frame'] <= spec['start_frame'] < shot['end_frame'])
+    with Synthesizer(diagnostics=output.parent / 'voice-diagnostics') as service:
+        return measure(plan, direction, profile, service, output, source_root=episode,
+                       fallback=profile.get('fallback_engine') == 'neil')
+
+
+def picture_sources(episode, speech, work, *, counts=None, shots=None, preview_step=None,
+                    coverage=None, document=None):
+    if counts is None:
+        counts = [frames for _, _, frames in speech]
     shots = [{} for _ in counts] if shots is None else shots
     paths = []
     renders = []
@@ -104,7 +196,8 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None, cov
         shot = cut.get('scene_shot', index)
         if type(shot) is not int or shot < 0:
             raise ValueError('scene_shot must be a nonnegative integer')
-        key = {'scene': filehash(scene), 'shot': shot, 'frames': count, 'fps': FPS}
+        source_count = cut.get('source_frames', count)
+        key = {'scene': filehash(scene), 'shot': shot, 'frames': source_count, 'fps': FPS}
         if cut.get('scene_inputs'):
             key['scene_inputs'] = {name: filehash(episode / name) for name in cut['scene_inputs']}
         mechanics = cut.get('mechanics')
@@ -134,7 +227,7 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None, cov
             scene_counts = counts + [0] * max(0, shot + 1 - len(counts))
         else:
             scene_counts = [0] * (shot + 1)
-        scene_counts[shot] = count
+        scene_counts[shot] = source_count
         command = ['--timing', str(timing), '--directory', str(picture), '--shot', str(shot)]
         motion = None
         verification = picture
@@ -161,10 +254,12 @@ def picture_sources(episode, speech, work, *, shots=None, preview_step=None, cov
                     start = sum(counts[:index]) / FPS
                     raise ValueError(f'Edit shot {index + 1} starts at {start:.4f}s. {error}') from error
             witnesses[-1] = motion
-        renders.append((path, scene, command, timing, scene_counts, shot, count, draft_step,
+        renders.append((path, scene, command, timing, scene_counts, shot, source_count, draft_step,
                         motion, verification, key, reviewer))
 
     findings, _ = video_review.episode_state_findings(shots, counts, witnesses, episode, coverage=coverage)
+    if document is not None:
+        findings.extend(video_review.joint_action_findings(document, shots, witnesses, episode))
     block_mechanical_errors(findings, work / 'mechanics-preflight-failure.json',
                             formal=coverage is not None and preview_step is None)
     for index, (cut, count) in enumerate(zip(shots, counts, strict=True)):
@@ -406,25 +501,49 @@ def subtitle_cues(words, breaks):
         yield dict(cue, start=start, text=text)
 
 
-def edit_props(edit, pictures, speech, public, asset_prefix):
+def edit_props(edit, pictures, speech, public, asset_prefix, *, measured=None, counts=None):
     shots, cues, labels, clicks = [], [], [], []
+    if measured is None:
+        counts = [frames for _, _, frames in speech]
+    else:
+        master = joint.bound(measured['narration_audio'])
+        shutil.copyfile(master, public / 'narration.wav')
+        duration = sum(counts) / FPS
+        cues = [dict(cue, end=min(cue['end'], duration))
+                for cue in joint.cues(measured) if cue['start'] < duration]
     cursor = 0
-    for i, (shot, media, (audio, words, frames)) in enumerate(zip(edit['shots'], pictures, speech, strict=True)):
+    for i, (shot, media, frames) in enumerate(zip(edit['shots'], pictures, counts, strict=True)):
         shutil.copyfile(media, public / f'{i}.mp4')
-        audio_name = f'{i}{Path(audio).suffix}'
-        shutil.copyfile(audio, public / audio_name)
-        shots.append({'id': f'shot-{i}', 'seconds': frames / FPS,
-                      'media': f'{asset_prefix}/{i}.mp4', 'audio': f'{asset_prefix}/{audio_name}'})
+        row = {'id': shot.get('id', f'shot-{i}'), 'seconds': frames / FPS, 'media': f'{asset_prefix}/{i}.mp4'}
         start = cursor / FPS
-        cues.extend(dict(cue, start=cue['start'] + start, end=cue['end'] + start)
-                    for cue in subtitle_cues(words, shot.get('subtitle_breaks', {})))
-        labels.extend({'layer': 'part', 'start': start + first, 'end': start + last, 'text': text}
-                      for first, last, text in shot.get('labels', ()))
+        if measured is None:
+            audio, words, _ = speech[i]
+            audio_name = f'{i}{Path(audio).suffix}'
+            shutil.copyfile(audio, public / audio_name)
+            row['audio'] = f'{asset_prefix}/{audio_name}'
+            cues.extend(dict(cue, start=cue['start'] + start, end=cue['end'] + start)
+                        for cue in subtitle_cues(words, shot.get('subtitle_breaks', {})))
+        else:
+            row['mediaStartFrame'] = shot['source_start_frame']
+            if 'crop' in shot:
+                row['crop'] = shot['crop']
+        shots.append(row)
+        for first, last, text in shot.get('labels', ()):
+            if measured is None:
+                left, right = start + first, start + last
+            else:
+                left = (cursor + math.ceil(first * FPS - 1e-6)) / FPS
+                right = (cursor + math.ceil(last * FPS - 1e-6)) / FPS
+            if left < right:
+                labels.append({'layer': 'part', 'start': left, 'end': right, 'text': text})
         clicks.extend(start + seconds for seconds in shot.get('clicks', ()))
         cursor += frames
-    return {'title': edit['title'], 'width': 1920, 'height': 1080, 'fps': FPS,
-            'duration': cursor / FPS, 'frameCount': cursor, 'shots': shots, 'cues': cues,
-            'annotations': labels}, clicks
+    props = {'title': edit['title'], 'width': 1920, 'height': 1080, 'fps': FPS,
+             'duration': cursor / FPS, 'frameCount': cursor, 'shots': shots, 'cues': cues,
+             'annotations': labels}
+    if measured is not None:
+        props['narrationTrack'] = f'{asset_prefix}/narration.wav'
+    return props, clicks
 
 
 def compose_ffmpeg(props, output, log, *, preview):
@@ -444,18 +563,32 @@ def compose_ffmpeg(props, output, log, *, preview):
     command = ['ffmpeg', '-v', 'error', '-xerror', '-y']
     filters = []
     shots = props['shots']
+    master = props.get('narrationTrack')
     size = (f'scale={width}:{height}:force_original_aspect_ratio=decrease,'
             f'pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=0x223139')
     for index, shot in enumerate(shots):
         frames = round(shot['seconds'] * FPS)
         samples = frames * joint.SAMPLES_PER_FRAME
-        command += ['-i', ROOT / 'remotion/public' / shot['media'],
-                    '-i', ROOT / 'remotion/public' / shot['audio']]
-        filters += [f'[{2 * index}:v]{size},setsar=1,trim=end_frame={frames},setpts=PTS-STARTPTS[v{index}]',
-                    f'[{2 * index + 1}:a]aresample=48000,aformat=channel_layouts=stereo,'
-                    f'apad,atrim=end_sample={samples},asetpts=PTS-STARTPTS[a{index}]']
-    segments = ''.join(f'[v{index}][a{index}]' for index in range(len(shots)))
-    filters.append(f'{segments}concat=n={len(shots)}:v=1:a=1[v0o][voice]')
+        source = index if master else 2 * index
+        start = shot.get('mediaStartFrame', 0)
+        command += ['-i', ROOT / 'remotion/public' / shot['media']]
+        crop = video_review.crop_filter(shot.get('crop'))
+        filters.append(f'[{source}:v]{crop}{size},setsar=1,trim=start_frame={start}:end_frame={start + frames},'
+                       f'setpts=PTS-STARTPTS[v{index}]')
+        if not master:
+            command += ['-i', ROOT / 'remotion/public' / shot['audio']]
+            filters.append(f'[{source + 1}:a]aresample=48000,aformat=channel_layouts=stereo,'
+                           f'apad,atrim=end_sample={samples},asetpts=PTS-STARTPTS[a{index}]')
+    if master:
+        command += ['-i', ROOT / 'remotion/public' / master]
+        segments = ''.join(f'[v{index}]' for index in range(len(shots)))
+        filters.append(f'{segments}concat=n={len(shots)}:v=1:a=0[v0o]')
+        samples = props['frameCount'] * joint.SAMPLES_PER_FRAME
+        filters.append(f'[{len(shots)}:a]atrim=end_sample={samples},asetpts=PTS-STARTPTS[voice]')
+    else:
+        segments = ''.join(f'[v{index}][a{index}]' for index in range(len(shots)))
+        filters.append(f'{segments}concat=n={len(shots)}:v=1:a=1[v0o][voice]')
+    media_inputs = len(shots) + 1 if master else 2 * len(shots)
 
     with TemporaryDirectory(prefix='mvn-episode-text-') as folder:
         stroke = round(style['stroke_width'])
@@ -472,7 +605,7 @@ def compose_ffmpeg(props, output, log, *, preview):
             x = (left + right - label.width) // 2 if item['layer'] == 'subtitle' else left
             y = (top + bottom - label.height) // 2
             start, end = (math.ceil(item[key] * FPS - 1e-10) for key in ('start', 'end'))
-            filters.append(f"[v{index}o][{2 * len(shots) + index}:v]overlay={x}:{y}:"
+            filters.append(f"[v{index}o][{media_inputs + index}:v]overlay={x}:{y}:"
                            f"enable='between(n,{start},{end - 1})'[v{index + 1}o]")
         run([*command, '-filter_complex_threads', '2', '-filter_complex', ';'.join(filters),
              '-map', f'[v{len(items)}o]', '-map', '[voice]', '-c:v', 'libx264', '-preset', 'fast',
@@ -480,7 +613,7 @@ def compose_ffmpeg(props, output, log, *, preview):
              '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', output], log)
 
 
-def mix(picture, bgm, duration, clicks, destination):
+def mix(picture, bgm, duration, clicks, destination, *, sounds=()):
     # Quiet mechanical transients are synthesized for the authored contact frames.
     transient = 'aevalsrc=0.14*sin(2*PI*1530*t)*exp(-85*t):s=48000:d=0.075'
     args = ['ffmpeg', '-v', 'error', '-xerror', '-y', '-i', picture,
@@ -492,9 +625,16 @@ def mix(picture, bgm, duration, clicks, destination):
         f'afade=t=out:st={duration - 0.8}:d=0.8[music]',
     ]
     buses = ['[voice]', '[music]']
-    for i, time in enumerate(clicks, start=2):
-        args.extend(['-f', 'lavfi', '-i', transient])
-        filters.append(f'[{i}:a]aformat=channel_layouts=stereo,adelay={round(time * 1000)}:all=1[c{i}]')
+    effects = [(str(round(time * 1000)), transient) for time in clicks]
+    for cue in sounds:
+        pitch, decay, scale = FOLEY[cue['kind']]
+        seconds = (cue['end_frame'] - cue['start_frame']) / FPS
+        effect = (f'aevalsrc={scale}*(sin(2*PI*{pitch}*t)+0.3*sin(2*PI*{1.37*pitch}*t))'
+                  f'*exp(-{decay}*t):s=48000:d={seconds:.8f}')
+        effects.append((f"{cue['start_frame'] * joint.SAMPLES_PER_FRAME}S", effect))
+    for i, (delay, effect) in enumerate(effects, start=2):
+        args.extend(['-f', 'lavfi', '-i', effect])
+        filters.append(f'[{i}:a]aformat=channel_layouts=stereo,adelay={delay}:all=1[c{i}]')
         buses.append(f'[c{i}]')
     filters.append(''.join(buses) + f'amix=inputs={len(buses)}:normalize=0,'
                    'alimiter=limit=0.85:level=false:latency=true[out]')
@@ -502,7 +642,8 @@ def mix(picture, bgm, duration, clicks, destination):
          '-ar', 48000, '-c:a', 'aac', '-b:a', '192k', destination])
 
 
-def review_export(candidate, episode, edit, pictures, speech, props, public, *, preview, coverage=None):
+def review_export(candidate, episode, edit, pictures, speech, props, public, *, preview, coverage=None,
+                  measured=None, document=None):
     motions, sources, audio_hashes, diagnostics = [], [], [], []
     for index, (cut, picture) in enumerate(zip(edit['shots'], pictures, strict=True)):
         reference = cut.get('picture')
@@ -514,7 +655,7 @@ def review_export(candidate, episode, edit, pictures, speech, props, public, *, 
             offset = reference.get('start_frame', 0)
             motion_source = source
         else:
-            source, offset = public / f'{index}.mp4', 0
+            source, offset = public / f'{index}.mp4', cut.get('source_start_frame', 0)
             motion_source = picture
         record = picture_motion(motion_source, current=True, draft=preview, include_record=True)
         motion = record['motion'] if record else None
@@ -526,29 +667,40 @@ def review_export(candidate, episode, edit, pictures, speech, props, public, *, 
             if motion_source.parent.name != digest(dict(motion['binding'], preview_step=step)):
                 step = None
         diagnostics.append(visual_diagnosis.shot_binding(
-            cut, motion, episode, direct=not recut,
-            preview_step=step))
+            cut, motion, episode, direct=not recut and not offset,
+            preview_step=step, crop=cut.get('crop')))
         if 'mechanics' in cut and 'graphic' not in cut and motion is None:
             raise ValueError(f'Shot {index}: the rendered picture or evaluated scene inputs changed')
         motions.append(motion)
         sources.append((source, offset, filehash(source)))
         if filehash(picture) != filehash(public / f'{index}.mp4'):
             raise ValueError(f'Picture changed during composition: {picture}')
-        audio = speech[index][0]
-        sha = filehash(public / f'{index}{Path(audio).suffix}')
-        if filehash(audio) != sha:
-            raise ValueError(f'Narration changed during composition: {audio}')
+        if measured is None:
+            audio = speech[index][0]
+            sha = filehash(public / f'{index}{Path(audio).suffix}')
+            if filehash(audio) != sha:
+                raise ValueError(f'Narration changed during composition: {audio}')
+            audio_hashes.append(sha)
+    if measured is not None:
+        sha = filehash(joint.bound(measured['narration_audio']))
+        if filehash(public / 'narration.wav') != sha:
+            raise ValueError('Continuous narration changed during composition')
         audio_hashes.append(sha)
     findings, cuts = video_review.episode_state_findings(
-        edit['shots'], [count for _, _, count in speech], motions, episode, coverage=coverage)
+        edit['shots'], [round(row['seconds'] * FPS) for row in props['shots']],
+        motions, episode, coverage=coverage)
+    if document is not None:
+        findings.extend(video_review.joint_action_findings(document, edit['shots'], motions, episode))
     picture_findings, intervals = [], []
     for index, (cut, motion, (source, offset, sha)) in enumerate(zip(cuts, motions, sources, strict=True)):
         authored = edit['shots'][index].get('mechanics', {})
         first, last = cut['start_frame'], cut['end_frame']
         regions = [None, *authored.get('regions', ())]
+        crop = edit['shots'][index].get('crop')
         for region in regions:
+            source_region = video_review.compose_region(crop, region)
             picture_findings.extend(video_review.pixel_findings(
-                candidate, source, first, last, offset, cut['id'], region=region))
+                candidate, source, first, last, offset, cut['id'], region=region, source_region=source_region))
         if filehash(source) != sha:
             raise ValueError(f'Picture source changed during final review: {source}')
         if motion and not motion_inputs_current(motion):
@@ -558,7 +710,7 @@ def review_export(candidate, episode, edit, pictures, speech, props, public, *, 
     return {
         'media': {'filename': candidate.name, 'sha256': filehash(candidate)},
         'edit_sha256': digest(edit), 'composition_props_sha256': digest(props),
-        'narration_sha256': filehash(episode / edit.get('narration', 'narration.txt')),
+        'narration_sha256': filehash(episode / edit.get('timeline', edit.get('narration', 'narration.txt'))),
         'audio_sha256': audio_hashes,
         'intervals': intervals, 'preview': preview,
         'technical_status': video_review.status(findings + picture_findings),
@@ -570,12 +722,13 @@ def review_export(candidate, episode, edit, pictures, speech, props, public, *, 
 
 
 def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, duration_policy=None,
-             coverage=None, mechanical_plan=None):
+             coverage=None, mechanical_plan=None, document=None, measured=None, counts=None):
     public = ROOT / 'remotion/public/cache'
     public.mkdir(exist_ok=True, parents=True)
     with TemporaryDirectory(prefix='episode-', dir=public) as folder:
         directory = Path(folder)
-        props, clicks = edit_props(edit, pictures, speech, directory, f'cache/{directory.name}')
+        props, clicks = edit_props(edit, pictures, speech, directory, f'cache/{directory.name}',
+                                   measured=measured, counts=counts)
         props_path = work / 'edit-props.json'
         writejson(props_path, props)
         composition = edit.get('composition', 'remotion')
@@ -593,7 +746,10 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
         track = work / 'mix.m4a'
         bgm = ROOT / edit['bgm']
         bgm_sha256 = filehash(bgm)
-        mix(intermediate, bgm, props['duration'], clicks, track)
+        sounds = [dict(cue, end_frame=min(cue['end_frame'], props['frameCount']))
+                  for cue in (document or {}).get('sounds', ()) if cue['start_frame'] < props['frameCount']]
+        voice = directory / 'narration.wav' if measured is not None else intermediate
+        mix(voice, bgm, props['duration'], clicks, track, sounds=sounds)
         if filehash(bgm) != bgm_sha256:
             raise ValueError(f'BGM changed during composition: {bgm}')
         output = ROOT / 'output' / episode.name / edit['output']
@@ -610,7 +766,18 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
             if audio_sha256 != aac_hash(track):
                 raise ValueError('MP4 audio differs from the encoded episode mix')
             review = review_export(candidate, episode, edit, pictures, speech, props, directory,
-                                   preview=preview_shots is not None, coverage=coverage)
+                                   preview=preview_shots is not None, coverage=coverage, measured=measured,
+                                   document=document)
+            if document is not None:
+                review['timeline'] = {'shots': document['plan']['shots'][:preview_shots],
+                                      'actions': [row for row in document['plan']['actions']
+                                                  if row['start_frame'] < props['frameCount']],
+                                      'speech': props['cues'], 'sounds': sounds}
+                review['editing'] = pacing.episode_diagnostics(
+                    joint.binding(candidate), document, props['frameCount'], measured, review['intervals'])
+                samples, audio = decode_aac(candidate, props['frameCount'] * joint.SAMPLES_PER_FRAME)
+                review['audio_playback'] = dict(audio, sample_peak=max(map(abs, samples)),
+                                                narration=measured['speech'])
             review['bgm_sha256'] = bgm_sha256
             review['aac_packets_sha256'] = audio_sha256
             review['decoded_frame_count'] = int(video['nb_frames'])
@@ -630,6 +797,10 @@ def assemble(episode, edit, pictures, speech, work, *, preview_shots=None, durat
             if preview_shots is None and not qualified:
                 output = output.with_stem(f'{output.stem}-candidate')
             review['media']['filename'] = output.name
+            if document is not None:
+                review['editing']['media']['path'] = str(output.resolve())
+                if direction := review['editing'].get('direction'):
+                    direction['media']['path'] = str(output.resolve())
             receipt = candidate.with_suffix('.mechanics.json')
             writejson(receipt, review)
             srt = candidate.with_suffix('.srt')
@@ -649,7 +820,8 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
     edit = json.loads((episode / (edit_file or 'edit.json')).read_text(encoding='utf-8'))
     if Path(edit['output']).name != edit['output'] or not edit['output'].endswith('.mp4'):
         raise ValueError('Episode output must be an MP4 filename')
-    for cut in edit['shots']:
+    document, cuts = load_joint_edit(episode, edit) if 'timeline' in edit else (None, edit['shots'])
+    for cut in cuts:
         if 'mechanics' in cut:
             mechanical = cut['mechanics']
             if not isinstance(mechanical, dict) or not isinstance(mechanical.get('evidence'), str):
@@ -672,18 +844,32 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
     def render_into(work):
         assembly = work / 'preview' if preview_shots is not None else work
         assembly.mkdir(exist_ok=True)
-        speech = (load_directed_narration(episode, edit, assembly) if 'directed_timeline' in edit
-                  else measure_narration(episode, edit, limit=preview_shots))[:preview_shots]
+        speech = measured = None
+        if document is None:
+            speech = (load_directed_narration(episode, edit, assembly) if 'directed_timeline' in edit
+                      else measure_narration(episode, edit, limit=preview_shots))[:preview_shots]
+            counts = [frames for _, _, frames in speech]
+            narration = narration_blocks(episode, edit)[:preview_shots]
+        else:
+            timeline = document['plan']
+            slots = timeline['shots'][:preview_shots]
+            counts = [slot['end_frame'] - slot['start_frame'] for slot in slots]
+            measured = measure_joint_narration(episode, edit, timeline, assembly / 'narration.wav')
+            writejson(assembly / 'narration-timeline.json', measured)
+            words = measured['speech']
+            narration = ['\n'.join(row['text'] for row in words
+                                   if row['start_sample'] < slot['end_frame'] * joint.SAMPLES_PER_FRAME
+                                   and row['end_sample'] > slot['start_frame'] * joint.SAMPLES_PER_FRAME)
+                         for slot in slots]
         if preview_shots is None:
-            validate_formal_duration(duration_policy, sum(frames for _, _, frames in speech) / FPS)
-        selected = dict(edit, shots=edit['shots'][:preview_shots])
+            validate_formal_duration(duration_policy, sum(counts) / FPS)
+        selected = dict(edit, shots=cuts[:preview_shots])
         plan = episode_evidence.load(episode)
         coverage = []
         missing = []
         cursor = 0
-        for index, (cut, narration, (_, _, frames)) in enumerate(zip(
-                selected['shots'], narration_blocks(episode, edit)[:preview_shots], speech, strict=True)):
-            row, reason = episode_evidence.coverage(episode, plan, cut, index, narration)
+        for index, (cut, script, frames) in enumerate(zip(selected['shots'], narration, counts, strict=True)):
+            row, reason = episode_evidence.coverage(episode, plan, cut, index, script)
             coverage.append(row)
             if reason:
                 missing.append(dict(video_review.finding(
@@ -693,10 +879,13 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
         block_mechanical_errors(missing, assembly / 'mechanics-preflight-failure.json',
                                 formal=preview_shots is None)
         step = edit.get('preview_step', 5) if preview_shots is not None else None
-        writejson(assembly / 'timing.json', [frames for _, _, frames in speech])
-        pictures = picture_sources(episode, speech, work, shots=selected['shots'], preview_step=step, coverage=coverage)
+        writejson(assembly / 'timing.json', counts)
+        joint_args = {} if document is None else {'counts': counts, 'document': document}
+        pictures = picture_sources(episode, speech, work, shots=selected['shots'],
+                                   preview_step=step, coverage=coverage, **joint_args)
         return assemble(episode, selected, pictures, speech, assembly, preview_shots=preview_shots,
-                        duration_policy=duration_policy, coverage=coverage, mechanical_plan=plan)
+                        duration_policy=duration_policy, coverage=coverage, mechanical_plan=plan,
+                        document=document, measured=measured, counts=counts)
 
     if work_dir is None:
         with TemporaryDirectory(prefix='mvn-episode-') as temporary:

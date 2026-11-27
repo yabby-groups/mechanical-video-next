@@ -84,8 +84,8 @@ def plan_direction(plan, beats, profile, engine, *, script_feedback=()):
     return direction
 
 
-def validate(direction, plan, profile):
-    joint.validate(plan)
+def validate(direction, plan, profile, *, source_root=joint.ROOT):
+    joint.validate(plan, source_root=source_root)
     rows = direction['segments']
     if type(direction.get('schema_version')) is not int or direction['schema_version'] != 1:
         raise ValueError('Unsupported voice direction version')

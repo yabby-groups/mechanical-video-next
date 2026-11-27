@@ -72,7 +72,7 @@ def coverage(episode, plan, cut, index, narration):
             channels = rule.get('channels', ())
             if not channels or any(not event.get('ranges') or
                                    not event['ranges'].keys() <= set(channels)
-                                   for event in rule.get('events', ())):
+                                   for event in (*rule.get('events', ()), *rule.get('source_events', ()))):
                 return None, f'Independent measurements are missing for {name}'
     return row, None
 

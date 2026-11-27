@@ -500,6 +500,40 @@ def analyze(media, plan, design, *, measured=None, states=(), inputs=None, wait_
             'sensory_status': 'UNKNOWN'}
 
 
+def episode_diagnostics(media, document, count, measured, intervals):
+    from .video_review import scan_media
+
+    plan = document['plan']
+    cuts = [cut for cut in plan['shots'] if cut['end_frame'] <= count]
+    authored = document.get('pacing')
+    measured_rows = [row for row in measured['speech'] if row['start_sample'] < count * joint.SAMPLES_PER_FRAME]
+    frames = [cut['end_frame'] - cut['start_frame'] for cut in cuts]
+    report = scan_media(media)
+    report.update(frame_count=count, shot_count=len(cuts), average_shot_seconds=count / len(cuts) / joint.FPS,
+                  shot_seconds=[length / joint.FPS for length in frames],
+                  narration_coverage=sum(min(row['end_sample'], count * joint.SAMPLES_PER_FRAME) - row['start_sample']
+                                         for row in measured_rows) / (count * joint.SAMPLES_PER_FRAME),
+                  continuous_viewing='UNKNOWN', perceptual_listening='UNKNOWN')
+    if authored:
+        states = []
+        for cut, interval in zip(cuts, intervals, strict=True):
+            motion = interval.get('evaluated_motion')
+            if not motion or not cut.get('action_views'):
+                continue
+            for action in cut['action_views']:
+                for channel, samples in motion['samples'].items():
+                    states.append(dict(shot_id=cut['id'], action_id=action, id=channel,
+                                       samples=samples[::motion['substeps']]))
+        result = analyze(media, dict(plan, shots=cuts, frame_count=count),
+                         {cut['id']: authored[cut['id']] for cut in cuts},
+                         measured={'speech': measured_rows}, states=states)
+        starts = sorted(span['frames'][0] for shot in result['shots'] for span in shot['information_increments'])
+        report['discovery_gaps_seconds'] = [(end - start) / joint.FPS
+                                            for start, end in zip([0, *starts], [*starts, count])]
+        report['direction'] = result
+    return report
+
+
 def review_status(report, review):
     """Validate the existing independent QA's timed sensory assessments."""
     checks = review.get('pacing_checks', {})
