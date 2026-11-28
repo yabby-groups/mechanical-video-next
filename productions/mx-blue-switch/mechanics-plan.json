@@ -1,0 +1,569 @@
+{
+  "evidence": {
+    "path": "research.md",
+    "sha256": "c08f3866f9512e73986348ebe5e1012c92529ef160375e40f71d2512d5429b2f"
+  },
+  "verifier_sha256": "2a48316cf06c9f55f023f8dbcc546deae71086f16b5c35c8d1c031058ed21a34",
+  "claims": {
+    "section": {
+      "quote": "白色组件撞击蓝色轴心并下落",
+      "source": "https://www.cherry.de/en-us/product/mx2a-blue 和 https://www.cherry.de/en-us/product/mx2a-red",
+      "expectation": "用网格测定白件下落后的撞击间隙、金属触点的先分后合、弹簧回位和红青轴等位移下压。几何和时序为定性。"
+    }
+  },
+  "shots": {
+    "d1fb7c29cfab0a212cd67940b151b3374076b19ddef860ccec81a62e6117a3e7": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                16,
+                206
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                141,
+                210
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "062c132878c22bd1d0c382d9ae8db13001d8baa9f1f9b2e8bc49e4fcc918123b": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                16,
+                272
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                203,
+                276
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "035b3e926a9e2b2c9e7b96ae442a0c5655d7567ba4657ee54d5a655a348b4759": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                55,
+                160
+              ],
+              "ranges": {
+                "stem": [
+                  1.3,
+                  1.32
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                210,
+                231
+              ],
+              "ranges": {
+                "stem": [
+                  -0.004,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "74f3e68d1fdb8f536b5033ba35791177c4e9c13d81d47a05a334b6f2728931af": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                16,
+                302
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                259,
+                306
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "7ec12618c255fe17f7f9685e1019ec6b47063c2b05778012c2e9ae2f376448d7": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                16,
+                290
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                238,
+                294
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "abd81d9293070f3fadcdc1d8a045ec7efae0293726aafde3a8451cdfd18d66d5": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                16,
+                269
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                233,
+                273
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "40dbfcb6c8b14778076417d655d45e35276039cbcbbe28a7de368fbe0d7930e2": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale",
+            "input_difference",
+            "red_gap"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                105,
+                154
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ],
+                "red_gap": [
+                  -0.001,
+                  0.004
+                ],
+                "input_difference": [
+                  -1e-05,
+                  1e-05
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                251,
+                312
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "red_gap": [
+                  0.19,
+                  0.22
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    },
+    "80121496b491bbf8f0ef655a436a8c80222bdcdf1021302f745fe2e9d82c940e": {
+      "kind": "core",
+      "relations": {
+        "section": {
+          "channels": [
+            "stem",
+            "impact_gap",
+            "contact_gap",
+            "spring_scale"
+          ],
+          "events": [
+            {
+              "window": [
+                0,
+                4
+              ],
+              "ranges": {
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                16,
+                299
+              ],
+              "ranges": {
+                "impact_gap": [
+                  -0.001,
+                  0.001
+                ],
+                "contact_gap": [
+                  -0.001,
+                  0.004
+                ]
+              },
+              "hold_frames": 1
+            },
+            {
+              "window": [
+                295,
+                303
+              ],
+              "ranges": {
+                "contact_gap": [
+                  0.19,
+                  0.22
+                ],
+                "impact_gap": [
+                  0.249,
+                  0.251
+                ],
+                "spring_scale": [
+                  0.999,
+                  1.001
+                ]
+              },
+              "hold_frames": 1
+            }
+          ]
+        }
+      }
+    }
+  },
+  "presentation": {
+    "ff9ed64797cf3576e895923567fa6e421cc316fe7cc3a46cbdbc38bbedd73bdf": {
+      "0": "输出帧 18、22、25，按压中白色滑块相对蓝轴心加速下落，两侧脚落在蓝色座面。",
+      "1": "输出帧 250、440，蓝色轴心和它下面的白件可独立辨认，白件接触两侧蓝色座面后分离。",
+      "2": "输出帧 550、680，上盖和轴心抬离底座，弹簧在中央，金色弹片留在侧边并接向底座。",
+      "3": "输出帧 783、786、790，白色腿下端从远离蓝色座面过渡到贴合，蓝轴心仍继续下移。",
+      "4": "输出帧 1060、1100、1160、1295，两个金色凸点由分开到邻接、继而再次分开。",
+      "5": "输出帧 1425、1450、1550，压缩弹簧伸长，带起轴心和白件，金色触点重新分开。",
+      "6": "输出帧 1630、1700、1780，两轴心同向下压，右侧红件为一体，左侧白滑块相对蓝轴心下落。",
+      "7": "输出帧 1997、2106、2160，先见键帽上方，随后白件落座，键帽在触发状态后继续下移。字幕 2.2 mm 对应原厂标称值。"
+    }
+  }
+}

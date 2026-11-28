@@ -127,6 +127,41 @@ def extract_phone_preview(analysis, directory):
     }
 
 
+def producer_preview(path, directory):
+    """Prepare full moving review material with the exported dialogue and sound."""
+    analysis = opening_analysis(path)
+    if analysis['audio_stream'] is None:
+        raise ValueError('Episode preview needs its exported audio track')
+    extract_phone_preview(analysis, directory)
+    return analysis
+
+
+def producer_observations(review, analysis):
+    """Record Producer observations without assigning independent sensory acceptance."""
+    duration = analysis['picture_duration']
+    checked = opening_review(review, analysis['media'], duration)
+    required = {'retention_2s', 'retention_5s', 'knowledge_progression'}
+    if not required <= checked.keys():
+        raise ValueError('Check the first two seconds, first answer and full preview')
+    issues = review.get('issues', [])
+    if not isinstance(issues, list) or any(
+            not text_fields(issue, ('finding', 'next_step'))
+            or issue.get('status') not in {'OPEN', 'FIXED'}
+            or (issue['status'] == 'FIXED' and not text_fields(issue, ('before_sha256', 'recheck')))
+            for issue in issues):
+        raise ValueError('Record preview issues, repairs and what was checked again')
+    for issue in issues:
+        span = issue.get('time_range')
+        if (not isinstance(span, list) or len(span) != 2
+                or not all(type(value) in (int, float) for value in span)
+                or not 0 <= span[0] < span[1] <= duration
+                or issue.get('before_sha256') == analysis['media']['sha256']):
+            raise ValueError('Locate the issue on the preview clock and identify any prior version')
+    return dict(media=analysis['media'], observations=checked, issues=issues,
+                continuous_viewing='UNKNOWN', perceptual_listening='UNKNOWN',
+                audience_acceptance='UNKNOWN', platform_outcome='UNKNOWN')
+
+
 def opening_review(review, media, duration):
     """Check provenance and evidence limits of a supplied editorial observation."""
     if not isinstance(review, dict) or review.get('media_sha256') != media['sha256']:

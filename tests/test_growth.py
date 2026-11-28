@@ -168,6 +168,34 @@ class GrowthTests(unittest.TestCase):
             [older, match, foreign, target], target, duration_tolerance=15,
             age_tolerance=7200, publication_window=86400), [match])
 
+    def test_historical_cohorts_keep_age_format_and_platform_separate(self):
+        from mechanical_video_next.feedback import domain_cohorts
+
+        base = dict(video_id='post', platform='douyin', account_id='a', format='video',
+                    published_at='2026-11-21T10:00:00+08:00',
+                    selection_domain={'primary': 'tool', 'basis': 'Pawl drives gear'})
+        first = ingest(dict(base, observed_at='2026-11-22T10:00:00+08:00', views=100,
+                            likes=0, bounce_2s=.2))
+        latest = ingest(dict(base, observed_at='2026-11-28T10:00:00+08:00', views=2200))
+        other = ingest(dict(base, platform='xiaohongshu',
+                            observed_at=first['observed_at'], views=800, impressions=4000))
+        gallery = ingest(dict(base, video_id='gallery', format='gallery', views=6000))
+        rows = domain_cohorts([first, latest, other, gallery], first_weekday=5,
+                              thresholds={'douyin': 2000})
+        self.assertEqual(first['production_binding'], 'partial')
+        self.assertEqual(len(rows), 3)
+        _, videos, notes = rows
+        self.assertEqual(videos['latest']['posts'], 1)
+        self.assertEqual(videos['by_age_hours'][24]['over_threshold'], 0)
+        self.assertEqual(videos['by_age_hours'][72]['threshold_sample'], 0)
+        self.assertEqual(videos['by_age_hours'][168]['over_threshold'], 1)
+        self.assertEqual(videos['by_age_hours'][168]['over_threshold_rate'], 1)
+        self.assertEqual(videos['by_age_hours'][168]['traffic_sources'], {'UNKNOWN': 1})
+        self.assertEqual(videos['by_age_hours'][24]['metrics']['likes']['median'], 0)
+        self.assertIsNone(notes['by_age_hours'][24]['over_threshold'])
+        self.assertIsNone(notes['by_age_hours'][24]['over_threshold_rate'])
+        self.assertIsNone(notes['by_age_hours'][24]['metrics']['recommendation_impressions']['median'])
+
     def test_old_task_and_media_not_migrated_on_load(self):
         for seconds in (38.2,90):
             task=self.root/str(seconds);task.mkdir()

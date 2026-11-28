@@ -9,7 +9,7 @@ from uuid import uuid4
 import wave
 
 from mechanical_video_next import joint_timeline as joint
-from mechanical_video_next import episode_evidence, pacing, video_review, visual_diagnosis
+from mechanical_video_next import creative_selection, episode_evidence, pacing, video_review, visual_diagnosis
 from mechanical_video_next.audio_acceptance import decode_aac
 from mechanical_video_next.blender_runtime import BlenderFailure, blender_executable, run_blender
 from mechanical_video_next.director_audio import aac_hash, mux_picture
@@ -137,6 +137,8 @@ def load_joint_edit(episode, edit):
             del cuts[-1]['scene_shot']
     if design := document.get('pacing'):
         pacing.validate(plan, design)
+    if 'creative' in document:
+        creative_selection.episode_direction(document, episode=episode)
     if any('clicks' in cut or 'subtitle_breaks' in cut for cut in cuts):
         raise ValueError('Joint edits place subtitles and mechanical sound on the timeline')
     for cue in document.get('sounds', ()):
@@ -844,7 +846,7 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
         raise ValueError('preview_shots must select a nonempty prefix of the episode')
     duration_policy = {} if allow_short else {FORMAL_DURATION_FIELD: FORMAL_DURATION_VERSION}
 
-    def render_into(work):
+    def render_into(work, preview_shots):
         assembly = work / 'preview' if preview_shots is not None else work
         assembly.mkdir(exist_ok=True)
         speech = measured = None
@@ -890,10 +892,69 @@ def produce(episode, *, work_dir=None, env_file=None, edit_file=None, preview_sh
                         duration_policy=duration_policy, coverage=coverage, mechanical_plan=plan,
                         document=document, measured=measured, counts=counts)
 
+    modern = document is not None and 'creative' in document
+
+    def produce_into(work):
+        if not modern or (preview_shots is not None and preview_shots < len(cuts)):
+            return render_into(work, preview_shots)
+
+        # Source edits invalidate the whole-preview receipt while unchanged shot and voice caches survive.
+        plan = episode_evidence.load(episode)
+        paths = {episode / 'mechanics_review.py', ROOT / edit['bgm'],
+                 ROOT / 'config/narration-neil.json'}
+        if 'voice_direction' in edit:
+            paths.update((episode / edit['voice_direction'], ROOT / 'config/voice-profile.json'))
+        for shot in cuts:
+            if 'mechanics' in shot:
+                paths.add(episode / shot['mechanics']['evidence'])
+        identity = digest({
+            'edit': edit, 'timeline': {key: value for key, value in document.items()
+                                      if key not in ('creative', 'pacing')},
+            'mechanics': plan.get('shots'),
+            'claims': plan.get('claims'),
+            'shots': [episode_evidence.shot_signature(episode, shot, index, '')
+                      for index, shot in enumerate(cuts)],
+            'inputs': {str(path): filehash(path) for path in paths if path.is_file()},
+        })
+        preview_root = work / 'preview'
+        receipt = preview_root / 'audience-analysis.json'
+        analysis = json.loads(receipt.read_text()) if receipt.is_file() else {}
+        try:
+            preview = joint.bound(analysis['media']) if analysis.get('inputs') == identity else None
+            if preview is not None:
+                joint.bound(analysis['phone_preview']['playback'])
+        except (KeyError, TypeError, ValueError):
+            preview = None
+        if preview is None:
+            preview = render_into(work, len(cuts))
+            analysis = pacing.producer_preview(preview, preview_root)
+            analysis['inputs'] = identity
+            writejson(receipt, analysis)
+        if preview_shots is not None:
+            return preview
+        review_file = preview_root / 'audience-review.json'
+        if not review_file.is_file():
+            print(f'Producer preview ready. Record timed observations in {review_file}')
+            return preview
+        raw = json.loads(review_file.read_text())
+        if raw.get('media_sha256') != analysis['media']['sha256']:
+            print(f'Producer preview updated. Review the current MP4 and update {review_file}')
+            return preview
+        review = pacing.producer_observations(raw, analysis)
+        if any(issue['status'] == 'OPEN' for issue in review['issues']):
+            print(f'Producer preview has open issues in {review_file}')
+            return preview
+        output = render_into(work, None)
+        writejson(output.with_suffix('.audience.json'),
+                  dict(review, final_media=joint.binding(output), creative=document['creative']))
+        return output
+
+    if work_dir is None and modern:
+        work_dir = ROOT / 'work' / episode.name / 'episode'
     if work_dir is None:
         with TemporaryDirectory(prefix='mvn-episode-') as temporary:
-            return render_into(Path(temporary))
+            return produce_into(Path(temporary))
     work_dir = Path(work_dir).resolve()
     work_dir.mkdir(exist_ok=True, parents=True)
     with lock(work_dir / '.episode.lock', wait=True):
-        return render_into(work_dir)
+        return produce_into(work_dir)

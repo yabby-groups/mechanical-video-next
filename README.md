@@ -11,14 +11,20 @@
 ```sh
 uv sync --locked
 npm ci --prefix remotion --no-audit --no-fund
-uv run python -m mechanical_video_next produce --episode productions/pop-up-toaster --edit visual-edit.json --work-dir work/pop-up-toaster
+uv run python -m mechanical_video_next produce --episode productions/mx-blue-switch --work-dir work/mx-blue-switch
 ```
 
-示例从两片吐司同时弹起切入，接着看共同托架、弹簧回程、定性曲线、取消操作和接渣盘。用剪辑 JSON 的 `timeline` 引入联合时间轴。画面切点、逐句 Neil 配音、机械动作源及拟音各用自己的区间。历史剪辑仍可将旁白按空行分镜、每行一条字幕。[示例剪辑](productions/pop-up-toaster/visual-edit.json) · [示例时间轴](productions/pop-up-toaster/visual-timeline.json)
+青轴示例从白色滑块突跳切入，继续追声源、触点、回位、红轴对比及触发行程。用剪辑 JSON 的 `timeline` 引入联合时间轴。画面切点、逐句 Neil 配音、机械动作源及拟音各用自己的区间。`creative` 存放选题、研究、运营证据与创意取舍，`pacing` 记录镜头给观众的新发现。历史剪辑仍可将旁白按空行分镜、每行一条字幕。 [示例时间轴](productions/mx-blue-switch/timeline.json)
 
 正式入口在渲染前检查实测时间轴，导出后复核画面流。默认至少 60 秒，常规参考 120–180 秒，知识丰富的复杂题材参考 180–300 秒。动稿可短于 60 秒，用户明确要求超短成片时使用 `--allow-short`。
 
-成片和字幕输出至 `output/<本集目录名>/`。可用 `--work-dir` 指定逐镜头缓存来复用渲染结果，默认工作目录随运行清理。模型、已完成视频与生产缓存按 [配置边界](config/README.md) 保存。CAD 工具可用 `uv sync --extra cad --locked` 安装。
+成片和字幕输出至 `output/<本集目录名>/`。可用 `--work-dir` 指定逐镜头缓存来复用渲染结果，有 `creative` 的新片默认将预演和缓存保存在 `work/<本集目录名>/episode/`，历史剪辑未指定时用临时工作目录。模型、已完成视频与生产缓存按 [配置边界](config/README.md) 保存。CAD 工具可用 `uv sync --extra cad --locked` 安装。
+
+首轮生成全长动态预演及其手机预览。Producer 查看实际视频和音轨，在工作目录的 `preview/audience-review.json` 记录同一个 MP4 哈希、前 2 秒、前 5 秒、全片推进及问题复查。按实际覆盖写观察，连续视听缺证时记 UNKNOWN。修复后复查受影响区间和连接，再跑相同命令进入高清。 [动稿记录样例](productions/mx-blue-switch/preview-review.json)
+
+## 发布后运营复盘
+
+使用 `uv run --locked python -m mechanical_video_next.feedback --input observations.json --output cohorts.json --cohorts` 汇总真实记录。输入为 JSON 列表，每条代表一个作品在一个平台及一个时刻的快照。使用 `platform`、`account_id`、`video_id`、带时区的 `published_at` 和 `observed_at` 匹配，给 `selection_domain` 写领域和依据。累计快照和同龄窗口分别输出，缺失指标保留空值及样本量。历史记录可只附实际现存的运营证据。本机私有数据保存在仓库外或忽略目录。Producer 从相关复盘选择证据，将其定位、影响和发布验证方式记入本集 `creative.operations`。
 
 ## 比较动稿并局部换镜
 
@@ -29,7 +35,7 @@ uv run python -m mechanical_video_next produce --episode productions/drawer-slid
 uv run python -m mechanical_video_next opening-analysis "开场动稿.mp4" --clips work/opening --through 12 --phone-preview work/opening --output work/opening/analysis.json
 ```
 
-备选剪辑 JSON 可指定 `narration`。逐镜可用 `scene` 换 Blender 脚本、`scene_shot` 选用源脚本的镜号、`scene_inputs` 声明影响画面的相对路径依赖。场景接收 `--preview` 时按固定间隔输出低分辨率帧，默认每 5 帧采样，必要时用 `preview_step` 与场景约定匹配。相同工作目录优先复用已有高清镜头，预演的剪辑文件单独写入 `preview/`。选定后省略 `--preview-shots` 渲染完整成片。
+备选剪辑 JSON 可指定 `narration`。逐镜可用 `scene` 换 Blender 脚本、`scene_shot` 选用源脚本的镜号、`scene_inputs` 声明影响画面的相对路径依赖。场景接收 `--preview` 时按固定间隔输出低分辨率帧，默认每 5 帧采样，必要时用 `preview_step` 与场景约定匹配。相同工作目录优先复用已有高清镜头，预演的剪辑文件单独写入 `preview/`。新片省略 `--preview-shots` 时进入全片预演及复查流程。旧剪辑可按原方式省略该参数渲染成片。
 
 解释镜头可在 `shots[]` 写入 `graphic`，使用现有 Remotion 的 `diagram`、`comparison`、`chart`、`timeline` 或 `data_animation`。动态图的关键帧时间以本镜秒数为基准。联合剪辑按预定的画面区间渲染图解，连续旁白可跨越图解切点。图解按参数、镜长及 Remotion 源文件复用缓存，同时支持 Remotion 和 FFmpeg 剪辑。
 

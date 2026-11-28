@@ -34,6 +34,43 @@ MECHANICAL_CRITERIA = ('positioning', 'mechanical_object', 'core_question', 'int
                        'discovery_payoff')
 
 
+def episode_direction(document, *, episode):
+    """Consume the lightweight editorial decision on the executable edit."""
+    from . import joint_timeline as joint, pacing
+
+    direction = document['creative']
+    if (not pacing.text_fields(direction, ('phenomenon', 'question', 'decision'))
+            or not document.get('pacing')):
+        raise ValueError('Creative direction needs a visible phenomenon, a decision and timed discoveries')
+    if 'selection_domain' in direction and not pacing.text_fields(
+            direction['selection_domain'], ('primary', 'basis', 'intended_audience')):
+        raise ValueError('Describe the domain, its basis and the audience for this episode')
+    source = direction['research']
+    joint.bound(source, root=episode)
+    options = direction['alternatives']
+    if not isinstance(options, list) or any(
+            not pacing.text_fields(row, ('approach', 'decision')) for row in options):
+        raise ValueError('Record the editorial tradeoff for each alternative explored')
+
+    history = direction['operations']
+    observations = history['observations']
+    if not isinstance(observations, list):
+        raise ValueError('Operations observations must be a list')
+    if not observations and not nonempty(history.get('uncertainty')):
+        raise ValueError('Record the evidence gap when prior operations data are unavailable')
+    for row in observations:
+        if not pacing.text_fields(row, ('location', 'finding', 'implication')):
+            raise ValueError('Locate each historical finding and how it informs this episode')
+        joint.bound(row['source'], root=episode)
+    if not pacing.text_fields(history, ('hypothesis', 'verification')):
+        raise ValueError('Record a hypothesis and how to observe it after publication')
+    known = {shot['id'] for shot in document['plan']['shots']}
+    affected = history.get('shot_ids')
+    if not isinstance(affected, list) or not affected or not set(affected) <= known:
+        raise ValueError('Connect the hypothesis to the shots that express it')
+    return direction
+
+
 def validate_treatment(treatment, facts, *, mechanics=False):
     from .director import validate_storyboard
 

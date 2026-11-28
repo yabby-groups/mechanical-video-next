@@ -1,0 +1,142 @@
+{
+  "media_sha256": "2b1460466c29631ca9aa6d2ad91120f39668bfdba7359051ca540a8d9547f322",
+  "retention_2s": {
+    "coverage": "sampled_picture",
+    "conclusion": "0.73–0.82 秒展示突跳",
+    "answers": {
+      "first_frame": "透视到蓝轴心与白色件，按压区在中央",
+      "product": "方键帽和轴体，单键缺键盘环境",
+      "attention": "白色滑块与蓝色台肩之间的缝",
+      "ordinary": "没有整机旋转介绍",
+      "phenomenon": "按键平缓下移，白件突然追上并越过原位置",
+      "hidden": "轴心、滑块、弹簧",
+      "change": "0.73–0.82 秒白件相对蓝件位移",
+      "narration": "UNKNOWN",
+      "subtitles": "第一句指定看白色滑块",
+      "muted": "连续抽帧可辨识白件相对蓝件下落",
+      "phone": "384×216 实际解码帧中能区分键帽、白件与弹簧，触点需要后段微距",
+      "third_second": "已看到白件突然下落，有理由继续看它为何会跳"
+    },
+    "third_second_evidence": [
+      1
+    ],
+    "evidence": [
+      {
+        "time_range": [
+          0.1,
+          0.65
+        ],
+        "observation": "键帽开始下压"
+      },
+      {
+        "time_range": [
+          0.73,
+          0.82
+        ],
+        "observation": "白件跳落"
+      },
+      {
+        "time_range": [
+          1.2,
+          1.25
+        ],
+        "observation": "键帽仍处于按下位置"
+      }
+    ]
+  },
+  "retention_5s": {
+    "coverage": "sampled_picture",
+    "conclusion": "开场先给可见结果，字幕随后点明并非随键帽匀速下移",
+    "evidence": [
+      {
+        "time_range": [
+          0.82,
+          1.25
+        ],
+        "observation": "字幕指向白色件"
+      },
+      {
+        "time_range": [
+          3.6,
+          3.6
+        ],
+        "observation": "字幕对照平缓输入与突跳"
+      }
+    ]
+  },
+  "knowledge_progression": {
+    "coverage": "sampled_picture",
+    "conclusion": "拆分撞击、触点、复位与同速红轴对照，末段进入行程。个别姿态停留，撞击先展示后解释，靠后段微距看清触点。AAC 实际流和字幕已检查，连续观看和主观听音 UNKNOWN。",
+    "evidence": [
+      {
+        "time_range": [
+          9,
+          9
+        ],
+        "observation": "区分两件式轴心"
+      },
+      {
+        "time_range": [
+          18,
+          22
+        ],
+        "observation": "拆开看弹簧和触点位置"
+      },
+      {
+        "time_range": [
+          29,
+          31
+        ],
+        "observation": "跟到撞击位置"
+      },
+      {
+        "time_range": [
+          36,
+          40
+        ],
+        "observation": "近视角辨识触点开合"
+      },
+      {
+        "time_range": [
+          45,
+          49
+        ],
+        "observation": "弹簧抬起轴心并复位"
+      },
+      {
+        "time_range": [
+          55,
+          59
+        ],
+        "observation": "同向下压青轴与红轴"
+      },
+      {
+        "time_range": [
+          66.9,
+          72.8
+        ],
+        "observation": "从回顾白件跳落进入触发行程与继续下行"
+      }
+    ],
+    "opportunities": [
+      {
+        "kind": "like",
+        "reason": "同速输入下的红轴与青轴不同动作",
+        "evidence": 5
+      }
+    ]
+  },
+  "issues": [
+    {
+      "finding": "约 70.2 秒原画面已回位，字幕说还能往下走",
+      "next_step": "调整末镜按压与回位时序",
+      "status": "FIXED",
+      "time_range": [
+        66.9,
+        72.8
+      ],
+      "before_sha256": "d1f5397e06e9cd40bd70fb421c19c8c249cc5eb28ea22c23cd0bcbe6e199e926",
+      "recheck": "同时间抽取原版和修订版 66.9、68.4、70.2、72.8 秒。70.2 秒修订版键帽仍下行，白色件在较低位置"
+    }
+  ]
+}

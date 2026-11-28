@@ -1,0 +1,649 @@
+{
+  "plan": {
+    "frame_count": 2205,
+    "shots": [
+      {
+        "id": "snap",
+        "start_frame": 0,
+        "end_frame": 210,
+        "action_views": {
+          "move-snap": 0
+        }
+      },
+      {
+        "id": "two-parts",
+        "start_frame": 210,
+        "end_frame": 486,
+        "action_views": {
+          "move-two-parts": 0
+        }
+      },
+      {
+        "id": "teardown",
+        "start_frame": 486,
+        "end_frame": 717,
+        "action_views": {
+          "move-teardown": 0
+        }
+      },
+      {
+        "id": "impact",
+        "start_frame": 717,
+        "end_frame": 1023,
+        "action_views": {
+          "move-impact": 0
+        }
+      },
+      {
+        "id": "switching",
+        "start_frame": 1023,
+        "end_frame": 1317,
+        "action_views": {
+          "move-switching": 0
+        }
+      },
+      {
+        "id": "reset",
+        "start_frame": 1317,
+        "end_frame": 1590,
+        "action_views": {
+          "move-reset": 0
+        }
+      },
+      {
+        "id": "comparison",
+        "start_frame": 1590,
+        "end_frame": 1902,
+        "action_views": {
+          "move-comparison": 0
+        }
+      },
+      {
+        "id": "travel",
+        "start_frame": 1902,
+        "end_frame": 2205,
+        "action_views": {
+          "move-travel": 0
+        }
+      }
+    ],
+    "actions": [
+      {
+        "id": "move-snap",
+        "start_frame": 0,
+        "end_frame": 210,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "匀速下压时白滑块突然掉下去",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-two-parts",
+        "start_frame": 210,
+        "end_frame": 486,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "蓝色轴心和白滑块可以相对运动",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-teardown",
+        "start_frame": 486,
+        "end_frame": 717,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "弹簧居中，侧面的两片触点分别通到两根引脚",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-impact",
+        "start_frame": 717,
+        "end_frame": 1023,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "白件撞到轴心的挡肩，撞击产生声音",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-switching",
+        "start_frame": 1023,
+        "end_frame": 1317,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "触点闭合是键盘读取的电信号",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-reset",
+        "start_frame": 1317,
+        "end_frame": 1590,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "松手后弹簧回推，触点分开且白件复位",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-comparison",
+        "start_frame": 1590,
+        "end_frame": 1902,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "同样下压时红轴不需要独立的发声件也会闭合",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      },
+      {
+        "id": "move-travel",
+        "start_frame": 1902,
+        "end_frame": 2205,
+        "source_start_frame": 0,
+        "source": {
+          "path": "scene.py",
+          "sha256": "e15abf4137915beffda9e72e226734ff28739ac44a855a9cdd92047bfc506d8d"
+        },
+        "start_state": "镜头初始状态",
+        "end_state": "青轴在到底前就达到标称触发位置",
+        "curve": "定性示意；叠加等速下压与局部回位曲线",
+        "constraints": "运动保留共同轴向及壳体固定坐标"
+      }
+    ],
+    "narration": [
+      {
+        "id": "snap-1",
+        "start_frame": 3,
+        "deadline_frame": 77,
+        "text": "看白色滑块，它突然跳了一下。",
+        "knowledge_ids": [
+          "snap"
+        ]
+      },
+      {
+        "id": "snap-2",
+        "start_frame": 80,
+        "deadline_frame": 208,
+        "text": "手还在匀速往下按，白色滑块却抢先撞了下去。",
+        "knowledge_ids": [
+          "snap"
+        ]
+      },
+      {
+        "id": "two-parts-1",
+        "start_frame": 213,
+        "deadline_frame": 381,
+        "text": "拆开一颗青轴，键帽底下，蓝色轴心和白色滑块是分开的。",
+        "knowledge_ids": [
+          "two-parts"
+        ]
+      },
+      {
+        "id": "two-parts-2",
+        "start_frame": 384,
+        "deadline_frame": 480,
+        "text": "所以同一次按压，里面有两种速度。",
+        "knowledge_ids": [
+          "two-parts"
+        ]
+      },
+      {
+        "id": "teardown-1",
+        "start_frame": 489,
+        "deadline_frame": 583,
+        "text": "拿掉上盖，能看见中间的回位弹簧。",
+        "knowledge_ids": [
+          "teardown"
+        ]
+      },
+      {
+        "id": "teardown-2",
+        "start_frame": 586,
+        "deadline_frame": 706,
+        "text": "金色触点贴在一侧，最后接到下面这两根脚。",
+        "knowledge_ids": [
+          "teardown"
+        ]
+      },
+      {
+        "id": "impact-1",
+        "start_frame": 720,
+        "deadline_frame": 855,
+        "text": "再慢按一次。白色滑块先跟着蓝色轴心走。",
+        "knowledge_ids": [
+          "impact"
+        ]
+      },
+      {
+        "id": "impact-2",
+        "start_frame": 858,
+        "deadline_frame": 1019,
+        "text": "越过触感点，白件突然滑落，撞到了轴心。那一下就是响声。",
+        "knowledge_ids": [
+          "impact"
+        ]
+      },
+      {
+        "id": "switching-1",
+        "start_frame": 1026,
+        "deadline_frame": 1168,
+        "text": "换到触点这一侧。原来分开的两片金属，现在碰到一起了。",
+        "knowledge_ids": [
+          "switching"
+        ]
+      },
+      {
+        "id": "switching-2",
+        "start_frame": 1171,
+        "deadline_frame": 1306,
+        "text": "键盘读的是这里的通断，耳朵听到的是旁边的撞击。",
+        "knowledge_ids": [
+          "switching"
+        ]
+      },
+      {
+        "id": "reset-1",
+        "start_frame": 1320,
+        "deadline_frame": 1431,
+        "text": "松手时，压短的弹簧把轴心往上推。",
+        "knowledge_ids": [
+          "reset"
+        ]
+      },
+      {
+        "id": "reset-2",
+        "start_frame": 1434,
+        "deadline_frame": 1578,
+        "text": "触点重新分开，白色滑块也回到能再响一次的位置。",
+        "knowledge_ids": [
+          "reset"
+        ]
+      },
+      {
+        "id": "comparison-1",
+        "start_frame": 1593,
+        "deadline_frame": 1720,
+        "text": "左边青轴，右边红轴，用一样的速度压下去。",
+        "knowledge_ids": [
+          "comparison"
+        ]
+      },
+      {
+        "id": "comparison-2",
+        "start_frame": 1723,
+        "deadline_frame": 1884,
+        "text": "红轴也能接通触点，少了单独跳落的白色件，手感是线性的。",
+        "knowledge_ids": [
+          "comparison"
+        ]
+      },
+      {
+        "id": "travel-1",
+        "start_frame": 1905,
+        "deadline_frame": 2028,
+        "text": "所以用青轴打一行字，听见的咔哒来自白件跳落。",
+        "knowledge_ids": [
+          "travel"
+        ]
+      },
+      {
+        "id": "travel-2",
+        "start_frame": 2031,
+        "deadline_frame": 2192,
+        "text": "青轴标称触发行程二点二毫米，键帽还能继续向下走。",
+        "knowledge_ids": [
+          "travel"
+        ]
+      }
+    ]
+  },
+  "pacing": {
+    "snap": {
+      "watch_task": "匀速下压时白滑块突然掉下去",
+      "mechanical_event": "匀速下压时白滑块突然掉下去",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "snap",
+          "discovery": "匀速下压时白滑块突然掉下去",
+          "evidence": "research.md",
+          "frames": [
+            21,
+            210
+          ],
+          "knowledge_id": "snap"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-snap",
+          "kind": "answer",
+          "description": "匀速下压时白滑块突然掉下去",
+          "frames": [
+            21,
+            22
+          ],
+          "opening": true
+        }
+      ]
+    },
+    "two-parts": {
+      "watch_task": "蓝色轴心和白滑块可以相对运动",
+      "mechanical_event": "蓝色轴心和白滑块可以相对运动",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "two-parts",
+          "discovery": "蓝色轴心和白滑块可以相对运动",
+          "evidence": "research.md",
+          "frames": [
+            222,
+            486
+          ],
+          "knowledge_id": "two-parts"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-two-parts",
+          "kind": "answer",
+          "description": "蓝色轴心和白滑块可以相对运动",
+          "frames": [
+            222,
+            223
+          ],
+          "opening": false
+        }
+      ]
+    },
+    "teardown": {
+      "watch_task": "弹簧居中，侧面的两片触点分别通到两根引脚",
+      "mechanical_event": "弹簧居中，侧面的两片触点分别通到两根引脚",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "teardown",
+          "discovery": "弹簧居中，侧面的两片触点分别通到两根引脚",
+          "evidence": "research.md",
+          "frames": [
+            498,
+            717
+          ],
+          "knowledge_id": "teardown"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-teardown",
+          "kind": "answer",
+          "description": "弹簧居中，侧面的两片触点分别通到两根引脚",
+          "frames": [
+            498,
+            499
+          ],
+          "opening": false
+        }
+      ]
+    },
+    "impact": {
+      "watch_task": "白件撞到轴心的挡肩，撞击产生声音",
+      "mechanical_event": "白件撞到轴心的挡肩，撞击产生声音",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "impact",
+          "discovery": "白件撞到轴心的挡肩，撞击产生声音",
+          "evidence": "research.md",
+          "frames": [
+            729,
+            1023
+          ],
+          "knowledge_id": "impact"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-impact",
+          "kind": "answer",
+          "description": "白件撞到轴心的挡肩，撞击产生声音",
+          "frames": [
+            729,
+            730
+          ],
+          "opening": false
+        }
+      ]
+    },
+    "switching": {
+      "watch_task": "触点闭合是键盘读取的电信号",
+      "mechanical_event": "触点闭合是键盘读取的电信号",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "switching",
+          "discovery": "触点闭合是键盘读取的电信号",
+          "evidence": "research.md",
+          "frames": [
+            1035,
+            1317
+          ],
+          "knowledge_id": "switching"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-switching",
+          "kind": "answer",
+          "description": "触点闭合是键盘读取的电信号",
+          "frames": [
+            1035,
+            1036
+          ],
+          "opening": false
+        }
+      ]
+    },
+    "reset": {
+      "watch_task": "松手后弹簧回推，触点分开且白件复位",
+      "mechanical_event": "松手后弹簧回推，触点分开且白件复位",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "reset",
+          "discovery": "松手后弹簧回推，触点分开且白件复位",
+          "evidence": "research.md",
+          "frames": [
+            1329,
+            1590
+          ],
+          "knowledge_id": "reset"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-reset",
+          "kind": "answer",
+          "description": "松手后弹簧回推，触点分开且白件复位",
+          "frames": [
+            1329,
+            1330
+          ],
+          "opening": false
+        }
+      ]
+    },
+    "comparison": {
+      "watch_task": "同样下压时红轴不需要独立的发声件也会闭合",
+      "mechanical_event": "同样下压时红轴不需要独立的发声件也会闭合",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "comparison",
+          "discovery": "同样下压时红轴不需要独立的发声件也会闭合",
+          "evidence": "research.md",
+          "frames": [
+            1602,
+            1902
+          ],
+          "knowledge_id": "comparison"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-comparison",
+          "kind": "answer",
+          "description": "同样下压时红轴不需要独立的发声件也会闭合",
+          "frames": [
+            1602,
+            1603
+          ],
+          "opening": false
+        }
+      ]
+    },
+    "travel": {
+      "watch_task": "青轴在到底前就达到标称触发位置",
+      "mechanical_event": "青轴在到底前就达到标称触发位置",
+      "camera_reason": "把当前动作或接触放在画面中部，保留相邻机构",
+      "exit_condition": "当前状态变化已出现",
+      "increments": [
+        {
+          "id": "travel",
+          "discovery": "青轴在到底前就达到标称触发位置",
+          "evidence": "research.md",
+          "frames": [
+            1914,
+            2205
+          ],
+          "knowledge_id": "travel"
+        }
+      ],
+      "observation": [],
+      "events": [
+        {
+          "id": "answer-travel",
+          "kind": "answer",
+          "description": "青轴在到底前就达到标称触发位置",
+          "frames": [
+            1914,
+            1915
+          ],
+          "opening": false
+        }
+      ]
+    }
+  },
+  "creative": {
+    "phenomenon": "同样匀速按下键帽，白色组件先随蓝色轴心移动，然后突然落下",
+    "question": "青轴为什么会突然响一声，键盘读到的又是什么？",
+    "decision": "开头在同一剖面看相对速度变化，后段分别追到撞击、触点和回位，再用等速红青轴对比检验发声件的作用。",
+    "research": {
+      "path": "research.md",
+      "sha256": "c08f3866f9512e73986348ebe5e1012c92529ef160375e40f71d2512d5429b2f"
+    },
+    "alternatives": [
+      {
+        "approach": "从成排按键的声音入题",
+        "decision": "声音有日常辨识度，手机静音时看不出发生了什么，保留键帽轮廓并前置剖视。"
+      },
+      {
+        "approach": "从两种轴体对比入题",
+        "decision": "并排状态可说明差异，开场先让观众找到单个白件，把对照留作后段的新问题。"
+      }
+    ],
+    "operations": {
+      "observations": [
+        {
+          "source": {
+            "path": "operations.md",
+            "sha256": "2990ee600117cceb0cac46016ecb77b4246a6e5ee28c0eb5cfd08e63333779f6"
+          },
+          "location": "按动笔与棘轮段",
+          "finding": "同类题材的早期留存有差距，棘轮的动作对照提供可转移的画面关系。",
+          "implication": "看匀速输入与跳落，随后拆开声源与信号。"
+        },
+        {
+          "source": {
+            "path": "operations.md",
+            "sha256": "2990ee600117cceb0cac46016ecb77b4246a6e5ee28c0eb5cfd08e63333779f6"
+          },
+          "location": "抽屉、垃圾桶、皂液泵段",
+          "finding": "早期留存、触达与转化并不总是同向。",
+          "implication": "保持红青对照和有效行程的后段内容，分平台看分发及转化。"
+        },
+        {
+          "location": "领域和受众",
+          "finding": "抖音机械传动与精密机构的发布占比下降。同周小红书家居组累计播放中位数高于其余两组，跨平台表现有差别。",
+          "implication": "增加精密机构样本，同时以键帽作熟悉参照，在青轴与红轴中展示机构差异。",
+          "source": {
+            "path": "operations.md",
+            "sha256": "2990ee600117cceb0cac46016ecb77b4246a6e5ee28c0eb5cfd08e63333779f6"
+          }
+        }
+      ],
+      "uncertainty": "不同作品龄期的累计快照，历史上传文件与分发来源未知。",
+      "hypothesis": "在第一眼展示相对运动，随后马上解释反差，可改善开头流失。 精密机构的运动反差可能吸引传动内容的观众，受众匹配需等真实发布。",
+      "verification": "抖音及小红书按 24、72、168 小时各自观察可得指标，记录上传版本和可得分发。 如能匹配龄期、时长和开场信息，再比较其他领域的早期留存和触达。",
+      "shot_ids": [
+        "snap",
+        "impact",
+        "switching",
+        "comparison",
+        "travel"
+      ]
+    },
+    "selection_domain": {
+      "primary": "机械传动与精密机构",
+      "related": [
+        "精巧日常机构"
+      ],
+      "basis": "按键匀速输入与两件式轴心的突跳，能分别观察撞击、触点和回程。",
+      "intended_audience": "对内部机械动作好奇的普通观众，也包含键盘使用者和机械爱好者。"
+    }
+  }
+}

@@ -4,6 +4,8 @@
 
 ## 作品与数据窗
 
+发布约 24 小时、72 小时和 7 天各保存一份可得快照，记录实际龄期。抖音和小红书各自建立同龄组。
+
 | 字段 | 记录 |
 | --- | --- |
 | 本地任务与正式 MP4 SHA-256 | |
@@ -12,11 +14,14 @@
 | 数据起止、采集时间、后台模块刷新时间与时区 | |
 | 数据来源及原文件或截图 | |
 | 自然或付费流量、平台归因范围 | |
+| 创作版本与实际上传版本、上传绑定来源 | |
+| 主领域、关联机构、预期受众与分类依据 | |
 
 ## 实际指标
 
 | 指标 | 本窗 | 分母或数据定义 |
 | --- | --- | --- |
+| 推荐曝光、封面曝光与点击 | | 分别保存平台原值和定义 |
 | 播放量 | | 同一作品同一统计窗口的后台播放次数 |
 | 平均观看时长 | | 平台原值，单位秒 |
 | 2 秒跳出率、5 秒留存率、完播率 | | 分开记录平台原值、后台定义及可用性 |
@@ -55,9 +60,9 @@
 
 ## 导入与创作回流
 
-作品、采集时间、制作输入可核实时，用 `uv run python -m mechanical_video_next.feedback --input observation.json --output <task>/post-publish/<platform>-<snapshot>.json` 导入现有账本。使用带时区的 `published_at`、`observed_at` 和 `blueprint`、`timeline` 的路径及 SHA-256。可核实上传版时提供 `published_media`；未知时留空，增长报告保留这条记录并仅按相同 SHA-256 归属版本。平台诊断用 `diagnosis` 的 `finding`、`source`；待验证改动用 `hypotheses` 的 `change`、`basis`、`measure`。保留作品归因关注 `attributed_followers` 及账户或平台原字段 `new_followers` 的各自口径。比率使用 0–1。
+作品、采集时间、制作输入可核实时，用 `uv run python -m mechanical_video_next.feedback --input observation.json --output <task>/post-publish/<platform>-<snapshot>.json` 导入现有账本。记录已知的带时区 `published_at`、`observed_at`。已有制作记录时填写 `blueprint`、`timeline` 的路径和 SHA-256。可以用 `local_media` 关联已核实的本地版本，用 `creative_features` 为实际现象、首次兑现及后续发现绑定源和时间码。可核实上传版时提供 `published_media`；未知时留空，增长报告保留这条记录并仅按相同 SHA-256 归属版本。平台诊断用 `diagnosis` 的 `finding`、`source`；待验证改动用 `hypotheses` 的 `change`、`basis`、`measure`。保留作品归因关注 `attributed_followers` 及账户或平台原字段 `new_followers` 的各自口径。比率使用 0–1。
 
-Producer 读取报告或原始交接记录，把选定的创作假设写进下一集 Treatment 和动稿。发布后回填已观察的指标、样本口径和限制。单集入口和元数据不齐的历史作品可直接使用本节的复盘和带依据的创作决定。
+对汇集的 JSON 数组运行 `feedback --cohorts` 可按平台、账号、发布周和 `selection_domain` 取得实际数量和指标中位数。Producer 读取报告或原始交接记录，把已用的观察、反例、假设及其验证写入下一集联合时间轴的 `creative`。发布后回填已观察的指标、样本口径和限制。单集入口和元数据不齐的历史作品可直接使用本节的复盘和带依据的创作决定。
 
 `featured` 接收布尔 `value` 和 `source`。`featured_feedback` 和 `extra_distribution` 接收文字 `value` 和 `source`。三项缺失时留 `null`。比较长短和知识深度不同的作品时，同时查看平均观看秒数、观看比例、完播、赞评藏、归因关注与实际精选反馈。标注视觉和声音表达、片长、流量来源及其他同时发生的改动。
 

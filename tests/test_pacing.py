@@ -139,6 +139,26 @@ class PacingTests(unittest.TestCase):
         self.assertEqual(analysis['continuous_viewing'], 'UNKNOWN')
         self.assertEqual(analysis['perceptual_listening'], 'UNKNOWN')
 
+    def test_producer_checks_apply_only_to_the_reviewed_preview(self):
+        analysis = {'media': self.media, 'picture_duration': 6}
+        review = {'media_sha256': self.media['sha256']}
+        for key in ('retention_2s', 'retention_5s', 'knowledge_progression'):
+            review[key] = {'coverage': 'UNKNOWN', 'conclusion': 'Playback unavailable'}
+        review['issues'] = [{'finding': 'Release precedes the result',
+                             'next_step': 'Align the release animation',
+                             'time_range': [3, 4], 'status': 'OPEN'}]
+        checked = pacing.producer_observations(review, analysis)
+        self.assertEqual(checked['issues'][0]['status'], 'OPEN')
+        self.assertEqual(checked['audience_acceptance'], 'UNKNOWN')
+        self.assertEqual(checked['perceptual_listening'], 'UNKNOWN')
+        review['issues'][0].update(status='FIXED', before_sha256=analysis['media']['sha256'],
+                                   recheck='Inspected matching decoded frames')
+        with self.assertRaisesRegex(ValueError, 'prior version'):
+            pacing.producer_observations(review, analysis)
+        self.picture.write_bytes(b'revised picture fixture')
+        with self.assertRaisesRegex(ValueError, 'exact MP4 hash'):
+            pacing.producer_observations(review, dict(analysis, media=joint.binding(self.picture)))
+
     def test_two_second_review_cannot_cite_the_later_reveal_or_claim_missing_coverage(self):
         evidence = [{'time_range': [0, .25], 'observation': 'Open ports are visible'}]
         answers = dict.fromkeys(pacing.OPENING_QUESTIONS, 'UNKNOWN')
